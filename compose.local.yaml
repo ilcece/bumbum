@@ -1,0 +1,14 @@
+name: bumbum-local
+services:
+  mysql:
+    image: mysql:8.0.45@sha256:4af1f8815716546f5b12410f7621f37f93db8dd11a184706ef59111930b8c2ff
+    env_file: .local/db.env
+    ports: ["127.0.0.1:3307:3306"]
+    volumes: ["local_mysql:/var/lib/mysql"]
+    healthcheck:
+      test: [CMD-SHELL, "MYSQL_PWD=$$MYSQL_ROOT_PASSWORD mysql -uroot -e 'SELECT 1' >/dev/null"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+volumes:
+  local_mysql:

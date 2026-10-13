@@ -1,0 +1,12 @@
+{
+  "simulationOnly": true,
+  "warning": "以下UID均为虚拟测试值，不代表真实标签；硬件验收必须回读真实UID重新登记。",
+  "garments": [
+    {"name": "模拟黑色外套 A", "item_code": "DEMO-A001", "color": "黑色", "status": "PUBLISHED"},
+    {"name": "模拟白色衬衫 B", "item_code": "DEMO-B001", "color": "白色", "status": "PUBLISHED"}
+  ],
+  "tags": [
+    {"uid": "04DE0000000001", "notes": "模拟标签 A；不可作为真实UID", "bindItemCode": "DEMO-A001"},
+    {"uid": "04DE0000000002", "notes": "模拟标签 B；不可作为真实UID", "bindItemCode": "DEMO-B001"}
+  ]
+}

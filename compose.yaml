@@ -1,0 +1,74 @@
+name: bumbum
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+services:
+  app:
+    image: ${APP_IMAGE:-bumbum:1.0.0}
+    build: .
+    env_file:
+      - path: .env
+        format: raw
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      DB_TLS: "true"
+      DB_CA_FILE: /run/db-ca.pem
+    volumes:
+      - ./secrets/mysql-ca.pem:/run/db-ca.pem:ro
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 768m
+    cpus: 1.5
+    logging: *logging
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 8s
+      start_period: 15s
+      retries: 3
+  caddy:
+    image: caddy:2.11.2-alpine@sha256:834468128c7696cec0ceea6172f7d692daf645ae51983ca76e39da54a97c570d
+    environment:
+      NO_PROXY: app,localhost,127.0.0.1
+      no_proxy: app,localhost,127.0.0.1
+      SITE_DOMAIN: ${SITE_DOMAIN:?Set SITE_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+    mem_limit: 256m
+    logging: *logging
+    depends_on:
+      app:
+        condition: service_healthy
+  tools:
+    image: ${APP_IMAGE:-bumbum:1.0.0}
+    profiles: [tools]
+    env_file:
+      - path: .env.migrate
+        format: raw
+    environment:
+      NODE_ENV: production
+      DB_TLS: "true"
+      DB_CA_FILE: /run/db-ca.pem
+    volumes:
+      - ./secrets/mysql-ca.pem:/run/db-ca.pem:ro
+    entrypoint: [node, dist/cli.js]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    logging: *logging
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,10 @@
+{
+    email {$ACME_EMAIL}
+    admin off
+}
+{$SITE_DOMAIN} {
+    header Strict-Transport-Security "max-age=31536000"
+    reverse_proxy app:3000
+    # No access log: public visitors' IPs/entry codes are not retained.
+    # Application sets no-store on all dynamic HTML and API responses.
+}

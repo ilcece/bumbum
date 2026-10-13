@@ -1,0 +1,15 @@
+.git
+node_modules
+dist
+.env
+.env.*
+.local
+attachments
+test-results
+playwright-report
+backups
+*.pem
+*.key
+*.log
+
+secrets
