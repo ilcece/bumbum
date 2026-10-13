@@ -1,6 +1,6 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { randomUUID, randomBytes } from "node:crypto";
+import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { writeFileSync } from "node:fs";
 import { spawnSync, execFileSync } from "node:child_process";
 import { once } from "node:events";
@@ -572,5 +572,28 @@ test('16 UTC session is enforced even when MySQL server defaults to Asia/Shangha
   } finally {
     await fresh.end();
     rootSQL("SET GLOBAL time_zone='" + zone + "';");
+  }
+});
+
+test('17 ignored limiter insert failures are surfaced instead of crashing or bypassing rate limits', async () => {
+  const username='constraint-test-'+randomUUID();
+  const key=createHash('sha256').update(`127.0.0.1\0${username}`).digest('hex');
+  const constraint='bumbum_test_limiter_insert_check';
+  rootSQL(`ALTER TABLE bumbum_test.login_attempts ADD CONSTRAINT ${constraint} CHECK (attempt_key <> '${key}');`);
+  const c=await migration.getConnection();
+  try {
+    // Reproduce the old query's behavior: INSERT IGNORE silently skips a rejected row.
+    await c.execute('INSERT IGNORE INTO login_attempts VALUES (?,0,UTC_TIMESTAMP(3))',[key]);
+    const [warnings]:any=await c.query('SHOW WARNINGS');
+    assert.ok(warnings.some((w:any)=>w.Code===3819));
+    const [absent]:any=await c.execute('SELECT * FROM login_attempts WHERE attempt_key=?',[key]);
+    assert.equal(absent.length,0);
+    const r=await api('/login','POST',{username,password:'virtual-wrong-password'});
+    check(r,500);
+    assert.equal(r.data.error.code,'ER_CHECK_CONSTRAINT_VIOLATED');
+    assert.equal(r.headers.get('set-cookie'),null);
+  } finally {
+    c.release();
+    rootSQL(`ALTER TABLE bumbum_test.login_attempts DROP CHECK ${constraint};`);
   }
 });

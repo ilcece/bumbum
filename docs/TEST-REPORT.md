@@ -6,7 +6,7 @@
 
 - TypeScript生产编译：通过，`npm run build`。
 - 锁文件安装：通过，`npm ci --cache /tmp/bumbum-npm`；全量/生产 `npm audit` 均0已知漏洞。
-- MySQL集成：**16组通过、0失败、0跳过**，`bash scripts/test.sh`。
+- MySQL集成：**17组通过、0失败、0跳过**，`bash scripts/test.sh`。
 - Chromium浏览器：**2项通过、0失败、0跳过**，`npm run test:browser`；360×800。
 - 生产Docker镜像：实际构建成功；云环境容器构建网络受限，使用已核验npm缓存的BuildKit上下文进行离线 `npm ci`，保留lockfile integrity。构建无DATABASE_URL/真实云库访问。
 - 生产Compose/Caddy语法：`docker compose config --quiet` 与 `caddy validate` 通过。
@@ -49,3 +49,5 @@ bash scripts/test-containers.sh
 ## 必须人工验证
 
 真实ECS/RDS连通、数据库产品及项目权限/白名单、CA与主机名、DNS、安全组、公网ACME签发/续期、系统重启、备份/PITR恢复、真实iPhone14/标签读取及实际网络性能。内部CAHTTPS成功不能代替公网证书验收；本地数据库成功不能代替阿里云连接成功。请使用 `docs/NFC-ACCEPTANCE.md` 逐次记录实体结果。
+
+登录补充回归：生产日志定位限速记录为空导致TypeError，已移除吞掉插入错误的INSERT IGNORE并保留失败时限速保护。在隔离MySQL用检查约束重现旧查询跳过插入，第17组验证新代码暴露真实数据库错误且不签发会话；生产实际原因/恢复仍需表结构和登录验收。更新步骤见LOGIN-ROW-FIX.md。

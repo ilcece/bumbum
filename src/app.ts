@@ -225,7 +225,7 @@ app.post("/api/admin/login", async (req, res) => {
     .digest("hex");
   const result = await tx(async (c) => {
     await c.execute(
-      "INSERT IGNORE INTO login_attempts VALUES (?,0,UTC_TIMESTAMP(3))",
+      "INSERT INTO login_attempts (attempt_key,failures,window_start) VALUES (?,0,UTC_TIMESTAMP(3)) ON DUPLICATE KEY UPDATE attempt_key=attempt_key",
       [key],
     );
     const [a] = await rows(
@@ -233,6 +233,7 @@ app.post("/api/admin/login", async (req, res) => {
       [key],
       c,
     );
+    if (!a) throw fail(503, "LOGIN_LIMITER_UNAVAILABLE", "登录服务暂不可用，请稍后重试");
     let count = a.failures;
     if (new Date(a.window_start).getTime() < Date.now() - 900000) {
       count = 0;

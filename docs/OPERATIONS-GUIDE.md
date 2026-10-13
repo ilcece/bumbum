@@ -607,7 +607,7 @@ Workbench断开是正常的。实例恢复后重新登录，检查 `sudo docker 
 
 ## 15. 自动测试怎样运行
 
-已有结果：16组MySQL集成测试、2项Chromium浏览器测试通过；生产容器、严格TLS、代理、Secure Cookie、重启和初始化入口验证通过。见 [TEST-REPORT.md](TEST-REPORT.md)。这不是你真实ECS/RDS的验收结果。
+已有结果：17组MySQL集成测试、2项Chromium浏览器测试通过；生产容器、严格TLS、代理、Secure Cookie、重启和初始化入口验证通过。见 [TEST-REPORT.md](TEST-REPORT.md)。这不是你真实ECS/RDS的验收结果。
 
 **不要在生产目录运行故障注入测试。** 集成测试会停止隔离数据库、临时撤销本地审计写入权限并生成虚拟记录。生产目录只做第14节受控业务验收。
 
@@ -621,7 +621,7 @@ bash scripts/test.sh
 npm run test:browser
 ```
 
-集成测试必须显示16通过0失败0跳过，浏览器测试2通过。使用系统Chromium默认 `/usr/bin/chromium`；不同路径用 `CHROMIUM_PATH=/实际路径 npm run test:browser`。配套Playwright浏览器可用 `npx playwright install chromium` 获取，但需要网络及系统依赖，不忽略安装失败。
+集成测试必须显示17通过0失败0跳过，浏览器测试2通过。使用系统Chromium默认 `/usr/bin/chromium`；不同路径用 `CHROMIUM_PATH=/实际路径 npm run test:browser`。配套Playwright浏览器可用 `npx playwright install chromium` 获取，但需要网络及系统依赖，不忽略安装失败。
 
 可选在**无已有部署配置**的专用本地检出执行：
 
