@@ -2,6 +2,8 @@
 
 单项目 TypeScript + Express + MySQL 8.0。根据 [V0.2需求](docs/PRD-V0.2.md) 实现固定随机入口动态映射与一个管理员角色，移动端公开服装详情。没有默认管理员密码，不连接真实云库构建，不提供防伪认证、用户自助认领或真实写卡。
 
+新手部署请先读 [完整部署与测试操作手册](docs/OPERATIONS-GUIDE.md)，按阶段执行。
+
 ## 本地开发（隔离MySQL）
 
 要求 Node **24.19.0**、npm、Docker+Compose >=2.30；浏览器测试使用已安装Chromium，或安装Playwright配套浏览器后配置其路径。每个云任务已有隔离工作区，直接用现有检出，不需要Git worktree。
