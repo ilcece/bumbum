@@ -1,3 +1,4 @@
+import { safeErrorDetails } from "./diagnostics.js";
 import express, { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
@@ -740,6 +741,7 @@ app.use((e: any, req: Request, res: Response, next: NextFunction) => {
       JSON.stringify({
         requestId: res.locals.requestId,
         code: status === 503 ? "DEPENDENCY_ERROR" : "INTERNAL_ERROR",
+        ...safeErrorDetails(e),
       }),
     );
   res.status(status);
