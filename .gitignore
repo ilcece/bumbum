@@ -1,4 +1,4 @@
-# Local configuration and credentials; keep the documented template.
+# 本地配置和凭证；保留配置模板。
 .env
 .env.*
 !.env.example
@@ -7,7 +7,7 @@
 *.p12
 *.pfx
 
-# Dependencies and Python generated files.
+# 依赖目录和 Python 生成文件。
 .venv/
 venv/
 __pycache__/
@@ -15,7 +15,7 @@ __pycache__/
 *.egg-info/
 node_modules/
 
-# Builds, tests, logs and local databases/exports.
+# 构建产物、测试结果、日志、本地数据库和导出文件。
 dist/
 build/
 .pytest_cache/
@@ -32,7 +32,7 @@ logs/
 backups/
 dumps/
 
-# Local editor/OS files.
+# 本地编辑器和操作系统生成的文件。
 .DS_Store
 Thumbs.db
 .idea/
