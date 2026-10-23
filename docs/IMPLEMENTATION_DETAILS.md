@@ -204,11 +204,12 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 ## 8. 配置与资料来源
 
-配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。项目只定义规则，还没有应用或启动脚本；启动入口、Gunicorn 进程数、托管工具、依赖版本等须加代码后实测。
+配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；Gunicorn、生产进程数与托管方式尚未实现和验证。
 
 | 配置 | 用途 |
 |---|---|
-| DB_* | 数据库连接 |
+| DB_* | 数据库连接；本机默认127.0.0.1:33306，使用普通测试账号 |
+| DEV_DB_ROOT_PASSWORD | 仅供 Compose 首次初始化测试库，准备脚本生成，不交给后端 |
 | MASTER_KEY_FASHION / MASTER_KEY_JEWELRY | 按项目计算 K0/K2/K3/K4 的根材料，不直接写卡 |
 | SDM_META_KEY_V1 / SDM_META_KEY_VERSION | 全局 K1 与初始 v1 配置 |
 | STORAGE_ENCRYPTION_KEY / STORAGE_KEY_VERSION | 包装 DEK 的独立存储密钥及版本 |
@@ -217,7 +218,7 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 | SMS_CODE_HASH_KEY | 第二阶段短信码的独立带密钥指纹 |
 | ADMIN_TOTP_ISSUER | 验证器显示的公开发行方名称 |
 | CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者开发 localhost:5174、生产 https://admin.bumbum.cc |
-| VITE_API_BASE_URL | 公开前端配置，已带 /api；endpoint 不重复带 /api，其他 VITE_ 值也不得含秘密 |
+| VITE_API_BASE_URL | 当前为 /api；开发由 Vite 转到本机5000端口，生产由 Nginx 转交；调用不重复带 /api，所有 VITE_ 值不得含秘密 |
 
 各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS 或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。
 

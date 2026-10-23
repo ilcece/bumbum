@@ -1,0 +1,3 @@
+# 本机开发和检查所需的依赖。
+-r requirements.in
+pytest==9.1.1

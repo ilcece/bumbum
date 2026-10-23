@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文是接口地址、字段和返回结果的定义，不表示已经实现。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。当前只实现第 0.5 节的两个运行检查入口，其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -12,7 +12,7 @@
 
 | 环境 | 基础地址 | 补上的部分 | 最终请求 |
 |---|---|---|---|
-| 开发 | http://localhost:5000/api | /admin/chips | http://localhost:5000/api/admin/chips |
+| 本机开发 | /api | /health | http://localhost:5174/api/health（Vite 转给5000端口） |
 | 生产管理端 | /api | /admin/chips | https://admin.bumbum.cc/api/admin/chips |
 | 生产用户端 | /api | /tap/verify | https://nfc.bumbum.cc/api/tap/verify |
 
@@ -46,7 +46,25 @@
 
 ### 0.4 当前能做到哪一步
 
-当前没有运行中的 API。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
+当前只实现下方两个检查接口；其余业务接口尚未注册，访问返回404。后续已接入路由但未开放的功能使用501，不伪造成功。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
+
+### 0.5 当前已实现的运行检查
+
+仅用于本机开发检查，不要求登录，不读取或返回密钥、账号资料。无查询参数；多传返回400 invalid_param。返回禁止缓存。
+
+| 接口 | 检查什么 | 成功结果 |
+|---|---|---|
+| GET /api/health | 后端进程能处理请求；不依赖数据库 | HTTP 200 |
+| GET /api/ready | 数据库可连接、目标表齐全，首次初始化的服装、饰品两个项目存在 | HTTP 200；连接失败、未配置或初始化不完整时503 service_unavailable |
+
+成功内容分别为：
+```json
+{"status":"ok","data":{"service":"bumbum","state":"running"}}
+```
+```json
+{"status":"ok","data":{"database":"ready"}}
+```
+不返回数据库地址、密码、SQL 或异常详情。ready 检查表清单和初始项目，不逐列比对数据库结构，也不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
 
 ## 1. 登记芯片、验证触碰和绑定手机号
 
@@ -227,7 +245,8 @@ HTTP 状态码是这次请求的大类结果，code 是具体原因，message �
 | 403 | forbidden | 请求网页或操作权限不允许 |
 | 403 | csrf_failed | 防冒用口令不正确 |
 | 403 | invalid_tap_token | 临时凭证无效、过期、已用掉或不适用于本物品/操作 |
-| 404 | not_found | 资源或密钥记录不存在 |
+| 404 | not_found | 地址、资源或密钥记录不存在 |
+| 405 | method_not_allowed | 此地址不支持该请求方式 |
 | 409 | already_exists | UID/物品标识/密钥等已存在 |
 | 409 | already_bound | 已绑定或重复绑定不允许 |
 | 409 | item_already_has_chip | 物品已绑定其他芯片 |

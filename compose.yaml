@@ -1,0 +1,23 @@
+# 仅用于本机开发。只启动独立测试数据库，不连接已有 RDS。
+name: bumbum-local
+services:
+  db:
+    image: mysql:8.0.46
+    ports:
+      - "127.0.0.1:${DB_PORT:-33306}:3306"
+    environment:
+      MYSQL_DATABASE: bumbum_digital
+      MYSQL_USER: ${DB_USER:?请先运行 python scripts/setup_local.py}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?请先运行 python scripts/setup_local.py}
+      MYSQL_ROOT_PASSWORD: ${DEV_DB_ROOT_PASSWORD:?请先运行 python scripts/setup_local.py}
+    volumes:
+      - test_database:/var/lib/mysql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql -h 127.0.0.1 -u \"$${MYSQL_USER}\" -D bumbum_digital --execute='SELECT code FROM project' --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+volumes:
+  test_database:

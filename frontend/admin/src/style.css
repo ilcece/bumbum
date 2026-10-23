@@ -1,0 +1,29 @@
+:root {
+  font-family: system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+  color: #172c28;
+  background: #f5f7f6;
+  font-synthesis: none;
+  line-height: 1.65;
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 820px; margin: 64px auto; padding: 0 24px; }
+p { margin: 8px 0; }
+.brand { font-size: 18px; font-weight: 800; letter-spacing: 3px; }
+.step { margin-top: 32px; color: #53675f; font-size: 14px; }
+h1 { margin: 6px 0 12px; font-size: clamp(28px, 5vw, 36px); }
+h2 { margin: 0; font-size: 17px; }
+.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 28px 0 20px; }
+.card { padding: 24px; border: 1px solid #d2ddd8; border-radius: 10px; background: white; }
+.card p { color: #53675f; font-size: 14px; }
+.card .result { margin-top: 14px; color: #53675f; font-size: 24px; font-weight: 700; }
+.ok .result { color: #186547; }
+.failed .result { color: #a73426; }
+button { border: 0; border-radius: 7px; padding: 11px 22px; background: #185e47; color: white; font: inherit; cursor: pointer; }
+button:disabled { opacity: .6; cursor: wait; }
+button:focus-visible { outline: 3px solid #5ba48b; outline-offset: 3px; }
+footer { margin-top: 32px; color: #53675f; font-size: 14px; }
+@media (max-width: 560px) {
+  main { margin: 32px auto; padding: 0 18px; }
+  .checks { grid-template-columns: 1fr; }
+}
