@@ -2,7 +2,7 @@
 -- 当前目标结构的唯一事实来源；仅供空库初始化，不是升级/重复执行脚本。
 -- 已部署数据库须经独立迁移、备份和验证；不要为重跑本文件删除已有数据库。
 -- MySQL >= 8.0.16（需要实际执行 CHECK）/ utf8mb4 / InnoDB。
--- Phase 2/3 的表是预留结构，不表示功能已实现或未决方案已批准。
+-- 第二、三阶段的表是预留结构，不表示功能已实现或未决方案已批准。
 SET SESSION time_zone = '+00:00';
 SET SESSION default_storage_engine = InnoDB;
 
@@ -65,7 +65,7 @@ CREATE TABLE chip (
   chip_status ENUM('pending','bound','disabled','lost') NOT NULL DEFAULT 'pending',
   batch_no VARCHAR(64) DEFAULT NULL,
   provisioned_at DATETIME DEFAULT NULL,
-  last_verified_counter BIGINT UNSIGNED DEFAULT NULL COMMENT 'Phase 2：只保存通过CMAC校验的最大计数器',
+  last_verified_counter BIGINT UNSIGNED DEFAULT NULL COMMENT '第二阶段：只保存通过CMAC校验的最大计数器',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chip_uid (chip_uid),
@@ -200,7 +200,7 @@ CREATE TABLE admin_audit (
   CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
 ) COMMENT='管理员操作审计';
 
--- Phase 1：认证状态只在服务端保存摘要；所有消费、锁定更新均须事务化。
+-- 第一阶段：认证状态只在服务端保存摘要；所有消费、锁定更新均须事务化。
 CREATE TABLE admin_session (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   admin_id BIGINT UNSIGNED NOT NULL,
@@ -244,7 +244,7 @@ CREATE TABLE security_rate_limit (
   attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
   locked_until DATETIME DEFAULT NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT='登录与Phase 2短信等限流状态，事务锁定桶行后更新';
+) COMMENT='登录与第二阶段短信等限流状态，事务锁定桶行后更新';
 
 CREATE TABLE admin_login_event (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -258,13 +258,13 @@ CREATE TABLE admin_login_event (
   CONSTRAINT fk_login_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
 ) COMMENT='登录事件，未知账号的失败也可记录，不写密码或验证码';
 
--- Phase 2预留：不代表SDM选钥与用户身份方案已定稿。
+-- 第二阶段预留：不代表SDM选钥与用户身份方案已定稿。
 CREATE TABLE tap_grant (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   token_hash BINARY(32) NOT NULL,
   chip_id BIGINT UNSIGNED NOT NULL,
   item_id BIGINT UNSIGNED NOT NULL,
-  allowed_action ENUM('read','bind') NOT NULL COMMENT 'touch权限待Phase 3决策后扩展，当前不得签发',
+  allowed_action ENUM('read','bind') NOT NULL COMMENT 'touch权限待第三阶段决策后扩展，当前不得签发',
   expires_at DATETIME NOT NULL,
   consumed_at DATETIME DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -286,7 +286,7 @@ CREATE TABLE sms_challenge (
   KEY idx_sms_grant_phone (tap_grant_id, phone),
   KEY idx_sms_expiry (expires_at),
   CONSTRAINT fk_sms_grant FOREIGN KEY (tap_grant_id) REFERENCES tap_grant(id)
-) COMMENT='Phase 2短信挑战，发新码使同grant同手机号旧挑战失效';
+) COMMENT='第二阶段短信挑战，发新码使同grant同手机号旧挑战失效';
 
 -- ============================================================
 -- 11. 服装业务表
@@ -341,7 +341,7 @@ CREATE TABLE fashion_item_channel (
 ) COMMENT='购买渠道信息';
 
 -- ============================================================
--- 12. 饰品业务表（养成机制 Phase 3 细化）
+-- 12. 饰品业务表（养成机制第三阶段细化）
 -- ============================================================
 CREATE TABLE jewelry_item_profile (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -380,7 +380,7 @@ CREATE TABLE jewelry_task (
   status ENUM('active','disabled') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_task_code (code)
-) COMMENT='饰品任务定义（Phase 3 细化）';
+) COMMENT='饰品任务定义（第三阶段细化）';
 
 CREATE TABLE jewelry_task_record (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -405,4 +405,4 @@ CREATE TABLE jewelry_reward (
   status ENUM('active','disabled') NOT NULL DEFAULT 'active',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_reward_code (code)
-) COMMENT='饰品奖励定义（Phase 3 细化）';
+) COMMENT='饰品奖励定义（第三阶段细化）';
