@@ -1,6 +1,6 @@
 # BUMBUM API 契约
 
-更新日期：2026-10-23。本文是接口定义来源，不表示任何接口已经实现。业务规则见 [PRD.md](PRD.md)，安全、事务和状态机见 [TECH_SPEC.md](TECH_SPEC.md)，字段以 [schema](db/schema.sql) 为准。
+更新日期：2026-10-24。本文是接口定义来源，不表示任何接口已经实现。业务规则见 [PRD.md](PRD.md)，安全、事务和状态机见 [TECH_SPEC.md](TECH_SPEC.md)，字段以 [schema](db/schema.sql) 为准。
 
 ## 0. 通用约定
 
@@ -43,7 +43,7 @@ HTTP 200 的 `verified:false` 仅用于已执行的触碰业务验证失败；�
 
 ### 0.4 阶段状态
 
-Phase 1 是基础管理与完整管理员认证；真实密钥生成受 SDM 设计阻塞。Phase 2 验证与短信接口是目标契约，选钥、工具兼容性、短信提供商未完成前不能声称可用。Phase 3 运营/养成接口为预留；touch 权限及身份方案未确认。未来服务对尚未启用的功能返回 501 feature_not_ready；当前仓库根本没有运行中的 API。
+Phase 1 是基础管理与完整管理员认证；全局 K1 架构已确认，真实密钥生成仍须完成 KDF、权限与单卡验证。Phase 2 验证与短信接口是目标契约，SDM 具体参数、工具兼容性和短信提供商未完成前不能声称可用。Phase 3 运营/养成接口为预留；touch 权限及身份方案未确认。未来服务对尚未启用的功能返回 501 feature_not_ready；当前仓库根本没有运行中的 API。
 
 ## 1. 入库与用户触碰
 
@@ -61,13 +61,20 @@ identifier 必填，规范化为 7 字节冒号分隔大写 UID；content/date �
 ```
 错误：400 invalid_param、401 webhook_auth_failed、409 project_mismatch、503 service_unavailable。
 
-### 1.2 POST /api/tap/verify（Phase 2，选钥方案阻塞）
+### 1.2 POST /api/tap/verify（Phase 2，全局 K1 架构已确认，参数与实测待完成）
 
-请求体只接受 picc_data 和 cmac，不含 item_uid。目标格式为 picc_data 32 位十六进制、cmac 16 位十六进制，实际 SDM 编码仍须经单卡核验：
+请求体仍只接受 picc_data 和 cmac，不增加 project、密钥版本、UID、查找码或 item_uid。目标格式为 picc_data 32 位十六进制、cmac 16 位十六进制，实际 SDM 编码仍须经单卡核验：
 ```json
 {"picc_data":"FDE4AFA99B5C820A2C1BB0F1C792D0EB","cmac":"C48B89C17A233B2C"}
 ```
-选钥、CMAC 校验、状态资格、防重放和授权签发遵守 TECH_SPEC 第 3、5 节。只接受通过 CMAC 的新计数器；状态不合格不能签发 token。refresh/重复提交旧 URL 返回 replay_suspect，前端提示重新触碰；CMAC 失败不更新计数器。
+服务端流程以 TECH_SPEC 第 3、5 节为准：
+
+1. 校验输入并使用全局 K1 解密，初期仅启用 v1；检查 PICC 结构，得到候选 UID 和计数器。不能以“能转成十六进制”或“解密没报错”判定身份有效。
+2. 按候选 UID 查库确定项目，核对芯片配置版本与候选 K1 版本的对应关系，再取得该芯片独立 K2。
+3. 按 SDM 规范用 K2、UID、计数器等派生会话 MAC 密钥，按实际 MAC 覆盖范围/截断规则验签。唯一候选完整通过后才确认身份；初期只有一个候选版本，未来多版本不能仅接受第一个解密成功结果。多个完整匹配返回 500 internal_error，不签发授权。
+4. 检查状态与配置资格，在事务内重新核对记录、接受新计数器、写成功日志并签发 tap_token。CMAC 失败、版本不符和事务失败均不能推进计数器。refresh/重复旧 URL 返回 replay_suspect，提示重新触碰。
+
+配置缺失/数据库故障不是防伪失败，分别按未启用功能或服务故障处理；不吞掉所有异常。验证接口须支持多进程限流，触发时返回 429 rate_limited，阈值待负载测试确认。本文没有验证性能或真实芯片行为。
 
 成功 data：verified=true、project、item_id、item_uid、owner_bound、tap_token、expires_in（300）、item_detail。fashion 的 item_detail 含 profile 字段和 trace 数组、story 对象或 null、channel 数组；jewelry 的 item_detail 含 name/description/material/meaning/image_urls。Phase 2 不返回“当前用户”养成进度。用户侧 channel 不返回 order_no 或个人交易数据。
 ```json
@@ -170,9 +177,9 @@ reason：cmac_fail / decrypt_fail / unknown_chip / replay_suspect / disabled / n
 | POST /api/admin/chips/{id}/bind-item | JSON item_id 必填 + CSRF | 更新后 ChipView |
 | POST /api/admin/chips/{id}/unbind-item | JSON `{}` + CSRF | 更新后 ChipView |
 
-密钥生成暂受设计阻塞，未来启用后仍禁止覆盖已有记录：409 already_exists；传 force 返回 400 invalid_param。查看密钥使用 POST，keys 为 K0–K4 各 32 位十六进制字符串，sun_url_template 引用 TECH_SPEC 第 5.1 节；确认只用于防止误操作，不替代身份与 CSRF。密钥响应 Cache-Control:no-store，先写入审计，密钥不存在返回 404 not_found。
+密钥生成架构已确认，但具体 KDF、权限与单卡验证尚未完成，当前仍不启用；未来启用后仍禁止覆盖已有记录：409 already_exists；传 force 返回 400 invalid_param。查看密钥使用 POST，keys 为 K0–K4 各 32 位十六进制字符串，sun_url_template 引用 TECH_SPEC 第 5.1 节；确认只用于防止误操作，不替代身份与 CSRF。K1 为该芯片配置关联版本的全局密钥加密快照；同版本不同芯片的 K1 相同，不逐卡生成。查看 K1 会暴露该版本全部芯片共享的秘密，界面须明确提示此范围；保持现有 full 会话、确认与审计，不在列表展示。密钥响应 Cache-Control:no-store，先写入审计，密钥不存在返回 404 not_found。
 
-状态转换、恢复和绑定按 TECH_SPEC 第 2.2 节；不允许任意跳转。芯片重复绑定、跨项目、目标已有芯片分别返回 409 already_bound / project_mismatch / item_already_has_chip。状态转换不合法返回 409 invalid_state。密钥方案未完成时 generate-keys 返回 501 feature_not_ready。
+状态转换、恢复和绑定按 TECH_SPEC 第 2.2 节；不允许任意跳转。芯片重复绑定、跨项目、目标已有芯片分别返回 409 already_bound / project_mismatch / item_already_has_chip。状态转换不合法返回 409 invalid_state。具体派生/写卡参数与前置验证未完成时 generate-keys 返回 501 feature_not_ready；不得把架构已确认表述为已可写真实芯片。
 
 ## 4. 管理端物品
 
