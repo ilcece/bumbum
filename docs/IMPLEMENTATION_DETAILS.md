@@ -1,6 +1,6 @@
 # 技术附录：写代码时要遵守的精确规则
 
-这是 [TECH_SPEC](../TECH_SPEC.md) 的组成部分。cece 可以先读正文理解流程，按需查这里；AI 实现数据库、安全、认证和部署时必须读取对应章节。这里保留精确参数，并先解释它们在防什么问题。本次只调整写法和资料位置，没有修改已有业务与安全规则。
+这是 [TECH_SPEC](../TECH_SPEC.md) 的组成部分。cece 可以先读正文理解流程，按需查这里；AI 实现数据库、安全、认证和部署时必须读取对应章节。这里保留精确参数，并先解释它们在防什么问题。管理员认证按 cece 已确认的 MVP 简化方案执行；芯片密钥、用户触碰和所有权规则保持原有定义。
 
 ## 1. 编号与数据库保存规则
 
@@ -31,7 +31,7 @@
 |---|---|
 | SDM_META_KEY_V1 | 独立安全随机生成 16 字节，写成 32 位十六进制；同版本跨项目相同。不用全零、项目根密钥或其他用途密钥替代 |
 | SDM_META_KEY_VERSION | 初期只支持 v1。缺失、格式错误或不支持版本时，阻止相关功能启用，不能使用默认秘密兜底 |
-| K1 加载 | 可在启动时加载只读配置到受控进程内存，不逐请求查库；不写仓库、普通日志；限流和业务变化仍保存到数据库 |
+| K1 加载 | 可在启动时加载只读配置到受控进程内存，不逐请求查库；不写仓库、普通日志；账号失败次数和业务变化仍保存到数据库；登录的 IP 频率限制由 Nginx 共用计数 |
 | chip_key.key_version | 不可变的 SDM 配置版本；初始配置 v1 固定对应全局 K1 v1 |
 | master_key_version | K0/K2/K3/K4 所属项目根密钥版本，不代表 K1 版本 |
 | storage_key_version | 包装数据库秘密所用的存储密钥版本，不代表芯片密钥版本 |
@@ -41,7 +41,7 @@
 
 SDMMetaRead 应配置为 K1，SDMFileRead 配置为 K2；这些名字分别表示“解密芯片信息”和“读取/核验 SDM 数据所用密钥”。实际管理认证、ChangeKey（换钥匙）、写文件和改设置的权限要查 NXP 资料并实测，不能因为名字是“元数据密钥”就假定 K1 没有其他权限。
 
-全局 K1 泄露影响该版本所有芯片的编号/读数隐私；正确分开的 K2 不应随之泄露。查看密钥要求 full 登录、确认、先保存审计、Cache-Control:no-store（不缓存），界面提醒全局范围。列表不展示密钥，前端不长期保存。禁止 force=true 覆盖已有记录；重复生成返回 already_exists，真正换钥匙另定流程和计数器处理。
+全局 K1 泄露影响该版本所有芯片的编号/读数隐私；正确分开的 K2 不应随之泄露。查看密钥要求完整登录、确认、先保存审计、Cache-Control:no-store（不缓存），界面提醒全局范围。列表不展示密钥，前端不长期保存。禁止 force=true 覆盖已有记录；重复生成返回 already_exists，真正换钥匙另定流程和计数器处理。
 
 ## 3. 秘密如何加密保存
 
@@ -68,44 +68,53 @@ chip_key 使用 encrypted_keys、nonce、dek_ciphertext、dek_nonce、storage_ke
 
 ## 4. 登录凭证与防冒用检查
 
-凭证是“这次登录通过了”的随机通行证；数据库只保存它的指纹（SHA-256 摘要），不保存原始值。密码另用 Werkzeug 的 scrypt 计算校验指纹，并为每个密码加入不同随机值（加盐），避免保存原密码；运行参数按服务器资源验证，不自创算法。
+目标：管理员一次提交账号、密码、Authenticator 验证码后登录；退出和重置后旧登录立即失效。密码用 Werkzeug 的 scrypt 保存校验指纹，每个密码带独立随机值（加盐），不保存原密码。运行参数按服务器资源验证，不自创算法。
 
 | 项目 | 精确要求与含义 |
 |---|---|
-| 会话 | admin_session 保存 token_hash 和 csrf_token_hash；enroll 仅用于首次设置，5 分钟；full 完整权限最长 8 小时 |
+| 登录 | POST /api/admin/auth/login 一次接收 username、password、code；只有账号启用、验证器已设置、密码和验证码均正确才成功；不发临时登录票据 |
+| 验证器 | 使用 pyotp 等成熟库；使用标准 HMAC-SHA1 的 TOTP，6 位、30 秒一个时段，容差为当前时段前后各 1 个；秘密独立安全随机生成至少 160 位，以 Base32 表示并通过二维码设置；服务器校时。接受的时段必须大于 totp_last_step |
+| 会话 | 使用密码学安全随机数生成至少 256 位登录 token；admin_session 仅保存其 SHA-256 指纹 token_hash，最长 8 小时，不滚动续期；没有设置阶段的临时权限或 scope 字段 |
 | Cookie | 名 bumbum_admin_session；生产 HttpOnly（网页脚本不能读取）、Secure（只经 HTTPS）、SameSite=Strict（限制跨站携带）、Path=/api/admin；不设 Domain |
-| 正式凭证位置 | 只用 Cookie；不返回 JSON，不放 URL、本地存储或正式 Bearer 认证 |
-| Origin | 请求来自哪个网页；生产管理域名、开发 ADMIN_ORIGIN 精确匹配。登录/MFA 无 Cookie 时也检查，不能因没带 Origin 而跳过；命令行联调也须带合法 Origin |
-| 写请求 | JSON，并在已有 Cookie 时要求 X-CSRF-Token；不能仅靠 SameSite |
-| CORS | 浏览器允许哪些其他网页读取接口；管理 API 仅 ADMIN_ORIGIN，允许 credentials 携带 Cookie，禁止通配来源，也不能把 CORS_ORIGINS 总清单全部用于管理路由 |
+| 正式凭证位置 | 登录 token 只放 Cookie，不返回 JSON，不放 URL、本地存储或正式 Bearer 认证 |
+| Origin | 管理请求写入数据时，精确匹配生产管理域名或开发 ADMIN_ORIGIN；缺失或不符返回 403 forbidden；命令行联调也须带合法 Origin |
+| 写请求 | 只接受 JSON；除 login 外都需要有效登录 Cookie 和 X-CSRF-Token。login 不依赖已有 Cookie 或口令，但仍强制检查 Origin 和 JSON，避免跨站登录 |
+| CORS | 管理 API 仅允许 ADMIN_ORIGIN，允许 credentials 携带 Cookie；不用通配来源，也不套用 CORS_ORIGINS 总清单 |
 | 本地开发 | 仅明确 localhost 配置可关闭 Cookie Secure；生产不得关闭 |
 
-CSRF 口令是“绑定这次登录、由页面额外提供”的值，用于防止其他网页借登录状态操作。HMAC-SHA256 是用独立秘密计算内容指纹的方法：用 CSRF_HMAC_KEY 对 UTF-8 字符串 `bumbum|csrf|<原始session token>` 计算，结果用小写十六进制表示；签发会话时再将它的 SHA-256 存到 csrf_token_hash。
+**随机防冒用口令怎么处理：**采用成熟 CSRF 组件支持的“令牌随服务器会话保存”模式。创建登录时，独立随机生成 32 字节、写成 64 位小写十六进制，存到 admin_session.csrf_token。它和登录 token 各自生成，不从 token 推导，不额外使用 CSRF 密钥或手写签名公式。此口令单独不能登录，因此数据库可保存原值；正式登录 token 仍只保存指纹。组件与 MySQL 会话的适配在开发时核验，不能直接套用要求不同存储方式的默认配置。
 
-GET /api/admin/auth/session 用当前 Cookie 重新算出同一个 csrf_token，返回 scope/过期时间，不改会话、不换 token、不缓存；因此页面刷新或多标签页不会因这个 GET 相互挤掉口令。更换 CSRF_HMAC_KEY 必须撤销全部会话。
+GET /api/admin/auth/session 检查有效登录及账号状态，返回 authenticated、expires_at 和同一 csrf_token，不返回 Cookie 值，不缓存，也不换口令或修改登录状态。页面只在内存中持有口令，写请求放 X-CSRF-Token；后端恒定时间比较（避免比较耗时泄露内容）。这样刷新页面或多个标签页能共用现有登录，不需要自定义 HMAC 密钥。
 
-首次开户没有公开注册和默认密码，用以后实现的受控服务器命令安全输入。未设置验证器时，只允许 session、totp/setup、totp/enable、logout，业务返回 mfa_required。setup 重复调用使用同一待绑定秘密，已启用后不能覆盖。enable 成功时记录验证时段、保存 10 个备份码的摘要，撤销全部 enroll 会话，重新签发 full Cookie。
+登录时锁定 admin_user 对应行，重查账号、锁定截止时间、密码和验证码。验证成功后，在同一事务内更新 totp_last_step、last_login_at、清失败次数、创建新会话并保存成功记录。并发请求不能用同一验证码拿到两次登录；重登成功时撤销浏览器携带的旧会话，生成新的 token 和防冒用口令，避免沿用旧凭证。失败计数和失败记录也必须保存，不能随错误响应回滚；保存失败按服务故障处理，不能先发 Cookie。
 
-密码正确且已有 TOTP 时，创建 admin_mfa_challenge，发 5 分钟一次性 mfa_ticket。TOTP 用 pyotp 等成熟实现，时间步长和容差在实现时固定验证；接受的 step 必须大于 totp_last_step，并在事务中更新。同一挑战、验证时段和备份码不能被两个同时到达的请求重复用掉。
+账号不存在、禁用、验证器未设置、密码或验证码错误、验证码已使用，对外统一为 401 unauthorized，不暴露具体哪项正确。字段缺失或格式不合法仍为 400 invalid_param；临时锁定为 429 rate_limited。注销撤销当前会话并清 Cookie；禁用或重置验证器时撤销该账号全部会话，每次管理请求都重查账号启用和验证器已设置状态。
 
-每个备份码至少 128 位随机熵（足够长的安全随机数），共 10 个，只显示一次，只保存 SHA-256 摘要。备份码登录也先验证密码，再同事务用掉 mfa_ticket 和备份码。注销撤销当前会话；禁用账号时全部会话和未用挑战失效，每次请求查账号状态。丢失全部恢复因子走受控人工恢复，没有公开绕过接口。
+**首次设置和丢失后的恢复：**以后提供受控服务器命令；当前不写命令实现、不编造可执行步骤。命令安全输入密码，生成验证器秘密和仅在操作者终端显示的二维码，输入验证码确认后，才加密保存秘密并设 totp_enabled=1；记录确认时段。重置先将 totp_enabled=0、清除旧验证器秘密和撤销全部会话一起保存，再确认新验证器；失败时维持不可登录。重置还清账号失败计数和锁定时间。记录目标账号、执行时间、原因与结果，不能记录密码、二维码内容、秘密或验证码。不增加网页注册、验证器设置接口、备份码或恢复绕过接口；真正创建或重置账号需要授权。
 
 ## 5. 限制重试与记录操作
 
-限流就是限制重复请求次数。锁定和已使用标记必须放数据库，多个 Gunicorn 进程才会看到同一份结果。
+第一阶段只用现有 MySQL 和 Nginx，不引入 Redis。账号失败计数与登录会话放数据库，多个 Gunicorn 进程看到同一份结果；Nginx 的共享计数区负责 IP 频率限制。
 
 | 场景 | 固定规则 |
 |---|---|
-| 密码/登录 | 账号和 IP 分别计数；15 分钟窗口内失败 5 次锁 5 分钟，达到 10 次锁 30 分钟 |
-| 锁定期间 | 拒绝但不延长锁期、不增加次数；成功登录清账号失败桶，IP 桶自然过期 |
-| MFA 登录挑战 | 最多失败 5 次，同时受账号/IP 限制 |
-| 短信发送 | 同手机号 60 秒一次；同 IP 每小时最多 10 次 |
-| 短信码 | 最多 5 次错误；新码使同 grant 同手机号旧码失效 |
-| 芯片验证 | 多进程共同计数；阈值经负载测试和共享 IP 情况确认，不预先保证每秒固定次数或“零开销” |
+| 账号登录失败 | admin_user.failed_login_attempts 每次加 1；密码错、验证码错或重复使用均计数，连续 5 次设置 locked_until 为当前时间后 15 分钟 |
+| 已锁定 | 返回 429，不增加次数、不延长锁期；到期后的首次尝试先清旧计数和锁定时间，再按新尝试判断；成功登录也清零 |
+| 未知账号 | 不创建管理员或账号计数记录；返回同样的 unauthorized，并记录经指纹处理的账号标识；IP 频率限制仍有效 |
+| 同一 IP 登录频率 | Nginx 仅对准确的登录路径限制，平均每分钟 5 次、允许瞬时额外 4 次；超过返回 429 rate_limited。阈值上线前联调验证，不用于整个管理后台 |
+| 第二阶段短信发送 | 同手机号 60 秒一次；同 IP 每小时最多 10 次，仍需多进程共用计数 |
+| 第二阶段短信码 | 最多 5 次错误；新码使同 grant 同手机号旧码失效 |
+| 第二阶段芯片验证 | 多进程共用计数；阈值经负载测试和共享 IP 情况确认，不预先保证固定次数或零开销 |
 
-security_rate_limit 的 bucket_key 用 IP_HASH_KEY 做 HMAC-SHA256，输入含用途和规范化标识，避免混用计数。创建和更新同一桶必须处理唯一键、锁行及事务，不用进程内字典代替。
+账号失败计数更新时锁定 admin_user 行，在事务内检查和更新；不再为登录维护多种计数桶或分级锁期。security_rate_limit 仅作第二阶段短信、芯片验证的预留表，不参与第一阶段登录；其 bucket_key 仍用 IP_HASH_KEY 对用途和统一格式的标识计算 HMAC-SHA256。第二阶段开发时处理唯一键、锁行与保存，不能用单个进程内存代替。
 
-admin_login_event 记成功、失败、锁定；未知账号用 username_hash，不编造 admin_id。admin_audit 是“谁在什么时候对什么做了什么”的管理员操作记录。ip_hash 由独立 HMAC 密钥处理规范化 IP；不记密码、密钥、验证码、token 或完整手机号。密钥读取先保存审计再返回，数据库失败时不能声称已经记录；动态链接/请求体不进普通访问日志，保留时长与权限投产前确定。
+记录范围限定为：
+
+- admin_login_event 保存登录成功、失败、锁定，不区分密码或验证码哪项错误；未知账号用 username_hash，不编造 admin_id。
+- admin_audit 保存查看/生成芯片密钥、所有权绑定/解绑/转赠、芯片绑定及状态修改、物品创建与修改等关键变更；不为每次列表查询和页面访问另做全链路记录。
+- 服务器创建账号、重置验证器另记受限的操作结果；不把服务器操作者伪装成某个网页登录管理员。
+
+ip_hash 仍用独立 IP_HASH_KEY 处理规范化 IP，不记录原始 IP、密码、密钥、二维码、验证码、token 或完整手机号。业务变更与关键操作记录一起保存；查看密钥先保存记录再返回，失败不能声称已记录。动态链接和请求体不进入普通访问日志，日志保留时长及权限投产前确定。
 
 ## 6. 芯片验证与临时凭证
 
@@ -130,6 +139,8 @@ Nginx 是网站的接待入口：用户和管理网站各自限定能转交哪�
 
 ```nginx
 # 置于 http {} 内；真实证书指令在 server 中另配。
+# 同一 IP 的登录请求共享计数，平均每分钟5次；不限制整个管理后台。
+limit_req_zone $binary_remote_addr zone=admin_login:1m rate=5r/m;
 server {
     listen 443 ssl;
     server_name nfc.bumbum.cc;
@@ -161,6 +172,20 @@ server {
     allow 192.0.2.10; # 文档示例地址，必须改成真实管理出口IP
     deny all;
 
+    location = /api/admin/auth/login {
+        limit_req zone=admin_login burst=4 nodelay;
+        limit_req_status 429;
+        error_page 429 = @login_rate_limited;
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    location @login_rate_limited {
+        default_type application/json;
+        return 429 '{"status":"error","code":"rate_limited","message":"登录尝试过于频繁，请稍后重试"}';
+    }
     location ^~ /api/admin/ {
         proxy_pass http://127.0.0.1:5000;
         proxy_set_header Host $host;
@@ -187,14 +212,13 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 | MASTER_KEY_FASHION / MASTER_KEY_JEWELRY | 按项目计算 K0/K2/K3/K4 的根材料，不直接写卡 |
 | SDM_META_KEY_V1 / SDM_META_KEY_VERSION | 全局 K1 与初始 v1 配置 |
 | STORAGE_ENCRYPTION_KEY / STORAGE_KEY_VERSION | 包装 DEK 的独立存储密钥及版本 |
-| IP_HASH_KEY | 给 IP/计数桶等标识做带密钥指纹 |
-| CSRF_HMAC_KEY | 计算绑定登录状态的防冒用口令 |
+| IP_HASH_KEY | 给日志中的 IP、未知账号及第二阶段计数标识做带密钥指纹 |
 | WEBHOOK_SHARED_SECRET | 扫描回调的共享秘密；用作 HTTPS Basic Auth 用户名，密码为空，建议独立 32 字节随机值写成十六进制，不含冒号，不放 query |
 | SMS_CODE_HASH_KEY | 第二阶段短信码的独立带密钥指纹 |
 | ADMIN_TOTP_ISSUER | 验证器显示的公开发行方名称 |
 | CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者开发 localhost:5174、生产 https://admin.bumbum.cc |
 | VITE_API_BASE_URL | 公开前端配置，已带 /api；endpoint 不重复带 /api，其他 VITE_ 值也不得含秘密 |
 
-各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS、CSRF 密钥或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。
+各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS 或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。

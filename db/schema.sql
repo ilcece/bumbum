@@ -184,6 +184,8 @@ CREATE TABLE admin_user (
   totp_secret_encrypted VARBINARY(2048) DEFAULT NULL COMMENT '验证器秘密的两层加密结果，按技术附录第3节完整JSON格式存为UTF-8字节',
   totp_enabled TINYINT(1) NOT NULL DEFAULT 0,
   totp_last_step BIGINT UNSIGNED DEFAULT NULL COMMENT '最近一次通过验证的验证码所属时段；旧时段和同一时段不能再次使用',
+  failed_login_attempts INT UNSIGNED NOT NULL DEFAULT 0 COMMENT '密码或验证码连续失败次数；成功或锁定到期后的新尝试先清零',
+  locked_until DATETIME DEFAULT NULL COMMENT '连续5次失败后暂锁15分钟；锁定期间不延长时间',
   status ENUM('active','disabled') NOT NULL DEFAULT 'active',
   last_login_at DATETIME DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -208,63 +210,36 @@ CREATE TABLE admin_audit (
   CONSTRAINT fk_audit_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
 ) COMMENT='管理员关键操作记录，供事后追查';
 
--- 第一阶段登录相关表：数据库只存凭证的校验指纹，不存原始凭证。
--- 标记已用、检查锁定和更新结果必须在同一事务里完成，即一起成功或一起撤销。
--- 登录凭证表：enroll 只允许设置验证器；full 才有完整管理权限。
+-- 第一阶段登录会话：账号、密码和验证码全部通过后才创建，没有临时设置权限。
+-- 正式登录凭证只保存指纹；随机防冒用口令单独不能登录，可保存原值供页面刷新后取回。
 CREATE TABLE admin_session (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   admin_id BIGINT UNSIGNED NOT NULL,
   token_hash BINARY(32) NOT NULL,
-  csrf_token_hash BINARY(32) NOT NULL,
-  scope ENUM('enroll','full') NOT NULL,
+  csrf_token CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL COMMENT '组件生成的32字节随机口令，以64位小写十六进制保存；独立于登录凭证',
   expires_at DATETIME NOT NULL,
   revoked_at DATETIME DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_session_token (token_hash),
   KEY idx_session_admin_expiry (admin_id, expires_at),
   CONSTRAINT fk_session_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
-) COMMENT='管理员登录记录；浏览器携带Cookie凭证；enroll仅能首次设置验证器TOTP';
+) COMMENT='密码加Authenticator验证码通过后的登录会话，最长8小时；没有备份码或设置阶段权限';
 
--- 登录第二步：密码通过后给5分钟待验证凭证，验证码或备份码成功后标记已用。
-CREATE TABLE admin_mfa_challenge (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  admin_id BIGINT UNSIGNED NOT NULL,
-  ticket_hash BINARY(32) NOT NULL,
-  expires_at DATETIME NOT NULL,
-  used_at DATETIME DEFAULT NULL,
-  failed_attempts INT UNSIGNED NOT NULL DEFAULT 0,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_mfa_ticket (ticket_hash),
-  KEY idx_mfa_expiry (expires_at),
-  CONSTRAINT fk_mfa_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
-) COMMENT='密码通过后的5分钟待验证记录；验证器TOTP或备份码成功时，在同一事务中标记已用';
-
--- 备份码：验证器无法使用时的恢复方式，每个只能用一次；仍需先验证密码。
-CREATE TABLE admin_backup_code (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-  admin_id BIGINT UNSIGNED NOT NULL,
-  code_hash BINARY(32) NOT NULL,
-  used_at DATETIME DEFAULT NULL,
-  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_backup_admin_code (admin_id, code_hash),
-  CONSTRAINT fk_backup_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
-) COMMENT='每个备份码至少128位安全随机数，只保存SHA-256校验指纹，每个仅能用一次';
-
--- 请求次数限制：记录某用途、账号或访问来源的次数及锁定截止时间，供多个进程共用。
+-- 第二阶段请求次数限制预留：短信和芯片验证共用数据库计数；第一阶段登录不使用此表。
 CREATE TABLE security_rate_limit (
   bucket_key BINARY(32) PRIMARY KEY COMMENT '按用途和统一格式的账号或IP等标识，用带秘密的HMAC算法计算指纹；不存原始IP或手机号',
   window_started_at DATETIME NOT NULL,
   attempt_count INT UNSIGNED NOT NULL DEFAULT 0,
   locked_until DATETIME DEFAULT NULL,
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-) COMMENT='登录及第二阶段短信的请求次数记录；在事务里先锁定对应行再更新，防止同时请求漏计';
+) COMMENT='第二阶段短信和芯片验证的请求次数预留；在事务里先锁定对应行再更新，防止同时请求漏计';
 
 -- 登录结果记录：包括未知账号的失败，用于排查异常，不保存密码或验证码。
 CREATE TABLE admin_login_event (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   admin_id BIGINT UNSIGNED DEFAULT NULL,
   username_hash BINARY(32) DEFAULT NULL,
-  result ENUM('password_fail','mfa_fail','locked','success','enroll_required') NOT NULL,
+  result ENUM('failed','locked','success') NOT NULL,
   ip_hash VARCHAR(64) DEFAULT NULL,
   user_agent VARCHAR(512) DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

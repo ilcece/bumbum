@@ -35,15 +35,14 @@
 
 | 场景 | 需要提供什么 |
 |---|---|
-| 管理业务 | 浏览器自动携带 bumbum_admin_session Cookie（登录凭证）；必须是 full 完整登录且账号启用 |
+| 管理业务 | 浏览器自动携带 bumbum_admin_session Cookie（登录凭证）；必须已通过密码和验证码且账号启用 |
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
-| 登录/验证器验证/备份码验证 | 不要求完整登录，但仍检查网页来源 Origin；已带 Cookie 的写请求仍按规则检查额外口令 |
-| 首次设置验证器 | enroll 临时权限，只能 session、totp/setup、totp/enable、logout，不能操作业务 |
+| 登录 | 一次提交账号、密码和验证码；强制检查网页来源 Origin 和 JSON，不依赖现有登录凭证 |
 | 扫描回调 | HTTPS Basic Auth：WEBHOOK_SHARED_SECRET 作用户名，密码为空；不把秘密放链接或日志 |
 | 用户查看详情 | 请求头 X-Tap-Token 放触碰后的临时凭证 |
 | 用户发短信/绑定 | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
-网页提交数据时（POST/PATCH/PUT/DELETE）都检查允许的 Origin；已有 Cookie 的认证写请求另检查额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；设置阶段越权 403 mfa_required；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
+所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的 Origin 和 JSON；除 login 外，还必须有有效 Cookie 和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
 
 ### 0.4 当前能做到哪一步
 
@@ -109,62 +108,39 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 ## 2. 管理员登录（第一阶段）
 
-TOTP 是验证器 App 的短时验证码；mfa_ticket 是“密码通过后、还需完成验证码检查”的 5 分钟一次性凭证。enroll 只能设置验证器，full 才能管理业务。
+使用一个表单提交账号、密码和手机 Authenticator 的验证码。TOTP 是这类通常每 30 秒更新的 6 位验证码。账号创建和验证器设置由受控服务器命令完成，不开放网页注册、设置或恢复接口。
 
-### 2.1 POST /api/admin/auth/login：先验密码
+### 2.1 POST /api/admin/auth/login：一次完成登录
 
-必填 username（1–64 字符）、password（1–128 字符，按原值验证，不去掉首尾空格）；密码不放 URL 或日志：
+必填 username（1–64 字符）、password（1–128 字符，按原值验证，不去掉首尾空格）、code（恰好 6 位数字的文字，保留开头的零）。只接受 JSON，并检查 Origin，不需要先有登录 Cookie 或防冒用口令；这些内容都不放链接或日志：
 ```json
-{"username":"cece","password":"example-only"}
+{"username":"cece","password":"example-only","code":"012345"}
 ```
-已设置验证器时，返回 mfa_ticket，不给完整权限：
+账号启用、验证器已设置、密码和验证码都通过后，创建最长 8 小时的登录并设置 bumbum_admin_session Cookie，不返回 Cookie 值或临时登录票据：
 ```json
-{"status":"ok","data":{"totp_required":true,"mfa_ticket":"m_example","expires_in":300}}
+{"status":"ok","data":{"authenticated":true,"expires_in":28800}}
 ```
-还没设置时，只给 enroll Cookie：
+随后调用 session 取得本次登录的防冒用口令，才能修改数据。重登成功会生成新凭证并撤销浏览器携带的旧会话。相同时段验证码只能成功使用一次；重登应等待下一组有效验证码。
+
+账号不存在、禁用、验证器没设置、密码或验证码错误、验证码已使用，都统一返回 401 unauthorized。连续 5 次失败锁 15 分钟；按 IP 的登录频率另由 Nginx 限制；两者都返回 429 rate_limited。字段格式错误 400 invalid_param，来源不符 403 forbidden，保存失败 503 service_unavailable；失败时不签发新登录 Cookie。详细计数与保存规则见技术附录第 4、5 节。
+
+### 2.2 GET /api/admin/auth/session：查询本次登录
+
+需要有效 Cookie 和启用且已设置验证器的账号。返回到期时间和本次登录已有的随机防冒用口令，不返回 Cookie 值，不缓存，不换口令或延长登录：
 ```json
-{"status":"ok","data":{"totp_required":true,"enrollment_required":true,"scope":"enroll","expires_in":300}}
+{"status":"ok","data":{"authenticated":true,"expires_at":"2026-10-23T16:00:00Z","csrf_token":"c_example"}}
 ```
-随后先调用 session 取得防冒用口令，再 setup/enable。初始管理员通过以后实现的受控服务器命令创建，无公开注册和默认密码。账号不存在、禁用或密码错都返回 401 unauthorized，不帮助外人猜账号；锁定返回 429 rate_limited。
+示例口令只是占位内容，实际是独立随机生成的 64 位小写十六进制文字。页面在内存中保存，写请求放 X-CSRF-Token，不能长期保存在浏览器。无效或过期登录返回 401 unauthorized。
 
-### 2.2 POST /api/admin/auth/totp/verify：再验验证码
+### 2.3 POST /api/admin/auth/logout：退出
 
-必填 mfa_ticket、code（6 位数字文字）。登录挑战和同一时段验证码只能一起成功使用一次；通过后设置 full Cookie，不返回正式登录 token：
-```json
-{"status":"ok","data":{"authenticated":true,"scope":"full","expires_in":28800}}
-```
-错误：401 invalid_mfa_ticket/invalid_totp_code、409 totp_replay、429 rate_limited；之后获取 session 的额外口令才能修改数据。
+有效 Cookie 加防冒用口令，检查 Origin，请求体 `{}`。撤销当前登录并清除相同 Path 的 Cookie，返回 data.logged_out=true；失败时不伪报已退出。禁用账号或通过服务器重置验证器后，该账号全部旧登录立即失效。
 
-### 2.3 POST /api/admin/auth/backup-code/verify：用备份码恢复登录
-
-必填 mfa_ticket、backup_code；仍先验密码。挑战和备份码一起用掉，成功结果同 2.2；错误 401 invalid_mfa_ticket/invalid_backup_code、429 rate_limited。
-
-### 2.4 GET /api/admin/auth/session：查询本次登录
-
-有效 enroll/full Cookie 可用；返回权限、到期时间和本次登录的防冒用口令，不返回 Cookie 值，不缓存，不换口令或修改登录状态：
-```json
-{"status":"ok","data":{"scope":"enroll","expires_at":"2026-10-23T08:05:00Z","csrf_token":"c_example"}}
-```
-
-### 2.5 POST /api/admin/auth/totp/setup：获取验证器二维码
-
-仅 enroll Cookie 加防冒用口令，请求体 `{}`。返回 provisioning_uri（二维码内容）、secret（验证器设置秘密）、expires_in（剩余设置秒数）。不缓存或长期保存在浏览器；重复调用复用同一待设置秘密，已启用则 409 already_exists，不覆盖旧秘密。
-
-### 2.6 POST /api/admin/auth/totp/enable：确认验证码并启用
-
-仅 enroll Cookie 加防冒用口令，必填 code（6 位数字文字）。成功后撤销所有旧 enroll 登录，换为 full Cookie；10 个备份码仅显示一次，服务端只存指纹，每个至少 128 位安全随机数：
-```json
-{"status":"ok","data":{"enabled":true,"scope":"full","expires_in":28800,"backup_codes":["example-placeholder-not-a-real-code"]}}
-```
-示例仅展示数组结构，实际必须 10 个。错误：401 invalid_totp_code、409 already_exists/totp_replay、429 rate_limited；随后重新获取 session。
-
-### 2.7 POST /api/admin/auth/logout：退出
-
-有效 enroll/full Cookie 加防冒用口令，请求体 `{}`；撤销当前登录并清除相同 Path 的 Cookie，返回 data.logged_out=true。禁用账号时所有登录和未用挑战立即失效。
+原先的验证码单独验证、备份码验证和网页设置验证器接口不再属于当前方案。验证器丢失且无法迁移时，通过有权限的服务器操作重置，不能从网页跳过验证码。
 
 ## 3. 管理芯片（第一阶段）
 
-均须 full 登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project、chip_status、item_id/item_uid（可空）、batch_no（可空）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
+均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project、chip_status、item_id/item_uid（可空）、batch_no（可空）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
@@ -184,7 +160,7 @@ TOTP 是验证器 App 的短时验证码；mfa_ticket 是“密码通过后、�
 
 ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）、status、created_at、updated_at、profile（对应项目的资料，没有为 null）；不额外返回 profile 内部 id/item_id。
 
-第一阶段均须 full 登录，写请求加防冒用口令：
+第一阶段均须完整登录，写请求加防冒用口令：
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
@@ -202,7 +178,7 @@ ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）�
 
 PUT 省略可选字段就清为 null/[]，不能当“保留原值”。图片只用 http/https，最多 20 项，每项最多 2048 字符；material 最长 256，其他不超 schema，不接收另一项目字段。item_uid 前缀必须匹配项目，重复 409 already_exists；无 profile 不可启用，归档不直接恢复。删除业务使用归档，不真删记录。
 
-第三阶段的下列接口仅服装物品可用，否则 409 project_mismatch；未细化开放前 501 feature_not_ready。full 登录，写请求加防冒用口令；PUT 整份替换，数组最多 100 项：
+第三阶段的下列接口仅服装物品可用，否则 409 project_mismatch；未细化开放前 501 feature_not_ready。完整登录，写请求加防冒用口令；PUT 整份替换，数组最多 100 项：
 
 | 接口 | PUT 要给什么 | GET/PUT 返回 |
 |---|---|---|
@@ -214,7 +190,7 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 ## 5. 管理所有权（第一阶段）
 
-full 登录，写请求加防冒用口令。OwnershipView 是绑定记录：id、item_id、item_uid、user_id、phone_masked（隐藏部分数字的手机号）、bound_at、unbound_at、is_active、bind_source。列表不展示完整手机号；输入手机号按 1.3 节，note 可空且最长 256。
+完整登录，写请求加防冒用口令。OwnershipView 是绑定记录：id、item_id、item_uid、user_id、phone_masked（隐藏部分数字的手机号）、bound_at、unbound_at、is_active、bind_source。列表不展示完整手机号；输入手机号按 1.3 节，note 可空且最长 256。
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
@@ -246,14 +222,10 @@ HTTP 状态码是这次请求的大类结果，code 是具体原因，message �
 |---|---|---|
 | 400 | invalid_param | 输入缺失、格式错误、未知字段 |
 | 400 | invalid_sms_code | 短信码不匹配/过期，或达到挑战失败次数 |
-| 401 | unauthorized | 账号/密码检查失败，或本次登录已失效 |
+| 401 | unauthorized | 登录检查失败（不细分哪项错误），或本次登录已失效 |
 | 401 | webhook_auth_failed | 扫描回调的身份检查失败 |
-| 401 | invalid_mfa_ticket | 密码通过后的临时凭证过期、已用或无效 |
-| 401 | invalid_totp_code | 验证器验证码错误 |
-| 401 | invalid_backup_code | 备份码错误或已用 |
 | 403 | forbidden | 请求网页或操作权限不允许 |
 | 403 | csrf_failed | 防冒用口令不正确 |
-| 403 | mfa_required | 仅设置验证器的临时登录不能操作业务 |
 | 403 | invalid_tap_token | 临时凭证无效、过期、已用掉或不适用于本物品/操作 |
 | 404 | not_found | 资源或密钥记录不存在 |
 | 409 | already_exists | UID/物品标识/密钥等已存在 |
@@ -261,7 +233,6 @@ HTTP 状态码是这次请求的大类结果，code 是具体原因，message �
 | 409 | item_already_has_chip | 物品已绑定其他芯片 |
 | 409 | project_mismatch | 芯片/物品/业务类型不匹配 |
 | 409 | invalid_state | 当前状态不允许此动作 |
-| 409 | totp_replay | 同一时段的验证器验证码已经用过 |
 | 429 | rate_limited | 请求太频繁，或登录尝试被暂时锁定 |
 | 429 | sms_rate_limited | 短信发送过于频繁 |
 | 501 | feature_not_ready | 功能还没开放，或前置设计/测试未完成 |
