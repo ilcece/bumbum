@@ -1,6 +1,6 @@
 # 本地启动：先确认程序和测试数据库能运行
 
-目标：cece 按步骤启动后，网页显示“后端已启动、测试数据库连接正常”。当前不包含管理员登录、芯片登记、写卡或短信；这不是正式上线步骤。
+目标：cece 按步骤启动后，网页显示“后端已启动、测试数据库连接正常”。本页只负责运行检查；完成后按 [管理员登录步骤](ADMIN_LOGIN.md) 创建账号并扫码。芯片登记、写卡和短信尚未实现；这不是正式上线步骤。
 
 ## 1. 准备工具和目录
 
@@ -67,7 +67,14 @@ npm --prefix frontend/admin run dev
 | 已运行服务 | `.venv/bin/python scripts/verify_local.py` | `.venv\Scripts\python.exe scripts\verify_local.py` |
 | 自动检查 | `.venv/bin/python -m pytest -q` | `.venv\Scripts\python.exe -m pytest -q` |
 
-服务检查应显示两行“通过”；任一失败会以非零状态退出。普通自动检查不要求数据库，真实数据库检查默认显示跳过，不算通过。
+服务检查应显示两行“通过”；任一失败会以非零状态退出。普通自动检查不要求数据库，数据库相关检查默认显示跳过，不算通过。管理员认证的数据库检查使用专属临时容器，不写入你正在使用的测试库：
+
+| 系统 | 认证自动检查（需要 Docker） |
+|---|---|
+| macOS / Linux | `.venv/bin/python -m pytest -q --auth-db` |
+| Windows PowerShell | `.venv\Scripts\python.exe -m pytest -q --auth-db` |
+
+命令自动新建随机端口的临时 MySQL，结束后删除该容器；不占用33306端口，不改原有数据。下方 RUN_DB_TESTS 则只读检查你已启动的原测试库，两者可以分别执行。
 
 需要检查真实 MySQL 时，先确认第 2 步数据库已启动：
 

@@ -1,4 +1,4 @@
-"""最小后端入口：当前只提供运行和数据库就绪检查。"""
+"""最小后端入口：提供运行检查和管理员认证。"""
 
 from flask import Flask, abort, jsonify, request
 from werkzeug.exceptions import HTTPException
@@ -11,6 +11,10 @@ def create_app(test_config=None):
     app = Flask(__name__, static_folder=None)
     app.json.sort_keys = False
     init_database(app, test_config)
+    from core.admin_auth import init_auth
+    from core.admin_cli import admin_commands
+    init_auth(app)
+    app.cli.add_command(admin_commands)
 
     @app.after_request
     def prevent_cache(response):
@@ -40,7 +44,7 @@ def create_app(test_config=None):
     def http_error(error):
         descriptions = {
             400: ("invalid_param", "输入不符合接口约定；运行检查不接收查询参数。"),
-            404: ("not_found", "地址不存在；当前只开放运行和数据库就绪检查。"),
+            404: ("not_found", "地址不存在，或该业务尚未接入。"),
             405: ("method_not_allowed", "此地址不支持这种请求方式。"),
         }
         code, message = descriptions.get(error.code, ("request_failed", "请求未完成。"))

@@ -27,3 +27,13 @@ footer { margin-top: 32px; color: #53675f; font-size: 14px; }
   main { margin: 32px auto; padding: 0 18px; }
   .checks { grid-template-columns: 1fr; }
 }
+
+.auth-panel { margin-top: 32px; padding: 24px; border: 1px solid #d2ddd8; border-radius: 10px; background: white; }
+.auth-panel p { color: #53675f; font-size: 14px; }
+.auth-panel form { display: grid; gap: 14px; max-width: 400px; margin-top: 20px; }
+.auth-panel label { font-size: 14px; font-weight: 600; }
+.auth-panel input { display: block; width: 100%; margin-top: 5px; padding: 10px 12px; border: 1px solid #a9bdb4; border-radius: 6px; color: #172c28; background: white; font: inherit; }
+.auth-panel input:focus-visible { outline: 2px solid #5ba48b; outline-offset: 1px; }
+.auth-panel .signed-in { color: #186547; font-size: 20px; font-weight: 700; }
+.auth-panel .notice { color: #a73426; margin-top: 16px; }
+.actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
