@@ -1,6 +1,6 @@
 # BUMBUM 技术规格
 
-更新日期：2026-10-23。本文定义架构、安全、事务与部署方案；产品以 [PRD.md](PRD.md)、接口以 [API_CONTRACT.md](API_CONTRACT.md)、字段以 [db/schema.sql](db/schema.sql) 为准。跨领域冲突按 [AGENTS.md](AGENTS.md) 处理。
+更新日期：2026-10-24。本文定义架构、安全、事务与部署方案；产品以 [PRD.md](PRD.md)、接口以 [API_CONTRACT.md](API_CONTRACT.md)、字段以 [db/schema.sql](db/schema.sql) 为准。跨领域冲突按 [AGENTS.md](AGENTS.md) 处理。
 
 ## 1. 技术栈与模块
 
@@ -41,26 +41,42 @@
 
 ## 3. 密钥与信封加密
 
-### 3.1 SDM 密钥设计仍待确认
+### 3.1 SDM 密钥架构（已确认，2026-10-24）
 
-目标保留按项目隔离、使用成熟加密库和不公开静态物品标识的原则。旧版将所有 K0–K4 按 UID 派生，同时又要求先解密 PICC 才得 UID；这不能直接形成有效的选钥流程。
+cece 已确认采用“同版本全局共享 K1、芯片级独立 K2”。fashion 与 jewelry 使用同一版本的 K1；K0、K2、K3、K4 继续按项目根密钥、UID 和槽位用途独立派生。此决策替代“所有 K0–K4 都按 UID 派生”及“首次解密选钥仍待决定”的旧表述。
 
-必须先核验并获 cece 确认：
+| 槽位 | 职责 | 密钥策略 |
+|---|---|---|
+| K0 | 芯片管理（App Master Key） | 由所属项目根密钥、UID 和槽位用途独立派生 |
+| K1 | PICC 元数据解密（SDMMetaRead） | 同版本全局共享，独立安全随机生成 16 字节，不按 UID 派生 |
+| K2 | SDM 验签基础密钥（SDMFileRead） | 由所属项目根密钥、UID 和槽位用途独立派生；不同芯片使用不同 K2 |
+| K3、K4 | 预留或以后明确的独立用途 | 按 UID 和各槽位用途独立派生，不授予不必要权限 |
 
-1. K0–K4 的角色、SDMMetaRead / SDMFileRead 等访问配置、实际 ChangeKey 权限。
-2. 无 UID 明文时，后端如何选择首次 PICC 解密密钥及版本；若采用项目级元数据密钥，其隔离和轮换影响是什么。
-3. 如需改变 URL/请求体或密钥分散策略，说明影响并同步 PRD、API 和 DDL，不能默默加参数或遍历所有芯片密钥。
-4. 派生算法使用的官方规范、输入字节编码、常量、密钥版本和测试向量；旧版 CMAC 输入示例不是可直接投产的协议。
-5. 真实 NDEF 编码、SDM 偏移、CMAC 输入范围、计数器字节序及单卡已知答案测试。
+K0 是写入芯片的管理密钥，不是服务端项目根密钥。MASTER_KEY_FASHION / MASTER_KEY_JEWELRY 是仅在服务端使用的项目根材料，不直接写入芯片，不充当 K1，也不与存储包装密钥复用。不同项目和槽位的派生必须做用途隔离，具体 KDF 及输入编码仍须锁定实现并通过测试向量确认。
 
-`MASTER_KEY_FASHION` / `MASTER_KEY_JEWELRY` 保留为候选配置名称，不能据其存在认定槽位方案已定。解决以上事项前，阻塞真实密钥生成、真实写卡及 SDM 在线实现；认证、入库和基础管理可独立推进。`sdm-backend` / `pylibsdm` 是待评估候选，不声称已经集成或兼容。
+**全局 K1 配置与版本：**
+
+- 初期只支持全局 K1 的 v1：SDM_META_KEY_V1 保存 16 字节密钥的 32 位十六进制表示，SDM_META_KEY_VERSION=v1 指定初始写卡版本。本轮模板值留空，不生成真实密钥。缺失、格式错误、默认全零或未支持版本必须阻止 SDM/密钥功能启用，不能退回默认密钥。
+- 不需要客户端提供项目或版本；服务端先用全局 K1 得到候选 UID，再查库确定项目。初期只尝试一把 v1 K1，不遍历项目或全部芯片密钥。
+- 服务启动时可预加载只读 K1 配置到受控进程内存；不逐请求查库加载 K1，也不将真实 K1 放进仓库或普通日志。运行中的业务状态仍按原规则持久化。
+- 当前 chip_key.key_version 是不可变 SDM 配置版本；初始配置 v1 固定关联全局 K1 v1。master_key_version 只标识 K0/K2/K3/K4 所属项目根密钥的版本，storage_key_version 只标识信封包装密钥版本，不能拿后两者推断 K1。
+- encrypted_keys 继续保存 K0–K4 的加密 JSON；其中 K1 是该配置关联的全局密钥加密快照，不是逐卡派生结果。生成时核对统一来源，同配置下 K1 必须一致；读取旧卡密钥不能自动换成最新 K1。
+- 将来轮换必须另行定义新的配置版本、服务端配置版本到全局 K1 版本的不可变映射、旧卡更新与恢复流程，并按需提供数据库迁移。禁止更换 v1 的实际密钥后仍沿用 v1 名称。若过渡期允许多个全局 K1 版本，只能尝试明确启用且数量受限的集合；每个候选都须完成结构、记录版本和 CMAC 检查，唯一完整通过后才能接受。
+
+**安全边界：**全局 K1 泄露会影响所有使用该版本芯片的 UID/计数器隐私；在正确的密钥分离和访问权限配置下，仅泄露 K1 不应泄露其他芯片的 K2，也不能据此生成新的有效 CMAC。K1 绝不兼作 K2。查看任何一枚芯片的 K1 都相当于展示该版本全局秘密，沿用 full 会话、确认、审计和 no-store 要求，界面须说明影响范围，不显示在列表中。
+
+这是项目选定的槽位分配，不表述为 NXP 强制槽位用途。实际 SDM 配置应将 SDMMetaRead 指向 K1、SDMFileRead 指向 K2；管理认证、ChangeKey、文件写入和配置修改权限仍要依据 NXP 资料和真实工具核验，不能只因 K1 被称为“元数据密钥”就假定它没有其他权限。
+
+**尚未完成的实现前置验证：**NXP 资料版本及具体访问权限、KDF 与输入编码、NDEF 编码和偏移、MAC 覆盖范围/截断规则、计数器字节序、工具及库版本兼容性、单卡已知答案测试和写卡完成记录流程。旧版 CMAC 输入示例不是可投产协议。架构决策已完成，但不代表上述验证已完成；前置条件未满足时，真实密钥生成、写卡和 SDM 上线仍不可用。
+
+候选社区实现 [sdm-backend](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示了先用不依赖 UID 的元数据密钥、再按 UID 取得验签密钥的接口顺序，仅作为实现参考，不是本项目已集成或已通过测试的证明。官方核验资料：[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf)；本次研究未直接读取该 PDF，不能声称已按其验证具体参数。pylibsdm 也仍为待评估候选，不直接宣称成熟度或兼容性。
 
 ### 3.2 存储加密（已定）
 
 - 每条秘密数据生成独立随机 32 字节 DEK；用 AES-256-GCM 加密，随机生成 12 字节数据 nonce。密文按 `ciphertext || tag` 存储，tag 为 16 字节。
 - 用独立的 `STORAGE_ENCRYPTION_KEY`（32 字节）AES-256-GCM 包装 DEK，另生成独立 12 字节 nonce；包装结果也含 16 字节 tag。两个 nonce 不能复用或从固定常量生成。
 - 解密顺序：按存储密钥版本找到包装密钥 → 验证并解密 DEK → 验证并解密数据。认证失败即停止，不尝试把损坏密文当成明文。
-- `chip_key` 分列保存 `encrypted_keys`、`nonce`、`dek_ciphertext`、`dek_nonce`、`storage_key_version`。`key_version` 是芯片配置版本，`master_key_version` 是分散主密钥版本，三者不混用。
+- `chip_key` 分列保存 `encrypted_keys`、`nonce`、`dek_ciphertext`、`dek_nonce`、`storage_key_version`。key_version 是 SDM 配置版本并按第 3.1 节关联全局 K1 版本；master_key_version 是项目分散根密钥版本；storage_key_version 是包装密钥版本，三者不混用。
 - `admin_user.totp_secret_encrypted` 保存完整 UTF-8 JSON 信封字节：`format_version` 固定 1、`algorithm` 固定 `AES-256-GCM`、`storage_key_version`、Base64 编码的 `dek_ciphertext` / `dek_nonce` / `ciphertext` / `nonce`。ciphertext 含 tag。算法与格式版本只接受已支持值。
 - 两层 GCM 都设置 AAD：UTF-8 字符串 `bumbum|<entity>|<id>|<field>|<storage_key_version>|<layer>`；entity 为 `chip_key` 或 `admin_user`，id 对 chip_key 使用 chip_id、对 admin_user 使用 admin_id，field 为 `keys` 或 `totp_secret`，layer 为 `data` 或 `dek`。解密时从预期记录构造，防止密文跨记录替换。
 - 存储密钥轮换须保留旧版本直到完成重新包装；不覆盖旧版本名称。当前环境只定义 v1，轮换与 KMS 迁移另做版本设计，不声称现有 DDL 可直接容纳任意 KMS Blob。
@@ -99,15 +115,28 @@ CSRF token 使用独立 CSRF_HMAC_KEY 对 UTF-8 字符串 `bumbum|csrf|<原始se
 
 ### 5.1 URL 与验证
 
-目标 SUN URL 模板为 `https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}`，无明文 item_uid，不启用 enc。由 Nginx 返回 SPA，前端 POST 两个字段给验证 API；不能新增后端 HTML 路由。模板是当前接口目标，真实 SDM 参数和选钥设计仍受第 3.1 节阻塞，不因“最终模板”字样忽略验证。
+目标 SUN URL 保持 `https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}`，不增加项目、版本、UID 或随机查找码，不启用 enc。由 Nginx 返回 SPA，前端 POST picc_data 和 cmac 两个字段给验证 API，不新增后端 HTML 路由。全局 K1 的选钥架构已确认；真实 SDM 参数仍须完成第 3.1 节的前置验证。
 
-方案确认后的实现必须：
+```mermaid
+flowchart TD
+    A["收到 picc_data 和 cmac"] --> B["全局 K1 解密，初期仅启用 v1"]
+    B --> C["检查 PICC 结构，提取候选 UID 和计数器"]
+    C --> D["按 UID 查库，确定项目并核对配置关联的 K1 版本"]
+    D --> E["取得该芯片独立 K2，派生会话 MAC 密钥"]
+    E --> F["按写卡配置校验 SDM CMAC"]
+    F --> G["唯一候选完整通过，才确认身份"]
+    G --> H["事务内核对状态、更新计数器、写日志并签发授权"]
+```
 
-1. 严格校验输入格式/长度，按已批准方式选钥、解密，并按规范化 UID 找到芯片和物品。
-2. 通过 CMAC 验证，再检查芯片 bound、物品 active、配置完成等资格；失败不签发授权。
-3. 在事务内先锁物品、后锁芯片，重新核对初读的绑定与状态，比较并更新 last_verified_counter（只接受大于已接受值的计数器），写成功日志并创建 tap_grant。重复/并发同计数器最多成功一次；CMAC 失败不能推进计数器。
-4. 其他失败单独写日志；无法得到 UID 时 scan_log.chip_uid 为 NULL，不伪造。原始 PICC/CMAC 是可转发的验证材料，不写普通访问日志，数据库日志限制访问和保留周期，投产前确定具体保留时长。
-5. 刷新/重试旧 URL 不再次签发授权；返回 replay_suspect，并提示重新触碰。乱序到达的较旧读数也拒绝。计数器耗尽、换卡、换钥的恢复另定，不清零数据库计数器绕过防重放。
+未来实现必须遵守：
+
+1. 解密前严格检查请求字段、十六进制编码与长度。AES-CBC 解密后，按实际 SDM 配置检查 PICCDataTag 的 UID 长度、UID/计数器镜像标志和数据布局。任意 7 字节都能转成 14 位十六进制，不能靠“UID 能转成十六进制”过滤错误密钥；错误密钥也可能得到结构似乎合理的字节。结构检查不替代 CMAC。
+2. 初期仅使用全局 K1 v1；解密结果始终是候选数据。按规范化 UID 查芯片和密钥记录，由数据库记录确定项目，核对 key_version 所关联的 K1 版本。客户端项目提示或解析出的 UID 不能直接作为可信身份。
+3. 按该芯片所属项目及根密钥版本取得独立 K2，按已核验 SDM 规范结合 UID、读取计数器等输入派生会话 MAC 密钥，按配置的 MAC 输入范围和截断规则验证 cmac，并采用恒定时间比较。保留验签所需原始编码；不能简单对 decrypted 明文做一次通用 CMAC 就视为完成。
+4. 唯一候选完成结构、数据库版本一致性及 CMAC 验证后才确认身份。未来多版本场景不能只认首个成功解密的候选；多个完整匹配视为服务端配置异常，返回 500 internal_error 并记录内部诊断，不签发授权。解析/验签不匹配可继续下一个已启用候选，配置缺失和数据库故障应按服务错误处理，不能裸 except 吞掉全部异常。
+5. 再检查芯片 bound、物品 active、密钥和写卡配置完成等资格。事务内先锁物品后锁芯片，重新核对初读绑定、配置版本及状态，比较并更新 last_verified_counter（仅接受比已接受值更大的计数器），写成功日志并创建 tap_grant。同一计数器最多成功一次；失败候选、错误 CMAC 和未提交事务不能推进计数器或创建授权。
+6. 其他失败单独写日志；无法得到 UID 时 scan_log.chip_uid 为 NULL，不伪造。未经 CMAC 验证的候选 UID 不能当作已认证身份。原始 PICC/CMAC 不写普通访问日志；数据库日志限制访问和保留周期，投产前确定具体保留时长。refresh/重试旧 URL 返回 replay_suspect，提示重新触碰；乱序旧计数器也拒绝，不清零计数器绕过防重放。
+7. 验证接口实施支持多进程的持久化限流，参数根据负载测试及共享出口 IP 情况确定，不把“每 IP 每秒 5 次”写成已验证指标。性能包括数据库、K2 解密、验签及事务，未实测前不承诺“几乎零开销”或确定的单请求耗时。限流或服务故障按 API 状态返回，不伪装成防伪失败。
 
 ### 5.2 tap_token 与短信绑定
 
@@ -176,25 +205,25 @@ server {
 
 ## 7. 配置与运行前提
 
-配置名称与非敏感示例集中于 `.env.example`。DB_* 为数据库连接；STORAGE_ENCRYPTION_KEY 与 STORAGE_KEY_VERSION 管理存储包装；IP_HASH_KEY 仅用于标识 HMAC；CSRF_HMAC_KEY 用于会话绑定的 CSRF 值；WEBHOOK_SHARED_SECRET 用于 Basic Auth，建议独立的 32 字节随机值以十六进制表示（不含冒号）；MASTER_KEY_* 是待核验的项目主密钥配置；SMS_CODE_HASH_KEY 仅 Phase 2 需要。所有加密/HMAC 密钥独立生成，不复用数据库密码或彼此替代。ADMIN_TOTP_ISSUER 是公开发行方名称；CORS_ORIGINS 是开发来源总清单，管理认证路由必须再限制到单个 ADMIN_ORIGIN（开发 localhost:5174，生产 https://admin.bumbum.cc），不能把总清单全部用于带 Cookie 的管理 API；VITE_API_BASE_URL 是公开构建配置，禁止放任何秘密到 VITE_ 变量。
+配置名称与非敏感示例集中于 `.env.example`。DB_* 为数据库连接；STORAGE_ENCRYPTION_KEY 与 STORAGE_KEY_VERSION 管理存储包装；IP_HASH_KEY 仅用于标识 HMAC；CSRF_HMAC_KEY 用于会话绑定的 CSRF 值；WEBHOOK_SHARED_SECRET 用于 Basic Auth，建议独立的 32 字节随机值以十六进制表示（不含冒号）；MASTER_KEY_* 是 K0/K2/K3/K4 使用的项目根密钥配置；SDM_META_KEY_V1 是与项目根密钥独立的全局 K1，SDM_META_KEY_VERSION 初期固定为 v1，字段与版本规则见第 3.1 节；SMS_CODE_HASH_KEY 仅 Phase 2 需要。所有加密/HMAC 密钥独立生成，不复用数据库密码或彼此替代。ADMIN_TOTP_ISSUER 是公开发行方名称；CORS_ORIGINS 是开发来源总清单，管理认证路由必须再限制到单个 ADMIN_ORIGIN（开发 localhost:5174，生产 https://admin.bumbum.cc），不能把总清单全部用于带 Cookie 的管理 API；VITE_API_BASE_URL 是公开构建配置，禁止放任何秘密到 VITE_ 变量。
 
 当前不存在应用和运行脚本。未来后端启动入口、版本锁定、Gunicorn worker 数和进程托管命令须在代码加入后实测。现场需要 cece 安全填写的是连接信息、独立秘密和真实域名/证书/IP 白名单，不在本轮索取或写入真实值。
 
 ## 8. 阶段与验证要求
 
-阶段范围唯一由 PRD 定义：Phase 1 包含管理员登录、TOTP、备份码和基础管理；生成真实密钥/写卡受第 3.1 节阻塞。Phase 2 是在线验证、H5 与短信绑定；Phase 3 是运营编辑和养成；Phase 4 评估 KMS、Passkey 和基于实际流量的优化。
+阶段范围唯一由 PRD 定义：Phase 1 包含管理员登录、TOTP、备份码和基础管理；全局 K1 架构已定，生成真实密钥/写卡仍受第 3.1 节具体参数与单卡验证的前置条件限制。Phase 2 是在线验证、H5 与短信绑定；Phase 3 是运营编辑和养成；Phase 4 评估 KMS、Passkey 和基于实际流量的优化。
 
-DDL 验证要覆盖空库建表、重复有效 ownership/芯片绑定被拒绝、跨项目绑定被拒绝、历史绑定可多条、无 UID 失败日志可保存。未来认证测试还须覆盖 enroll 无业务权限、Cookie/CSRF、注销、禁用账号、TOTP/MFA/备份码并发消费；绑定与计数器测试须验证并发，不以串行演示替代。真实 SDM 测试必须使用单卡和已知答案，不能仅检查 URL 外观便认定加密配置成功。
+DDL 验证要覆盖空库建表、重复有效 ownership/芯片绑定被拒绝、跨项目绑定被拒绝、历史绑定可多条、无 UID 失败日志可保存。未来认证测试还须覆盖 enroll 无业务权限、Cookie/CSRF、注销、禁用账号、TOTP/MFA/备份码并发消费；绑定与计数器测试须验证并发，不以串行演示替代。真实 SDM 测试须用同项目两枚卡和另一个项目的测试卡验证：同版本 K1 一致、不同芯片 K2 独立、跨项目根密钥隔离、项目与配置版本查库一致，错误 K1/K2、修改的 CMAC、结构似乎合法的随机明文均不签发授权；覆盖重复计数器、并发请求、停用与非法配置。未来轮换须额外验证版本对应关系。单卡已知答案和真实 NDEF 参数验证仍为前提，不能仅检查 URL 外观便认定加密配置成功。
 
 ## 9. 待验证事项与证据
 
-截至 2026-10-23，以下未在仓库提供可复查证据。旧版“已确认”的工具能力表述不能作为测试结果；历史保留在 CHANGELOG 并注明替代。
+截至 2026-10-24，全局 K1 架构已由 cece 确认；以下实际参数或测试仍未在仓库提供可复查证据。旧版“已确认”的工具能力表述不能作为测试结果；历史保留在 CHANGELOG 并注明替代。
 
 | 事项 | 当前状态 | 定稿前需记录 |
 |---|---|---|
 | NFC.cool 改密钥、SDM配置、CSV能力 | 待官方资料/实测核验 | App版本、平台、标签型号、官方链接或手动步骤与结果 |
 | Webhook 负载、鉴权、重试行为 | 待实测 | 版本、脱敏负载、响应码试验；失败必须可见并有人工重扫路径 |
-| NTAG424 槽位权限与首次解密选钥 | 设计阻塞 | NXP资料版本/链接、批准方案、测试向量、单卡验证 |
+| NTAG424 实际访问权限、KDF和写卡参数 | 架构已确认，参数与实测待完成 | 全局K1方案不再待选；仍需NXP资料版本/链接、权限检查、固定实现、测试向量和单卡结果 |
 | SDM候选库 | 待评估 | 仓库/包链接、固定版本、许可证、Python兼容性、已知答案结果 |
 | ECS系统和MySQL部署版本 | 待目标环境核验 | 实际版本与兼容性结果；不得把目标版本写成已观测版本 |
 | 短信提供商 | Phase 2前选择 | 服务、凭证名称、域名、签名模板、限流和失败处理 |

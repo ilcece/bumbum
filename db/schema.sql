@@ -87,18 +87,18 @@ CREATE TABLE chip (
 CREATE TABLE chip_key (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   chip_id BIGINT UNSIGNED NOT NULL,
-  encrypted_keys VARBINARY(2048) NOT NULL COMMENT '5个密钥JSON的AES-GCM密文',
+  encrypted_keys VARBINARY(2048) NOT NULL COMMENT 'K0至K4的JSON密文；K1为关联版本全局密钥的加密快照，其余按UID独立派生',
   nonce BINARY(12) NOT NULL COMMENT '数据层AES-GCM nonce；encrypted_keys末尾包含16字节认证标签',
   dek_ciphertext VARBINARY(512) NOT NULL COMMENT '当前为AES-GCM包装的32字节随机DEK，末尾包含16字节认证标签',
   dek_nonce BINARY(12) NOT NULL COMMENT '包装DEK独立生成的AES-GCM nonce',
   storage_key_version VARCHAR(16) NOT NULL DEFAULT 'v1' COMMENT '包装DEK的存储密钥版本，与主密钥版本独立',
-  key_version VARCHAR(16) NOT NULL DEFAULT 'v1',
-  master_key_version VARCHAR(16) NOT NULL DEFAULT 'v1',
+  key_version VARCHAR(16) NOT NULL DEFAULT 'v1' COMMENT 'SDM配置版本；初始v1固定关联全局K1的v1',
+  master_key_version VARCHAR(16) NOT NULL DEFAULT 'v1' COMMENT 'K0、K2、K3、K4所属项目根密钥版本，不代表全局K1版本',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_chip (chip_id),
   CONSTRAINT fk_chipkey_chip FOREIGN KEY (chip_id) REFERENCES chip(id) ON DELETE CASCADE
-) COMMENT='芯片槽位密钥，信封加密存储，实际角色待SDM核验';
+) COMMENT='芯片槽位密钥，K1同版本全局共享、K2单芯片独立，具体参数待实测';
 
 -- ============================================================
 -- 6. 所有权绑定记录（保留历史，最多一条有效绑定）
@@ -258,7 +258,7 @@ CREATE TABLE admin_login_event (
   CONSTRAINT fk_login_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
 ) COMMENT='登录事件，未知账号的失败也可记录，不写密码或验证码';
 
--- 第二阶段预留：不代表SDM选钥与用户身份方案已定稿。
+-- 第二阶段预留：全局K1选钥架构已定，实际参数、单卡验证与养成身份方案仍待完成。
 CREATE TABLE tap_grant (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   token_hash BINARY(32) NOT NULL,
