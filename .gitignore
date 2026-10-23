@@ -1,0 +1,39 @@
+# Local configuration and credentials; keep the documented template.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Dependencies and Python generated files.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+node_modules/
+
+# Builds, tests, logs and local databases/exports.
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage/
+*.log
+logs/
+*.pid
+*.sqlite
+*.sqlite3
+backups/
+dumps/
+
+# Local editor/OS files.
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
