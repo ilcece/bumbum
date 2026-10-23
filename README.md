@@ -79,18 +79,42 @@
 手机碰一碰 NFC 芯片，跳转 `https://nfc.bumbum.cc/tap?picc_data=...&cmac=...`，由前端 SPA 读取动态参数并调用 `POST /api/tap/verify`；后端解密 `picc_data` 得到 `chip_uid`，关联出对应物品与项目，再返回前端渲染服装信息页或饰品养成页。
 
 ## 6. 文件导航
+
+项目根目录下每个文件的用途、读者、更新时机和 AI 是否必读如下。**开新 AI 会话时，优先读标了“AI 必读”的文件；只做某一类任务时，按“主要读者”和“更新时机”判断该看哪些，不必全部喂给 AI。**
+
 ```text
 bumbum/
-├── README.md                    ← 项目入口，一句话定位、项目全局约束和简介、文件导航、当前阶段
-├── PRD.md                       ← 产品需求：用户故事、功能清单、业务流程
-├── TECH_SPEC.md                 ← 技术规格：架构、技术栈、关键决策、部署、安全、避坑清单
-├── API_CONTRACT.md              ← 接口契约：每个API的路径、参数、返回结构
+├── README.md
+├── PRD.md
+├── TECH_SPEC.md
+├── API_CONTRACT.md
+├── CHANGELOG.md
 ├── db/
-│   └── schema.sql               ← 数据库DDL，唯一事实来源
-├── CHANGELOG.md                 ← 决策日志：每次重要变更记录"为什么"
+│   └── schema.sql
+├── .env.example
+├── .gitignore
 └── .ai/
-    └── SESSION_START.md         ← 每次开AI会话时，粘贴给AI的固定指令
+    └── SESSION_START.md
 ```
+
+| 文件 | 用途 | 主要读者 | 更新时机 | AI 必读 |
+|---|---|---|---|---|
+| `README.md` | 项目入口：一句话定位、我是谁、协作分工、技术栈、环境变量、命名规范、项目简介、当前阶段、核心业务、文件导航、NTAG424 与 SDM 要点、避坑清单、安全与权限、前后端分离规则、多项目架构、域名与部署拓扑、数据库设计原则、关键接口、AI 会话启动指令 | cece、所有 AI 工具 | 项目阶段变化、技术栈调整、协作规则变化、新增全局约束时 | 是（每次新会话） |
+| `PRD.md` | 产品需求：目标用户与角色、核心业务流程、功能需求清单（按 Phase 拆分）、用户故事与验收标准、页面清单、非功能需求、术语表、Phase 1 范围声明 | cece、负责生成页面的 AI（Figma Make / Codex） | 产品需求变化、新增功能、调整验收标准时 | 做产品功能、页面、业务逻辑时必读 |
+| `TECH_SPEC.md` | 技术规格：技术栈锁定、总体架构（共享内核 + 模块化单体）、数据库设计原则、密钥体系（派生 + 信封加密）、NTAG424 DNA 与 SUN 验证、前后端分离协作、管理后台安全基线、域名与部署拓扑、环境变量、安全与权限、已知限制与待验证事项、分阶段实施计划、给 AI 的技术指令、变更记录 | cece、Codex（后端）、Figma Make（前端）、运维相关 AI | 技术决策变化、架构调整、部署方式变化、新增安全要求时 | 做后端、部署、安全、架构相关任务时必读 |
+| `API_CONTRACT.md` | 接口契约：通用约定（基础路径、返回结构、认证、tap_token、时间与分页）、Webhook 与用户触碰、管理端认证、管理端芯片、管理端物品、管理端所有权、服装用户侧、饰品用户侧、错误码总表 | Codex（后端）、Figma Make（前端）、联调时的 cece | 新增或修改接口、调整字段名或返回结构时 | 做任何前后端接口相关任务时必读；后端和前端都不得自行偏离 |
+| `CHANGELOG.md` | 决策日志：每次重要变更“改了什么 + 为什么改”，包括技术栈、架构、SUN URL、密钥体系、安全基线、tap_token、环境变量、待验证事项等 | cece、所有 AI 工具 | 每次做出重要技术或产品决策后追加一条 | 开新会话或做与历史决策相关的任务时建议读，避免重复已否决方案 |
+| `db/schema.sql` | 数据库 DDL，**唯一事实来源**：项目表、用户表、物品身份表、芯片表、芯片密钥表、所有权表、流转历史表、扫描日志表、管理端用户表、审计表、服装业务表、饰品业务表 | Codex（后端）、cece（通过 DMS 执行） | 任何表结构变更时；必须先改本文件，再在 `CHANGELOG.md` 记录原因 | 做任何涉及数据库查询、模型、迁移的任务时必读 |
+| `.env.example` | 环境变量清单模板，值留空，作为“需要填哪些变量”的说明书；真实的 `.env` 永不入库 | cece、部署时的 AI | 新增或删除环境变量时 | 部署、配置相关任务时读 |
+| `.gitignore` | Git 忽略规则，至少包含 `.env`、`venv/`、`__pycache__/`、`node_modules/`、`dist/` | cece | 新增需要忽略的文件类型时 | 一般不需要 AI 读，但生成代码时不得把敏感文件加入版本控制 |
+| `.ai/SESSION_START.md` | AI 会话启动指令：每次开新会话时第一段粘贴给 AI 的内容，包含必读文件列表、固定规则、SUN URL 最终模板、当前任务占位 | cece、所有 AI 工具 | 协作规则变化、SUN URL 模板变化、新增全局约束时 | 是（每次新会话由 cece 粘贴） |
+
+**使用建议**：
+
+- **开新会话**：先粘贴 `.ai/SESSION_START.md`，让 AI 读 `README.md` + `PRD.md` + `TECH_SPEC.md` + `API_CONTRACT.md` + `db/schema.sql`。
+- **只改后端某个接口**：读 `TECH_SPEC.md` 相关章节 + `API_CONTRACT.md` 对应接口 + `db/schema.sql` 相关表，不必重读 `PRD.md` 全文。
+- **只改前端某个页面**：读 `PRD.md` 对应用户故事 + `API_CONTRACT.md` 对应接口 + `README.md` 第 9 节协作规则，不必读 `db/schema.sql`。
+- **改数据库表**：先改 `db/schema.sql`，再在 `CHANGELOG.md` 记一笔，然后同步 `API_CONTRACT.md` 和 `TECH_SPEC.md` 中受影响的字段描述。
 
 ## 7. NTAG424 DNA 密钥与 SDM 要点（AI 必须知道）
 - NTAG424 DNA 有 **5 个 AES-128 密钥**：`K0` 是 App Master Key，是唯一有权更改其他密钥的密钥；`K1–K4` 是应用密钥。
@@ -175,3 +199,22 @@ bumbum/
 | GET | `/api/admin/items` | 管理端物品列表 |
 
 > 注：`https://nfc.bumbum.cc/tap?picc_data=...&cmac=...` 是前端路由，不是后端 API；它由 Nginx 返回 SPA，再由 SPA 调用 `POST /api/tap/verify`。`POST /api/tap/verify` 的请求体**只含** `picc_data` 和 `cmac`，不含 `item_uid`。
+
+## 13. AI 会话启动指令
+你正在协助开发 BUMBUM NFC 数字项目（含数字服装与数字文创饰品）。请先阅读：
+- `README.md`（项目定位与全局约束）
+- `PRD.md`（产品需求）
+- `TECH_SPEC.md`（技术栈和架构约定）
+- `API_CONTRACT.md`（接口契约）
+- `db/schema.sql`（数据库唯一事实来源）
+
+规则：
+1. 不要更换技术栈（Python 3 + Flask + MySQL + React + Vite）。
+2. 不要臆造数据库字段，一切以 `db/schema.sql` 为准。
+3. 不要自行修改 `API_CONTRACT.md` 中的字段名；如果发现需要改，先告诉我并说明理由。
+4. 生成代码时，标注“需要我修改的地方”（如数据库密码、域名、IP 白名单）。
+5. 我是产品经理，不懂代码，请用简洁中文解释关键决策，不要贴大段无关的底层实现。
+6. NTAG424 DNA 的 SDM 验证，优先用 `nfc-developer/sdm-backend` 或 `pylibsdm`，不要从零实现 AES-CMAC。
+7. SUN URL 的最终模板为 `https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}`；URL 中不包含 `item_uid`，物品身份由后端解密 `picc_data` 得到的 `chip_uid` 反查。NFC 入口由 Nginx 返回前端 SPA，前端调用 `POST /api/tap/verify`，请求体只含 `picc_data` 和 `cmac`；不要生成 `GET /t/<item_uid>` 或任何依赖路径参数的后端路由。
+
+我当前的任务是：<在这里填入这次要做的事>
