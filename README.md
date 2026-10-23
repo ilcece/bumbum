@@ -23,9 +23,18 @@
 - 部署：Gunicorn + Nginx，ECS 上运行
 - 可视化：阿里云 DMS
 - 芯片：NXP NTAG424 DNA（支持 SDM/SUN 动态加密）
-- 写卡：NFC.cool Tools（支持 NTAG424 DNA 密钥/SDM 配置；CSV 批量密钥能力待实测）
+- 写卡：NFC.cool Tools（密钥/SDM 需在 App 内逐枚手动配置，CSV 仅用于批量写链接内容）
 
 ### 3.1 环境变量清单（值不写入仓库）
+
+**什么是环境变量**：不写死在代码里的配置参数。敏感信息（密码、密钥）放在服务器上的 `.env` 文件中，代码通过 `os.getenv("变量名")` 读取。`.env` 必须加入 `.gitignore`，永不提交到 GitHub。
+
+**使用方式**：
+1. 在项目根目录创建 `.env` 文件，每行一个 `名称=值`。
+2. 安装 `python-dotenv`，在 `app.py` 顶部调用 `load_dotenv()`。
+3. 代码中用 `os.getenv("DB_PASSWORD")` 读取，不硬编码任何密码。
+
+**变量清单**：
 - `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` / `DB_NAME`
 - `MASTER_KEY_FASHION` / `MASTER_KEY_JEWELRY`（16 字节十六进制）
 - `STORAGE_ENCRYPTION_KEY`（当前阶段用于加密 `chip_key` 落库）
@@ -36,7 +45,7 @@
 ### 3.2 命名规范
 - `project.code`：固定为 `fashion` / `jewelry`。
 - `item_uid`：`FASH-2026-000001` / `JEW-2026-000001`，全局唯一。
-- `chip_uid`：NTAG424 DNA 的 7 字节 UID，冒号分隔大写十六进制，如 `04:A2:7F:1B:5E:80:00`。
+- `chip_uid`：NTAG424 DNA 的 7 字节静态硬件 UID，冒号分隔大写十六进制，如 `04:A2:7F:1B:5E:80:00`。
 - API 返回统一结构：成功 `{"status":"ok","data":{...}}`；失败 `{"status":"error","code":"...","message":"..."}`。
 
 ## 4. 项目简介
@@ -46,9 +55,10 @@
 
 ### 4.1 当前阶段
 - 阶段：Phase 1 — 基础闭环验证。
-- 目标：跑通“NFC.cool Webhook 芯片入库 → 管理端物品 CRUD → 芯片-物品-所有人绑定 → 写卡 CSV 导出”的完整链路。
+- 目标：跑通“NFC.cool Webhook 芯片入库 → 管理端物品 CRUD → 芯片-物品-所有人绑定，停用启用 → 查看密钥并手动逐一写入芯片”的完整链路。
+- 已知限制：NFC.cool 的 CSV 批量写入不支持批量配置 NTAG424 DNA 的密钥和 SDM，密钥/SDM 需在 App 内逐枚手动配置。
 - 尚未开始：用户侧 SDM 验证页、饰品养成机制、批量写卡密钥/SDM 能力实测。
-- 验收标准：管理员扫描一枚芯片，数据进入 `chip` 表；管理端能看到该芯片并绑定物品；导出 CSV 包含 `chip_uid` 和 5 个派生密钥。
+- 验收标准：管理员扫描一枚芯片，数据进入 `chip` 表；管理端能看到该芯片、绑定物品、启用停用；管理员能在页面上查看该芯片的 5 个派生密钥，用于后续手动写卡。
 
 ## 5. 核心业务简介
 ### 管理员侧
@@ -56,9 +66,9 @@
 
 1. 芯片 UID 录入系统。管理员使用手机的 NFC.cool 应用，扫描芯片，通过应用自带的 Webhook 能力，将芯片 UID 发送到服务器。
 2. 数据管理后台。管理员登录管理后台，管理芯片、实体物品、维护绑定关系、停用启用等。
-3. 管理员将系统生成的密钥写入芯片。通过 NFC.cool Tools 配置芯片的密钥、链接以及 SUN 开关等。
-   - 注意：NFC.cool 的 CSV 批量写入是否支持“每枚芯片不同密钥 + SDM/SUN 配置”尚未实测；若不支持，则采用“CSV 批量写链接内容 + 密钥/SDM 逐枚配置”的两步流程。
-4. 管理端“导出写卡 CSV”会临时解密芯片密钥，必须二次确认并写入 `admin_audit`；日常芯片列表不展示密钥明文。
+3. 管理员将系统生成的密钥写入芯片。通过 NFC.cool Tools 逐枚配置芯片的密钥、SUN 链接模板、SUN 开关。
+   - 注意：CSV 批量写入仅用于批量写链接内容，**不支持**批量写入每枚芯片的不同密钥和 SDM 配置；密钥/SDM 需在 App 内逐枚手动处理。
+4. 管理端“查看密钥”会临时解密芯片密钥，必须二次确认并写入 `admin_audit`；日常芯片列表不展示密钥明文。
 
 ### 用户侧
 手机碰一碰 NFC 芯片，跳转对应链接，体验数字服务。
@@ -80,7 +90,13 @@ bumbum/
 ## 7. NTAG424 DNA 密钥与 SDM 要点（AI 必须知道）
 - NTAG424 DNA 有 **5 个 AES-128 密钥**：`K0` 是 App Master Key，是唯一有权更改其他密钥的密钥；`K1–K4` 是应用密钥。
 - **所有密钥从同一个主密钥确定性派生**（per-tag key diversification），而不是给每枚芯片独立随机生成。这样后端按项目保管主密钥。
-- SUN URL 通常包含 `picc_data`、`enc`、`cmac` 等参数，具体以 NFC.cool 写入的 SUN 模板为准。验证至少需要 `picc_data` 和 `cmac`；若 `picc_data` 加密还需 `enc`。后端验证时需要用对应芯片的 SDM 密钥解密 `picc_data` 并重算 CMAC。
+- **SUN URL 的正确结构**：物品 UID 放在路径中（静态），动态参数由芯片在每次触碰时自动追加。推荐模板：
+  `https://bumbum.cc/t/FASH-2026-000001?picc_data={picc}&enc={enc}&cmac={cmac}`
+  - `picc_data`：加密的 PICC 数据，解密后包含芯片 UID 和读取计数器。
+  - `enc`：加密的文件数据（如果启用了 SDMENCFileData）。
+  - `cmac`：AES-CMAC 签名，用于后端验证数据完整性。
+  - NXP 官方 SUN 映射示例：`https://my424dna.com/?picc_data=FDE4...&enc=9459...&cmac=C48B...`
+- **芯片 UID 是静态的**：NTAG424 DNA 的 7 字节硬件 UID 唯一且不变，NFC.cool Webhook 负载中的 `identifier` 就是它[reference:4]。动态变化的是 SUN URL 中的 `picc_data` / `enc` / `cmac` 参数，每次触碰都不同，但解密后仍能还原出同一个芯片 UID。
 - 后端验证逻辑**不要从零手写**。Python 生态已有成熟开源实现：`nfc-developer/sdm-backend`（Flask，直接可跑）和 `pylibsdm`。AI 基于这两个库封装业务路由，而不是让它自己实现 AES-CMAC 细节。
 - NFC.cool 的 Webhook 负载中，`identifier` 是标签 UID，`content` 是解码后的 NDEF 负载（即 SUN URL 字符串）。管理员扫描入库时，用 `identifier` 作为芯片 UID。
 
@@ -94,7 +110,7 @@ bumbum/
 ### 8.1 安全与权限
 - 管理后台必须登录后访问；初期可用简单 Token/密码，禁止裸奔。
 - NFC.cool Webhook 使用 Basic Auth 或 URL 中的共享 token 鉴权，防止伪造扫描。
-- 管理端“导出写卡 CSV”会临时解密芯片密钥，必须二次确认并写入 `admin_audit`。
+- 管理端“查看密钥”会临时解密芯片密钥，必须二次确认并写入 `admin_audit`。
 - 生产环境全站 HTTPS；RDS 3306 不对公网开放。
 
 ## 9. 前后端分离协作规则（AI 必须遵守）
@@ -153,5 +169,6 @@ bumbum/
 4. 生成代码时，标注“需要我修改的地方”（如数据库密码、域名）。
 5. 我是产品经理，不懂代码，请用简洁中文解释关键决策，不要贴大段无关的底层实现。
 6. NTAG424 DNA 的 SDM 验证，优先用 `nfc-developer/sdm-backend` 或 `pylibsdm`，不要从零实现 AES-CMAC。
+7. SUN URL 的模板为 `https://bumbum.cc/t/<item_uid>?picc_data={picc}&enc={enc}&cmac={cmac}`，物品 UID 在路径中，动态参数由芯片追加。
 
 我当前的任务是：<在这里填入这次要做的事>
