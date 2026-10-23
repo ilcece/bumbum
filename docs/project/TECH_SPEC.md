@@ -171,7 +171,7 @@ UID(7字节) ‖ NTAG424_AID(7字节, D2760000850101) ‖ Key Number(1字节, 0x
 
 - 管理端芯片列表**不展示密钥明文**。
 - “查看密钥”必须二次确认，并写入 `admin_audit`（操作人、芯片 UID、时间、IP）。
-- 写卡流程：管理员在管理端逐枚查看 5 个密钥和 SUN URL 模板 → 在 NFC.cool Tools 中逐枚手动配置密钥、链接、SUN 开关。**CSV 批量写入不支持批量配置每枚芯片的不同密钥和 SDM**，不要设计依赖 CSV 批量密钥的流程。
+- 写卡流程：管理员在管理端逐枚查看 5 个密钥和 SUN URL 模板 → 在 NFC.cool Tools 中逐枚手动配置密钥、链接、SUN 开关。
 
 ---
 
@@ -238,7 +238,6 @@ https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}
 - 后端解密 `picc_data` 得到 `chip_uid`，查 `chip` → `item` → `project`，验证后返回 JSON。
 - 前端渲染结果。
 
-**不要再设计 `GET /t/<item_uid>` 的后端 HTML 路由；也不要在 `/api/tap/verify` 请求体中传 `item_uid`。**
 
 ---
 
