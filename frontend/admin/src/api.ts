@@ -71,7 +71,7 @@ export async function signOut(): Promise<void> {
 }
 
 export type ChipView = {
-  id: number; chip_uid: string; project: "fashion" | "jewelry";
+  id: number; chip_uid: string; project: "fashion" | "jewelry" | null;
   chip_status: "pending" | "bound" | "disabled" | "lost";
   item_id: number | null; item_uid: string | null; batch_no: string | null;
   provisioned_at: string | null; keys_generated: boolean;
@@ -88,6 +88,6 @@ export async function listChips(query: ChipQuery): Promise<ChipList> {
   return request<ChipList>(`/admin/chips?${parameters}`);
 }
 
-export async function registerChip(chip_uid: string, project: string, batch_no: string | null): Promise<{ chip: ChipView; is_new: boolean }> {
+export async function registerChip(chip_uid: string, project: string | null, batch_no: string | null): Promise<{ chip: ChipView; is_new: boolean }> {
   return request("/admin/chips", { chip_uid, project, batch_no });
 }

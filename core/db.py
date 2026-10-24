@@ -63,7 +63,7 @@ def close_database(_error=None):
 
 
 def database_ready():
-    """检查目标表清单与两个初始项目；只读，不自动建表或修库。"""
+    """检查表、初始项目及本次芯片结构版本；只读，不自动建表或修库。"""
     try:
         with get_database().cursor() as cursor:
             cursor.execute("SHOW TABLES")
@@ -71,6 +71,26 @@ def database_ready():
             if not TARGET_TABLES or not TARGET_TABLES.issubset(actual_tables):
                 return False
             cursor.execute("SELECT code FROM project ORDER BY id")
-            return [row[0] for row in cursor.fetchall()] == ["fashion", "jewelry"]
+            return ([row[0] for row in cursor.fetchall()] == ["fashion", "jewelry"]
+                    and chip_project_schema(cursor) == "optional")
     except pymysql.MySQLError:
         return False
+
+
+def chip_project_schema(cursor):
+    """识别本次升级是否完整；只检查项目可空字段与防止空项目绕过绑定的约束。"""
+    cursor.execute("SELECT IS_NULLABLE,COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='chip' AND COLUMN_NAME='project_id'")
+    column = cursor.fetchone()
+    cursor.execute("SELECT CONSTRAINT_NAME FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='chip' AND CONSTRAINT_TYPE='CHECK' AND CONSTRAINT_NAME='ck_chip_project_assignment' AND ENFORCED='YES'")
+    guarded = cursor.fetchone() is not None
+    cursor.execute("SELECT CONSTRAINT_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='chip' AND REFERENCED_TABLE_NAME IS NOT NULL")
+    foreign_keys = set(cursor.fetchall())
+    old_keys = {("fk_chip_project", "project_id", "project", "id"),
+                ("fk_chip_item_project", "item_id", "item", "id"),
+                ("fk_chip_item_project", "project_id", "item", "project_id")}
+    new_keys = {(name + "_v2", field, table, referenced) for name, field, table, referenced in old_keys}
+    if column == ("YES", "tinyint unsigned") and guarded and foreign_keys == new_keys:
+        return "optional"
+    if column == ("NO", "tinyint unsigned") and not guarded and foreign_keys == old_keys:
+        return "required"
+    return "unknown"

@@ -39,8 +39,8 @@ export function ChipPanel({ onSessionExpired }: { onSessionExpired: () => void }
     setNotice("");
     setError("");
     try {
-      const result = await registerChip(String(values.get("chip_uid")), String(values.get("project")), batch || null);
-      setNotice(result.is_new ? `登记成功：${result.chip.chip_uid}，状态为待绑定。` : "该芯片已经登记，已定位原记录；项目、批次和状态保持不变。");
+      const result = await registerChip(String(values.get("chip_uid")), String(values.get("project")) || null, batch || null);
+      setNotice(result.is_new ? `登记成功：${result.chip.chip_uid}，状态为待绑定${result.chip.project === null ? "，项目未分配" : ""}。` : "该 UID 已登记，已显示原记录，无需重复登记。项目、批次和状态保持不变。");
       const next = { ...INITIAL_QUERY, keyword: result.chip.chip_uid };
       setFilters(next);
       setQuery(next);
@@ -65,11 +65,11 @@ export function ChipPanel({ onSessionExpired }: { onSessionExpired: () => void }
   return (
     <section className="chip-panel" aria-labelledby="chips-title">
       <h2 id="chips-title">芯片登记与列表</h2>
-      <p>先登记UID、项目和可选批次。登记不会生成密钥或向芯片写入内容。</p>
+      <p>先登记UID，项目和批次可留空。未分配项目的芯片，后续绑定物品时再确定项目；登记不会生成密钥或写卡。</p>
       <form onSubmit={event => void submit(event)} aria-label="芯片登记表单">
         <fieldset disabled={saving}>
           <label>芯片UID<input name="chip_uid" placeholder="04:A2:7F:1B:5E:80:00" maxLength={64} required /></label>
-          <label>所属项目<select name="project" aria-label="所属项目"><option value="fashion">服装</option><option value="jewelry">饰品</option></select></label>
+          <label>所属项目（可选）<select name="project" aria-label="所属项目"><option value="">暂不分配</option><option value="fashion">服装</option><option value="jewelry">饰品</option></select></label>
           <label>批次（可选）<input name="batch_no" maxLength={64} /></label>
           <button type="submit">{saving ? "正在登记…" : "登记芯片"}</button>
         </fieldset>
@@ -77,7 +77,7 @@ export function ChipPanel({ onSessionExpired }: { onSessionExpired: () => void }
       {notice && <p className="success-notice" role="status">{notice}</p>}
       <form className="chip-filters" aria-label="芯片筛选" onSubmit={event => { event.preventDefault(); setQuery({ ...filters, page: 1 }); }}>
         <label>UID关键词<input value={filters.keyword} maxLength={128} onChange={event => setFilters({ ...filters, keyword: event.target.value })} /></label>
-        <label>筛选项目<select aria-label="筛选项目" value={filters.project} onChange={event => setFilters({ ...filters, project: event.target.value })}><option value="">全部项目</option><option value="fashion">服装</option><option value="jewelry">饰品</option></select></label>
+        <label>筛选项目<select aria-label="筛选项目" value={filters.project} onChange={event => setFilters({ ...filters, project: event.target.value })}><option value="">全部项目</option><option value="unassigned">未分配</option><option value="fashion">服装</option><option value="jewelry">饰品</option></select></label>
         <label>筛选状态<select aria-label="筛选状态" value={filters.status} onChange={event => setFilters({ ...filters, status: event.target.value })}><option value="">全部状态</option>{Object.entries(STATUSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <button type="submit" disabled={loading}>查询</button>
         <button type="button" disabled={loading} onClick={() => { setFilters(INITIAL_QUERY); setQuery({ ...INITIAL_QUERY }); }}>查看全部</button>
@@ -88,7 +88,7 @@ export function ChipPanel({ onSessionExpired }: { onSessionExpired: () => void }
         {list.items.length === 0 ? <p>没有符合条件的芯片。</p> : <div className="table-scroll"><table>
           <caption>芯片列表</caption>
           <thead><tr><th scope="col">芯片UID</th><th scope="col">项目</th><th scope="col">状态</th><th scope="col">批次</th><th scope="col">登记时间</th></tr></thead>
-          <tbody>{list.items.map(chip => <tr key={chip.id}><td>{chip.chip_uid}</td><td>{PROJECTS[chip.project]}</td><td>{STATUSES[chip.chip_status]}</td><td>{chip.batch_no || "—"}</td><td>{new Date(chip.created_at).toLocaleString("zh-CN", { hour12: false })}</td></tr>)}</tbody>
+          <tbody>{list.items.map(chip => <tr key={chip.id}><td>{chip.chip_uid}</td><td>{chip.project === null ? "未分配" : PROJECTS[chip.project]}</td><td>{STATUSES[chip.chip_status]}</td><td>{chip.batch_no || "—"}</td><td>{new Date(chip.created_at).toLocaleString("zh-CN", { hour12: false })}</td></tr>)}</tbody>
         </table></div>}
         <div className="actions" aria-label="芯片分页">
           <button type="button" disabled={query.page === 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>上一页</button>

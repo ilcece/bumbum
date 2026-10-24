@@ -10,9 +10,9 @@
 |---|---|
 | 项目 | code 仅 fashion/jewelry；业务资料类型须与项目一致，不给 jewelry 写 fashion profile |
 | 芯片编号 | chip_uid 为7字节；手动入口接受14位连续十六进制或7组冒号格式，去首尾空白，统一成冒号分隔的大写；其他分隔符拒绝 |
-| 手动登记 | 新UID设pending，item_id为空，不写provisioned_at或chip_key。以唯一索引去重，同项目重复取回原记录；跨项目409，不覆盖现有资料；首次登记与chip.register审计一起提交 |
+| 手动登记 | 新UID设pending，project可省略/null，item_id为空，不写provisioned_at或chip_key。唯一索引去重，重复返回原记录，项目不分配、不清空、不覆盖；原项目非空且本次明确选择另一个项目才409。首次登记与chip.register审计一起提交 |
 | 物品编号 | item_uid 用 FASH-YYYY-NNNNNN / JEW-YYYY-NNNNNN，创建时提供，前缀匹配项目，之后不可修改 |
-| 唯一绑定 | chip.item_id 可空且唯一；复合外键检查项目；已关联物品不物理删除 |
+| 唯一绑定 | chip.item_id 可空且唯一；复合外键检查项目；ck_chip_project_assignment限制空项目时item_id/provisioned_at/last_verified_counter必须全空，避免NULL跳过复合外键；已关联物品不物理删除 |
 | 当前所有者 | active_item_id 仅在 is_active=1 时映射 item_id，唯一索引限制一条有效绑定；历史可以多条 |
 | 解绑 | 同时设置 is_active=0 和 unbound_at；不删除历史、密钥和已接受计数器 |
 | 流转 | bind_source 只在 ownership；history 保存 from/to、action、note、时间；转赠只写一条 transfer 历史 |
@@ -24,11 +24,17 @@
 
 手动登记先在事务中按账号、会话的顺序锁定并重查登录状态，再保存芯片。`INSERT ... ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)` 只取回重复记录ID，不改项目、批次或状态；使用当前PyMySQL默认连接选项，首次插入的影响行数为1，重复为0。 取回摘要时使用只锁chip表的当前读（FOR UPDATE OF c），避免并发时旧快照读不到另一事务刚提交的记录；不把项目或物品表升级为排他锁。新增时审计仅保存项目和来源manual，目标ID关联芯片，IP沿用指纹规则；重复未修改资料，不新增变更审计。数据库提交失败返回503，不能提前返回成功。
 
+列表使用LEFT JOIN保留空项目记录，project=unassigned筛选c.project_id IS NULL；未分配不是第三个项目。绑定功能后续实现：按既定锁顺序，空项目时在同一事务首次设为目标物品项目，已有项目则严格匹配；解绑保留项目。未分配不能生成chip_key，未来密钥接口必须在写事务内检查，不能只靠页面隐藏；当前没有密钥生成实现。
+
+已有库通过migrate_local.py先完整备份再执行001迁移：使用一条原子ALTER将project_id改可空、添加ck_chip_project_assignment，并用不同名称的_v2外键重建相同关联规则，避免MySQL同一ALTER重用旧外键名失败；不关闭外键检查。回退同样单条ALTER，已有空项目记录时提前拒绝。ready检查本次字段及外键/检查约束版本，未完成升级时503。命令只接受默认本机测试库，备份容器与实际连接须同一server_uuid；不擅自升级生产或导入备份覆盖数据。步骤见[本地运行第7节](LOCAL_DEVELOPMENT.md#7-已有测试库升级允许芯片暂不分配项目)。
+
 锁定记录的意思是：在本次保存结束前，其他要修改同一记录的请求需要等待，避免两个请求各自认为“还没绑定”。
 
 ## 2. 芯片密钥与版本
 
 同版本全局共享 K1、单芯片独立 K2 已获确认。K1 负责解密编号，K2 按 SDM 规则参与核验防伪码；K0 管理芯片，K3/K4 预留。项目根密钥只在服务器使用，K0/K2/K3/K4 按项目根密钥、UID、槽位和用途算出；不同项目和用途必须分开计算。具体计算方法称为 KDF，须固定实现、输入编码和正确答案测试，旧版随手写的 CMAC 输入公式不能直接投产。
+
+芯片尚未分配项目时，不能选择根密钥、生成芯片密钥或写卡；验证入口也不能替它猜项目、尝试其他项目根密钥或签发tap_token。项目确定后才允许进入仍待核验的密钥流程，全局K1/独立K2的分工不变。
 
 | 配置或字段 | 如何使用 |
 |---|---|

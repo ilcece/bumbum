@@ -64,6 +64,7 @@ def auth_database(request):
             docker(["start", container])
             port = int(docker(["port", container, "3306/tcp"]).rsplit(":", 1)[1])
             config = {"DB_HOST": "127.0.0.1", "DB_PORT": port, "DB_USER": "bumbum_auth_test", "DB_PASSWORD": password, "DB_NAME": "bumbum_digital"}
+            config.update(TEST_CONTAINER=container, TEST_DOCKER_COMMAND=command)
             for _ in range(60):
                 try:
                     connection = pymysql.connect(host="127.0.0.1", port=port, user="bumbum_auth_test", password=password, database="bumbum_digital", connect_timeout=1)

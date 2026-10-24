@@ -62,11 +62,12 @@ CREATE TABLE item (
 -- ============================================================
 -- 4. 芯片表：每枚芯片一条记录；最多关联一个同项目物品，物品也最多关联一枚芯片。
 -- pending 待绑定；bound 已绑定；disabled 停用；lost 丢失。停用和丢失时保留绑定。
+-- 项目可暂不分配；未分配时不能关联物品、记录写卡完成或接受防伪读数。
 -- ============================================================
 CREATE TABLE chip (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   chip_uid VARCHAR(32) NOT NULL,
-  project_id TINYINT UNSIGNED NOT NULL,
+  project_id TINYINT UNSIGNED DEFAULT NULL COMMENT '空值表示尚未分配项目，绑定物品时确定',
   item_id BIGINT UNSIGNED DEFAULT NULL,
   chip_status ENUM('pending','bound','disabled','lost') NOT NULL DEFAULT 'pending',
   batch_no VARCHAR(64) DEFAULT NULL,
@@ -78,11 +79,15 @@ CREATE TABLE chip (
   KEY idx_project_status (project_id, chip_status),
   UNIQUE KEY uk_chip_item (item_id),
   KEY idx_chip_item_project (item_id, project_id),
-  CONSTRAINT fk_chip_project FOREIGN KEY (project_id) REFERENCES project(id),
-  CONSTRAINT fk_chip_item_project FOREIGN KEY (item_id, project_id) REFERENCES item(id, project_id),
+  CONSTRAINT fk_chip_project_v2 FOREIGN KEY (project_id) REFERENCES project(id),
+  CONSTRAINT fk_chip_item_project_v2 FOREIGN KEY (item_id, project_id) REFERENCES item(id, project_id),
   CONSTRAINT ck_chip_binding CHECK (
     (chip_status <> 'pending' OR item_id IS NULL) AND
     (chip_status <> 'bound' OR item_id IS NOT NULL)
+  ),
+  CONSTRAINT ck_chip_project_assignment CHECK (
+    project_id IS NOT NULL OR
+    (item_id IS NULL AND provisioned_at IS NULL AND last_verified_counter IS NULL)
   ),
   CONSTRAINT ck_chip_counter CHECK (last_verified_counter IS NULL OR last_verified_counter <= 16777215)
 ) COMMENT='NTAG424 DNA 芯片表';

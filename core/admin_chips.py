@@ -17,7 +17,7 @@ CHIP_VIEW = """
 SELECT c.id,c.chip_uid,p.code AS project,c.chip_status,c.item_id,i.item_uid,
        c.batch_no,c.provisioned_at,(k.chip_id IS NOT NULL) AS keys_generated,
        c.created_at,c.updated_at
-FROM chip c JOIN project p ON p.id=c.project_id
+FROM chip c LEFT JOIN project p ON p.id=c.project_id
 LEFT JOIN item i ON i.id=c.item_id
 LEFT JOIN chip_key k ON k.chip_id=c.id
 """
@@ -63,6 +63,9 @@ def list_chips():
     for name, allowed_values, column in (("project", PROJECTS, "p.code"), ("status", STATUSES, "c.chip_status")):
         value = request.args.get(name)
         if value is not None:
+            if name == "project" and value == "unassigned":
+                conditions.append("c.project_id IS NULL")
+                continue
             if value not in allowed_values:
                 invalid(f"{name}不在允许范围内。")
             conditions.append(column + "=%s")
@@ -76,7 +79,7 @@ def list_chips():
         values.append("%" + keyword + "%")
     where = " WHERE " + " AND ".join(conditions) if conditions else ""
     with get_database().cursor(pymysql.cursors.DictCursor) as cursor:
-        cursor.execute("SELECT COUNT(*) AS total FROM chip c JOIN project p ON p.id=c.project_id" + where, values)
+        cursor.execute("SELECT COUNT(*) AS total FROM chip c LEFT JOIN project p ON p.id=c.project_id" + where, values)
         total = cursor.fetchone()["total"]
         cursor.execute(CHIP_VIEW + where + " ORDER BY c.id DESC LIMIT %s OFFSET %s", (*values, page_size, (page - 1) * page_size))
         items = [chip_view(row) for row in cursor.fetchall()]
@@ -84,11 +87,11 @@ def list_chips():
 
 
 def register_chip():
-    data = request_json({"chip_uid", "project"}, {"batch_no"})
+    data = request_json({"chip_uid"}, {"project", "batch_no"})
     uid = normalize_uid(data["chip_uid"])
-    project, batch = data["project"], data.get("batch_no")
-    if not isinstance(project, str) or project not in PROJECTS:
-        invalid("项目只能为fashion或jewelry。")
+    project, batch = data.get("project"), data.get("batch_no")
+    if project is not None and (not isinstance(project, str) or project not in PROJECTS):
+        invalid("项目只能为fashion或jewelry，暂不分配请传null或省略。")
     if batch is not None:
         if not isinstance(batch, str) or not batch.strip() or len(batch.strip()) > 64:
             invalid("批次须为1到64个字符，留空请传null或省略。")
@@ -97,21 +100,24 @@ def register_chip():
     connection.begin()
     with connection.cursor(pymysql.cursors.DictCursor) as cursor:
         lock_admin_session(cursor)
-        cursor.execute("SELECT id FROM project WHERE code=%s", (project,))
-        project_row = cursor.fetchone()
-        if project_row is None:
-            raise pymysql.OperationalError("初始项目资料尚未就绪。")
+        project_id = None
+        if project is not None:
+            cursor.execute("SELECT id FROM project WHERE code=%s", (project,))
+            project_row = cursor.fetchone()
+            if project_row is None:
+                raise pymysql.OperationalError("初始项目资料尚未就绪。")
+            project_id = project_row["id"]
         # 唯一索引负责并发去重；重复时只取回原ID，不覆盖项目、批次或状态。
         cursor.execute(
             "INSERT INTO chip (chip_uid,project_id,batch_no) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
-            (uid, project_row["id"], batch),
+            (uid, project_id, batch),
         )
         is_new, chip_id = cursor.rowcount == 1, cursor.lastrowid
         # 当前读避免项目查询建立的旧快照漏掉另一事务刚提交的重复UID。
         cursor.execute(CHIP_VIEW + " WHERE c.id=%s FOR UPDATE OF c", (chip_id,))
         chip = chip_view(cursor.fetchone())
-        if chip["project"] != project:
-            raise AuthRequestError(409, "project_mismatch", "该UID已属于另一个项目，不能覆盖。")
+        if project is not None and chip["project"] is not None and chip["project"] != project:
+            raise AuthRequestError(409, "project_mismatch", "该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。")
         if is_new:
             cursor.execute(
                 "INSERT INTO admin_audit (admin_id,action,target_type,target_id,detail,ip_hash) VALUES (%s,%s,%s,%s,%s,%s)",

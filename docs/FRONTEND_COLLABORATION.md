@@ -8,7 +8,7 @@
 |---|---|
 | `frontend/admin/src/main.tsx` | 运行检查与登录区的页面组合 |
 | `frontend/admin/src/LoginPanel.tsx` | 登录表单、登录状态、刷新与退出；登录有效时展示管理功能 |
-| `frontend/admin/src/ChipPanel.tsx` | 手动芯片登记、筛选、分页与真实列表；保留去重和错误提示 |
+| `frontend/admin/src/ChipPanel.tsx` | 手动芯片登记、筛选、分页与真实列表；保留未分配项目、重复不覆盖和跨项目提示 |
 | `frontend/admin/src/style.css` | 颜色、间距、字体和手机适配 |
 | `frontend/admin/src/api.ts` | 调用检查/认证接口、携带 Cookie、在内存中保存防冒用口令；后续接口调用在这一层扩展 |
 | `frontend/admin/vite.config.ts` | 本地网页如何连接后端 |
