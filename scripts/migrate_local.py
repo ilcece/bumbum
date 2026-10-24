@@ -13,7 +13,8 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from core.db import chip_project_schema, get_database
+from core.db import chip_project_schema, get_database, registration_source_schema
+from core.registration_migration import migrate as migrate_source, SourceMigrationError
 
 MIGRATIONS = {
     "optional": ROOT / "db/migrations/001_chip_project_optional.sql",
@@ -126,7 +127,11 @@ def main():
     parser = argparse.ArgumentParser(description="检查本机测试库的芯片项目升级；默认只检查。")
     parser.add_argument("--apply", action="store_true", help="完整备份成功后执行升级")
     parser.add_argument("--rollback", action="store_true", help="回退此项结构；已有未分配芯片时拒绝")
+    parser.add_argument("--registration-source", action="store_true", help="检查首次登记来源；配合--apply先备份再升级")
     args = parser.parse_args()
+    if args.registration_source and args.rollback:
+        parser.error("来源升级不支持此回退参数；旧版本可保留新增字段运行。")
+    inspect_schema = registration_source_schema if args.registration_source else chip_project_schema
     try:
         from app import create_app
         app = create_app()
@@ -138,13 +143,15 @@ def main():
                 account, server_id = cursor.fetchone()
                 if not account.startswith("bumbum_dev@"):
                     raise MigrationError("当前数据库账号不是本机测试账号，未执行操作。")
-                state = chip_project_schema(cursor)
+                state = inspect_schema(cursor)
                 if not args.apply:
                     labels = {"required": "需要升级：芯片项目目前必填。", "optional": "已是新版本：芯片项目可以暂不分配。"}
+                    if args.registration_source:
+                        labels = {"missing": "需要升级：缺少首次登记来源字段。", "ready": "来源字段已存在；--apply会检查是否还有可可靠补齐的历史来源。"}
                     print(labels.get(state, "数据库结构无法识别，请让AI排查。"))
                     return 0 if state != "unknown" else 1
             target = "required" if args.rollback else "optional"
-            if state == target:
+            if not args.registration_source and state == target:
                 print("已是目标版本，无需重复执行；没有新建备份或修改数据。")
                 return 0
             command, container = local_container()
@@ -153,16 +160,16 @@ def main():
             if actual_id != server_id:
                 raise MigrationError("配置连接的数据库与Docker容器不一致，未执行操作。")
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            destination = ROOT / "backups" / f"before-chip-project-{stamp}-{uuid.uuid4().hex[:8]}.sql"
+            destination = ROOT / "backups" / f"before-{'chip-source' if args.registration_source else 'chip-project'}-{stamp}-{uuid.uuid4().hex[:8]}.sql"
 
             def backup():
                 backup_database(command, container, destination)
                 print("完整备份已保存到：" + str(destination))
 
-            changed = migrate(connection, backup, rollback=args.rollback)
+            changed = migrate_source(connection, backup) if args.registration_source else migrate(connection, backup, rollback=args.rollback)
             print("升级完成，原有账号和芯片资料保留。" if changed and not args.rollback else "回退完成。" if changed else "已是目标版本，无需重复执行。")
             return 0
-    except MigrationError as error:
+    except (MigrationError, SourceMigrationError) as error:
         print("未完成：" + str(error), file=sys.stderr)
     except Exception:
         print("未完成：数据库升级或检查失败。保留已生成的备份；不要清空数据库或重新执行schema.sql，请让AI按运行手册排查。", file=sys.stderr)

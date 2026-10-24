@@ -25,7 +25,6 @@ while IFS= read -r task_container; do
 done <<< "$task_containers"
 case "${1:-status}" in
     start)
-        install -d -m 0755 .cloud-test/diagnostics
         python3 scripts/setup_cloud_test.py --prepare-build-ca
         "${compose[@]}" up -d --build --wait --wait-timeout 120
         echo '后端与测试库已就绪；还需按手册配置网页和HTTPS。'
@@ -36,13 +35,17 @@ case "${1:-status}" in
         ;;
     status) "${compose[@]}" ps ;;
     logs) "${compose[@]}" logs --tail=80 backend ;;
-    listen-scan)
-        python3 scripts/scan_capture.py listen "${compose[@]}" logs --follow --since=1s backend
+    upgrade-source)
+        # 先构建成功再暂停服务；备份或升级失败时不继续启动，保留原数据供排查。
+        python3 scripts/setup_cloud_test.py --prepare-build-ca
+        "${compose[@]}" build backend
+        "${compose[@]}" up -d --wait --wait-timeout 120 db
+        "${compose[@]}" stop backend
+        bash "$task_root/scripts/cloud_test.sh" backup
+        "${compose[@]}" run --rm --no-deps -T backend python -m core.registration_migration --apply-after-backup
+        "${compose[@]}" up -d --no-build --wait --wait-timeout 120 backend
+        echo '来源升级及后端启动完成；请执行publish-page更新网页，再核对原账号和芯片。'
         ;;
-    listen-scan-raw)
-        python3 scripts/scan_capture.py listen-raw "${compose[@]}" logs --follow --since=1s backend
-        ;;
-    stop-listen) python3 scripts/scan_capture.py stop ;;
     admin)
         shift
         "${compose[@]}" exec backend python -m flask --app app:create_app admin "$@"
@@ -78,7 +81,7 @@ case "${1:-status}" in
         umask 077
         mkdir -p .cloud-test/backups
         task_backup="$(mktemp .cloud-test/backups/database-XXXXXXXX.sql)"
-        if "${compose[@]}" exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" exec mysqldump --user="$MYSQL_USER" --single-transaction --no-tablespaces --skip-lock-tables --databases "$MYSQL_DATABASE"' >"$task_backup"; then
+        if "${compose[@]}" exec -T db sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" exec mysqldump --user="$MYSQL_USER" --single-transaction --no-tablespaces --skip-lock-tables --databases "$MYSQL_DATABASE"' >"$task_backup" && tail -c 512 "$task_backup" | grep -q -- '-- Dump completed on'; then
             echo "完整测试库备份已保存：$task_backup；包含账号秘密，请勿分享。"
         else
             rm -f -- "$task_backup"
@@ -86,5 +89,5 @@ case "${1:-status}" in
             exit 1
         fi
         ;;
-    *) echo '可用操作：start、stop、status、logs、listen-scan、listen-scan-raw、stop-listen、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
+    *) echo '可用操作：start、stop、status、logs、upgrade-source、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
 esac

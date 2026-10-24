@@ -14,7 +14,7 @@ COPY requirements-deploy.txt ./
 RUN --mount=type=secret,id=proxy_ca,required=true PIP_CERT=/run/secrets/proxy_ca pip install --no-cache-dir -r requirements-deploy.txt
 COPY app.py ./
 COPY core/ ./core/
-COPY db/schema.sql ./db/schema.sql
+COPY db/ ./db/
 COPY --from=frontend /src/dist/ ./frontend-dist/
 RUN chmod -R a+rX /app && groupadd --gid 10001 bumbum && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin bumbum && mkdir /app/logs && chown 10001:10001 /app/logs
 USER bumbum:bumbum

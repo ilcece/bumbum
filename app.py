@@ -40,7 +40,7 @@ def create_app(test_config=None):
             return jsonify(
                 status="error",
                 code="service_unavailable",
-                message="测试数据库尚未就绪，请按启动说明检查数据库。",
+                message="测试数据库尚未就绪；更新代码后请按运行手册检查项目可空及登记来源升级。",
             ), 503
         return jsonify(status="ok", data={"database": "ready"})
 

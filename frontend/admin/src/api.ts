@@ -71,6 +71,7 @@ export async function signOut(): Promise<void> {
 }
 
 export type ChipView = {
+  registration_source: "unknown" | "manual" | "nfc_cool";
   id: number; chip_uid: string; project: "fashion" | "jewelry" | null;
   chip_status: "pending" | "bound" | "disabled" | "lost";
   item_id: number | null; item_uid: string | null; batch_no: string | null;

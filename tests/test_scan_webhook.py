@@ -45,7 +45,7 @@ def test_scan_challenge_then_save_then_query_from_authenticated_webpage(auth_app
     assert "Set-Cookie" not in response.headers
     row = query(auth_app, "SELECT * FROM chip")[0]
     assert row["project_id"] is None and row["chip_status"] == "pending" and row["item_id"] is None
-    assert row["provisioned_at"] is None
+    assert row["provisioned_at"] is None and row["registration_source"] == "nfc_cool"
     audit = query(auth_app, "SELECT * FROM admin_audit")[0]
     assert audit["admin_id"] == admin_account["id"]
     assert json.loads(audit["detail"]) == {"project": None, "source": "nfc_cool"}
@@ -64,6 +64,25 @@ def test_repeat_keeps_assigned_disabled_chip_and_only_one_audit(auth_app, scanne
     assert post(scanner).json["data"]["is_new"] is False
     assert query(auth_app, "SELECT * FROM chip")[0] == before
     assert query(auth_app, "SELECT COUNT(*) AS n FROM admin_audit")[0]["n"] == 1
+
+
+def test_actual_plain_text_payload_is_accepted_without_storing_or_logging_content(auth_app, scanner, caplog):
+    client, headers = scanner
+    body = json.dumps({"identifier": UID, "date": "2026-10-24T18:00:00Z", "content": "cece"}, indent=2)
+    assert client.post(PATH, headers=headers, content_type="application/json", data=body).status_code == 200
+    before = query(auth_app, "SELECT * FROM chip")[0]
+    assert before["registration_source"] == "nfc_cool"
+    assert not {"content", "date", "registration_content", "device_scanned_at"}.intersection(before)
+    assert post(scanner, content="another test text", date="2026-10-25T03:00:00+08:00").status_code == 200
+    assert query(auth_app, "SELECT * FROM chip")[0] == before
+    assert UID not in caplog.text and "another test text" not in caplog.text
+
+
+def test_four_byte_identifier_has_actionable_error_without_guessing_card_type(auth_app, scanner):
+    response = post(scanner, identifier="08:12:34:56", content="test text")
+    assert response.status_code == 400 and response.json["code"] == "invalid_param"
+    assert "7字节真实编号" in response.json["message"]
+    assert query(auth_app, "SELECT COUNT(*) AS n FROM chip")[0]["n"] == 0
 
 
 @pytest.mark.parametrize("header", [None, "Basic !!!", "Bearer test-only", "Basic dXNlcg=="])
@@ -95,7 +114,7 @@ def test_wrong_credentials_or_ineligible_owner_never_write(auth_app, scanner, ch
 @pytest.mark.parametrize("changes", [
     {"identifier": "NoIdentifierInCompatibilityMode"}, {"identifier": "not-a-uid"},
     {"identifier": None}, {"identifier": "04-A2-7F-1B-5E-80-00"},
-    {"project": "fashion"}, {"batch_no": "不允许"}, {"force": True},
+    {"project": "fashion"}, {"batch_no": "不允许"}, {"force": True}, {"registration_source": "manual"},
     {"content": None}, {"content": "文" * 4097}, {"date": None}, {"date": 123},
     {"date": "2026-10-24"}, {"date": "2026-10-24T03:00:00"}, {"date": "x" * 65},
 ])
@@ -169,13 +188,8 @@ def test_owner_status_is_rechecked_under_write_lock(auth_app, scanner, monkeypat
     assert query(auth_app, "SELECT COUNT(*) AS n FROM chip")[0]["n"] == 0
 
 
-@pytest.mark.parametrize("case,expected", [
-    ("missing", "认证头存在=否"),
-    ("username", "用户名匹配=否，密码匹配=是"),
-    ("password", "用户名匹配=是，密码匹配=否"),
-    ("disabled", "凭证匹配，但账号不存在、停用或未完成验证器设置"),
-])
-def test_auth_diagnostics_never_log_credentials(auth_app, scanner, caplog, case, expected):
+@pytest.mark.parametrize("case", ["missing", "username", "password", "disabled"])
+def test_auth_failures_never_log_credentials(auth_app, scanner, caplog, case):
     client, headers = scanner
     secret = auth_app.config["WEBHOOK_SHARED_SECRET"]
     private_user, private_password = "private-test-user", "private-test-password"
@@ -189,7 +203,7 @@ def test_auth_diagnostics_never_log_credentials(auth_app, scanner, caplog, case,
         query(auth_app, "UPDATE admin_user SET status='disabled'")
     response = client.post(PATH, headers=headers, json={"identifier": UID})
     assert response.status_code == 401 and "WWW-Authenticate" in response.headers
-    assert expected in caplog.text
+    assert "扫码认证诊断" not in caplog.text and "扫码请求观察" not in caplog.text
     assert all(value not in caplog.text for value in (secret, private_user, private_password, UID))
     if headers:
         assert headers["Authorization"] not in caplog.text

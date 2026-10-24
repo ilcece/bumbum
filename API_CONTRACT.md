@@ -65,13 +65,13 @@
 ```json
 {"status":"ok","data":{"database":"ready"}}
 ```
-不返回数据库地址、密码、SQL 或异常详情。ready 检查表清单、初始项目及本次芯片项目可空所需的字段与约束版本；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
+不返回数据库地址、密码、SQL 或异常详情。ready检查表清单、初始项目、芯片项目可空所需的字段与约束版本，以及登记来源列的类型、默认值和不可空定义；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
 
 ## 1. 登记芯片、验证触碰和绑定手机号
 
 ### 1.1 POST /api/webhook/admin/scan：登记芯片（第一阶段）
 
-供NFC.cool扫描后调用，本分支已实现；cece已通过“批量预写固定文本→批量读卡自动回调”验收，6枚卡后台可查、全部重扫无重复；批量读取自动保存，无需逐张点保存。开启随机UID时的4字节编号仍拒绝，不从content中的SUN参数临时解密登记。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date不存入业务数据库；普通临时监听只记类型、长度和格式。cece明确授权的本轮无秘密测试可临时开启原文监听，将完整请求正文写入WARNING日志，操作及关闭见云测试手册，默认不开启。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
+供NFC.cool扫描后调用，本分支已实现；cece已通过“批量预写固定文本→批量读卡自动回调”验收，6枚卡后台可查、全部重扫无重复；批量读取自动保存，无需逐张点保存。开启随机UID时的4字节编号仍拒绝，不从content中的SUN参数临时解密登记。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date不存入业务数据库、不写日常日志；临时监听已移除。后台按入口写入首次registration_source=nfc_cool，不接受客户端指定或覆盖来源。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
 ```json
 {"identifier":"04:A2:7F:1B:5E:80:00","content":"https://nfc.bumbum.cc/tap?picc_data=...&cmac=...","date":"2026-10-23T08:00:00Z"}
 ```
@@ -81,7 +81,7 @@
 ```json
 {"status":"ok","data":{"chip_uid":"04:A2:7F:1B:5E:80:00","is_new":true}}
 ```
-错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable；香港Nginx对同IP平均每秒5次、突发最多额外10次，超限429 rate_limited。本机直接运行Flask不含该频率限制。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-手机扫描后自动登记)。
+参数错误仍用400 invalid_param，message说明UID须为7字节真实编号、content类型/长度或date格式的具体要求；不会通过放宽规则接收随机标识。错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable；香港Nginx对同IP平均每秒5次、突发最多额外10次，超限429 rate_limited。本机直接运行Flask不含该频率限制。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-手机扫描后自动登记)。
 
 ### 1.2 POST /api/tap/verify：核验这次触碰（第二阶段，待实测）
 
@@ -163,7 +163,7 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 ## 3. 管理芯片（第一阶段）
 
-均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project（fashion/jewelry或null，null显示“未分配”）、chip_status、item_id/item_uid（可空）、batch_no（可空）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
+均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project（fashion/jewelry或null，null显示“未分配”）、chip_status、item_id/item_uid（可空）、batch_no（可空）、registration_source（manual网页手工／nfc_cool手机扫描／unknown历史未知）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
@@ -178,12 +178,12 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 当前仅手动登记和列表可用，表中其余接口仍待实现。
 
-手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录为pending，item_id、provisioned_at为空，keys_generated=false。
+手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录registration_source=manual，由后台设置，不接受请求指定；状态为pending，item_id、provisioned_at为空，keys_generated=false。
 ```json
 {"chip_uid":"04a27f1b5e8010","project":null,"batch_no":"DEMO-01"}
 ```
 
-返回HTTP200，data固定为chip和is_new。重复UID时is_new=false，返回原记录，项目、批次、状态、绑定和原更新时间都不覆盖，也不新增变更审计；原项目为空时，本次即使传入项目也不分配，后续走物品绑定。原项目非空且本次明确选择另一个项目才返回409 project_mismatch，message为“该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。”。其余重复在页面提示“该 UID 已登记，已显示原记录，无需重复登记。”。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
+返回HTTP200，data固定为chip和is_new。重复UID时is_new=false，返回原记录，项目、批次、状态、首次登记来源、绑定和原更新时间都不覆盖，也不新增变更审计；原项目为空时，本次即使传入项目也不分配，后续走物品绑定。原项目非空且本次明确选择另一个项目才返回409 project_mismatch，message为“该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。”。其余重复在页面提示“该 UID 已登记，已显示原记录，无需重复登记。”。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
 
 列表只接受表中5项查询参数，不接受重复键。page为1–2147483647，page_size为1–100；project可为fashion/jewelry/unassigned，unassigned只作筛选值，表示project_id为空，省略表示全部；status沿用既定枚举。keyword最长128字符，匹配UID片段，忽略大小写及冒号，百分号和下划线按普通文字查找。按id倒序；空页仍返回items=[]及真实total，未分配芯片也计入全部列表。摘要不增加密钥密文、读取序号、手机号或订单信息。
 

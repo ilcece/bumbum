@@ -11,7 +11,7 @@ from core.auth_settings import client_ip, fingerprint, iso_time
 CHIP_VIEW = """
 SELECT c.id,c.chip_uid,p.code AS project,c.chip_status,c.item_id,i.item_uid,
        c.batch_no,c.provisioned_at,(k.chip_id IS NOT NULL) AS keys_generated,
-       c.created_at,c.updated_at
+       c.registration_source,c.created_at,c.updated_at
 FROM chip c LEFT JOIN project p ON p.id=c.project_id
 LEFT JOIN item i ON i.id=c.item_id
 LEFT JOIN chip_key k ON k.chip_id=c.id
@@ -24,7 +24,7 @@ def normalize_uid(value):
         raise AuthRequestError(400, "invalid_param", "芯片UID须为文字。")
     value = value.strip()
     if not re.fullmatch(r"(?:[0-9A-Fa-f]{14}|(?:[0-9A-Fa-f]{2}:){6}[0-9A-Fa-f]{2})", value):
-        raise AuthRequestError(400, "invalid_param", "芯片UID须为14位十六进制，或7组冒号分隔的两位字符。")
+        raise AuthRequestError(400, "invalid_param", "芯片UID必须是7字节真实编号（14位十六进制或7组冒号格式）；4字节标识不适用于此登记入口，已开启随机UID的卡请先核对登记流程。")
     compact = value.replace(":", "").upper()
     return ":".join(compact[index:index + 2] for index in range(0, 14, 2))
 
@@ -47,8 +47,8 @@ def save_chip(cursor, uid, *, admin_id, source, project=None, batch=None):
             raise pymysql.OperationalError("初始项目资料尚未就绪。")
         project_id = project_row["id"]
     cursor.execute(
-        "INSERT INTO chip (chip_uid,project_id,batch_no) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
-        (uid, project_id, batch),
+        "INSERT INTO chip (chip_uid,project_id,batch_no,registration_source) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
+        (uid, project_id, batch, source),
     )
     is_new, chip_id = cursor.rowcount == 1, cursor.lastrowid
     # 当前读避免旧快照漏掉另一事务刚提交的重复UID。

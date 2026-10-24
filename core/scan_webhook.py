@@ -17,16 +17,12 @@ blueprint = Blueprint("scan_webhook", __name__)
 
 
 def init_scan(app):
-    from core.scan_capture import init_capture
     for name in ("WEBHOOK_ADMIN_USERNAME", "WEBHOOK_SHARED_SECRET"):
         app.config.setdefault(name, os.getenv(name, ""))
     app.register_blueprint(blueprint)
-    init_capture(app)
 
 
-def deny(reason):
-    # 仅记录固定诊断文字和匹配标志，不记录收到的账号、密码或认证头。
-    current_app.logger.warning("扫码认证诊断：%s", reason)
+def deny():
     raise AuthRequestError(401, "webhook_auth_failed", "扫码凭证无效，或对应管理员未启用。")
 
 
@@ -42,12 +38,11 @@ def credential_owner():
     secret_key("IP_HASH_KEY")
     auth = request.authorization
     if auth is None or auth.type.lower() != "basic" or auth.username is None or auth.password is None:
-        deny("认证头存在=%s，Basic凭证可解析=否" % ("是" if "Authorization" in request.headers else "否"))
+        deny()
     user_ok = hmac.compare_digest(auth.username.encode("utf-8"), username.encode("utf-8"))
     password_ok = hmac.compare_digest(auth.password.encode("utf-8"), password.encode("utf-8"))
     if not (user_ok and password_ok):
-        deny("用户名匹配=%s，密码匹配=%s，密码字符数=%d" %
-             ("是" if user_ok else "否", "是" if password_ok else "否", len(auth.password)))
+        deny()
     return username
 
 
@@ -91,7 +86,7 @@ def scan():
         cursor.execute("SELECT id,status,totp_enabled FROM admin_user WHERE username=%s FOR UPDATE", (username,))
         admin = cursor.fetchone()
         if not admin or admin["status"] != "active" or admin["totp_enabled"] != 1:
-            deny("凭证匹配，但账号不存在、停用或未完成验证器设置")
+            deny()
         chip, is_new = save_chip(cursor, uid, admin_id=admin["id"], source="nfc_cool")
     connection.commit()
     return jsonify(status="ok", data={"chip_uid": chip["chip_uid"], "is_new": is_new})

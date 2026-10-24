@@ -81,7 +81,7 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
         # 使用交付镜像的真实启动参数，只替换专属测试端口，避免漏测默认配置。
         runtime = json.loads(docker(["image", "inspect", "--format", "{{json .Config.Cmd}}", image]))
         runtime[runtime.index("--bind") + 1] = f"127.0.0.1:{api_port}"
-        docker(["create", "--name", backend, "--label", "bumbum.test=cloud-gateway", "--network=host", "--read-only", "--tmpfs", "/tmp", "--tmpfs", "/run/bumbum-diagnostics:uid=10001,gid=10001,mode=0755", "--volume", "/app/logs", "--cap-drop=ALL", "--security-opt=no-new-privileges:true", "--env-file", str(env_file), image,
+        docker(["create", "--name", backend, "--label", "bumbum.test=cloud-gateway", "--network=host", "--read-only", "--tmpfs", "/tmp", "--volume", "/app/logs", "--cap-drop=ALL", "--security-opt=no-new-privileges:true", "--env-file", str(env_file), image,
                 *runtime])
         created.append(backend)
         docker(["start", backend])
@@ -113,13 +113,12 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
             pytest.fail("专属HTTPS网关未就绪；合成环境启动记录：\n" + diagnostics.stdout + diagnostics.stderr)
         status, _, _ = call("/")
         assert status == (200 if allowed else 403)
-        docker(["exec", backend, "python", "-c", "from pathlib import Path; import time; Path('/run/bumbum-diagnostics/until').write_text(str(int(time.time())+300))"])
         challenge, headers, _ = call("/api/webhook/admin/scan", method="POST", body={"identifier": UID})
         assert challenge == 401 and headers["WWW-Authenticate"] == 'Basic realm="bumbum-scan"'
         diagnostics = subprocess.run(command + ["logs", backend], env=env, capture_output=True, text=True)
         log_text = diagnostics.stdout + diagnostics.stderr
-        assert "扫码认证诊断：认证头存在=否" in log_text
-        assert "扫码请求观察：" in log_text and '"响应状态": 401' in log_text
+        assert "扫码认证诊断" not in log_text
+        assert "扫码请求观察" not in log_text
         assert "Control server error" not in log_text
         assert password not in log_text and admin_account["password"] not in log_text
         credentials = authorization(admin_account["username"], password)

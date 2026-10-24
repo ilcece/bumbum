@@ -11,6 +11,7 @@
 | 项目 | code 仅 fashion/jewelry；业务资料类型须与项目一致，不给 jewelry 写 fashion profile |
 | 芯片编号 | chip_uid 为7字节；手动入口接受14位连续十六进制或7组冒号格式，去首尾空白，统一成冒号分隔的大写；其他分隔符拒绝 |
 | 手动登记 | 新UID设pending，project可省略/null，item_id为空，不写provisioned_at或chip_key。唯一索引去重，重复返回原记录，项目不分配、不清空、不覆盖；原项目非空且本次明确选择另一个项目才409。首次登记与chip.register审计一起提交 |
+| 首次登记来源 | chip.registration_source使用ENUM('unknown','manual','nfc_cool')，默认unknown；网页和手机由服务端分别写manual/nfc_cool。来源与首次新增、操作记录一起保存，重复不更新。content/date不新增保存字段 |
 | 物品编号 | item_uid 用 FASH-YYYY-NNNNNN / JEW-YYYY-NNNNNN，创建时提供，前缀匹配项目，之后不可修改 |
 | 唯一绑定 | chip.item_id 可空且唯一；复合外键检查项目；ck_chip_project_assignment限制空项目时item_id/provisioned_at/last_verified_counter必须全空，避免NULL跳过复合外键；已关联物品不物理删除 |
 | 当前所有者 | active_item_id 仅在 is_active=1 时映射 item_id，唯一索引限制一条有效绑定；历史可以多条 |
@@ -244,6 +245,7 @@ NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/develo
 
 用户报告iOS 27.0.1；2026-10-25重新核对官方开发及Webhook说明，仍要求401与WWW-Authenticate的Basic认证挑战。已收到的服务器响应符合此约定；[App Store公开查询](https://itunes.apple.com/lookup?id=1249686798&country=cn)显示商店版本7.3.0，最低iOS 17，最低版本不代表所有新系统均已验证。用户版本口述7.30，尚无确切构建号；不能仅凭缺少认证头或版本号断言App缺陷。新旧请求按时间区分，后端警告也不能代替完整访问日志。
 
-按cece要求增加临时请求结构观察：.cloud-test/diagnostics只读挂到后端/run/bumbum-diagnostics，由ECS工具写入五分钟到期标志，默认不采集；每个进程限12条摘要，进程重建重置计数。仅接收路径固定为扫描接口、长度明确且不超过8192字节的JSON时观察字段类型和格式，普通模式不输出原值或任意字段名，不改动原认证与业务结果。cece授权的本轮无秘密测试可用listen-scan-raw：到期控制文件第二行为raw时，额外输出完整UTF-8正文，不受业务字段白名单或认证结果过滤；仍不采集请求头，并保留原时间、体积和次数边界。所有最终状态都能关联到摘要，包含401和400。操作和停用集中在云测试手册第8节。
+临时请求结构/原文监听及认证匹配诊断已按cece确认的收尾方案删除，不保留入口或挂载，不自动删除服务器旧Docker日志。日常只保留访问状态、业务审计和必要异常信息。来源升级先暂停登记写入并完整备份，002迁移增加字段；仅从唯一一条chip.register操作记录的合法source补齐历史来源，歧义或无证据保持unknown，显式保留原updated_at。DDL提交后若补齐失败，可重跑完成；不自动删除列或恢复备份覆盖后来数据。已有测试库升级命令只在对应操作手册维护。
+
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。
