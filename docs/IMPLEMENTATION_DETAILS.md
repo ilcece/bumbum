@@ -240,7 +240,7 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，当时尚无真实目标卡、订阅可用性及手机请求的测试记录；后续实测补充如下，官方说明不能替代实测。
 
-2026-10-25最新实测：有内容卡回调identifier为20字符冒号格式、content为56字符、日期可解析且含时区，先401、再携带Basic认证返回200；另一组identifier仅11字符、content为121字符，重发后400。cece明确反馈空白出厂卡无回调。此前将未对应到具体卡的POST归为空白卡证据不成立，已撤回。官方页面本日复核仍将来源写作NFC scans (NDEF reads)，不能据此承诺空白卡UID触发。当前应核验或更换扫描端，后端保留原UID规则，不要求先写卡，不宣称扫描MVP通过。
+2026-10-25最新实测：完全空白卡无回调后，cece同意先用NFC.cool批量写固定文本再扫描登记。6枚卡content均为cece，identifier为7字节冒号格式，均先401后200；最后一枚据cece确认已启用随机UID和SUN，提交4字节随机编号及带picc_data/cmac的内容，返回400。登记接口不解密SUN，不把随机编号当永久UID。6次200证明保存路径完成，不单独证明6次都是新增或重复无新增，后台列表及重复扫描需核对；原始卡号与动态参数不复制进文档。官方来源NFC scans (NDEF reads)，不能承诺完全空白卡触发；此前错误归属证据已撤回。
 
 用户报告iOS 27.0.1；2026-10-25重新核对官方开发及Webhook说明，仍要求401与WWW-Authenticate的Basic认证挑战。已收到的服务器响应符合此约定；[App Store公开查询](https://itunes.apple.com/lookup?id=1249686798&country=cn)显示商店版本7.3.0，最低iOS 17，最低版本不代表所有新系统均已验证。用户版本口述7.30，尚无确切构建号；不能仅凭缺少认证头或版本号断言App缺陷。新旧请求按时间区分，后端警告也不能代替完整访问日志。
 
