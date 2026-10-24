@@ -71,11 +71,11 @@
 
 ### 1.1 POST /api/webhook/admin/scan：登记芯片（第一阶段）
 
-供NFC.cool扫描后调用，本分支已实现，真实手机仍待验收。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date原文不保存、不写日志；临时结构监听只记录类型、长度和格式标志，操作见云测试手册。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
+供NFC.cool扫描后调用，本分支已实现；有内容卡已观察到200，但空白出厂卡无回调，整体MVP仍待验收。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date原文不保存、不写日志；临时结构监听只记录类型、长度和格式标志，操作见云测试手册。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
 ```json
 {"identifier":"04:A2:7F:1B:5E:80:00","content":"https://nfc.bumbum.cc/tap?picc_data=...&cmac=...","date":"2026-10-23T08:00:00Z"}
 ```
-使用HTTPS Basic认证：用户名为WEBHOOK_ADMIN_USERNAME指定的已有管理员，密码为独立WEBHOOK_SHARED_SECRET。不使用登录密码、Cookie或网页防冒用口令；管理员须启用且已完成验证器设置。初次缺少Authorization或认证失败返回401，并带`WWW-Authenticate: Basic realm="bumbum-scan"`，让App按官方方式携带凭证重发。真实手机握手仍待测试，不把这次认证重发当作业务失败自动重试。
+使用HTTPS Basic认证：用户名为WEBHOOK_ADMIN_USERNAME指定的已有管理员，密码为独立WEBHOOK_SHARED_SECRET。不使用登录密码、Cookie或网页防冒用口令；管理员须启用且已完成验证器设置。初次缺少Authorization或认证失败返回401，并带`WWW-Authenticate: Basic realm="bumbum-scan"`，让App按官方方式携带凭证重发。真实手机已观察到先401再携带Basic凭证返回200，不把这次认证重发当作业务失败自动重试。
 
 保存成功后才返回成功；新增和admin_audit操作记录一起保存，归属凭证对应的管理员，来源为nfc_cool。重复UID返回原编号和is_new=false，不分配、清空或覆盖任何原资料，也不重复记录新增操作；并发同样处理。失败提示人工重扫，不在数据库保存前先报成功，不把content中的动态参数当认证状态。
 ```json
