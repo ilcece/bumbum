@@ -42,7 +42,7 @@ def test_database_errors_do_not_expose_connection_details(app, monkeypatch):
     assert "敏感连接详情" not in response.get_data(as_text=True)
 
 
-@pytest.mark.parametrize("path", ["/api/admin/chips", "/api/tap/verify", "/missing"])
+@pytest.mark.parametrize("path", ["/api/admin/items", "/api/tap/verify", "/missing"])
 def test_unimplemented_addresses_do_not_return_fake_business_data(app, path):
     response = app.test_client().get(path)
     assert response.status_code == 404

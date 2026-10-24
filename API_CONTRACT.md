@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。当前实现第 0.5 节的两个运行检查入口和第 2 节的三个管理员认证入口，其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。当前实现两个运行检查、三个管理员认证入口，以及第3节的手动芯片登记和列表；其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -38,7 +38,7 @@
 | 管理业务 | 浏览器自动携带 bumbum_admin_session Cookie（登录凭证）；必须已通过密码和验证码且账号启用 |
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
 | 登录 | 一次提交账号、密码和验证码；强制检查网页来源 Origin 和 JSON，不依赖现有登录凭证 |
-| 扫描回调 | HTTPS Basic Auth：WEBHOOK_SHARED_SECRET 作用户名，密码为空；不把秘密放链接或日志 |
+| 扫描回调（待实现） | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 用户查看详情 | 请求头 X-Tap-Token 放触碰后的临时凭证 |
 | 用户发短信/绑定 | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
@@ -46,7 +46,7 @@
 
 ### 0.4 当前能做到哪一步
 
-当前实现两个检查接口及 login/session/logout 三个认证接口；其余业务接口尚未注册，访问返回404。后续已接入路由但未开放的功能使用501，不伪造成功。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
+当前实现两个检查接口、login/session/logout和 GET/POST /api/admin/chips；扫描回调及其余业务接口尚未注册，访问返回404。后续已接入路由但未开放的功能使用501，不伪造成功。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
 
 ### 0.5 当前已实现的运行检查
 
@@ -64,21 +64,23 @@
 ```json
 {"status":"ok","data":{"database":"ready"}}
 ```
-不返回数据库地址、密码、SQL 或异常详情。ready 检查表清单和初始项目，不逐列比对数据库结构，也不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
+不返回数据库地址、密码、SQL 或异常详情。ready 检查表清单、初始项目及本次芯片项目可空所需的字段与约束版本；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
 
 ## 1. 登记芯片、验证触碰和绑定手机号
 
 ### 1.1 POST /api/webhook/admin/scan：登记芯片（第一阶段）
 
-供 NFC.cool 扫描后调用。project 可选，默认 fashion，也可 jewelry。identifier 是必填芯片编号，统一为 7 字节、冒号分隔大写十六进制；content/date 可选，date 须能解析但不用于信任排序。真实 App 格式与重试行为仍待核验：
+供NFC.cool扫描后调用，MVP已确认、尚未实现。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且可解析的ISO 8601时间文字，不用于信任排序。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
 ```json
 {"identifier":"04:A2:7F:1B:5E:80:00","content":"https://nfc.bumbum.cc/tap?picc_data=...&cmac=...","date":"2026-10-23T08:00:00Z"}
 ```
-保存成功后才返回成功；同 UID 同项目重复扫描不新增，项目不同返回 409 project_mismatch，不能偷偷换项目。同时扫描造成唯一键冲突也按此处理；失败提示重扫，不在数据库保存前先报成功，不把 content 中动态参数当认证状态。
+使用HTTPS Basic认证：用户名为WEBHOOK_ADMIN_USERNAME指定的已有管理员，密码为独立WEBHOOK_SHARED_SECRET。不使用登录密码、Cookie或网页防冒用口令；管理员须启用且已完成验证器设置。初次缺少Authorization或认证失败返回401，并带`WWW-Authenticate: Basic realm="bumbum-scan"`，让App按官方方式携带凭证重发。真实手机握手仍待测试，不把这次认证重发当作业务失败自动重试。
+
+保存成功后才返回成功；新增和admin_audit操作记录一起保存，归属凭证对应的管理员，来源为nfc_cool。重复UID返回原编号和is_new=false，不分配、清空或覆盖任何原资料，也不重复记录新增操作；并发同样处理。失败提示人工重扫，不在数据库保存前先报成功，不把content中的动态参数当认证状态。
 ```json
 {"status":"ok","data":{"chip_uid":"04:A2:7F:1B:5E:80:00","is_new":true}}
 ```
-错误：400 invalid_param、401 webhook_auth_failed、409 project_mismatch、503 service_unavailable。额外字段先拒绝，实测 App 如有新字段先改契约。
+错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-下一步手机扫描后自动登记尚未实现)；当前路由仍未注册，访问返回404。
 
 ### 1.2 POST /api/tap/verify：核验这次触碰（第二阶段，待实测）
 
@@ -160,10 +162,11 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 ## 3. 管理芯片（第一阶段）
 
-均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project、chip_status、item_id/item_uid（可空）、batch_no（可空）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
+均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project（fashion/jewelry或null，null显示“未分配”）、chip_status、item_id/item_uid（可空）、batch_no（可空）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
+| 手动登记：POST /api/admin/chips | chip_uid必填；project、batch_no可选，空时省略或传null | chip：ChipView、is_new：是否新登记 |
 | 查列表：GET /api/admin/chips | page/page_size、project、status、keyword 可选，keyword 查 UID | 分页 ChipView |
 | 查详情：GET /api/admin/chips/{id} | 芯片 id | ChipView，加 ownership：null 或 item_id/user_id/phone_masked/bound_at |
 | 生成密钥：POST /api/admin/chips/{id}/generate-keys | `{}`，不接受 force | chip_id、generated=true、key_version |
@@ -172,7 +175,20 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 | 绑定物品：POST /api/admin/chips/{id}/bind-item | item_id | 更新后 ChipView |
 | 解除绑定：POST /api/admin/chips/{id}/unbind-item | `{}` | 更新后 ChipView |
 
+当前仅手动登记和列表可用，表中其余接口仍待实现。
+
+手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录为pending，item_id、provisioned_at为空，keys_generated=false。
+```json
+{"chip_uid":"04a27f1b5e8010","project":null,"batch_no":"DEMO-01"}
+```
+
+返回HTTP200，data固定为chip和is_new。重复UID时is_new=false，返回原记录，项目、批次、状态、绑定和原更新时间都不覆盖，也不新增变更审计；原项目为空时，本次即使传入项目也不分配，后续走物品绑定。原项目非空且本次明确选择另一个项目才返回409 project_mismatch，message为“该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。”。其余重复在页面提示“该 UID 已登记，已显示原记录，无需重复登记。”。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
+
+列表只接受表中5项查询参数，不接受重复键。page为1–2147483647，page_size为1–100；project可为fashion/jewelry/unassigned，unassigned只作筛选值，表示project_id为空，省略表示全部；status沿用既定枚举。keyword最长128字符，匹配UID片段，忽略大小写及冒号，百分号和下划线按普通文字查找。按id倒序；空页仍返回items=[]及真实total，未分配芯片也计入全部列表。摘要不增加密钥密文、读取序号、手机号或订单信息。
+
 密钥功能等实际计算规则、权限和测试完成后才开放，否则 501 feature_not_ready。已有密钥不能覆盖，409 already_exists；传 force 是 400 invalid_param。keys 含 K0–K4 的 32 位十六进制值；K1 是对应版本全局密钥的加密副本，不逐卡生成。查看前确认并保存操作记录，返回 no-store 禁止缓存；不存在为 404 not_found。页面须提醒：查看 K1 涉及该版本所有芯片的秘密，不仅是这一枚。URL 模板见技术规格第 5.1 节。
+
+后续生成密钥接口开放后，项目未分配时返回409 invalid_state，不能猜项目或计算密钥。后续bind-item在事务内：未分配芯片按物品确定项目再绑定；已有项目必须匹配；项目确定、绑定及审计一起保存。解绑不清空项目；当前这些接口仍未实现。
 
 状态转换见技术规格第 2.2 节，不能任意跳转；重复绑定 409 already_bound、跨项目 409 project_mismatch、目标已有芯片 409 item_already_has_chip、非法状态 409 invalid_state。确认按钮不能代替权限或防冒用检查。
 

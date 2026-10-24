@@ -52,7 +52,7 @@ def matching_step(secret, code, now):
     return None
 
 
-def request_json(fields):
+def request_json(fields, optional=()):
     if request.content_length is not None and request.content_length > 8192:
         raise AuthRequestError(400, "invalid_param", "提交内容过大。")
     request.max_content_length = 8192
@@ -60,7 +60,7 @@ def request_json(fields):
         data = request.get_json(silent=True)
     except RequestEntityTooLarge:
         raise AuthRequestError(400, "invalid_param", "提交内容过大。") from None
-    if not isinstance(data, dict) or set(data) != set(fields):
+    if not isinstance(data, dict) or not set(fields) <= set(data) <= set(fields) | set(optional):
         raise AuthRequestError(400, "invalid_param", "提交字段不符合接口约定。")
     return data
 
@@ -90,6 +90,20 @@ def current_session():
     if not row or row["revoked_at"] is not None or row["expires_at"] <= utc_now() or row["status"] != "active" or row["totp_enabled"] != 1:
         return None
     return row
+
+
+def lock_admin_session(cursor):
+    """管理写入事务先锁账号再锁会话，避免权限撤销后仍保存业务变更。"""
+    admin_id, session_id = g.admin_session["admin_id"], g.admin_session["id"]
+    cursor.execute("SELECT status,totp_enabled FROM admin_user WHERE id=%s FOR UPDATE", (admin_id,))
+    admin = cursor.fetchone()
+    cursor.execute("SELECT revoked_at,expires_at FROM admin_session WHERE id=%s AND admin_id=%s FOR UPDATE", (session_id, admin_id))
+    session = cursor.fetchone()
+    if (
+        not admin or admin["status"] != "active" or admin["totp_enabled"] != 1
+        or not session or session["revoked_at"] is not None or session["expires_at"] <= utc_now()
+    ):
+        raise AuthRequestError(401, "unauthorized", "登录已失效，请重新登录。")
 
 
 def login_attempt(data):
@@ -197,7 +211,7 @@ def init_auth(app):
             if not headers.issubset({"content-type", "x-csrf-token"}):
                 raise AuthRequestError(403, "forbidden", "不允许这些请求头。")
             return "", 204
-        if request.args:
+        if request.args and (request.blueprint == "admin_auth" or request.method not in {"GET", "HEAD"}):
             raise AuthRequestError(400, "invalid_param", "此接口不接收查询参数。")
         if request.method not in {"GET", "HEAD"} and request.mimetype != "application/json":
             raise AuthRequestError(400, "invalid_param", "请使用JSON提交。")

@@ -8,9 +8,9 @@
 |---|---|---|
 | [本地运行](LOCAL_DEVELOPMENT.md) | 首次准备、日常启动、停止、更新依赖和自动检查 | Windows三个入口已验收并合入main；其他系统保留命令 |
 | [管理员登录](ADMIN_LOGIN.md) | 创建账号、手机扫码、登录、重置或停用 | 已合入 main，cece 已通过本机扫码和登录验收 |
-| [芯片登记验收](https://github.com/ilcece/bumbum/blob/feat/chip-registration/docs/CHIP_REGISTRATION.md) | 登录后手动登记、查重、筛选和分页 | 原版核心已验收，项目可空等调整待补测；此工具分支没有芯片页面 |
+| [芯片登记验收](CHIP_REGISTRATION.md) | 登录后手动登记、查重、筛选和分页 | 已由cece验收并合入main，包含项目可空和重复保护 |
 
-先在GitHub Desktop选对分支，再使用该分支里的手册。已有配置、账号和数据库继续保留；不要因为更新手册重新建环境。Windows工具已合入main，使用方法见本地运行手册；当前任务只看[待办清单](../TODO.md)。main不含芯片登记代码，验收芯片请用feat/chip-registration。
+日常使用main；验收新功能时再按交付说明选任务分支，并阅读同一分支的手册。已有配置、账号和数据库继续保留，不因为更新手册重建环境。当前main已包含Windows工具、登录和芯片登记；下一步只看[待办清单](../TODO.md)。
 
 ## 技术参考：让 AI 实现时查
 

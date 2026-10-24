@@ -69,3 +69,25 @@ export async function signOut(): Promise<void> {
   await request("/admin/auth/logout", {});
   csrfToken = null;
 }
+
+export type ChipView = {
+  id: number; chip_uid: string; project: "fashion" | "jewelry" | null;
+  chip_status: "pending" | "bound" | "disabled" | "lost";
+  item_id: number | null; item_uid: string | null; batch_no: string | null;
+  provisioned_at: string | null; keys_generated: boolean;
+  created_at: string; updated_at: string;
+};
+export type ChipQuery = { page: number; project: string; status: string; keyword: string };
+export type ChipList = { items: ChipView[]; total: number; page: number; page_size: number };
+
+export async function listChips(query: ChipQuery): Promise<ChipList> {
+  const parameters = new URLSearchParams({ page: String(query.page), page_size: "20" });
+  for (const name of ["project", "status", "keyword"] as const) {
+    if (query[name]) parameters.set(name, query[name]);
+  }
+  return request<ChipList>(`/admin/chips?${parameters}`);
+}
+
+export async function registerChip(chip_uid: string, project: string | null, batch_no: string | null): Promise<{ chip: ChipView; is_new: boolean }> {
+  return request("/admin/chips", { chip_uid, project, batch_no });
+}

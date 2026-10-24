@@ -9,9 +9,10 @@
 | 项目 | 精确规则 |
 |---|---|
 | 项目 | code 仅 fashion/jewelry；业务资料类型须与项目一致，不给 jewelry 写 fashion profile |
-| 芯片编号 | chip_uid 为 7 字节，输入统一成冒号分隔的大写十六进制 |
+| 芯片编号 | chip_uid 为7字节；手动入口接受14位连续十六进制或7组冒号格式，去首尾空白，统一成冒号分隔的大写；其他分隔符拒绝 |
+| 手动登记 | 新UID设pending，project可省略/null，item_id为空，不写provisioned_at或chip_key。唯一索引去重，重复返回原记录，项目不分配、不清空、不覆盖；原项目非空且本次明确选择另一个项目才409。首次登记与chip.register审计一起提交 |
 | 物品编号 | item_uid 用 FASH-YYYY-NNNNNN / JEW-YYYY-NNNNNN，创建时提供，前缀匹配项目，之后不可修改 |
-| 唯一绑定 | chip.item_id 可空且唯一；复合外键检查项目；已关联物品不物理删除 |
+| 唯一绑定 | chip.item_id 可空且唯一；复合外键检查项目；ck_chip_project_assignment限制空项目时item_id/provisioned_at/last_verified_counter必须全空，避免NULL跳过复合外键；已关联物品不物理删除 |
 | 当前所有者 | active_item_id 仅在 is_active=1 时映射 item_id，唯一索引限制一条有效绑定；历史可以多条 |
 | 解绑 | 同时设置 is_active=0 和 unbound_at；不删除历史、密钥和已接受计数器 |
 | 流转 | bind_source 只在 ownership；history 保存 from/to、action、note、时间；转赠只写一条 transfer 历史 |
@@ -21,11 +22,19 @@
 | 时间 | 每个数据库连接初始化 time_zone='+00:00'；DATETIME/TIMESTAMP 按 UTC 理解；接口输出 ISO 8601 UTC |
 | 建表/升级 | schema 只作空库初始化；已有数据库单独迁移，先备份，说明升级、验证和回滚/恢复，未经授权不执行生产变更 |
 
+手动登记先在事务中按账号、会话的顺序锁定并重查登录状态，再保存芯片。`INSERT ... ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)` 只取回重复记录ID，不改项目、批次或状态；使用当前PyMySQL默认连接选项，首次插入的影响行数为1，重复为0。 取回摘要时使用只锁chip表的当前读（FOR UPDATE OF c），避免并发时旧快照读不到另一事务刚提交的记录；不把项目或物品表升级为排他锁。新增时审计仅保存项目和来源manual，目标ID关联芯片，IP沿用指纹规则；重复未修改资料，不新增变更审计。数据库提交失败返回503，不能提前返回成功。
+
+列表使用LEFT JOIN保留空项目记录，project=unassigned筛选c.project_id IS NULL；未分配不是第三个项目。绑定功能后续实现：按既定锁顺序，空项目时在同一事务首次设为目标物品项目，已有项目则严格匹配；解绑保留项目。未分配不能生成chip_key，未来密钥接口必须在写事务内检查，不能只靠页面隐藏；当前没有密钥生成实现。
+
+已有库通过migrate_local.py先完整备份再执行001迁移：使用一条原子ALTER将project_id改可空、添加ck_chip_project_assignment，并用不同名称的_v2外键重建相同关联规则，避免MySQL同一ALTER重用旧外键名失败；不关闭外键检查。回退同样单条ALTER，已有空项目记录时提前拒绝。ready检查本次字段及外键/检查约束版本，未完成升级时503。命令只接受默认本机测试库，备份容器与实际连接须同一server_uuid；不擅自升级生产或导入备份覆盖数据。步骤见[本地运行第7节](LOCAL_DEVELOPMENT.md#7-已有测试库升级允许芯片暂不分配项目)。
+
 锁定记录的意思是：在本次保存结束前，其他要修改同一记录的请求需要等待，避免两个请求各自认为“还没绑定”。
 
 ## 2. 芯片密钥与版本
 
 同版本全局共享 K1、单芯片独立 K2 已获确认。K1 负责解密编号，K2 按 SDM 规则参与核验防伪码；K0 管理芯片，K3/K4 预留。项目根密钥只在服务器使用，K0/K2/K3/K4 按项目根密钥、UID、槽位和用途算出；不同项目和用途必须分开计算。具体计算方法称为 KDF，须固定实现、输入编码和正确答案测试，旧版随手写的 CMAC 输入公式不能直接投产。
+
+芯片尚未分配项目时，不能选择根密钥、生成芯片密钥或写卡；验证入口也不能替它猜项目、尝试其他项目根密钥或签发tap_token。项目确定后才允许进入仍待核验的密钥流程，全局K1/独立K2的分工不变。
 
 | 配置或字段 | 如何使用 |
 |---|---|
@@ -217,12 +226,15 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 | SDM_META_KEY_V1 / SDM_META_KEY_VERSION | 全局 K1 与初始 v1 配置 |
 | STORAGE_ENCRYPTION_KEY / STORAGE_KEY_VERSION | 包装 DEK 的独立存储密钥及版本 |
 | IP_HASH_KEY | 给日志中的 IP、未知账号及第二阶段计数标识做带密钥指纹 |
-| WEBHOOK_SHARED_SECRET | 扫描回调的共享秘密；用作 HTTPS Basic Auth 用户名，密码为空，建议独立 32 字节随机值写成十六进制，不含冒号，不放 query |
+| WEBHOOK_ADMIN_USERNAME | 待实现扫描回调的Basic认证用户名，指定已有、启用且完成验证器设置的管理员；不是单独创建的默认账号 |
+| WEBHOOK_SHARED_SECRET | 待实现扫描回调的独立Basic认证密码，32字节随机值写成64位十六进制；不复用管理员密码，不放query或日志 |
 | SMS_CODE_HASH_KEY | 第二阶段短信码的独立带密钥指纹 |
 | ADMIN_TOTP_ISSUER | 验证器显示的公开发行方名称 |
 | CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者开发 localhost:5174、生产 https://admin.bumbum.cc |
 | VITE_API_BASE_URL | 当前为 /api；开发由 Vite 转到本机5000端口，生产由 Nginx 转交；调用不重复带 /api，所有 VITE_ 值不得含秘密 |
 
 各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS 或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。
+
+NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，尚无真实目标卡、订阅可用性及手机请求的测试记录；官方说明不能替代实测。
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。

@@ -37,3 +37,17 @@ footer { margin-top: 32px; color: #53675f; font-size: 14px; }
 .auth-panel .signed-in { color: #186547; font-size: 20px; font-weight: 700; }
 .auth-panel .notice { color: #a73426; margin-top: 16px; }
 .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+
+.chip-panel { border-top: 1px solid #d2ddd8; margin-top: 24px; padding-top: 24px; min-width: 0; }
+.chip-panel form { max-width: none; }
+.chip-panel fieldset { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 14px; }
+.chip-panel select { display: block; width: 100%; margin-top: 5px; padding: 10px 12px; border: 1px solid #a9bdb4; border-radius: 6px; background: white; color: #172c28; font: inherit; }
+.chip-panel .chip-filters { margin: 28px 0 20px; }
+.chip-panel .success-notice { color: #186547; margin-top: 16px; }
+.table-scroll { max-width: 100%; overflow-x: auto; }
+.chip-panel table { border-collapse: collapse; min-width: 650px; width: 100%; font-size: 14px; }
+.chip-panel caption { text-align: left; font-weight: 600; padding: 8px 0; }
+.chip-panel th, .chip-panel td { border-bottom: 1px solid #d2ddd8; padding: 10px; text-align: left; overflow-wrap: anywhere; max-width: 220px; }
+@media (min-width: 680px) {
+  .chip-panel fieldset, .chip-panel .chip-filters { grid-template-columns: 1fr 1fr; align-items: end; }
+}

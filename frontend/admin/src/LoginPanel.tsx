@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, readSession, signIn, signOut } from "./api";
+import { ChipPanel } from "./ChipPanel";
 
 type Phase = "loading" | "out" | "in" | "unavailable";
 
@@ -13,6 +14,7 @@ export function LoginPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [expiry, setExpiry] = useState("");
+  const expireSession = useCallback(() => { setPhase("out"); setMessage("登录已失效，请重新登录。"); }, []);
 
   async function refresh() {
     setBusy(true);
@@ -101,7 +103,7 @@ export function LoginPanel() {
           <button type="button" onClick={() => void refresh()} disabled={busy}>重新读取登录状态</button>
           <button type="button" onClick={() => void logout()} disabled={busy}>退出登录</button>
         </div>
-        <p>芯片和物品管理将在后续小步接入。</p>
+        <ChipPanel onSessionExpired={expireSession} />
       </>}
       {phase === "unavailable" && <button type="button" onClick={() => void refresh()} disabled={busy}>重新读取登录状态</button>}
       {message && <p className="notice" role="alert">{message}</p>}
