@@ -133,6 +133,13 @@ try {
 
 成功表示类型检查和打包通过。服务检查、自动检查、网页构建和浏览器里两个状态都正常，才算这一小步通过；不代表管理员登录或业务功能已经完成。
 
+文档、命令或文件引用改过后，AI还需执行文档检查（无需数据库，不代替上面的业务检查）：
+
+| 系统 | 命令 |
+|---|---|
+| macOS / Linux | `.venv/bin/python scripts/check_docs.py` |
+| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 scripts\check_docs.py` |
+
 ## 5. 停止和下次继续
 
 在后端和网页各自的终端按 `Ctrl+C`，再执行：
@@ -145,7 +152,7 @@ docker compose stop
 
 拉取代码或切换分支后，如果 `requirements-dev.txt` 变化，重跑第2节的 Python 依赖安装命令；如果前端 `package.json` 或 `package-lock.json` 变化，重跑网页依赖安装命令。遇到数据库升级时按专门的升级说明操作，不重新执行建表文件。
 
-`.env` 和数据库卷要配套保留，不提交到 Git。不要删除配置后重新生成密码，也不要为重跑建表删除数据卷；修改 `db/schema.sql` 不会自动更新已有数据库。当前仓库没有一键启动工具，按本文分别启动即可。
+`.env` 和数据库卷要配套保留，不提交到 Git。不要删除配置后重新生成密码，也不要为重跑建表删除数据卷；修改 `db/schema.sql` 不会自动更新已有数据库。当前仓库没有一键启动工具，按本文分别启动即可；三个Windows入口的范围和完成条件见 [待办清单](../TODO.md#windows-验收工具待实现)。
 
 ## 6. 常见情况
 
