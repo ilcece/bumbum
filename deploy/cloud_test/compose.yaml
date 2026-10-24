@@ -1,0 +1,72 @@
+# 仅用于已确认的香港云测试环境，与本机Compose名称、端口和数据卷分开。
+name: bumbum-cloud-test
+services:
+  db:
+    image: mysql:8.0.46
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:33307:3306"
+    environment:
+      MYSQL_DATABASE: bumbum_digital
+      MYSQL_USER: ${DB_USER:?请先准备云测试配置}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?请先准备云测试配置}
+      MYSQL_ROOT_PASSWORD: ${CLOUD_DB_ROOT_PASSWORD:?请先准备云测试配置}
+    volumes:
+      - database:/var/lib/mysql
+      - ../../db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$${MYSQL_PASSWORD}\" mysql -h 127.0.0.1 -u \"$${MYSQL_USER}\" -D bumbum_digital --execute='SELECT code FROM project' --silent"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 30s
+  backend:
+    image: bumbum-cloud-test-backend:local
+    build:
+      context: ../..
+      dockerfile: deploy/cloud_test/Dockerfile
+      secrets:
+        - proxy_ca
+    # Ubuntu专用：允许后端连接本机映射的数据库，也让Nginx的来源检查保持原规则。
+    network_mode: host
+    # 只交给后端必要配置，不传数据库管理密码或其他环境的秘密。
+    environment:
+      APP_ENV: production
+      ADMIN_ORIGIN: https://test.bumbum.cc
+      ADMIN_TOTP_ISSUER: BUMBUM-Test
+      STORAGE_KEY_VERSION: v1
+      DB_HOST: 127.0.0.1
+      DB_PORT: "33307"
+      DB_NAME: bumbum_digital
+      DB_USER: ${DB_USER:?请先准备云测试配置}
+      DB_PASSWORD: ${DB_PASSWORD:?请先准备云测试配置}
+      STORAGE_ENCRYPTION_KEY: ${STORAGE_ENCRYPTION_KEY:?请先准备云测试配置}
+      IP_HASH_KEY: ${IP_HASH_KEY:?请先准备云测试配置}
+      WEBHOOK_ADMIN_USERNAME: ${WEBHOOK_ADMIN_USERNAME:?请先准备云测试配置}
+      WEBHOOK_SHARED_SECRET: ${WEBHOOK_SHARED_SECRET:?请先准备云测试配置}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - operation_logs:/app/logs
+    mem_limit: 512m
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:15000/api/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+volumes:
+  database:
+  operation_logs:
+secrets:
+  # 构建时使用服务器的正常CA信任，不写入镜像；云开发测试可指定含会话CA的证书包。
+  proxy_ca:
+    file: ${BUILD_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}

@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。当前实现两个运行检查、三个管理员认证入口，以及第3节的手动芯片登记和列表；其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。main已有运行检查、管理员认证、手动芯片登记和列表；本分支另实现第1.1节扫描回调，待香港部署及真实手机验收。其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -13,6 +13,7 @@
 | 环境 | 基础地址 | 补上的部分 | 最终请求 |
 |---|---|---|---|
 | 本机开发 | /api | /health | http://localhost:5174/api/health（Vite 转给5000端口） |
+| 香港测试管理端 | /api | /admin/chips | https://test.bumbum.cc/api/admin/chips（部署后） |
 | 生产管理端 | /api | /admin/chips | https://admin.bumbum.cc/api/admin/chips |
 | 生产用户端 | /api | /tap/verify | https://nfc.bumbum.cc/api/tap/verify |
 
@@ -38,7 +39,7 @@
 | 管理业务 | 浏览器自动携带 bumbum_admin_session Cookie（登录凭证）；必须已通过密码和验证码且账号启用 |
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
 | 登录 | 一次提交账号、密码和验证码；强制检查网页来源 Origin 和 JSON，不依赖现有登录凭证 |
-| 扫描回调（待实现） | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
+| 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 用户查看详情 | 请求头 X-Tap-Token 放触碰后的临时凭证 |
 | 用户发短信/绑定 | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
@@ -46,11 +47,11 @@
 
 ### 0.4 当前能做到哪一步
 
-当前实现两个检查接口、login/session/logout和 GET/POST /api/admin/chips；扫描回调及其余业务接口尚未注册，访问返回404。后续已接入路由但未开放的功能使用501，不伪造成功。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
+本分支实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；其余业务接口尚未注册，访问返回404。扫描配置缺失或不合法时返回503，不允许空密码访问；main尚无扫描入口，不能混淆分支。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
 
 ### 0.5 当前已实现的运行检查
 
-仅用于本机开发检查，不要求登录，不读取或返回密钥、账号资料。无查询参数；多传返回400 invalid_param。返回禁止缓存。
+用于本机或受管理IP限制的云测试运行检查，不要求登录，不读取或返回密钥、账号资料；香港Nginx不向陌生IP开放。无查询参数，多传返回400 invalid_param，返回禁止缓存。
 
 | 接口 | 检查什么 | 成功结果 |
 |---|---|---|
@@ -70,7 +71,7 @@
 
 ### 1.1 POST /api/webhook/admin/scan：登记芯片（第一阶段）
 
-供NFC.cool扫描后调用，MVP已确认、尚未实现。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且可解析的ISO 8601时间文字，不用于信任排序。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
+供NFC.cool扫描后调用，本分支已实现，真实手机仍待验收。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date仅校验格式，不保存原文、不写日志；不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
 ```json
 {"identifier":"04:A2:7F:1B:5E:80:00","content":"https://nfc.bumbum.cc/tap?picc_data=...&cmac=...","date":"2026-10-23T08:00:00Z"}
 ```
@@ -80,7 +81,7 @@
 ```json
 {"status":"ok","data":{"chip_uid":"04:A2:7F:1B:5E:80:00","is_new":true}}
 ```
-错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-下一步手机扫描后自动登记尚未实现)；当前路由仍未注册，访问返回404。
+错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable；香港Nginx对同IP平均每秒5次、突发最多额外10次，超限429 rate_limited。本机直接运行Flask不含该频率限制。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-手机扫描后自动登记)。
 
 ### 1.2 POST /api/tap/verify：核验这次触碰（第二阶段，待实测）
 

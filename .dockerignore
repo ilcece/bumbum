@@ -1,0 +1,16 @@
+# 不把本机秘密、数据库备份和开发依赖送进构建环境。
+.git
+.venv
+**/node_modules
+**/dist
+**/__pycache__
+.pytest_cache
+.env
+.env.*
+.cloud-test
+.local-run
+backups
+dumps
+logs
+*.pem
+*.key

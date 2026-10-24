@@ -1,0 +1,75 @@
+# 本项目云测试站点；由准备脚本填入唯一管理出口IP。
+# 日志不记录网址参数、认证头或请求体。
+log_format bumbum_cloud_test '$time_iso8601 $request_method $uri $status';
+limit_req_zone $binary_remote_addr zone=bumbum_test_login:1m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=bumbum_test_scan:1m rate=5r/s;
+server {
+    listen 80;
+    server_name test.bumbum.cc;
+    if ($host != test.bumbum.cc) { return 444; }
+    location ^~ /.well-known/acme-challenge/ { root /var/lib/letsencrypt; }
+    location / { return 301 https://test.bumbum.cc$request_uri; }
+}
+server {
+    listen 443 ssl;
+    server_name test.bumbum.cc;
+    if ($host != test.bumbum.cc) { return 444; }
+    ssl_certificate /etc/letsencrypt/live/test.bumbum.cc/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/test.bumbum.cc/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    root /var/www/bumbum-cloud-test;
+    index index.html;
+    client_max_body_size 8k;
+    error_page 413 = @payload_too_large;
+    access_log /var/log/nginx/bumbum-cloud-test-access.log bumbum_cloud_test;
+    add_header Cache-Control "no-store" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    allow __ADMIN_IP__;
+    deny all;
+
+    # 手机公网来源不固定；仅此准确路径不受管理IP限制，仍须应用验证扫码密码。
+    location = /api/webhook/admin/scan {
+        allow all;
+        limit_req zone=bumbum_test_scan burst=10 nodelay;
+        limit_req_status 429;
+        error_page 429 = @scan_rate_limited;
+        error_page 413 = @payload_too_large;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location = /api/admin/auth/login {
+        limit_req zone=bumbum_test_login burst=4 nodelay;
+        limit_req_status 429;
+        error_page 429 = @login_rate_limited;
+        error_page 413 = @payload_too_large;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location @login_rate_limited {
+        default_type application/json;
+        return 429 '{"status":"error","code":"rate_limited","message":"登录尝试过于频繁，请稍后重试"}';
+    }
+    location @scan_rate_limited {
+        default_type application/json;
+        return 429 '{"status":"error","code":"rate_limited","message":"扫描请求过于频繁，请稍后重扫"}';
+    }
+    location @payload_too_large {
+        default_type application/json;
+        return 400 '{"status":"error","code":"invalid_param","message":"提交内容过大"}';
+    }
+    location ^~ /api/admin/ {
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location = /api/health {
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location = /api/ready {
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location /api/ { return 404; }
+    location / { try_files $uri $uri/ /index.html; }
+}

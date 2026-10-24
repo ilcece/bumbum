@@ -1,4 +1,4 @@
-"""最小后端入口：提供运行检查、管理员认证及芯片登记查询。"""
+"""最小后端入口：运行检查、管理员认证、芯片登记查询及手机回调。"""
 
 from flask import Flask, abort, jsonify, request
 from werkzeug.exceptions import HTTPException
@@ -14,9 +14,11 @@ def create_app(test_config=None):
     from core.admin_auth import init_auth
     from core.admin_cli import admin_commands
     from core.admin_chips import blueprint as chips_blueprint
+    from core.scan_webhook import init_scan
     init_auth(app)
     app.cli.add_command(admin_commands)
     app.register_blueprint(chips_blueprint)
+    init_scan(app)
 
     @app.after_request
     def prevent_cache(response):

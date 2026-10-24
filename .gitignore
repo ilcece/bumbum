@@ -26,6 +26,8 @@ build/
 .ruff_cache/
 # Windows工具的本机依赖标记、运行锁和日志，不上传。
 .local-run/
+# 香港云测试的生成配置、二维码副本和数据库备份。
+.cloud-test/
 .coverage
 htmlcov/
 coverage/

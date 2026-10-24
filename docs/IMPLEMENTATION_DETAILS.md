@@ -215,22 +215,23 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 ## 8. 配置与资料来源
 
-配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；Gunicorn、生产进程数与托管方式尚未实现和验证。
+配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；本分支新增云测试requirements-deploy.in/txt及Docker构建，固定Python 3.12.14、Node 24.19.0、Gunicorn 26.2.0（两个进程）和MySQL 8.0.46；不代表正式部署已验收。香港配置、证书及操作见[云测试手册](CLOUD_TEST_DEPLOYMENT.md)，不复制到本机启动说明。
 
 | 配置 | 用途 |
 |---|---|
 | APP_ENV | 本机配置明确为 development；正式环境用 production（缺省值），强制管理来源为 HTTPS |
 | DB_* | 数据库连接；本机默认127.0.0.1:33306，使用普通测试账号 |
-| DEV_DB_ROOT_PASSWORD | 仅供 Compose 首次初始化测试库，准备脚本生成，不交给后端 |
+| DEV_DB_ROOT_PASSWORD | 仅供本机Compose首次初始化，准备脚本生成，不交给后端 |
+| CLOUD_DB_ROOT_PASSWORD | 独立云测试库的初始化管理密码；只给数据库容器，运行后端用普通测试账号 |
 | MASTER_KEY_FASHION / MASTER_KEY_JEWELRY | 按项目计算 K0/K2/K3/K4 的根材料，不直接写卡 |
 | SDM_META_KEY_V1 / SDM_META_KEY_VERSION | 全局 K1 与初始 v1 配置 |
 | STORAGE_ENCRYPTION_KEY / STORAGE_KEY_VERSION | 包装 DEK 的独立存储密钥及版本 |
 | IP_HASH_KEY | 给日志中的 IP、未知账号及第二阶段计数标识做带密钥指纹 |
-| WEBHOOK_ADMIN_USERNAME | 待实现扫描回调的Basic认证用户名，指定已有、启用且完成验证器设置的管理员；不是单独创建的默认账号 |
-| WEBHOOK_SHARED_SECRET | 待实现扫描回调的独立Basic认证密码，32字节随机值写成64位十六进制；不复用管理员密码，不放query或日志 |
+| WEBHOOK_ADMIN_USERNAME | 扫描回调的Basic认证用户名，指定已有、启用且完成验证器设置的管理员；不是单独创建的默认账号 |
+| WEBHOOK_SHARED_SECRET | 扫描回调的独立Basic认证密码，32字节随机值写成64位十六进制；不复用管理员密码，不放query或日志 |
 | SMS_CODE_HASH_KEY | 第二阶段短信码的独立带密钥指纹 |
 | ADMIN_TOTP_ISSUER | 验证器显示的公开发行方名称 |
-| CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者开发 localhost:5174、生产 https://admin.bumbum.cc |
+| CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者本机http://localhost:5174、香港测试https://test.bumbum.cc、正式https://admin.bumbum.cc，各自配置 |
 | VITE_API_BASE_URL | 当前为 /api；开发由 Vite 转到本机5000端口，生产由 Nginx 转交；调用不重复带 /api，所有 VITE_ 值不得含秘密 |
 
 各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS 或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。

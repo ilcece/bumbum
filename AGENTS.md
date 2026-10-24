@@ -23,6 +23,7 @@
 | 当前任务、优先级和待办 | TODO.md |
 | 操作手册入口 | docs/op_guide.md |
 | 本地启动与验证 | docs/LOCAL_DEVELOPMENT.md |
+| 香港云测试与手机扫描验收 | docs/CLOUD_TEST_DEPLOYMENT.md |
 | 管理员账号设置与人工验证 | docs/ADMIN_LOGIN.md |
 | 芯片手动登记与列表验收 | docs/CHIP_REGISTRATION.md |
 | Figma 与前端协作 | docs/FRONTEND_COLLABORATION.md |
@@ -49,7 +50,7 @@
 - 加密计算使用成熟库和经过核验的芯片动态防伪机制（SDM），不自行设计加密协议。已确认同版本全局共享 K1、每枚芯片独立 K2；具体职责和流程见 TECH_SPEC 第 3、5 节。不得改回所有槽位按芯片编号（UID）计算密钥，或擅自改为项目级 K1。具体权限、密钥计算方法（KDF）、芯片链接和文件参数（NDEF）、换钥匙流程及真实单卡验证尚未完成，不能把方案已确认当成测试已通过。
 - 管理员认证采用已确认的 MVP 方案：同一表单验证密码和 Authenticator 验证码，保留会话和成熟组件的随机 CSRF 防护；首次设置和丢失后重置通过受控服务器命令完成。不要自行恢复两步登录票据、网页设置验证器、备份码、自定义 CSRF HMAC 或分级多桶登录限流，也不引入 Redis。关键操作记录范围见技术附录第 5 节。
 - 登录会话、账号失败次数、凭证是否已用和旧链接是否已用，保存到数据库，让多个后端进程看到同一结果；登录 IP 频率限制由 Nginx 共享计数。按 TECH_SPEC 将相关检查和保存一起完成（事务），不能只放在单个进程的内存字典里。
-- 页面先满足本次操作和验证，不提前扩展整套设计系统；Figma 接入按 docs/FRONTEND_COLLABORATION.md 逐页处理，保留接口调用与安全检查。启动命令只在 docs/LOCAL_DEVELOPMENT.md 维护，其他文件链接引用，避免多份步骤不一致。
+- 页面先满足本次操作和验证，不提前扩展整套设计系统；Figma 接入按 docs/FRONTEND_COLLABORATION.md 逐页处理，保留接口调用与安全检查。本机启动命令只在 docs/LOCAL_DEVELOPMENT.md 维护，香港云部署步骤只在 docs/CLOUD_TEST_DEPLOYMENT.md 维护，其他文件链接引用，避免多份步骤不一致。
 - 页面使用模拟数据（Mock）时必须标注。开发时用来跳过检查的临时方式，未经用户授权不能进入正式服务。
 
 ## 5. 怎样区分决定、证据和待验证
