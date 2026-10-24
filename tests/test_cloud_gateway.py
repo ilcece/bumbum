@@ -78,8 +78,11 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
     context = ssl.create_default_context(cafile=str(tmp_path / "cert.pem"))
     created = []
     try:
+        # 使用交付镜像的真实启动参数，只替换专属测试端口，避免漏测默认配置。
+        runtime = json.loads(docker(["image", "inspect", "--format", "{{json .Config.Cmd}}", image]))
+        runtime[runtime.index("--bind") + 1] = f"127.0.0.1:{api_port}"
         docker(["create", "--name", backend, "--label", "bumbum.test=cloud-gateway", "--network=host", "--read-only", "--tmpfs", "/tmp", "--volume", "/app/logs", "--cap-drop=ALL", "--security-opt=no-new-privileges:true", "--env-file", str(env_file), image,
-                "gunicorn", "--bind", f"127.0.0.1:{api_port}", "--workers", "2", "--worker-tmp-dir", "/tmp", "app:create_app()"])
+                *runtime])
         created.append(backend)
         docker(["start", backend])
         docker(["create", "--name", gateway, "--label", "bumbum.test=cloud-gateway", "--network=host", "nginx:1.28-alpine"])
@@ -115,6 +118,7 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
         diagnostics = subprocess.run(command + ["logs", backend], env=env, capture_output=True, text=True)
         log_text = diagnostics.stdout + diagnostics.stderr
         assert "扫码认证诊断：认证头存在=否" in log_text
+        assert "Control server error" not in log_text
         assert password not in log_text and admin_account["password"] not in log_text
         credentials = authorization(admin_account["username"], password)
         saved, _, data = call("/api/webhook/admin/scan", method="POST", body={"identifier": UID}, headers=credentials)

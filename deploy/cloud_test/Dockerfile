@@ -18,5 +18,5 @@ COPY db/schema.sql ./db/schema.sql
 COPY --from=frontend /src/dist/ ./frontend-dist/
 RUN chmod -R a+rX /app && groupadd --gid 10001 bumbum && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin bumbum && mkdir /app/logs && chown 10001:10001 /app/logs
 USER bumbum:bumbum
-# 仅监听本机；由宿主机Nginx提供HTTPS及管理IP限制。
-CMD ["gunicorn", "--bind", "127.0.0.1:15000", "--workers", "2", "--worker-tmp-dir", "/tmp", "--timeout", "30", "app:create_app()"]
+# 仅监听本机；关闭当前未使用的控制socket，避免向只读主目录写文件。
+CMD ["gunicorn", "--no-control-socket", "--bind", "127.0.0.1:15000", "--workers", "2", "--worker-tmp-dir", "/tmp", "--timeout", "30", "app:create_app()"]

@@ -215,7 +215,7 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 ## 8. 配置与资料来源
 
-配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；本分支新增云测试requirements-deploy.in/txt及Docker构建，固定Python 3.12.14、Node 24.19.0、Gunicorn 26.2.0（两个进程）和MySQL 8.0.46；不代表正式部署已验收。香港配置、证书及操作见[云测试手册](CLOUD_TEST_DEPLOYMENT.md)，不复制到本机启动说明。
+配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；本分支新增云测试requirements-deploy.in/txt及Docker构建，固定Python 3.12.14、Node 24.19.0、Gunicorn 26.2.0（两个进程，关闭未使用的控制socket）和MySQL 8.0.46；不代表正式部署已验收。香港配置、证书及操作见[云测试手册](CLOUD_TEST_DEPLOYMENT.md)，不复制到本机启动说明。
 
 | 配置 | 用途 |
 |---|---|
@@ -241,5 +241,7 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，当时尚无真实目标卡、订阅可用性及手机请求的测试记录；后续实测补充如下，官方说明不能替代实测。
 
 2026-10-25补充实测：cece能读取空白NTAG424 DNA的UID，点击保存NFC标签后服务器才收到POST，目前仍401。ECS使用运行中凭证对直连和HTTPS入口提交空JSON均400，配置文件与运行密码比较一致；这尚未验证手机实际凭证及账号归属检查，不能认定回调已通过。失败诊断只记固定分支、是否匹配和字符数，不记录请求凭证、认证头或内容；操作见云测试手册第8节。
+
+用户报告iOS 27.0.1；2026-10-25重新核对官方开发及Webhook说明，仍要求401与WWW-Authenticate的Basic认证挑战。已收到的服务器响应符合此约定；[App Store公开查询](https://itunes.apple.com/lookup?id=1249686798&country=cn)显示商店版本7.3.0，最低iOS 17，最低版本不代表所有新系统均已验证。用户版本口述7.30，尚无确切构建号；不能仅凭缺少认证头或版本号断言App缺陷。新旧请求按时间区分，后端警告也不能代替完整访问日志。
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。
