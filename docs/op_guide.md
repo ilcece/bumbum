@@ -9,7 +9,7 @@
 | [本地运行](LOCAL_DEVELOPMENT.md) | 首次准备、日常启动、停止、更新依赖和自动检查 | Windows三个入口已验收并合入main；其他系统保留命令 |
 | [管理员登录](ADMIN_LOGIN.md) | 创建账号、手机扫码、登录、重置或停用 | 已合入 main，cece 已通过本机扫码和登录验收 |
 | [芯片登记验收](CHIP_REGISTRATION.md) | 登录后手动登记、查重、筛选和分页 | 已由cece验收并合入main，包含项目可空和重复保护 |
-| [香港云测试](CLOUD_TEST_DEPLOYMENT.md) | 部署test.bumbum.cc、设置手机并验收自动登记 | 本分支提供代码和配置，尚未部署到cece的ECS或通过手机验收 |
+| [香港云测试](CLOUD_TEST_DEPLOYMENT.md) | 部署test.bumbum.cc、设置手机并验收自动登记 | 香港已部署，cece已通过固定文本预写后批量读卡、查询与去重验收；尚未合入main |
 
 日常使用main；验收新功能时再按交付说明选任务分支，并阅读同一分支的手册。已有配置、账号和数据库继续保留，不因为更新手册重建环境。当前main已包含Windows工具、登录和芯片登记；下一步只看[待办清单](../TODO.md)。
 
