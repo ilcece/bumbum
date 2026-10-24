@@ -30,7 +30,7 @@ def test_local_mysql_is_initialized_and_uses_utc():
             assert user.startswith("bumbum_dev@")
             cursor.execute("SHOW TABLES")
             actual = {row[0] for row in cursor.fetchall()}
-        schema = (Path(__file__).resolve().parents[1] / "db/schema.sql").read_text()
+        schema = (Path(__file__).resolve().parents[1] / "db/schema.sql").read_text(encoding="utf-8")
         assert actual == set(re.findall(r"CREATE TABLE (\w+)", schema))
     response = app.test_client().get("/api/ready")
     assert response.status_code == 200

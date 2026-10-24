@@ -69,7 +69,7 @@ def test_new_local_configuration_only_generates_database_passwords(tmp_path):
         encoding="utf-8",
     )
     assert prepare_local_config(tmp_path) is True
-    values = dict(line.split("=", 1) for line in (tmp_path / ".env").read_text().splitlines())
+    values = dict(line.split("=", 1) for line in (tmp_path / ".env").read_text(encoding="utf-8").splitlines())
     assert len(bytes.fromhex(values["DB_PASSWORD"])) == 24
     assert len(bytes.fromhex(values["DEV_DB_ROOT_PASSWORD"])) == 24
     assert values["DB_PASSWORD"] != values["DEV_DB_ROOT_PASSWORD"]
