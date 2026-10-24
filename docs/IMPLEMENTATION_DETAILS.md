@@ -238,6 +238,8 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 云测试启动时，将BUILD_CA_BUNDLE指定的正常CA包（默认/etc/ssl/certs/ca-certificates.crt）校验并暂存为项目内.cloud-test/build-ca.crt，再由BuildKit临时挂载到依赖安装步骤，兼容Compose/Bake对目录外文件读取的限制。保留原CA信任和HTTPS校验；该目录排除Git及构建上下文，不将CA写入镜像。此证书包用于验证下载来源，与网站HTTPS私钥及业务密钥不同，不修改.env.cloud-test。
 
-NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，尚无真实目标卡、订阅可用性及手机请求的测试记录；官方说明不能替代实测。
+NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，当时尚无真实目标卡、订阅可用性及手机请求的测试记录；后续实测补充如下，官方说明不能替代实测。
+
+2026-10-25补充实测：cece能读取空白NTAG424 DNA的UID，点击保存NFC标签后服务器才收到POST，目前仍401。ECS使用运行中凭证对直连和HTTPS入口提交空JSON均400，配置文件与运行密码比较一致；这尚未验证手机实际凭证及账号归属检查，不能认定回调已通过。失败诊断只记固定分支、是否匹配和字符数，不记录请求凭证、认证头或内容；操作见云测试手册第8节。
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。

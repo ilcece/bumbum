@@ -167,3 +167,30 @@ def test_owner_status_is_rechecked_under_write_lock(auth_app, scanner, monkeypat
     monkeypatch.setattr(scan_webhook, "get_database", disabled_before_transaction)
     assert post(scanner).status_code == 401
     assert query(auth_app, "SELECT COUNT(*) AS n FROM chip")[0]["n"] == 0
+
+
+@pytest.mark.parametrize("case,expected", [
+    ("missing", "认证头存在=否"),
+    ("username", "用户名匹配=否，密码匹配=是"),
+    ("password", "用户名匹配=是，密码匹配=否"),
+    ("disabled", "凭证匹配，但账号不存在、停用或未完成验证器设置"),
+])
+def test_auth_diagnostics_never_log_credentials(auth_app, scanner, caplog, case, expected):
+    client, headers = scanner
+    secret = auth_app.config["WEBHOOK_SHARED_SECRET"]
+    private_user, private_password = "private-test-user", "private-test-password"
+    if case == "missing":
+        headers = {}
+    elif case == "username":
+        headers = authorization(private_user, secret)
+    elif case == "password":
+        headers = authorization(auth_app.config["WEBHOOK_ADMIN_USERNAME"], private_password)
+    else:
+        query(auth_app, "UPDATE admin_user SET status='disabled'")
+    response = client.post(PATH, headers=headers, json={"identifier": UID})
+    assert response.status_code == 401 and "WWW-Authenticate" in response.headers
+    assert expected in caplog.text
+    assert all(value not in caplog.text for value in (secret, private_user, private_password, UID))
+    if headers:
+        assert headers["Authorization"] not in caplog.text
+    assert query(auth_app, "SELECT COUNT(*) AS n FROM chip")[0]["n"] == 0

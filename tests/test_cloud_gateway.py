@@ -112,6 +112,10 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
         assert status == (200 if allowed else 403)
         challenge, headers, _ = call("/api/webhook/admin/scan", method="POST", body={"identifier": UID})
         assert challenge == 401 and headers["WWW-Authenticate"] == 'Basic realm="bumbum-scan"'
+        diagnostics = subprocess.run(command + ["logs", backend], env=env, capture_output=True, text=True)
+        log_text = diagnostics.stdout + diagnostics.stderr
+        assert "扫码认证诊断：认证头存在=否" in log_text
+        assert password not in log_text and admin_account["password"] not in log_text
         credentials = authorization(admin_account["username"], password)
         saved, _, data = call("/api/webhook/admin/scan", method="POST", body={"identifier": UID}, headers=credentials)
         assert saved == 200 and json.loads(data)["data"]["is_new"] is True
