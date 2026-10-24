@@ -1,18 +1,21 @@
 """在专属临时MySQL中验证完整登录、退出、恢复和并发行为。"""
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from datetime import timedelta, timezone
 import hashlib
 import json
 from pathlib import Path
 import re
 import secrets
+from urllib.parse import urlsplit
+from urllib.request import url2pathname
 
 import pymysql
 import pyotp
 import pytest
 
-from core import admin_cli
+from core import admin_cli, admin_qr
 from core.admin_auth import COOKIE_NAME
 from core.db import get_database
 from core.secret_storage import decrypt_totp_secret
@@ -189,7 +192,7 @@ def test_cli_create_confirms_qr_and_never_overwrites_account(auth_app,monkeypatc
     secret=pyotp.random_base32()
     monkeypatch.setattr(admin_cli.pyotp,'random_base32',lambda:secret)
     seen=[]
-    monkeypatch.setattr(admin_cli,'show_qr',seen.append)
+    monkeypatch.setattr(admin_cli,'show_qr',lambda uri:nullcontext(seen.append(uri)))
     account={'secret':secret}
     password='test-only-cli-password'
     result=auth_app.test_cli_runner().invoke(args=['admin','create','cli-admin'],input=f'{password}\n{password}\n{otp(auth_app,account)}\n')
@@ -206,10 +209,31 @@ def test_cli_create_confirms_qr_and_never_overwrites_account(auth_app,monkeypatc
     assert login(auth_app.test_client(),auth_app,{'username':'cli-admin','password':password,'secret':secret}).status_code==200
 
 
+@pytest.mark.parametrize("confirm", [True, False])
+def test_cli_real_setup_page_is_deleted_and_unconfirmed_account_is_not_saved(auth_app,monkeypatch,confirm):
+    secret=pyotp.random_base32()
+    monkeypatch.setattr(admin_cli.pyotp,'random_base32',lambda:secret)
+    monkeypatch.setenv('DISPLAY',':test-only')
+    pages=[]
+    def opened(uri,**_kwargs):
+        path=Path(url2pathname(urlsplit(uri).path))
+        assert secret in path.read_text(encoding='utf-8')
+        pages.append(path)
+        return True
+    monkeypatch.setattr(admin_qr.webbrowser,'open',opened)
+    password='test-only-qr-password'
+    values=f'{password}\n{password}\n'+(otp(auth_app,{'secret':secret})+'\n' if confirm else '')
+    result=auth_app.test_cli_runner().invoke(args=['admin','create','qr-test-admin'],input=values)
+    assert (result.exit_code==0)==confirm
+    assert len(pages)==1 and not pages[0].exists() and not pages[0].parent.exists()
+    assert secret not in result.output
+    assert query(auth_app,'SELECT COUNT(*) AS count FROM admin_user')[0]['count']==int(confirm)
+
+
 def test_interrupted_reset_revokes_sessions_and_keeps_account_unavailable(auth_app,admin_account,monkeypatch):
     client=auth_app.test_client()
     assert login(client,auth_app,admin_account).status_code==200
-    monkeypatch.setattr(admin_cli,'show_qr',lambda _uri:None)
+    monkeypatch.setattr(admin_cli,'show_qr',lambda _uri:nullcontext())
     result=auth_app.test_cli_runner().invoke(args=['admin','reset-totp',admin_account['username']],input='y\n')
     assert result.exit_code!=0
     row=query(auth_app,'SELECT totp_enabled,totp_secret_encrypted FROM admin_user')[0]
@@ -223,7 +247,7 @@ def test_reset_replaces_secret_and_old_sessions_stay_invalid(auth_app,admin_acco
     assert login(client,auth_app,admin_account).status_code==200
     new=pyotp.random_base32()
     monkeypatch.setattr(admin_cli.pyotp,'random_base32',lambda:new)
-    monkeypatch.setattr(admin_cli,'show_qr',lambda _uri:None)
+    monkeypatch.setattr(admin_cli,'show_qr',lambda _uri:nullcontext())
     result=auth_app.test_cli_runner().invoke(args=['admin','reset-totp',admin_account['username']],input='y\n'+otp(auth_app,{'secret':new})+'\n')
     assert result.exit_code==0, '服务器重置命令未完成'
     assert client.get('/api/admin/auth/session').status_code==401

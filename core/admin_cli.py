@@ -12,10 +12,10 @@ from flask import current_app
 from flask.cli import AppGroup
 import pymysql
 import pyotp
-import qrcode
 from werkzeug.security import generate_password_hash
 
 from core.admin_auth import matching_step, revoke_sessions
+from core.admin_qr import show_qr
 from core.auth_settings import AuthUnavailable, auth_settings, iso_time, utc_now
 from core.db import get_database
 from core.secret_storage import encrypt_totp_secret
@@ -65,26 +65,18 @@ def validate_username(username):
         raise click.ClickException("账号须为1到64个字符，首尾不能有空格。")
 
 
-def show_qr(uri):
-    code = qrcode.QRCode(border=4)
-    code.add_data(uri)
-    code.make(fit=True)
-    code.print_ascii(invert=True)
-
-
 def enroll(username):
-    """二维码只出现在操作者终端，验证码隐藏输入，最多尝试三次。"""
+    """用本机临时页面扫码，终端隐藏输入验证码，最多尝试三次。"""
     secret = pyotp.random_base32()
     uri = pyotp.TOTP(secret).provisioning_uri(name=username, issuer_name=current_app.config["ADMIN_TOTP_ISSUER"])
-    click.echo("请用手机Authenticator扫码，此二维码仅供当前管理员本人设置。")
-    show_qr(uri)
-    for _ in range(3):
-        code = click.prompt("输入手机当前6位验证码", hide_input=True)
-        if re.fullmatch(r"[0-9]{6}", code):
-            step = matching_step(secret, code, utc_now())
-            if step is not None:
-                return secret, step
-        click.echo("验证码未通过，请核对手机时间或等待下一组验证码。")
+    with show_qr(uri):
+        for _ in range(3):
+            code = click.prompt("输入手机当前6位验证码", hide_input=True)
+            if re.fullmatch(r"[0-9]{6}", code):
+                step = matching_step(secret, code, utc_now())
+                if step is not None:
+                    return secret, step
+            click.echo("验证码未通过，请核对手机时间或等待下一组验证码。")
     raise click.ClickException("验证未完成，账号不能通过本次设置登录；可重新执行命令。")
 
 

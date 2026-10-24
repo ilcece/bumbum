@@ -11,7 +11,7 @@
 | 系统 | 更新依赖 | 补齐认证配置 |
 |---|---|---|
 | macOS / Linux | `.venv/bin/python -m pip install -r requirements-dev.txt` | `.venv/bin/python scripts/setup_auth_local.py` |
-| Windows PowerShell | `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` | `.venv\Scripts\python.exe scripts\setup_auth_local.py` |
+| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pip install -r requirements-dev.txt` | `.\.venv\Scripts\python.exe -X utf8 scripts\setup_auth_local.py` |
 
 预期看到“本机认证配置已准备”。脚本只补齐 `.env` 中为空的 `STORAGE_ENCRYPTION_KEY`（保护验证器秘密）和 `IP_HASH_KEY`（隐藏日志中的来源），明确本机开发模式，保留原有数据库配置和已有密钥。不创建账号，不生成芯片密钥；生产配置会被拒绝。
 
@@ -24,20 +24,21 @@
 | 系统 | 命令 |
 |---|---|
 | macOS / Linux | `.venv/bin/python -m flask --app app:create_app admin create cece` |
-| Windows PowerShell | `.venv\Scripts\python.exe -m flask --app app:create_app admin create cece` |
+| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m flask --app app:create_app admin create cece` |
 
 按终端提示操作：
 
 1. 设置12到128个字符的密码，再输一次确认。输入时不显示字符，属于正常情况。
-2. 手机打开 Authenticator，选择添加账号并扫描终端二维码。不要截图分享或把二维码贴进聊天；终端窗口过窄时先放大。
-3. 回到终端输入手机当前6位验证码。看到“账号已创建”才表示完成；扫码本身不算完成。
-4. 等手机切换到**下一组验证码**再到网页登录：设置时用过的那组不能再次登录。
+2. 命令会尝试在本机浏览器打开白底黑色二维码页面。没有自动打开时，把终端显示的完整临时文件路径复制到浏览器地址栏打开，保持终端等待输入。
+3. 手机打开 Authenticator，选择添加账号并扫描页面二维码。如果仍不能识别，展开页面的“手动添加账号”，按提示在手机填写账号、密钥并选择“基于时间”。不要截图分享二维码或密钥。
+4. 回到终端输入手机当前6位验证码。看到“账号已创建”才表示完成；扫码本身不算完成。
+5. 完成或取消后关闭设置页面；临时文件会在操作结束时清理。等手机切换到**下一组验证码**再到网页登录，设置时用过的那组不能再次登录。
 
-设置确认前中断不会留下可登录账号；同名账号不会被覆盖。二维码和验证码只用于此次设置，不写入普通日志。
+设置确认前按 Ctrl+C 中断不会留下新账号；重新执行创建命令会生成新的二维码，同名账号不会被覆盖。已经发到聊天或分享过的二维码不再使用，取消后重新设置。二维码和手动添加密钥只在本机临时页面中提供，不上传、不写普通日志。
 
 ## 3. 在网页检查结果
 
-按 [本地运行说明第3节](LOCAL_DEVELOPMENT.md#3-启动后端和网页) 启动后端与网页，打开 **http://localhost:5174**。保持这个地址，不换成 `127.0.0.1` 或其他端口；后台按配置检查网页来源。
+按 [本地运行说明第3节](LOCAL_DEVELOPMENT.md#3-启动后端和网页) 启动后端与网页，打开 [http://localhost:5174](http://localhost:5174)。保持这个地址，不换成 `127.0.0.1` 或其他端口；后台按配置检查网页来源。
 
 | 操作 | 应看到什么 |
 |---|---|
@@ -56,8 +57,8 @@
 
 | 操作 | macOS / Linux | Windows PowerShell |
 |---|---|---|
-| 重置验证器 | `.venv/bin/python -m flask --app app:create_app admin reset-totp cece` | `.venv\Scripts\python.exe -m flask --app app:create_app admin reset-totp cece` |
-| 停用账号 | `.venv/bin/python -m flask --app app:create_app admin disable cece` | `.venv\Scripts\python.exe -m flask --app app:create_app admin disable cece` |
+| 重置验证器 | `.venv/bin/python -m flask --app app:create_app admin reset-totp cece` | `.\.venv\Scripts\python.exe -X utf8 -m flask --app app:create_app admin reset-totp cece` |
+| 停用账号 | `.venv/bin/python -m flask --app app:create_app admin disable cece` | `.\.venv\Scripts\python.exe -X utf8 -m flask --app app:create_app admin disable cece` |
 
 重置会要求确认，**先停用旧验证器、退出全部登录，再显示新二维码**。中断或验证码确认失败时，账号保持不能登录，重新执行重置完成设置即可；它不改密码，也不会重新启用已停用账号。停用命令同样使全部旧登录失效；当前没有网页恢复、备份码或启用账号功能。
 
@@ -68,6 +69,7 @@
 | 现象 | 下一步 |
 |---|---|
 | 提示认证配置或资料未就绪 | 确认完成第1节，并已重启后端；不要随意换已有密钥 |
+| 二维码无法识别或没有自动打开页面 | 打开终端显示的临时文件，扫描完整白底二维码；仍不行就用页面中的手动添加入口，不用手机相机代替 Authenticator 的添加入口 |
 | 扫码后验证码一直不通过 | 手机开启自动时间，等下一组再试，确认用的是本次二维码对应的账号 |
 | 网页提示登录未通过 | 核对账号、密码和当前验证码；确认没有重复用设置或登录成功时的验证码 |
 | 提示必须来自允许的管理网页 | 使用 `http://localhost:5174`，核对 `.env` 的 `ADMIN_ORIGIN` 后重启后端 |
