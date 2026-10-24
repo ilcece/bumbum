@@ -236,6 +236,8 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS 或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。
 
+云测试启动时，将BUILD_CA_BUNDLE指定的正常CA包（默认/etc/ssl/certs/ca-certificates.crt）校验并暂存为项目内.cloud-test/build-ca.crt，再由BuildKit临时挂载到依赖安装步骤，兼容Compose/Bake对目录外文件读取的限制。保留原CA信任和HTTPS校验；该目录排除Git及构建上下文，不将CA写入镜像。此证书包用于验证下载来源，与网站HTTPS私钥及业务密钥不同，不修改.env.cloud-test。
+
 NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，尚无真实目标卡、订阅可用性及手机请求的测试记录；官方说明不能替代实测。
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。

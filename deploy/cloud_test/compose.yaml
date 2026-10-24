@@ -67,6 +67,6 @@ volumes:
   database:
   operation_logs:
 secrets:
-  # 构建时使用服务器的正常CA信任，不写入镜像；云开发测试可指定含会话CA的证书包。
+  # 启动工具将系统CA包暂存到项目内，兼容Bake目录限制；仍通过临时挂载传入，不写入镜像。
   proxy_ca:
-    file: ${BUILD_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}
+    file: ../../.cloud-test/build-ca.crt

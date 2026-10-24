@@ -10,10 +10,15 @@
 
 准备香港ECS公网IPv4、管理电脑当前公网出口IP、域名解析权限，以及可登录的GitHub仓库。电脑在浏览器查询“我的公网IPv4”，记录当前网络的出口地址；不要填192.168开头的内网地址，也不要填ECS地址。手机来源IP可以变化，不加入后台白名单。
 
-从阿里云控制台进入香港实例终端，切换管理员终端后检查：
+从阿里云控制台进入香港实例终端。提示符已经是root时直接做下面的检查；否则先单独执行这一条，进入新终端后再继续：
 
 ```bash
 sudo -i
+```
+
+逐条执行只读检查：
+
+```bash
 cat /etc/os-release
 free -h
 df -h /
@@ -47,11 +52,22 @@ Resolve-DnsName test.bumbum.cc -Type A
 
 ## 3. 安装工具并获取版本：回到ECS终端
 
-仅在第1节确认可作为新测试环境使用后执行。以下使用Ubuntu软件源，不更换系统Python：
+仅在第1节确认可作为新测试环境使用、网站端口已释放后执行。已有Docker和可用的`docker compose version`时，保留原安装，只补其他工具：
 
 ```bash
 apt-get update
-apt-get install -y git docker.io docker-compose-v2 nginx certbot
+apt-get install -y git nginx certbot
+```
+
+仅未安装Docker/Compose的新服务器，再执行下面这一条；已有安装不要重复安装另一套：
+
+```bash
+apt-get install -y docker.io docker-compose-v2
+```
+
+检查并启动：
+
+```bash
 docker --version
 docker compose version
 systemctl enable --now docker nginx
@@ -60,13 +76,13 @@ systemctl enable --now docker nginx
 应显示Docker和Compose v2版本；找不到docker-compose-v2等包时，停下让AI核对软件源，不改用旧版docker-compose命令。服务需要Docker支持构建时临时提供证书文件（BuildKit），后续构建失败时按第10节排查。
 
 ```bash
-git clone --branch feat/nfc-scan-webhook https://github.com/ilcece/bumbum.git /opt/bumbum-test
+git -c credential.helper= clone --branch feat/nfc-scan-webhook https://github.com/ilcece/bumbum.git /opt/bumbum-test
 cd /opt/bumbum-test
 git branch --show-current
 git log -1 --oneline
 ```
 
-应为交付的分支与提交。目录已存在时不要删除或重复克隆，先检查当前版本；私有仓库若要求认证，使用受控登录，不将GitHub凭证拼进网址或发聊天。以后固定使用这个目录。无需复制Windows的.venv或.env。
+应为交付的分支与提交。目录已存在时不要删除或重复克隆，先检查当前版本。GitHub若提示Username/Password，用户名填ilcece，Password填访问令牌，不能填GitHub登录密码。在[令牌设置](https://github.com/settings/personal-access-tokens/new)创建仅限bumbum仓库、Contents只读的细粒度令牌，测试先设7天有效期；令牌只粘贴到自己的隐藏密码提示，不拼进网址或发聊天。命令关闭凭证保存功能，更新时按同样方式认证。以后固定使用这个目录，无需复制Windows的.venv或.env。
 
 ## 4. 生成独立配置，启动后端和测试库
 
@@ -80,7 +96,7 @@ bash scripts/cloud_test.sh status
 curl --fail http://127.0.0.1:15000/api/ready
 ```
 
-准备脚本生成不上传的.env.cloud-test和.cloud-test/nginx-https.conf；已有密码与密钥保留，只更新生成文件中的管理IP，不自动改服务器Nginx。启动会下载固定Python 3.12.14、Node 24.19.0、MySQL 8.0.46镜像，构建网页及Gunicorn 26.2.0后端；首次需要等待网络下载。数据库使用单独数据卷，映射到本机33307，后端只监听本机15000。正常status的两项为运行且healthy，ready返回status=ok、database=ready。
+准备脚本生成不上传的.env.cloud-test和.cloud-test/nginx-https.conf；已有密码与密钥保留，只更新生成文件中的管理IP，不自动改服务器Nginx。启动先将正常系统CA证书包暂存到项目内的.cloud-test/build-ca.crt，兼容新版Compose/Bake的目录读取限制；证书仅在安装依赖时临时挂载，保留HTTPS校验，不进入镜像或Git。之后下载固定Python 3.12.14、Node 24.19.0、MySQL 8.0.46镜像，构建网页及Gunicorn 26.2.0后端；首次需要等待网络下载。数据库使用单独数据卷，映射到本机33307，后端只监听本机15000。正常status的两项为运行且healthy，ready返回status=ok、database=ready。
 
 APP_ENV=production表示云端启用严格的HTTPS认证规则；本环境仍连接独立测试库。ADMIN_ORIGIN为https://test.bumbum.cc，正式环境另用https://admin.bumbum.cc。本次不生成芯片密钥，不运行本机旧库迁移，不自动导入本机记录。
 
@@ -196,13 +212,15 @@ nano .env.cloud-test
 cd /opt/bumbum-test
 bash scripts/cloud_test.sh backup
 git status --short
-git pull --ff-only origin feat/nfc-scan-webhook
+git -c credential.helper= pull --ff-only origin feat/nfc-scan-webhook
 bash scripts/cloud_test.sh start
 bash scripts/cloud_test.sh publish-page
 git log -1 --oneline
 ```
 
 应为交付的新提交，原账号和芯片仍在；Nginx、证书或表结构若有变化，以该次交付的专门步骤为准，不自动改表。当前脚本保留已有秘密，不自动恢复备份覆盖数据库。合入main后由交付说明调整拉取分支，不擅自切到过时分支。
+
+首次构建在创建服务前就失败时，备份命令暂不可用；直接拉取交付的修复再执行start即可。已有.env.cloud-test保留，不重复生成密码或重建目录；数据库启动后再使用备份入口。
 
 ## 10. 失败时按现象定位
 
@@ -214,6 +232,7 @@ git log -1 --oneline
 | 二维码地址打不开 | 容器文件需要先导出再安全下载，按第7节处理；不是重启后端能解决 |
 | 后端或数据库未就绪 | 查status、logs和本机/api/ready；不重建账号、密钥或数据卷 |
 | Docker下载/构建失败 | 记录失败镜像或安装阶段，检查公网网络、磁盘及BuildKit支持；不关闭证书验证、不换成未核对版本 |
+| additional privileges requested，提示allow=fs.read证书路径 | 更新本分支后重跑start，启动工具会将正常CA包暂存到项目内供构建读取；保留原配置和数据 |
 | 手机持续401 | 核对独立扫码密码、账号名、账号启用且已完成验证器设置；别填登录密码或验证码 |
 | 手机返回400 | 核对真实UID及请求格式，保留隐去内容的错误信息，不用编造编号代替 |
 | 手机返回429 | 请求太密，稍等后重扫；不要循环刷接口 |

@@ -25,6 +25,7 @@ while IFS= read -r task_container; do
 done <<< "$task_containers"
 case "${1:-status}" in
     start)
+        python3 scripts/setup_cloud_test.py --prepare-build-ca
         "${compose[@]}" up -d --build --wait --wait-timeout 120
         echo '后端与测试库已就绪；还需按手册配置网页和HTTPS。'
         ;;

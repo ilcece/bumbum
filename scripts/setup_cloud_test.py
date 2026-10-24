@@ -6,8 +6,35 @@ import os
 from pathlib import Path
 import re
 import secrets
+import ssl
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def prepare_build_ca(root, source):
+    """将正常CA信任暂存到项目内，避免Bake读取项目外文件需要额外权限。"""
+    source = Path(source)
+    try:
+        ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_verify_locations(cafile=str(source))
+        bundle = source.read_bytes()
+    except (OSError, ValueError):
+        raise ValueError("构建证书包不可读取或格式不正确，请核对BUILD_CA_BUNDLE；未修改原配置。") from None
+    folder = root / ".cloud-test"
+    target = folder / "build-ca.crt"
+    if folder.is_symlink() or target.is_symlink():
+        raise ValueError("构建证书暂存路径不能是软链接。")
+    folder.mkdir(mode=0o700, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=folder, prefix="build-ca-", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(bundle)
+        os.replace(temporary, target)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    print("构建证书已暂存到项目内；保留HTTPS校验，不写入镜像或Git。")
 
 
 def prepare(root, admin_ip, username):
@@ -52,11 +79,16 @@ def prepare(root, admin_ip, username):
 
 def main():
     parser = argparse.ArgumentParser(description="准备香港云测试配置；已有秘密原样保留。")
-    parser.add_argument("--admin-ip", required=True, help="电脑当前公网出口IP")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--admin-ip", help="电脑当前公网出口IP")
+    mode.add_argument("--prepare-build-ca", action="store_true", help="仅准备构建证书，不改账号或密钥配置")
     parser.add_argument("--admin-name", default="cece", help="云测试管理员名，默认cece")
     args = parser.parse_args()
     try:
-        prepare(ROOT, args.admin_ip, args.admin_name)
+        if args.prepare_build_ca:
+            prepare_build_ca(ROOT, os.getenv("BUILD_CA_BUNDLE", "/etc/ssl/certs/ca-certificates.crt"))
+        else:
+            prepare(ROOT, args.admin_ip, args.admin_name)
     except (ValueError, OSError) as error:
         print("未完成：" + (str(error) if isinstance(error, ValueError) else "文件无法创建，请检查目录权限；未删除原配置或数据。"))
         return 1

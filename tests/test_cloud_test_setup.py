@@ -6,10 +6,11 @@ import stat
 import json
 import os
 import subprocess
+import ssl
 
 import pytest
 
-from scripts.setup_cloud_test import prepare
+from scripts.setup_cloud_test import prepare, prepare_build_ca
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -66,9 +67,46 @@ def test_symlink_configuration_never_overwrites_other_file(cloud_root):
     assert target.read_text(encoding="utf-8") == "保留"
 
 
-@pytest.mark.auth_database
-def test_actual_compose_keeps_root_password_out_of_backend(cloud_root, auth_database):
+@pytest.fixture
+def system_ca():
+    source = ssl.get_default_verify_paths().cafile
+    if source is None:
+        pytest.skip("本机没有可读取的CA文件；服务器仍须执行构建检查")
+    return Path(source)
+
+
+def test_build_ca_stays_inside_project_and_preserves_configuration(cloud_root, system_ca):
     prepare(cloud_root, "1.1.1.1", "cece")
+    config = (cloud_root / ".env.cloud-test").read_bytes()
+    nginx = (cloud_root / ".cloud-test/nginx-https.conf").read_bytes()
+    source = system_ca.read_bytes()
+    for _ in range(2):
+        prepare_build_ca(cloud_root, system_ca)
+    target = cloud_root / ".cloud-test/build-ca.crt"
+    assert target.read_bytes() == source and system_ca.read_bytes() == source
+    assert (cloud_root / ".env.cloud-test").read_bytes() == config
+    assert (cloud_root / ".cloud-test/nginx-https.conf").read_bytes() == nginx
+    assert not list(target.parent.glob("build-ca-*"))
+    ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT).load_verify_locations(cafile=str(target))
+    if os.name != "nt":
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+
+def test_invalid_ca_does_not_replace_previous_trust(cloud_root, system_ca):
+    prepare_build_ca(cloud_root, system_ca)
+    target = cloud_root / ".cloud-test/build-ca.crt"
+    before = target.read_bytes()
+    invalid = cloud_root / "invalid-ca"
+    invalid.write_text("无效证书占位内容", encoding="utf-8")
+    with pytest.raises(ValueError, match="证书包"):
+        prepare_build_ca(cloud_root, invalid)
+    assert target.read_bytes() == before
+
+
+@pytest.mark.auth_database
+def test_actual_compose_keeps_root_password_out_of_backend(cloud_root, auth_database, system_ca):
+    prepare(cloud_root, "1.1.1.1", "cece")
+    prepare_build_ca(cloud_root, system_ca)
     env = dict(os.environ)
     for name in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
                  "DB_USER", "DB_PASSWORD", "CLOUD_DB_ROOT_PASSWORD", "STORAGE_ENCRYPTION_KEY", "IP_HASH_KEY", "WEBHOOK_ADMIN_USERNAME", "WEBHOOK_SHARED_SECRET"):
@@ -83,3 +121,6 @@ def test_actual_compose_keeps_root_password_out_of_backend(cloud_root, auth_data
     assert api["environment"]["ADMIN_ORIGIN"] == "https://test.bumbum.cc"
     assert db["ports"][0]["host_ip"] == "127.0.0.1" and db["ports"][0]["published"] == "33307"
     assert api["read_only"] is True and "ALL" in api["cap_drop"]
+    # 构建只读取项目内的暂存CA，不要求访问/etc等额外目录。
+    source = Path(config["secrets"]["proxy_ca"]["file"])
+    assert source.is_relative_to(ROOT) and source.name == "build-ca.crt"
