@@ -6,12 +6,13 @@
 
 | 文件 | 负责什么 |
 |---|---|
-| `frontend/admin/src/main.tsx` | 当前状态页面的文字、排列和交互 |
+| `frontend/admin/src/main.tsx` | 运行检查与登录区的页面组合 |
+| `frontend/admin/src/LoginPanel.tsx` | 登录表单、登录状态、刷新与退出交互 |
 | `frontend/admin/src/style.css` | 颜色、间距、字体和手机适配 |
-| `frontend/admin/src/api.ts` | 调用后端、判断真实检查结果；后续接口调用在这一层扩展 |
+| `frontend/admin/src/api.ts` | 调用检查/认证接口、携带 Cookie、在内存中保存防冒用口令；后续接口调用在这一层扩展 |
 | `frontend/admin/vite.config.ts` | 本地网页如何连接后端 |
 
-当前页面只是开发检查页，没有登录或业务入口。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。
+当前页面已包含运行检查、真实登录与退出，没有芯片或物品业务入口。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。
 
 ## cece 提供什么，AI 怎样接入
 

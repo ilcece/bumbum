@@ -14,7 +14,7 @@ TARGET_TABLES = frozenset(re.findall(r"CREATE TABLE (\w+)", (ROOT / "db/schema.s
 
 
 def init_database(app, overrides=None):
-    """环境变量优先于本机配置；当前不加载芯片或管理员密钥。"""
+    """环境变量优先于本机配置；这里仅初始化数据库连接配置。"""
     load_dotenv(ROOT / ".env", override=False)
     try:
         port = int(os.getenv("DB_PORT", "33306"))

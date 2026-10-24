@@ -64,25 +64,27 @@ bumbum|<entity>|<id>|<field>|<storage_key_version>|<layer>
 ```
 entity 为 chip_key/admin_user；chip_key 的 id 使用 chip_id，admin_user 使用 admin_id；field 为 keys/totp_secret；layer 为 data/dek。解密时从预期记录重新生成，不能盲信密文附带的值。
 
+当前只实现验证器秘密的加解密，使用 cryptography 50.0.2；芯片秘密存储尚未接入。
+
 chip_key 使用 encrypted_keys、nonce、dek_ciphertext、dek_nonce、storage_key_version 分列保存。验证器秘密 totp_secret_encrypted 则保存完整 UTF-8 JSON 信封：format_version=1、algorithm=AES-256-GCM、storage_key_version，以及以 Base64（将二进制转成文字）表示的 dek_ciphertext/dek_nonce/ciphertext/nonce；密文均含 tag，只接受已支持格式。迁移到 KMS（云端托管密钥服务）需另定格式和版本，不能假定当前字段可容纳任意服务返回内容。
 
 ## 4. 登录凭证与防冒用检查
 
-目标：管理员一次提交账号、密码、Authenticator 验证码后登录；退出和重置后旧登录立即失效。密码用 Werkzeug 的 scrypt 保存校验指纹，每个密码带独立随机值（加盐），不保存原密码。运行参数按服务器资源验证，不自创算法。
+目标：管理员一次提交账号、密码、Authenticator 验证码后登录；退出和重置后旧登录立即失效。密码用 Werkzeug 的 scrypt 保存校验指纹，每个密码带独立随机值（加盐），不保存原密码。当前使用 Werkzeug 3.1.9 的默认 scrypt 参数（32768:8:1），生产资源与容量仍需验证。服务器创建新密码要求12–128字符；登录按接口原值验证，不改成注册长度限制。
 
 | 项目 | 精确要求与含义 |
 |---|---|
 | 登录 | POST /api/admin/auth/login 一次接收 username、password、code；只有账号启用、验证器已设置、密码和验证码均正确才成功；不发临时登录票据 |
-| 验证器 | 使用 pyotp 等成熟库；使用标准 HMAC-SHA1 的 TOTP，6 位、30 秒一个时段，容差为当前时段前后各 1 个；秘密独立安全随机生成至少 160 位，以 Base32 表示并通过二维码设置；服务器校时。接受的时段必须大于 totp_last_step |
+| 验证器 | 使用 pyotp 2.10.0；使用标准 HMAC-SHA1 的 TOTP，6 位、30 秒一个时段，容差为当前时段前后各 1 个；秘密独立安全随机生成至少 160 位，以 Base32 表示并通过二维码设置；服务器校时。接受的时段必须大于 totp_last_step |
 | 会话 | 使用密码学安全随机数生成至少 256 位登录 token；admin_session 仅保存其 SHA-256 指纹 token_hash，最长 8 小时，不滚动续期；没有设置阶段的临时权限或 scope 字段 |
 | Cookie | 名 bumbum_admin_session；生产 HttpOnly（网页脚本不能读取）、Secure（只经 HTTPS）、SameSite=Strict（限制跨站携带）、Path=/api/admin；不设 Domain |
 | 正式凭证位置 | 登录 token 只放 Cookie，不返回 JSON，不放 URL、本地存储或正式 Bearer 认证 |
 | Origin | 管理请求写入数据时，精确匹配生产管理域名或开发 ADMIN_ORIGIN；缺失或不符返回 403 forbidden；命令行联调也须带合法 Origin |
 | 写请求 | 只接受 JSON；除 login 外都需要有效登录 Cookie 和 X-CSRF-Token。login 不依赖已有 Cookie 或口令，但仍强制检查 Origin 和 JSON，避免跨站登录 |
-| CORS | 管理 API 仅允许 ADMIN_ORIGIN，允许 credentials 携带 Cookie；不用通配来源，也不套用 CORS_ORIGINS 总清单 |
-| 本地开发 | 仅明确 localhost 配置可关闭 Cookie Secure；生产不得关闭 |
+| CORS | 开发环境管理 API 仅允许 ADMIN_ORIGIN，允许 credentials 携带 Cookie；生产同域调用不加跨域放行头，不套用 CORS_ORIGINS 总清单 |
+| 本地开发 | 仅 APP_ENV=development 且 ADMIN_ORIGIN 明确为本机 HTTP 来源时可关闭 Cookie Secure；生产必须 HTTPS，缺省环境按 production 处理 |
 
-**随机防冒用口令怎么处理：**采用成熟 CSRF 组件支持的“令牌随服务器会话保存”模式。创建登录时，独立随机生成 32 字节、写成 64 位小写十六进制，存到 admin_session.csrf_token。它和登录 token 各自生成，不从 token 推导，不额外使用 CSRF 密钥或手写签名公式。此口令单独不能登录，因此数据库可保存原值；正式登录 token 仍只保存指纹。组件与 MySQL 会话的适配在开发时核验，不能直接套用要求不同存储方式的默认配置。
+**随机防冒用口令怎么处理：**采用成熟 CSRF 组件支持的“令牌随服务器会话保存”模式。创建登录时，独立随机生成 32 字节、写成 64 位小写十六进制，存到 admin_session.csrf_token。它和登录 token 各自生成，不从 token 推导，不额外使用 CSRF 密钥或手写签名公式。此口令单独不能登录，因此数据库可保存原值；正式登录 token 仍只保存指纹。现由 WTForms 3.3.0 的 CSRF 扩展点适配 MySQL 会话：secrets 生成令牌，组件校验格式并用 compare_digest 比较。未启用 Flask 签名会话或另配 CSRF 密钥；已验证缺失、错误及另一会话的令牌均被拒绝。
 
 GET /api/admin/auth/session 检查有效登录及账号状态，返回 authenticated、expires_at 和同一 csrf_token，不返回 Cookie 值，不缓存，也不换口令或修改登录状态。页面只在内存中持有口令，写请求放 X-CSRF-Token；后端恒定时间比较（避免比较耗时泄露内容）。这样刷新页面或多个标签页能共用现有登录，不需要自定义 HMAC 密钥。
 
@@ -90,7 +92,7 @@ GET /api/admin/auth/session 检查有效登录及账号状态，返回 authentic
 
 账号不存在、禁用、验证器未设置、密码或验证码错误、验证码已使用，对外统一为 401 unauthorized，不暴露具体哪项正确。字段缺失或格式不合法仍为 400 invalid_param；临时锁定为 429 rate_limited。注销撤销当前会话并清 Cookie；禁用或重置验证器时撤销该账号全部会话，每次管理请求都重查账号启用和验证器已设置状态。
 
-**首次设置和丢失后的恢复：**以后提供受控服务器命令；当前不写命令实现、不编造可执行步骤。命令安全输入密码，生成验证器秘密和仅在操作者终端显示的二维码，输入验证码确认后，才加密保存秘密并设 totp_enabled=1；记录确认时段。重置先将 totp_enabled=0、清除旧验证器秘密和撤销全部会话一起保存，再确认新验证器；失败时维持不可登录。重置还清账号失败计数和锁定时间。记录目标账号、执行时间、原因与结果，不能记录密码、二维码内容、秘密或验证码。不增加网页注册、验证器设置接口、备份码或恢复绕过接口；真正创建或重置账号需要授权。
+**首次设置和丢失后的恢复：**已实现 admin create、reset-totp 和 disable，操作步骤见 [管理员登录](ADMIN_LOGIN.md)。设置页面不发网络请求、不新增网页设置接口；优先在本机浏览器打开，失败时只向终端显示临时文件路径。文件由系统临时目录保存，在支持权限位的系统中目录权限700、文件600；确认、失败或Ctrl+C退出时清理，不写普通日志。没有桌面的服务器需操作者通过受控方式打开临时文件。命令安全输入密码，生成验证器秘密，用 qrcode 的白底SVG在本机临时HTML中显示二维码并提供手动添加资料，输入验证码确认后，才加密保存秘密并设 totp_enabled=1；记录确认时段。重置先将 totp_enabled=0、清除旧验证器秘密和撤销全部会话一起保存，再确认新验证器；失败时维持不可登录。重置还清账号失败计数和锁定时间。受限文件 logs/admin-operations.jsonl 记录服务器操作者、目标账号、时间、动作、固定原因（首次设置、更换或恢复验证器、停用账号）及 started/committed/incomplete 结果。文件以仅操作者可读写的权限新建；不能记录密码、二维码内容、秘密或验证码。不增加网页注册、验证器设置接口、备份码或恢复绕过接口；真正创建或重置账号需要授权。
 
 ## 5. 限制重试与记录操作
 
@@ -112,7 +114,7 @@ GET /api/admin/auth/session 检查有效登录及账号状态，返回 authentic
 
 - admin_login_event 保存登录成功、失败、锁定，不区分密码或验证码哪项错误；未知账号用 username_hash，不编造 admin_id。
 - admin_audit 保存查看/生成芯片密钥、所有权绑定/解绑/转赠、芯片绑定及状态修改、物品创建与修改等关键变更；不为每次列表查询和页面访问另做全链路记录。
-- 服务器创建账号、重置验证器另记受限的操作结果；不把服务器操作者伪装成某个网页登录管理员。
+- 服务器创建账号、重置验证器和停用账号另记受限的操作结果；不把服务器操作者伪装成某个网页登录管理员。
 
 ip_hash 仍用独立 IP_HASH_KEY 处理规范化 IP，不记录原始 IP、密码、密钥、二维码、验证码、token 或完整手机号。业务变更与关键操作记录一起保存；查看密钥先保存记录再返回，失败不能声称已记录。动态链接和请求体不进入普通访问日志，日志保留时长及权限投产前确定。
 
@@ -208,6 +210,7 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 | 配置 | 用途 |
 |---|---|
+| APP_ENV | 本机配置明确为 development；正式环境用 production（缺省值），强制管理来源为 HTTPS |
 | DB_* | 数据库连接；本机默认127.0.0.1:33306，使用普通测试账号 |
 | DEV_DB_ROOT_PASSWORD | 仅供 Compose 首次初始化测试库，准备脚本生成，不交给后端 |
 | MASTER_KEY_FASHION / MASTER_KEY_JEWELRY | 按项目计算 K0/K2/K3/K4 的根材料，不直接写卡 |

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { checkBackend, checkDatabase } from "./api";
+import { LoginPanel } from "./LoginPanel";
 import "./style.css";
 
 type Status = "checking" | "ok" | "failed";
@@ -25,9 +26,9 @@ function App() {
     <main>
       <header>
         <p className="brand">BUMBUM</p>
-        <p className="step">第 1 步 · 运行检查</p>
-        <h1>开发环境检查</h1>
-        <p>两个检查都通过，就可以继续下一步的管理员登录开发。</p>
+        <p className="step">第 2 步 · 管理员登录</p>
+        <h1>运行与登录检查</h1>
+        <p>先确认运行环境，再使用已创建的管理员账号登录。</p>
       </header>
       <section className="checks" aria-label="运行检查结果" aria-live="polite" aria-busy={checking}>
         <StatusCard title="后端程序" status={backend}
@@ -40,7 +41,8 @@ function App() {
       <button type="button" onClick={() => void refresh()} disabled={checking}>
         {checking ? "正在检查…" : "重新检查"}
       </button>
-      <footer>当前只检查运行环境，管理员登录和芯片业务尚未接入。</footer>
+      <LoginPanel />
+      <footer>当前可检查运行环境并登录；芯片与物品业务尚未接入。</footer>
     </main>
   );
 }
