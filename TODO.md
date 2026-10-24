@@ -6,8 +6,8 @@
 
 | 优先级 | 任务 | 状态 | 完成时至少看到什么 |
 |---|---|---|---|
-| P0 | [芯片登记与列表验收](https://github.com/ilcece/bumbum/blob/feat/chip-registration/docs/CHIP_REGISTRATION.md) | 代码在 feat/chip-registration，cece 验收中 | 按手册通过新增、重复、跨项目拒绝、查询、刷新和退出，再合入 main |
-| P1 | [Windows 验收工具](#windows-验收工具待windows验收) | 代码在 feat/windows-local-tools，待Windows验收 | 首次准备、启动和停止三个入口，在真实 Windows 上验证 |
+| P0 | [芯片登记与列表验收](https://github.com/ilcece/bumbum/blob/feat/chip-registration/docs/CHIP_REGISTRATION.md) | 原版核心已验收，项目可空及提示调整待补测 | 按芯片分支手册先升级旧库，再补测；尚未合入main |
+| P1 | [Windows 验收工具](#windows-验收工具待windows验收) | 重复启动和停止提示已修复，待Windows复测 | 再次双击不报错或留下重复窗口；停止后重启，原账号仍可登录 |
 | P1 | 最小物品管理与芯片绑定 | 待排期，接在芯片验收之后 | 按 F1-02/F1-03 建立物品并绑定；同项目且一物一芯片 |
 | P1 | NFC.cool 扫描回调 | 待真实 App 核验 | 记录版本、实际请求字段、身份检查和重试行为，再接入 F1-01；手动登记不算完成扫描验收 |
 | P1 | 密钥计算与写卡前置核验 | 待资料与真实测试卡 | 按 [技术说明待验证项](TECH_SPEC.md#9-还有什么没验证) 确定权限、计算方法和文件参数，再做单卡测试 |
@@ -18,6 +18,8 @@
 ## Windows 验收工具（待Windows验收）
 
 这就是此前讨论的“GitHub Desktop 同步代码＋一键运行＋浏览器验收”。三个入口已在 feat/windows-local-tools 实现，自动检查不代替真实Windows双击验收；尚未合入main。该分支基于main，暂不包含芯片登记功能，芯片验收仍使用原分支。
+
+cece已反馈首次启动成功，重复启动出现通用异常；本次修复Windows锁区读取并让正常重复启动直接退出，补充停止后数据保留提示，等待同机复测。当前反馈未确认数据丢失；工具分支没有芯片页面，账号和芯片资料是否保留应按对应入口检查。
 
 | 入口 | 要做什么 | 验收重点 |
 |---|---|---|

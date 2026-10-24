@@ -186,7 +186,7 @@ def unavailable_lock(_name):
     yield False
 
 
-def test_repeated_start_only_opens_existing_matching_version(workspace, monkeypatch):
+def test_repeated_start_does_not_open_browser_or_start_more_services(workspace, monkeypatch):
     version = {"branch": "feature", "revision": "abc"}
     local.write_json(local.RUNTIME / "services.json", {**version, "phase": "ready"})
     monkeypatch.setattr(local, "file_lock", unavailable_lock)
@@ -195,12 +195,142 @@ def test_repeated_start_only_opens_existing_matching_version(workspace, monkeypa
     monkeypatch.setattr(local, "tools", lambda: pytest.fail("重复启动不应安装依赖或启动服务"))
     opened = []
     monkeypatch.setattr(local.webbrowser, "open", opened.append)
-    local.start()
-    assert opened == [local.URL]
+    assert local.start() == local.ALREADY_RUNNING
+    assert opened == []
     local.write_json(local.RUNTIME / "services.json", {**version, "revision": "old", "phase": "ready"})
     with pytest.raises(local.LocalError, match="版本已变化"):
         local.start()
-    assert len(opened) == 1
+    assert opened == []
+
+
+@pytest.mark.parametrize("phase", [None, "preparing", "starting"])
+def test_repeated_start_during_preparation_exits_normally(workspace, monkeypatch, phase):
+    version = {"branch": "feature", "revision": "abc"}
+    if phase:
+        local.write_json(local.RUNTIME / "services.json", {**version, "phase": phase})
+    monkeypatch.setattr(local, "file_lock", unavailable_lock)
+    monkeypatch.setattr(local, "version_info", lambda: version)
+    monkeypatch.setattr(local, "ready", lambda: pytest.fail("准备中的重复入口不应查询网页或启动服务"))
+    assert local.start() == local.ALREADY_RUNNING
+
+
+def test_real_service_failure_still_keeps_an_explanation(workspace, monkeypatch):
+    version = {"branch": "feature", "revision": "abc"}
+    local.write_json(local.RUNTIME / "services.json", {**version, "phase": "ready"})
+    monkeypatch.setattr(local, "file_lock", unavailable_lock)
+    monkeypatch.setattr(local, "version_info", lambda: version)
+    monkeypatch.setattr(local, "ready", lambda: False)
+    with pytest.raises(local.LocalError, match="运行检查未通过"):
+        local.start()
+
+
+def test_busy_lock_never_reads_the_locked_byte(workspace, monkeypatch):
+    # 模拟Windows强制字节锁：已有持锁者时，读字节会先于尝试加锁而失败。
+    held = [False]
+    original_open = Path.open
+
+    class GuardedFile:
+        def __init__(self, handle):
+            self.handle = handle
+
+        def __getattr__(self, name):
+            return getattr(self.handle, name)
+
+        def read(self, *args):
+            if held[0]:
+                raise PermissionError("模拟读取另一进程锁住的字节")
+            return self.handle.read(*args)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return self.handle.__exit__(*args)
+
+    def guarded_open(path, *args, **kwargs):
+        handle = original_open(path, *args, **kwargs)
+        return GuardedFile(handle) if path.name == "services.lock" else handle
+
+    def locking(_fd, mode, _length):
+        if mode == 0:
+            held[0] = False
+        elif held[0]:
+            raise PermissionError("模拟字节锁已被占用")
+        else:
+            held[0] = True
+
+    monkeypatch.setattr(Path, "open", guarded_open)
+    monkeypatch.setitem(sys.modules, "msvcrt", SimpleNamespace(locking=locking, LK_NBLCK=1, LK_UNLCK=0))
+    with local.file_lock("services.lock") as acquired:
+        assert acquired
+        assert local.running()
+        with local.file_lock("services.lock") as second:
+            assert second is False
+    assert not local.running()
+
+
+def test_successful_stop_explains_that_data_is_retained(workspace, monkeypatch, capsys):
+    @contextmanager
+    def available(_name):
+        yield True
+
+    monkeypatch.setattr(local, "file_lock", available)
+    monkeypatch.setattr(local, "running", lambda: False)
+    local.stop()
+    assert "停止完成；配置、管理员账号和测试数据保留。" in capsys.readouterr().out
+
+
+@pytest.mark.auth_database
+@pytest.mark.parametrize("auth_database", ["restartable"], indirect=True)
+def test_database_stop_and_restart_keep_account_session_and_test_records(workspace, monkeypatch, auth_database, auth_app, admin_account):
+    import pymysql
+    from tests.test_admin_auth import login, query
+
+    docker, container = auth_database["TEST_DOCKER_COMMAND"], auth_database["TEST_CONTAINER"]
+    environment = dict(os.environ)
+    if os.name != "nt" and Path("/var/run/docker.sock").exists():
+        for name in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+            environment.pop(name, None)
+    config = workspace / ".env"
+    config.write_text("LOCAL_TEST_MARKER=preserved\n", encoding="utf-8")
+    client = auth_app.test_client()
+    assert login(client, auth_app, admin_account).status_code == 200
+    uid = "04:A2:7F:1B:5E:80:FE"
+    query(auth_app, "INSERT INTO chip(chip_uid,project_id,batch_no) VALUES (%s,1,'临时停止验证')", (uid,))
+    tables = ("admin_user", "admin_session", "chip")
+    before = [query(auth_app, f"SELECT * FROM {table} ORDER BY id") for table in tables]
+    local.write_json(local.RUNTIME / "database.json", {"id": container})
+    monkeypatch.setattr(local, "database_container", lambda _: {"id": container})
+
+    def invoke(arguments, _description, timeout=30, **_kwargs):
+        result = subprocess.run([*docker, *arguments[1:]], env=environment, capture_output=True, text=True, timeout=timeout)
+        assert result.returncode == 0, "专属临时数据库停止或启动失败"
+        return result.stdout.strip()
+
+    monkeypatch.setattr(local, "command", invoke)
+    try:
+        local.stop_database("docker")
+        assert not (local.RUNTIME / "database.json").exists()
+    finally:
+        invoke(["docker", "start", container], "恢复专属临时库")
+        # 临时容器使用随机测试端口，重启后Docker可能重新分配；真实工具端口固定为33306。
+        port = int(invoke(["docker", "port", container, "3306/tcp"], "读取临时测试端口").rsplit(":", 1)[1])
+        auth_database["DB_PORT"] = auth_app.config["DB_PORT"] = port
+        deadline = time.monotonic() + 30
+        while True:
+            try:
+                after = [query(auth_app, f"SELECT * FROM {table} ORDER BY id") for table in tables]
+                break
+            except pymysql.MySQLError:
+                if time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.25)
+    try:
+        assert after == before
+        assert client.get("/api/admin/auth/session").status_code == 200
+        assert config.read_text(encoding="utf-8") == "LOCAL_TEST_MARKER=preserved\n"
+    finally:
+        query(auth_app, "DELETE FROM chip WHERE chip_uid=%s", (uid,))
 
 
 @pytest.mark.parametrize("key,value", [("DB_HOST", "db.example.com"), ("APP_ENV", "production"), ("ADMIN_ORIGIN", "http://127.0.0.1:5174"), ("DB_PORT", "3306")])

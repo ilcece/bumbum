@@ -58,12 +58,15 @@ def auth_database(request):
             schema = path / "schema.sql"
             shutil.copyfile(ROOT / "db/schema.sql", schema)
             schema.chmod(0o644)
-            docker(["create", "--name", container, "--label", "bumbum.test=admin-auth", "--publish", "127.0.0.1::3306", "--tmpfs", "/var/lib/mysql", "--env-file", str(credentials), "mysql:8.0.46"])
+            # 仅停止/重启验证使用专属匿名卷；其他检查继续使用随停止清空的临时内存盘。
+            mount = ["--volume", "/var/lib/mysql"] if getattr(request, "param", None) == "restartable" else ["--tmpfs", "/var/lib/mysql"]
+            docker(["create", "--name", container, "--label", "bumbum.test=admin-auth", "--publish", "127.0.0.1::3306", *mount, "--env-file", str(credentials), "mysql:8.0.46"])
             created = True
             docker(["cp", str(schema), container + ":/docker-entrypoint-initdb.d/001-schema.sql"])
             docker(["start", container])
             port = int(docker(["port", container, "3306/tcp"]).rsplit(":", 1)[1])
             config = {"DB_HOST": "127.0.0.1", "DB_PORT": port, "DB_USER": "bumbum_auth_test", "DB_PASSWORD": password, "DB_NAME": "bumbum_digital"}
+            config.update(TEST_CONTAINER=container, TEST_DOCKER_COMMAND=command)
             for _ in range(60):
                 try:
                     connection = pymysql.connect(host="127.0.0.1", port=port, user="bumbum_auth_test", password=password, database="bumbum_digital", connect_timeout=1)
@@ -78,7 +81,7 @@ def auth_database(request):
             yield config
     finally:
         if created:
-            docker(["rm", "--force", container])
+            docker(["rm", "--force", "--volumes", container])
 
 
 @pytest.fixture

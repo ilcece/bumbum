@@ -20,6 +20,8 @@ RUNTIME = ROOT / ".local-run"
 PYTHON = ROOT / ".venv/Scripts/python.exe"
 URL = "http://localhost:5174"
 OPENER = build_opener(ProxyHandler({}))
+# 仅供双击入口识别“无需重复启动”，最终对用户返回成功，不保留多余窗口。
+ALREADY_RUNNING = 10
 
 
 class LocalError(Exception):
@@ -65,7 +67,8 @@ def file_lock(name):
     RUNTIME.mkdir(exist_ok=True)
     with (RUNTIME / name).open("a+b") as handle:
         handle.seek(0)
-        if not handle.read(1):
+        # Windows会禁止读取被另一进程锁住的字节；判断大小不读取锁区。
+        if os.fstat(handle.fileno()).st_size == 0:
             handle.write(b"0")
             handle.flush()
         handle.seek(0)
@@ -361,17 +364,23 @@ def start():
     with file_lock("services.lock") as available:
         if not available:
             existing = read_json(RUNTIME / "services.json") or {}
+            if not existing:
+                # 首个窗口刚取得锁、尚未写入状态时，重复入口也直接退出。
+                return ALREADY_RUNNING
             current = version_info()
-            if existing.get("phase") == "ready" and all(existing.get(key) == value for key, value in current.items()) and ready():
-                print("项目已启动，已打开原网页；如刚修改过代码，请先停止再启动。", flush=True)
-                webbrowser.open(URL)
-                return
-            raise LocalError("项目正在启动或运行版本已变化。请先双击停止项目，再启动；未重复启动服务。")
+            if not all(existing.get(key) == value for key, value in current.items()):
+                raise LocalError("运行版本已变化。请先双击停止项目，再启动；未重复启动服务。")
+            if existing.get("phase") in {"preparing", "starting"}:
+                return ALREADY_RUNNING
+            if existing.get("phase") == "ready" and ready():
+                return ALREADY_RUNNING
+            raise LocalError("项目已在运行，但运行检查未通过。请查看原启动窗口，必要时先停止再启动。")
         (RUNTIME / "services.json").unlink(missing_ok=True)
         with file_lock("operation.lock") as operation:
             if not operation:
                 raise LocalError("另一个准备或停止操作正在进行，请稍后重试。")
             version = version_info()
+            write_json(RUNTIME / "services.json", {**version, "phase": "preparing"})
             print("[1/5] 检查运行环境和端口", flush=True)
             node, npm, docker = tools()
             assert_port_free(5000)
@@ -421,6 +430,7 @@ def stop():
             stop_database(docker_tool())
         else:
             print("原本已运行的数据库继续保留；Docker Desktop 保持开启。", flush=True)
+        print("停止完成；配置、管理员账号和测试数据保留。", flush=True)
 
 
 def main():
@@ -433,8 +443,7 @@ def main():
         if os.name != "nt":
             raise LocalError("双击工具仅适用于 Windows；其他系统按 docs/LOCAL_DEVELOPMENT.md 操作。")
         RUNTIME.mkdir(exist_ok=True)
-        {"prepare": prepare, "start": start, "stop": stop}[sys.argv[1]]()
-        return 0
+        return {"prepare": prepare, "start": start, "stop": stop}[sys.argv[1]]() or 0
     except KeyboardInterrupt:
         print("操作已取消，配置和数据已保留；如需停止数据库，请双击停止项目。", flush=True)
         return 130
