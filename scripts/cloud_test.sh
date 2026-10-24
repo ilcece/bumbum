@@ -52,8 +52,18 @@ case "${1:-status}" in
             exit 1
         fi
         umask 077
-        "${compose[@]}" cp "backend:$task_qr" .cloud-test/authenticator.html
-        chmod 0600 .cloud-test/authenticator.html
+        # /tmp是容器内存盘，docker cp可能看不到；从运行中的容器读取，直接写入受限文件。
+        task_export="$(mktemp .cloud-test/authenticator-XXXXXXXX.tmp)"
+        trap 'rm -f -- "$task_export"' EXIT
+        if ! "${compose[@]}" exec -T backend cat -- "$task_qr" >"$task_export" || [[ ! -s "$task_export" ]]; then
+            echo '导出未完成：临时页面不可读取。请确认原设置终端仍在等待，并使用本次完整路径；设置已结束时重新创建并使用新路径。' >&2
+            exit 1
+        fi
+        # 原子创建且不覆盖已有文件；文件内容不经过终端，也不进入日志。
+        if ! ln -- "$task_export" .cloud-test/authenticator.html; then
+            echo '已有导出文件，未覆盖；请先按手册清理旧副本。' >&2
+            exit 1
+        fi
         echo '二维码已安全导出到.cloud-test/authenticator.html；只下载到自己的电脑，完成后删除两边副本。'
         ;;
     backup)
