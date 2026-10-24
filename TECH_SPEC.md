@@ -141,6 +141,8 @@ flowchart TD
 
 目前可启动本机开发环境，步骤统一见 [本地运行说明](docs/LOCAL_DEVELOPMENT.md)，页面接入方式见 [Figma 协作说明](docs/FRONTEND_COLLABORATION.md)。本地运行与管理员登录已实现并合入 main，cece 已确认 Windows 本机扫码和网页登录通过；尚未验证生产部署。各配置用途见 [附录第 8 节](docs/IMPLEMENTATION_DETAILS.md#8-配置与资料来源)。
 
+`feat/windows-local-tools` 提供本机准备、启动和停止入口，待真实Windows验收。工具只接受默认本机测试配置；固定管理网页来源，保留已有秘密和数据，只停止自己管理的服务，不替代生产部署或数据库升级。
+
 ## 8. 怎么判断某一步真的完成了
 
 阶段与验收以 PRD 为准：先做后台基础管理，再做用户验证和短信绑定，之后才做运营与养成。全局 K1 方案已定，真实密钥和写卡仍等具体参数与测试完成。

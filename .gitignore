@@ -24,6 +24,8 @@ build/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+# Windows工具的本机依赖标记、运行锁和日志，不上传。
+.local-run/
 .coverage
 htmlcov/
 coverage/
