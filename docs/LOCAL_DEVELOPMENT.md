@@ -79,11 +79,16 @@ RUN_DB_TESTS=1 .venv/bin/python -m pytest -q
 ```powershell
 # Windows PowerShell
 $env:RUN_DB_TESTS="1"
-.venv\Scripts\python.exe -m pytest -q
-Remove-Item Env:RUN_DB_TESTS
+try {
+    .\.venv\Scripts\python.exe -X utf8 -m pytest -q
+} finally {
+    Remove-Item Env:RUN_DB_TESTS -ErrorAction SilentlyContinue
+}
 ```
 
 这会额外确认普通账号连接、UTC 时间设置、完整表清单及数据库就绪接口。检查只接受本机33306端口和测试账号，不写业务数据。
+
+Windows 命令中的 `-X utf8` 让这次 Python 按 UTF-8 读取中文文件，不改系统设置。代码中也已明确文件编码；仍使用旧版 main（546062e）的，可以直接用此命令继续验证，无需重建数据库。
 
 页面代码改过后，执行 `npm --prefix frontend/admin run build`；成功表示类型检查和打包通过，不等于登录或业务功能已经完成。
 
@@ -108,6 +113,7 @@ docker compose stop
 | 数据库启动失败 | 先重新运行准备脚本，再用 `docker compose ps -a` 查看状态；已有初始化失败的数据不要盲目清空，让 AI 根据隐藏秘密后的错误排查 |
 | 后端正常，数据库未就绪 | 确认数据库启动命令已成功、`.env` 与最初初始化使用的账号密码一致；网页点击重新检查 |
 | 后端无法连接 | 确认终端一仍在运行、没有启动错误；不要只启动网页 |
+| 测试报 UnicodeDecodeError，提示 gbk 无法解码 | 按第4节的 Windows 命令加 `-X utf8` 重试；这是中文文件读取问题，不要改成GBK或删除数据库 |
 | 已有 `.env` 但提示缺少配置 | 保留文件，补齐报错提到的变量；请 AI 协助，不要把文件或密码发到聊天里 |
 
 程序、网页和数据库端口只监听本机，不能直接作为公网服务。当前实测版本及检查结果见 [变更记录](../CHANGELOG.md)；macOS、Windows 和真实部署环境需各自复核。
