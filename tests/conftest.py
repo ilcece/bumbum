@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def pytest_addoption(parser):
     parser.addoption("--auth-db", action="store_true", help="在独立临时MySQL中检查管理员认证和芯片管理；需要Docker")
+    parser.addoption("--cloud-image", help="另用已构建的云测试镜像验证真实Gunicorn和HTTPS网关；不会连接ECS")
 
 
 @pytest.fixture(scope="session")

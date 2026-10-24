@@ -33,7 +33,7 @@ function App() {
       <section className="checks" aria-label="运行检查结果" aria-live="polite" aria-busy={checking}>
         <StatusCard title="后端程序" status={backend}
           success="已启动" failure="无法连接"
-          help="检查失败时，确认启动后端的终端仍在运行，再重新检查。" />
+          help="检查失败时，确认后端服务已启动，再重新检查。" />
         <StatusCard title="测试数据库" status={database}
           success="连接正常" failure={backend === "failed" ? "暂时无法检查" : "尚未就绪"}
           help={backend === "failed" ? "先启动后端，再重新检查数据库。" : "检查失败时，先按启动说明确认测试数据库已启动，再重新检查。"} />
@@ -42,7 +42,7 @@ function App() {
         {checking ? "正在检查…" : "重新检查"}
       </button>
       <LoginPanel />
-      <footer>当前可登录并手动登记、查询芯片；物品管理和写卡后续接入。</footer>
+      <footer>当前可登录、登记和查询芯片；手机扫描按验收手册设置，物品管理和写卡后续接入。</footer>
     </main>
   );
 }

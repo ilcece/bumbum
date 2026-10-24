@@ -67,6 +67,7 @@ CREATE TABLE item (
 CREATE TABLE chip (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   chip_uid VARCHAR(32) NOT NULL,
+  registration_source ENUM('unknown','manual','nfc_cool') NOT NULL DEFAULT 'unknown' COMMENT '首次登记来源：历史未知、网页手工、手机扫描；重扫不改写',
   project_id TINYINT UNSIGNED DEFAULT NULL COMMENT '空值表示尚未分配项目，绑定物品时确定',
   item_id BIGINT UNSIGNED DEFAULT NULL,
   chip_status ENUM('pending','bound','disabled','lost') NOT NULL DEFAULT 'pending',

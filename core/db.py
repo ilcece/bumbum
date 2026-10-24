@@ -72,7 +72,8 @@ def database_ready():
                 return False
             cursor.execute("SELECT code FROM project ORDER BY id")
             return ([row[0] for row in cursor.fetchall()] == ["fashion", "jewelry"]
-                    and chip_project_schema(cursor) == "optional")
+                    and chip_project_schema(cursor) == "optional"
+                    and registration_source_schema(cursor) == "ready")
     except pymysql.MySQLError:
         return False
 
@@ -94,3 +95,12 @@ def chip_project_schema(cursor):
     if column == ("NO", "tinyint unsigned") and not guarded and foreign_keys == old_keys:
         return "required"
     return "unknown"
+
+
+def registration_source_schema(cursor):
+    """只识别来源列的已知定义；缺列时引导升级，不猜测已有列的用途。"""
+    cursor.execute("SELECT COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='chip' AND COLUMN_NAME='registration_source'")
+    column = cursor.fetchone()
+    if column is None:
+        return "missing"
+    return "ready" if column == ("enum('unknown','manual','nfc_cool')", "NO", "unknown") else "unknown"

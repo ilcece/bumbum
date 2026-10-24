@@ -11,6 +11,7 @@
 | 项目 | code 仅 fashion/jewelry；业务资料类型须与项目一致，不给 jewelry 写 fashion profile |
 | 芯片编号 | chip_uid 为7字节；手动入口接受14位连续十六进制或7组冒号格式，去首尾空白，统一成冒号分隔的大写；其他分隔符拒绝 |
 | 手动登记 | 新UID设pending，project可省略/null，item_id为空，不写provisioned_at或chip_key。唯一索引去重，重复返回原记录，项目不分配、不清空、不覆盖；原项目非空且本次明确选择另一个项目才409。首次登记与chip.register审计一起提交 |
+| 首次登记来源 | chip.registration_source使用ENUM('unknown','manual','nfc_cool')，默认unknown；网页和手机由服务端分别写manual/nfc_cool。来源与首次新增、操作记录一起保存，重复不更新。content/date不新增保存字段 |
 | 物品编号 | item_uid 用 FASH-YYYY-NNNNNN / JEW-YYYY-NNNNNN，创建时提供，前缀匹配项目，之后不可修改 |
 | 唯一绑定 | chip.item_id 可空且唯一；复合外键检查项目；ck_chip_project_assignment限制空项目时item_id/provisioned_at/last_verified_counter必须全空，避免NULL跳过复合外键；已关联物品不物理删除 |
 | 当前所有者 | active_item_id 仅在 is_active=1 时映射 item_id，唯一索引限制一条有效绑定；历史可以多条 |
@@ -215,26 +216,36 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 ## 8. 配置与资料来源
 
-配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；Gunicorn、生产进程数与托管方式尚未实现和验证。
+配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；main已包含云测试requirements-deploy.in/txt及Docker构建，固定Python 3.12.14、Node 24.19.0、Gunicorn 26.2.0（两个进程，关闭未使用的控制socket）和MySQL 8.0.46；不代表正式部署已验收。香港配置、证书及操作见[云测试手册](CLOUD_TEST_DEPLOYMENT.md)，不复制到本机启动说明。
 
 | 配置 | 用途 |
 |---|---|
 | APP_ENV | 本机配置明确为 development；正式环境用 production（缺省值），强制管理来源为 HTTPS |
 | DB_* | 数据库连接；本机默认127.0.0.1:33306，使用普通测试账号 |
-| DEV_DB_ROOT_PASSWORD | 仅供 Compose 首次初始化测试库，准备脚本生成，不交给后端 |
+| DEV_DB_ROOT_PASSWORD | 仅供本机Compose首次初始化，准备脚本生成，不交给后端 |
+| CLOUD_DB_ROOT_PASSWORD | 独立云测试库的初始化管理密码；只给数据库容器，运行后端用普通测试账号 |
 | MASTER_KEY_FASHION / MASTER_KEY_JEWELRY | 按项目计算 K0/K2/K3/K4 的根材料，不直接写卡 |
 | SDM_META_KEY_V1 / SDM_META_KEY_VERSION | 全局 K1 与初始 v1 配置 |
 | STORAGE_ENCRYPTION_KEY / STORAGE_KEY_VERSION | 包装 DEK 的独立存储密钥及版本 |
 | IP_HASH_KEY | 给日志中的 IP、未知账号及第二阶段计数标识做带密钥指纹 |
-| WEBHOOK_ADMIN_USERNAME | 待实现扫描回调的Basic认证用户名，指定已有、启用且完成验证器设置的管理员；不是单独创建的默认账号 |
-| WEBHOOK_SHARED_SECRET | 待实现扫描回调的独立Basic认证密码，32字节随机值写成64位十六进制；不复用管理员密码，不放query或日志 |
+| WEBHOOK_ADMIN_USERNAME | 扫描回调的Basic认证用户名，指定已有、启用且完成验证器设置的管理员；不是单独创建的默认账号 |
+| WEBHOOK_SHARED_SECRET | 扫描回调的独立Basic认证密码，32字节随机值写成64位十六进制；不复用管理员密码，不放query或日志 |
 | SMS_CODE_HASH_KEY | 第二阶段短信码的独立带密钥指纹 |
 | ADMIN_TOTP_ISSUER | 验证器显示的公开发行方名称 |
-| CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者开发 localhost:5174、生产 https://admin.bumbum.cc |
+| CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者本机http://localhost:5174、香港测试https://test.bumbum.cc、正式https://admin.bumbum.cc，各自配置 |
 | VITE_API_BASE_URL | 当前为 /api；开发由 Vite 转到本机5000端口，生产由 Nginx 转交；调用不重复带 /api，所有 VITE_ 值不得含秘密 |
 
 各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS 或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。
 
-NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，尚无真实目标卡、订阅可用性及手机请求的测试记录；官方说明不能替代实测。
+云测试启动时，将BUILD_CA_BUNDLE指定的正常CA包（默认/etc/ssl/certs/ca-certificates.crt）校验并暂存为项目内.cloud-test/build-ca.crt，再由BuildKit临时挂载到依赖安装步骤，兼容Compose/Bake对目录外文件读取的限制。保留原CA信任和HTTPS校验；该目录排除Git及构建上下文，不将CA写入镜像。此证书包用于验证下载来源，与网站HTTPS私钥及业务密钥不同，不修改.env.cloud-test。
+
+NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/developers/)确认identifier/date/content字段、真实NFC UID、兼容模式占位值、Basic认证先401挑战再携带凭证重发，以及失败后不自动重试；[Webhook功能说明](https://nfc.cool/features/webhooks/)说明NDEF读取触发、NFC/QR分别开关及Platinum订阅要求。cece提供版本7.30和可见配置项，当时尚无真实目标卡、订阅可用性及手机请求的测试记录；后续实测补充如下，官方说明不能替代实测。
+
+2026-10-25最新实测：完全空白卡无回调后，cece同意先用NFC.cool批量写固定文本再扫描登记。6枚卡content均为cece，identifier为7字节冒号格式，均先401后200；最后一枚据cece确认已启用随机UID和SUN，提交4字节随机编号及带picc_data/cmac的内容，返回400。登记接口不解密SUN，不把随机编号当永久UID。随后cece提供后台6条记录截图并确认全部6枚重扫后无新增，明确验收通过；批量读卡会自动保存并回调，无需逐张点保存。验收不声称6次都是首次新增，也未测性能指标；原始卡号与动态参数不复制进文档。官方来源NFC scans (NDEF reads)，不能承诺完全空白卡触发；此前错误归属证据已撤回。
+
+用户报告iOS 27.0.1；2026-10-25重新核对官方开发及Webhook说明，仍要求401与WWW-Authenticate的Basic认证挑战。已收到的服务器响应符合此约定；[App Store公开查询](https://itunes.apple.com/lookup?id=1249686798&country=cn)显示商店版本7.3.0，最低iOS 17，最低版本不代表所有新系统均已验证。用户版本口述7.30，尚无确切构建号；不能仅凭缺少认证头或版本号断言App缺陷。新旧请求按时间区分，后端警告也不能代替完整访问日志。
+
+临时请求结构/原文监听及认证匹配诊断已按cece确认的收尾方案删除，不保留入口或挂载，不自动删除服务器旧Docker日志。日常只保留访问状态、业务审计和必要异常信息。来源升级先暂停登记写入并完整备份，002迁移增加字段；仅从唯一一条chip.register操作记录的合法source补齐历史来源，歧义或无证据保持unknown，显式保留原updated_at。DDL提交后若补齐失败，可重跑完成；不自动删除列或恢复备份覆盖后来数据。已有测试库升级命令只在对应操作手册维护。
+
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。

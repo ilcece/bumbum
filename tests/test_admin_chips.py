@@ -43,7 +43,8 @@ def test_register_then_list_uses_real_data_and_atomic_audit(auth_app, logged_in)
     assert chip["item_id"] is None and chip["item_uid"] is None
     assert chip["keys_generated"] is False and chip["provisioned_at"] is None
     assert chip["created_at"].endswith("Z")
-    assert set(chip) == {"id", "chip_uid", "project", "chip_status", "item_id", "item_uid", "batch_no", "provisioned_at", "keys_generated", "created_at", "updated_at"}
+    assert chip["registration_source"] == "manual"
+    assert set(chip) == {"registration_source", "id", "chip_uid", "project", "chip_status", "item_id", "item_uid", "batch_no", "provisioned_at", "keys_generated", "created_at", "updated_at"}
     client, _headers = logged_in
     listed = client.get("/api/admin/chips")
     assert listed.status_code == 200
@@ -130,7 +131,7 @@ def test_pagination_filters_and_uid_search(logged_in, auth_app):
 
 
 @pytest.mark.parametrize("changes", [
-    {"chip_uid": 123}, {"chip_uid": "04:A2:7F"}, {"chip_uid": "04-A2-7F-1B-5E-80-00"},
+    {"registration_source": "nfc_cool"}, {"chip_uid": 123}, {"chip_uid": "04:A2:7F"}, {"chip_uid": "04-A2-7F-1B-5E-80-00"},
     {"chip_uid": "04A27F1B5E800G"}, {"project": "other"}, {"project": []}, {"project": ""},
     {"batch_no": ""}, {"batch_no": "x" * 65}, {"batch_no": 1}, {"force": True},
 ])

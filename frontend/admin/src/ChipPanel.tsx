@@ -5,6 +5,7 @@ import type { ChipList, ChipQuery } from "./api";
 
 const INITIAL_QUERY: ChipQuery = { page: 1, project: "", status: "", keyword: "" };
 const PROJECTS = { fashion: "服装", jewelry: "饰品" };
+const SOURCES = { unknown: "历史未知", manual: "网页手工", nfc_cool: "手机扫描" };
 const STATUSES = { pending: "待绑定", bound: "已绑定", disabled: "已停用", lost: "已丢失" };
 
 export function ChipPanel({ onSessionExpired }: { onSessionExpired: () => void }) {
@@ -87,8 +88,8 @@ export function ChipPanel({ onSessionExpired }: { onSessionExpired: () => void }
         <p>共 {list.total} 枚芯片，按登记时间从新到旧排列。</p>
         {list.items.length === 0 ? <p>没有符合条件的芯片。</p> : <div className="table-scroll"><table>
           <caption>芯片列表</caption>
-          <thead><tr><th scope="col">芯片UID</th><th scope="col">项目</th><th scope="col">状态</th><th scope="col">批次</th><th scope="col">登记时间</th></tr></thead>
-          <tbody>{list.items.map(chip => <tr key={chip.id}><td>{chip.chip_uid}</td><td>{chip.project === null ? "未分配" : PROJECTS[chip.project]}</td><td>{STATUSES[chip.chip_status]}</td><td>{chip.batch_no || "—"}</td><td>{new Date(chip.created_at).toLocaleString("zh-CN", { hour12: false })}</td></tr>)}</tbody>
+          <thead><tr><th scope="col">芯片UID</th><th scope="col">项目</th><th scope="col">状态</th><th scope="col">批次</th><th scope="col">登记来源</th><th scope="col">登记时间</th></tr></thead>
+          <tbody>{list.items.map(chip => <tr key={chip.id}><td>{chip.chip_uid}</td><td>{chip.project === null ? "未分配" : PROJECTS[chip.project]}</td><td>{STATUSES[chip.chip_status]}</td><td>{chip.batch_no || "—"}</td><td>{SOURCES[chip.registration_source]}</td><td>{new Date(chip.created_at).toLocaleString("zh-CN", { hour12: false })}</td></tr>)}</tbody>
         </table></div>}
         <div className="actions" aria-label="芯片分页">
           <button type="button" disabled={query.page === 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>上一页</button>

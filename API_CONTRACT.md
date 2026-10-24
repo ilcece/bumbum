@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。当前实现两个运行检查、三个管理员认证入口，以及第3节的手动芯片登记和列表；其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-25。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。main已有运行检查、管理员认证、手动芯片登记、列表及第1.1节扫描回调；香港测试部署、手机批量登记、去重及首次登记来源已由cece验收。其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -13,6 +13,7 @@
 | 环境 | 基础地址 | 补上的部分 | 最终请求 |
 |---|---|---|---|
 | 本机开发 | /api | /health | http://localhost:5174/api/health（Vite 转给5000端口） |
+| 香港测试管理端 | /api | /admin/chips | https://test.bumbum.cc/api/admin/chips（部署后） |
 | 生产管理端 | /api | /admin/chips | https://admin.bumbum.cc/api/admin/chips |
 | 生产用户端 | /api | /tap/verify | https://nfc.bumbum.cc/api/tap/verify |
 
@@ -38,7 +39,7 @@
 | 管理业务 | 浏览器自动携带 bumbum_admin_session Cookie（登录凭证）；必须已通过密码和验证码且账号启用 |
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
 | 登录 | 一次提交账号、密码和验证码；强制检查网页来源 Origin 和 JSON，不依赖现有登录凭证 |
-| 扫描回调（待实现） | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
+| 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 用户查看详情 | 请求头 X-Tap-Token 放触碰后的临时凭证 |
 | 用户发短信/绑定 | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
@@ -46,11 +47,11 @@
 
 ### 0.4 当前能做到哪一步
 
-当前实现两个检查接口、login/session/logout和 GET/POST /api/admin/chips；扫描回调及其余业务接口尚未注册，访问返回404。后续已接入路由但未开放的功能使用501，不伪造成功。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
+main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；其余业务接口尚未注册，访问返回404。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
 
 ### 0.5 当前已实现的运行检查
 
-仅用于本机开发检查，不要求登录，不读取或返回密钥、账号资料。无查询参数；多传返回400 invalid_param。返回禁止缓存。
+用于本机或受管理IP限制的云测试运行检查，不要求登录，不读取或返回密钥、账号资料；香港Nginx不向陌生IP开放。无查询参数，多传返回400 invalid_param，返回禁止缓存。
 
 | 接口 | 检查什么 | 成功结果 |
 |---|---|---|
@@ -64,23 +65,23 @@
 ```json
 {"status":"ok","data":{"database":"ready"}}
 ```
-不返回数据库地址、密码、SQL 或异常详情。ready 检查表清单、初始项目及本次芯片项目可空所需的字段与约束版本；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
+不返回数据库地址、密码、SQL 或异常详情。ready检查表清单、初始项目、芯片项目可空所需的字段与约束版本，以及登记来源列的类型、默认值和不可空定义；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
 
 ## 1. 登记芯片、验证触碰和绑定手机号
 
 ### 1.1 POST /api/webhook/admin/scan：登记芯片（第一阶段）
 
-供NFC.cool扫描后调用，MVP已确认、尚未实现。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且可解析的ISO 8601时间文字，不用于信任排序。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
+供NFC.cool扫描后调用，已验收并合入main；cece已通过“批量预写固定文本→批量读卡自动回调”验收，6枚卡后台可查、全部重扫无重复；批量读取自动保存，无需逐张点保存。开启随机UID时的4字节编号仍拒绝，不从content中的SUN参数临时解密登记。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date不存入业务数据库、不写日常日志；临时监听已移除。后台按入口写入首次registration_source=nfc_cool，不接受客户端指定或覆盖来源。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
 ```json
 {"identifier":"04:A2:7F:1B:5E:80:00","content":"https://nfc.bumbum.cc/tap?picc_data=...&cmac=...","date":"2026-10-23T08:00:00Z"}
 ```
-使用HTTPS Basic认证：用户名为WEBHOOK_ADMIN_USERNAME指定的已有管理员，密码为独立WEBHOOK_SHARED_SECRET。不使用登录密码、Cookie或网页防冒用口令；管理员须启用且已完成验证器设置。初次缺少Authorization或认证失败返回401，并带`WWW-Authenticate: Basic realm="bumbum-scan"`，让App按官方方式携带凭证重发。真实手机握手仍待测试，不把这次认证重发当作业务失败自动重试。
+使用HTTPS Basic认证：用户名为WEBHOOK_ADMIN_USERNAME指定的已有管理员，密码为独立WEBHOOK_SHARED_SECRET。不使用登录密码、Cookie或网页防冒用口令；管理员须启用且已完成验证器设置。初次缺少Authorization或认证失败返回401，并带`WWW-Authenticate: Basic realm="bumbum-scan"`，让App按官方方式携带凭证重发。真实手机已观察到先401再携带Basic凭证返回200，不把这次认证重发当作业务失败自动重试。
 
 保存成功后才返回成功；新增和admin_audit操作记录一起保存，归属凭证对应的管理员，来源为nfc_cool。重复UID返回原编号和is_new=false，不分配、清空或覆盖任何原资料，也不重复记录新增操作；并发同样处理。失败提示人工重扫，不在数据库保存前先报成功，不把content中的动态参数当认证状态。
 ```json
 {"status":"ok","data":{"chip_uid":"04:A2:7F:1B:5E:80:00","is_new":true}}
 ```
-错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-下一步手机扫描后自动登记尚未实现)；当前路由仍未注册，访问返回404。
+参数错误仍用400 invalid_param，message说明UID须为7字节真实编号、content类型/长度或date格式的具体要求；不会通过放宽规则接收随机标识。错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable；香港Nginx对同IP平均每秒5次、突发最多额外10次，超限429 rate_limited。本机直接运行Flask不含该频率限制。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-手机扫描后自动登记)。
 
 ### 1.2 POST /api/tap/verify：核验这次触碰（第二阶段，待实测）
 
@@ -162,7 +163,7 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 ## 3. 管理芯片（第一阶段）
 
-均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project（fashion/jewelry或null，null显示“未分配”）、chip_status、item_id/item_uid（可空）、batch_no（可空）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
+均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project（fashion/jewelry或null，null显示“未分配”）、chip_status、item_id/item_uid（可空）、batch_no（可空）、registration_source（manual网页手工／nfc_cool手机扫描／unknown历史未知）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
@@ -177,12 +178,12 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 当前仅手动登记和列表可用，表中其余接口仍待实现。
 
-手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录为pending，item_id、provisioned_at为空，keys_generated=false。
+手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录registration_source=manual，由后台设置，不接受请求指定；状态为pending，item_id、provisioned_at为空，keys_generated=false。
 ```json
 {"chip_uid":"04a27f1b5e8010","project":null,"batch_no":"DEMO-01"}
 ```
 
-返回HTTP200，data固定为chip和is_new。重复UID时is_new=false，返回原记录，项目、批次、状态、绑定和原更新时间都不覆盖，也不新增变更审计；原项目为空时，本次即使传入项目也不分配，后续走物品绑定。原项目非空且本次明确选择另一个项目才返回409 project_mismatch，message为“该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。”。其余重复在页面提示“该 UID 已登记，已显示原记录，无需重复登记。”。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
+返回HTTP200，data固定为chip和is_new。重复UID时is_new=false，返回原记录，项目、批次、状态、首次登记来源、绑定和原更新时间都不覆盖，也不新增变更审计；原项目为空时，本次即使传入项目也不分配，后续走物品绑定。原项目非空且本次明确选择另一个项目才返回409 project_mismatch，message为“该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。”。其余重复在页面提示“该 UID 已登记，已显示原记录，无需重复登记。”。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
 
 列表只接受表中5项查询参数，不接受重复键。page为1–2147483647，page_size为1–100；project可为fashion/jewelry/unassigned，unassigned只作筛选值，表示project_id为空，省略表示全部；status沿用既定枚举。keyword最长128字符，匹配UID片段，忽略大小写及冒号，百分号和下划线按普通文字查找。按id倒序；空页仍返回items=[]及真实total，未分配芯片也计入全部列表。摘要不增加密钥密文、读取序号、手机号或订单信息。
 
