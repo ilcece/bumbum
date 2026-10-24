@@ -1,0 +1,2 @@
+# 双击入口检出为 Windows 换行，避免不同系统切换后无法执行。
+*.bat text eol=crlf
