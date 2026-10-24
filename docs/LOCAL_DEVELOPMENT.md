@@ -79,7 +79,9 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 | macOS / Linux | `npm --prefix frontend/admin run dev` |
 | Windows PowerShell | `npm.cmd --prefix frontend/admin run dev` |
 
-在浏览器打开 **http://localhost:5174**，预期两个检查都通过。项目固定使用5174端口，占用时会报错，不会自动换成5173或其他端口。保留这个地址，后续管理员登录也会检查网页来源。
+在浏览器打开：[http://localhost:5174](http://localhost:5174)。
+
+预期两个检查都通过。项目固定使用5174端口，占用时会报错，不会自动换成5173或其他端口。保留这个地址，后续管理员登录也会检查网页来源。
 
 网页读取真实接口，没有模拟“成功”结果；点“重新检查”可再次确认。两个终端都要保持运行。
 
