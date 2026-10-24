@@ -6,7 +6,7 @@
 
 ## 0. Windows：GitHub Desktop＋双击运行
 
-Windows三个入口已由cece验收并合入main。main目前只有运行检查与管理员登录，芯片登记仍在 `feat/chip-registration` 等待补充验收；没有芯片页面不表示数据被删除。手册总入口是 [操作入口](操作入口.md)。
+Windows三个入口已由cece验收并合入main。main目前只有运行检查与管理员登录，芯片登记仍在 `feat/chip-registration` 等待补充验收；没有芯片页面不表示数据被删除。手册总入口是 [操作入口](op_guide.md)。
 
 ### 只做一次：固定本地工作目录
 
