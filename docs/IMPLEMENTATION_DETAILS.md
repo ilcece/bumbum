@@ -244,4 +244,6 @@ NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/develo
 
 用户报告iOS 27.0.1；2026-10-25重新核对官方开发及Webhook说明，仍要求401与WWW-Authenticate的Basic认证挑战。已收到的服务器响应符合此约定；[App Store公开查询](https://itunes.apple.com/lookup?id=1249686798&country=cn)显示商店版本7.3.0，最低iOS 17，最低版本不代表所有新系统均已验证。用户版本口述7.30，尚无确切构建号；不能仅凭缺少认证头或版本号断言App缺陷。新旧请求按时间区分，后端警告也不能代替完整访问日志。
 
+按cece要求增加临时请求结构观察：.cloud-test/diagnostics只读挂到后端/run/bumbum-diagnostics，由ECS工具写入五分钟到期标志，默认不采集；每个进程限12条摘要，进程重建重置计数。仅接收路径固定为扫描接口、长度明确且不超过8192字节的JSON时观察字段类型和格式，不输出原值或任意字段名，不改动原认证与业务结果。所有最终状态都能关联到摘要，包含401和400。操作和停用集中在云测试手册第8节。
+
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。

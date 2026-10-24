@@ -17,9 +17,11 @@ blueprint = Blueprint("scan_webhook", __name__)
 
 
 def init_scan(app):
+    from core.scan_capture import init_capture
     for name in ("WEBHOOK_ADMIN_USERNAME", "WEBHOOK_SHARED_SECRET"):
         app.config.setdefault(name, os.getenv(name, ""))
     app.register_blueprint(blueprint)
+    init_capture(app)
 
 
 def deny(reason):

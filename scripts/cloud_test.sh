@@ -25,6 +25,7 @@ while IFS= read -r task_container; do
 done <<< "$task_containers"
 case "${1:-status}" in
     start)
+        install -d -m 0755 .cloud-test/diagnostics
         python3 scripts/setup_cloud_test.py --prepare-build-ca
         "${compose[@]}" up -d --build --wait --wait-timeout 120
         echo '后端与测试库已就绪；还需按手册配置网页和HTTPS。'
@@ -35,6 +36,10 @@ case "${1:-status}" in
         ;;
     status) "${compose[@]}" ps ;;
     logs) "${compose[@]}" logs --tail=80 backend ;;
+    listen-scan)
+        python3 scripts/scan_capture.py listen "${compose[@]}" logs --follow --since=1s backend
+        ;;
+    stop-listen) python3 scripts/scan_capture.py stop ;;
     admin)
         shift
         "${compose[@]}" exec backend python -m flask --app app:create_app admin "$@"
@@ -78,5 +83,5 @@ case "${1:-status}" in
             exit 1
         fi
         ;;
-    *) echo '可用操作：start、stop、status、logs、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
+    *) echo '可用操作：start、stop、status、logs、listen-scan、stop-listen、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
 esac
