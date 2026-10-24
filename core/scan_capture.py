@@ -1,4 +1,4 @@
-"""临时观察扫码请求的结构；不保存原始内容，不改变认证和业务响应。"""
+"""临时观察扫码请求；原文模式须由测试者主动开启，不改变认证和业务响应。"""
 
 from datetime import datetime
 import json
@@ -36,7 +36,7 @@ def shape(value):
     return "其他格式"
 
 
-def summary():
+def summary(raw=False):
     auth = request.headers.get("Authorization", "").split(" ", 1)[0].lower()
     media = request.mimetype
     result = {
@@ -48,11 +48,21 @@ def summary():
         "请求字节数": request.content_length,
         "网址参数存在": bool(request.query_string),
     }
-    if request.content_length is None or request.content_length > 8192 or not request.is_json:
+    if request.content_length is None or request.content_length > 8192:
         result["JSON观察"] = "未读取：长度未知、超过8192字节或不是JSON"
         return result
     try:
-        data = json.loads(request.get_data(cache=True))
+        body = request.get_data(cache=True)
+    except HTTPException:
+        result["JSON观察"] = "无法读取请求体"
+        return result
+    if raw:
+        result["请求体原文"] = body.decode("utf-8", errors="backslashreplace")
+    if not request.is_json:
+        result["JSON观察"] = "不是JSON"
+        return result
+    try:
+        data = json.loads(body)
     except (ValueError, RecursionError, HTTPException):
         result["JSON观察"] = "无法解析"
         return result
@@ -85,17 +95,18 @@ def init_capture(app):
             return
         try:
             with Path(app.config["SCAN_CAPTURE_FILE"]).open(encoding="ascii") as stream:
-                until = int(stream.read(32))
+                marker = stream.read(64).splitlines()
+                until = int(marker[0])
             if not 0 < until - time.time() <= 300:
                 return
-        except (OSError, ValueError):
+        except (OSError, ValueError, IndexError):
             return
         if state["until"] != until:
             state.update(until=until, count=0)
         if state["count"] >= 12:
             return
         state["count"] += 1
-        g.scan_observation = summary()
+        g.scan_observation = summary(raw=marker[1:] == ["raw"])
 
     @app.after_request
     def capture_result(response):

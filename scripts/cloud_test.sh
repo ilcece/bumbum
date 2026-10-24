@@ -39,6 +39,9 @@ case "${1:-status}" in
     listen-scan)
         python3 scripts/scan_capture.py listen "${compose[@]}" logs --follow --since=1s backend
         ;;
+    listen-scan-raw)
+        python3 scripts/scan_capture.py listen-raw "${compose[@]}" logs --follow --since=1s backend
+        ;;
     stop-listen) python3 scripts/scan_capture.py stop ;;
     admin)
         shift
@@ -83,5 +86,5 @@ case "${1:-status}" in
             exit 1
         fi
         ;;
-    *) echo '可用操作：start、stop、status、logs、listen-scan、stop-listen、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
+    *) echo '可用操作：start、stop、status、logs、listen-scan、listen-scan-raw、stop-listen、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
 esac

@@ -94,3 +94,30 @@ def test_unexpected_types_and_malformed_json_do_not_break_original_errors(auth_a
     assert client.post(PATH, headers=headers, content_type="application/json", data="{").status_code == 400
     assert records(caplog)[1]["JSON观察"] == "无法解析"
     assert "private-value" not in caplog.text
+
+
+def test_explicit_raw_mode_shows_exact_body_before_auth_without_accepting_it(auth_app, scanner, listening, caplog, tmp_path):
+    set_capture(tmp_path, True, raw=True)
+    body = '{ "identifier": "unknown", "content": "", "unexpected": [1, 2] }'
+    response = auth_app.test_client().post(PATH, data=body, content_type="application/json")
+    assert response.status_code == 401
+    assert records(caplog)[0]["请求体原文"] == body
+    assert query(auth_app, "SELECT COUNT(*) AS n FROM chip")[0]["n"] == 0
+
+
+def test_raw_mode_preserves_400_and_never_prints_basic_header(auth_app, scanner, listening, caplog, tmp_path):
+    set_capture(tmp_path, True, raw=True)
+    assert post(scanner, identifier="11characters", content="test text").status_code == 400
+    assert json.loads(records(caplog)[0]["请求体原文"])["content"] == "test text"
+    assert auth_app.config["WEBHOOK_SHARED_SECRET"] not in caplog.text
+    assert scanner[1]["Authorization"] not in caplog.text
+    set_capture(tmp_path, True)
+    assert post(scanner).status_code == 200
+    assert "请求体原文" not in records(caplog)[1]
+
+
+def test_raw_mode_also_shows_non_json_or_malformed_body(auth_app, scanner, listening, caplog, tmp_path):
+    set_capture(tmp_path, True, raw=True)
+    for media in ("text/plain", "application/json"):
+        assert auth_app.test_client().post(PATH, data="{", content_type=media).status_code == 401
+    assert all(record["请求体原文"] == "{" for record in records(caplog))

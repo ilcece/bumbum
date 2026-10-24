@@ -71,7 +71,7 @@
 
 ### 1.1 POST /api/webhook/admin/scan：登记芯片（第一阶段）
 
-供NFC.cool扫描后调用，本分支已实现；有内容卡已观察到200，但空白出厂卡无回调，整体MVP仍待验收。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date原文不保存、不写日志；临时结构监听只记录类型、长度和格式标志，操作见云测试手册。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
+供NFC.cool扫描后调用，本分支已实现；有内容卡已观察到200，但空白出厂卡无回调，整体MVP仍待验收。只接受identifier、content、date，不从手机接收project或batch_no；新记录一律未分配项目。请求为JSON，最多8192字节。identifier必填，沿用手动登记的7字节UID规则，保存为冒号分隔大写十六进制；content可省略，提供时为最多4096字符的文字；date可省略，提供时为最多64字符且含时区的ISO 8601时间文字，不用于信任排序。content/date不存入业务数据库；普通临时监听只记类型、长度和格式。cece明确授权的本轮无秘密测试可临时开启原文监听，将完整请求正文写入WARNING日志，操作及关闭见云测试手册，默认不开启。不接受兼容模式的NoIdentifierInCompatibilityMode或QR产生的UUID：
 ```json
 {"identifier":"04:A2:7F:1B:5E:80:00","content":"https://nfc.bumbum.cc/tap?picc_data=...&cmac=...","date":"2026-10-23T08:00:00Z"}
 ```
