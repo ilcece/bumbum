@@ -6,7 +6,7 @@
 
 ## 0. Windows：GitHub Desktop＋双击运行
 
-Windows三个入口已由cece验收并合入main，当前 `feat/chip-registration` 也已同步；可在本分支双击运行后验收芯片。项目可空调整仍待补测，已有测试库先按第7节升级；main暂不包含芯片业务。手册总入口是 [操作入口](操作入口.md)。
+Windows三个入口已由cece验收并合入main，当前 `feat/chip-registration` 也已同步；可在本分支双击运行后验收芯片。项目可空调整仍待补测，已有测试库先按第7节升级；main暂不包含芯片业务。手册总入口是 [操作入口](op_guide.md)。
 
 ### 只做一次：固定本地工作目录
 

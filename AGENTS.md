@@ -6,7 +6,7 @@
 
 - 先检查实际文件、`git status --short` 和用户当前任务，保护已有修改及未跟踪文件。
 - 每次读取本文件和 README 的当前状态；产品/业务任务读 PRD 对应需求，架构/安全/部署任务读 TECH_SPEC 和技术附录对应章节，接口任务读 API_CONTRACT 并按需查技术附录，数据库任务读 schema 对应表。
-- 涉及历史决策时读 CHANGELOG；历史条目中被替代的方案不得覆盖当前规范。任务状态先查 TODO.md，操作手册从 docs/操作入口.md 进入；开始和交付时都核对当前分支，不能把待验收功能写成 main 已完成。
+- 涉及历史决策时读 CHANGELOG；历史条目中被替代的方案不得覆盖当前规范。任务状态先查 TODO.md，操作手册从 docs/op_guide.md 进入；开始和交付时都核对当前分支，不能把待验收功能写成 main 已完成。
 - 云任务已在独立环境中，使用当前仓库副本；只有用户明确要求时才创建 Git worktree（另一个工作目录）。
 - 先看实际代码和锁定依赖版本的文件；建议目录、接口示例和建表文件（DDL）不代表功能已经实现。
 
@@ -21,7 +21,7 @@
 | 配置项 | .env.example；含义见 TECH_SPEC.md |
 | AI 工作流程 | AGENTS.md |
 | 当前任务、优先级和待办 | TODO.md |
-| 操作手册入口 | docs/操作入口.md |
+| 操作手册入口 | docs/op_guide.md |
 | 本地启动与验证 | docs/LOCAL_DEVELOPMENT.md |
 | 管理员账号设置与人工验证 | docs/ADMIN_LOGIN.md |
 | 芯片手动登记与列表验收 | docs/CHIP_REGISTRATION.md |
@@ -74,7 +74,7 @@
 | 产品行为、阶段或完成标准 | PRD、README 当前进度、TODO 状态 |
 | 接口路径、字段、返回或权限 | API_CONTRACT、TECH_SPEC 对应章节及技术附录 |
 | 数据库、配置、依赖或启动方式 | schema/迁移、.env.example、依赖清单、本地运行说明 |
-| 页面操作或人工验收 | 对应操作手册、Figma协作说明；新增手册还更新 docs/操作入口.md |
+| 页面操作或人工验收 | 对应操作手册、Figma协作说明；新增手册还更新 docs/op_guide.md |
 | 分支合并、文件移动或文档整理 | 实际可用功能、分支标记、引用链接；保留仍被旧聊天使用的入口 |
 
 - 完成状态区分代码已实现、自动检查通过、cece验收通过和已合入main；等待验收的任务不能提前关闭。当前待办只维护在 TODO，README只留里程碑，CHANGELOG记录已发生的改动和证据。
