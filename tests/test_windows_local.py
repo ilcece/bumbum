@@ -386,6 +386,32 @@ def test_service_lifecycle_closes_only_owned_job_and_cleans_state(workspace, mon
     assert not (local.RUNTIME / "stop.json").exists()
 
 
+def test_ctrl_c_after_start_closes_owned_services_as_normal_stop(workspace, monkeypatch, capsys):
+    events = []
+
+    class Job:
+        def launch(self, *_args):
+            events.append("launch")
+
+        def close(self):
+            events.append("closed")
+
+    def interrupted(_run_id):
+        raise KeyboardInterrupt
+
+    monkeypatch.setitem(sys.modules, "windows_process", SimpleNamespace(WindowsJob=Job))
+    monkeypatch.setattr(local, "ready", lambda: True)
+    monkeypatch.setattr(local, "stop_requested", interrupted)
+    monkeypatch.setattr(local.webbrowser, "open", lambda _: None)
+    assert local.serve("node", {"branch": "test", "revision": "abc"}) is None
+    assert events == ["launch", "launch", "closed"]
+    assert not (local.RUNTIME / "services.json").exists()
+    assert not (local.RUNTIME / "stop.json").exists()
+    output = capsys.readouterr().out
+    assert "已收到手动停止指令" in output and "前后端已停止" in output
+    assert "操作已取消" not in output and "未完成：" not in output
+
+
 def test_native_tool_refuses_non_windows_without_changes(workspace, monkeypatch):
     if os.name == "nt":
         pytest.skip("此项验证其他系统拒绝误运行")

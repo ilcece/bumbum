@@ -25,7 +25,7 @@ python -X utf8 "scripts\windows_local.py" start
 set "BUMBUM_EXIT=%errorlevel%"
 :finished
 if "%BUMBUM_EXIT%"=="10" goto already_running
-if not "%BUMBUM_EXIT%"=="0" echo 请保留上方提示，按 docs\LOCAL_DEVELOPMENT.md 排查。
+if not "%BUMBUM_EXIT%"=="0" if not "%BUMBUM_EXIT%"=="130" echo 请保留上方提示，按 docs\LOCAL_DEVELOPMENT.md 排查。
 popd
 pause
 exit /b %BUMBUM_EXIT%

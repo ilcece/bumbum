@@ -353,6 +353,8 @@ def serve(node, version):
                 if not job.healthy():
                     raise LocalError("后端或网页已退出；已停止本工具的其余网页服务，请检查本机日志后重新启动。")
                 time.sleep(0.5)
+    except KeyboardInterrupt:
+        print("已收到手动停止指令，正在结束本工具启动的前后端。", flush=True)
     finally:
         job.close()
         (RUNTIME / "services.json").unlink(missing_ok=True)
@@ -445,7 +447,7 @@ def main():
         RUNTIME.mkdir(exist_ok=True)
         return {"prepare": prepare, "start": start, "stop": stop}[sys.argv[1]]() or 0
     except KeyboardInterrupt:
-        print("操作已取消，配置和数据已保留；如需停止数据库，请双击停止项目。", flush=True)
+        print("已手动中断当前步骤，配置和数据保留。未完成的准备或启动可稍后重试；停止数据库请双击停止项目。", flush=True)
         return 130
     except LocalError as error:
         print("未完成：" + str(error), flush=True)
