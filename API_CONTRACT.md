@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。当前实现第 0.5 节的两个运行检查入口和第 2 节的三个管理员认证入口，其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-24。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。当前实现两个运行检查、三个管理员认证入口，以及第3节的手动芯片登记和列表；其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -46,7 +46,7 @@
 
 ### 0.4 当前能做到哪一步
 
-当前实现两个检查接口及 login/session/logout 三个认证接口；其余业务接口尚未注册，访问返回404。后续已接入路由但未开放的功能使用501，不伪造成功。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
+当前实现两个检查接口、login/session/logout和 GET/POST /api/admin/chips；扫描回调及其余业务接口尚未注册，访问返回404。后续已接入路由但未开放的功能使用501，不伪造成功。第一阶段做管理认证与基础管理；全局 K1 方案已定，真实密钥/写卡还等计算规则、权限和测试。第二阶段做用户验证与短信；第三阶段做运营和养成。未开放的功能返回 501 feature_not_ready；不能用文档存在证明接口可用。
 
 ### 0.5 当前已实现的运行检查
 
@@ -164,6 +164,7 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
+| 手动登记：POST /api/admin/chips | chip_uid、project必填；batch_no可选，空时省略或传null | chip：ChipView、is_new：是否新登记 |
 | 查列表：GET /api/admin/chips | page/page_size、project、status、keyword 可选，keyword 查 UID | 分页 ChipView |
 | 查详情：GET /api/admin/chips/{id} | 芯片 id | ChipView，加 ownership：null 或 item_id/user_id/phone_masked/bound_at |
 | 生成密钥：POST /api/admin/chips/{id}/generate-keys | `{}`，不接受 force | chip_id、generated=true、key_version |
@@ -171,6 +172,17 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 | 改状态：PATCH /api/admin/chips/{id}/status | chip_status | 更新后 ChipView |
 | 绑定物品：POST /api/admin/chips/{id}/bind-item | item_id | 更新后 ChipView |
 | 解除绑定：POST /api/admin/chips/{id}/unbind-item | `{}` | 更新后 ChipView |
+
+当前仅手动登记和列表可用，表中其余接口仍待实现。
+
+手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project必须为fashion/jewelry。批次去首尾空白后为1–64字符，空字符串不接受。新记录为pending，item_id、provisioned_at为空，keys_generated=false。
+```json
+{"chip_uid":"04a27f1b5e8010","project":"fashion","batch_no":"DEMO-01"}
+```
+
+返回HTTP200，data固定为chip和is_new。相同UID同项目重复提交时is_new=false，返回原记录，批次、状态、绑定和原更新时间不覆盖，也不新增变更审计；跨项目返回409 project_mismatch。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
+
+列表只接受表中5项查询参数，不接受重复键。page为1–2147483647，page_size为1–100；project、status仅接受既定枚举。keyword最长128字符，匹配UID片段，忽略大小写及冒号，百分号和下划线按普通文字查找。按id倒序；空页仍返回items=[]及真实total。摘要不增加密钥密文、读取序号、手机号或订单信息。
 
 密钥功能等实际计算规则、权限和测试完成后才开放，否则 501 feature_not_ready。已有密钥不能覆盖，409 already_exists；传 force 是 400 invalid_param。keys 含 K0–K4 的 32 位十六进制值；K1 是对应版本全局密钥的加密副本，不逐卡生成。查看前确认并保存操作记录，返回 no-store 禁止缓存；不存在为 404 not_found。页面须提醒：查看 K1 涉及该版本所有芯片的秘密，不仅是这一枚。URL 模板见技术规格第 5.1 节。
 

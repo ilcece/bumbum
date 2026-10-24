@@ -26,8 +26,8 @@ function App() {
     <main>
       <header>
         <p className="brand">BUMBUM</p>
-        <p className="step">第 2 步 · 管理员登录</p>
-        <h1>运行与登录检查</h1>
+        <p className="step">第 3 步 · 芯片登记</p>
+        <h1>芯片管理验证</h1>
         <p>先确认运行环境，再使用已创建的管理员账号登录。</p>
       </header>
       <section className="checks" aria-label="运行检查结果" aria-live="polite" aria-busy={checking}>
@@ -42,7 +42,7 @@ function App() {
         {checking ? "正在检查…" : "重新检查"}
       </button>
       <LoginPanel />
-      <footer>当前可检查运行环境并登录；芯片与物品业务尚未接入。</footer>
+      <footer>当前可登录并手动登记、查询芯片；物品管理和写卡后续接入。</footer>
     </main>
   );
 }

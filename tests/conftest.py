@@ -1,4 +1,4 @@
-"""认证集成测试使用专属临时MySQL，不连接或修改cece的测试库。"""
+"""管理功能集成测试使用专属临时MySQL，不连接或修改cece的测试库。"""
 
 from datetime import datetime
 import os
@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def pytest_addoption(parser):
-    parser.addoption("--auth-db", action="store_true", help="在独立临时MySQL中检查管理员认证；需要Docker")
+    parser.addoption("--auth-db", action="store_true", help="在独立临时MySQL中检查管理员认证和芯片管理；需要Docker")
 
 
 @pytest.fixture(scope="session")
@@ -96,7 +96,7 @@ def auth_app(auth_database, tmp_path):
     with app.app_context():
         connection = get_database()
         with connection.cursor() as cursor:
-            for table in ("admin_login_event", "admin_session", "admin_audit", "admin_user"):
+            for table in ("admin_login_event", "admin_session", "admin_audit", "admin_user", "chip_key", "chip"):
                 cursor.execute(f"DELETE FROM {table}")
         connection.commit()
     return app

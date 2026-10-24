@@ -22,6 +22,7 @@
 | AI 工作流程 | AGENTS.md |
 | 本地启动与验证 | docs/LOCAL_DEVELOPMENT.md |
 | 管理员账号设置与人工验证 | docs/ADMIN_LOGIN.md |
+| 芯片手动登记与列表验收 | docs/CHIP_REGISTRATION.md |
 | Figma 与前端协作 | docs/FRONTEND_COLLABORATION.md |
 
 文件说法冲突时，指出位置、影响和建议，不猜字段、不悄悄挑一份。用户已批准修订的，直接同步受影响文件；关键设计还没定的，只暂停依赖该设计的部分，继续其他工作。
