@@ -78,11 +78,6 @@ export function ItemPanel({
     }
   }
 
-  const filtersPending =
-    filters.project !== query.project ||
-    filters.status !== query.status ||
-    filters.keyword.trim() !== query.keyword.trim();
-
   function leaveEditor() {
     if (guard.current.busy) return false;
     if (guard.current.dirty && !window.confirm("有未保存修改，是否放弃？"))
@@ -308,11 +303,6 @@ export function ItemPanel({
           查看全部物品
         </button>
       </form>
-      {filtersPending && (
-        <p className="filter-pending" role="status">
-          筛选条件已修改，请点击查询；当前列表仍对应上次查询条件。
-        </p>
-      )}
       <div className="panel table-panel">
         <div className="panel-head">
           <h2>全部物品</h2>
@@ -350,22 +340,14 @@ export function ItemPanel({
                     <tbody>
                       {list.items.map((item) => (
                         <tr key={item.id}>
-                          <td title={item.item_uid}>{item.item_uid}</td>
-                          <td
-                            title={
-                              typeof item.profile?.name === "string"
-                                ? item.profile.name
-                                : undefined
-                            }
-                          >
+                          <td>{item.item_uid}</td>
+                          <td>
                             {typeof item.profile?.name === "string"
                               ? item.profile.name
                               : "未填写"}
                           </td>
                           <td>{PROJECTS[item.project]}</td>
-                          <td title={item.sku_code || undefined}>
-                            {item.sku_code || "—"}
-                          </td>
+                          <td>{item.sku_code || "—"}</td>
                           <td>{STATUSES[item.status]}</td>
                           <td>
                             {item.created_at

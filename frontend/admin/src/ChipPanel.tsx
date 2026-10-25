@@ -32,8 +32,6 @@ export function ChipPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [uidPreview, setUidPreview] = useState("");
-  const [uidInvalid, setUidInvalid] = useState(false);
   const [query, setQuery] = useState<ChipQuery>(INITIAL_QUERY);
   const [filters, setFilters] = useState(INITIAL_QUERY);
   const [list, setList] = useState<ChipList | null>(null);
@@ -42,23 +40,6 @@ export function ChipPanel({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [registerError, setRegisterError] = useState("");
-
-  const filtersPending =
-    filters.project !== query.project ||
-    filters.status !== query.status ||
-    filters.keyword.trim() !== query.keyword.trim();
-  function previewUid(value: string) {
-    const raw = value.trim();
-    const valid = /^(?:[0-9a-f]{14}|(?:[0-9a-f]{2}:){6}[0-9a-f]{2})$/i.test(
-      raw,
-    );
-    setUidInvalid(!!raw && !valid);
-    setUidPreview(
-      valid
-        ? raw.replaceAll(":", "").toUpperCase().match(/.{2}/g)!.join(":")
-        : "",
-    );
-  }
 
   function closeEntry(next: boolean) {
     if (!next && saving) return;
@@ -173,8 +154,6 @@ export function ChipPanel({
             className="action action-primary"
             onClick={() => {
               setRegisterError("");
-              setUidPreview("");
-              setUidInvalid(false);
               setOpen(true);
             }}
           >
@@ -204,29 +183,11 @@ export function ChipPanel({
               芯片UID
               <input
                 name="chip_uid"
-                aria-describedby="chip-uid-help"
-                aria-invalid={uidInvalid}
-                onChange={() => {
-                  setUidPreview("");
-                  setUidInvalid(false);
-                }}
-                onBlur={(event) => previewUid(event.currentTarget.value)}
                 placeholder="04:A2:7F:1B:5E:80:00"
                 maxLength={64}
                 required
               />
             </label>
-            <p
-              id="chip-uid-help"
-              className={uidInvalid ? "uid-invalid" : "uid-preview"}
-              role="status"
-            >
-              {uidInvalid
-                ? "格式不正确：请输入14位十六进制或7组冒号格式；原输入已保留。"
-                : uidPreview
-                  ? `标准格式预览：${uidPreview}（尚未登记）`
-                  : "输入后离开输入框，可预览标准格式；仅支持7字节真实UID。"}
-            </p>
             <label>
               所属项目（可选）
               <select name="project" aria-label="所属项目">
@@ -322,11 +283,6 @@ export function ChipPanel({
           {error}
         </p>
       )}
-      {filtersPending && (
-        <p className="filter-pending" role="status">
-          筛选条件已修改，请点击查询；当前列表仍对应上次查询条件。
-        </p>
-      )}
       <div className="panel table-panel">
         <div className="panel-head">
           <h2>全部芯片</h2>
@@ -359,16 +315,14 @@ export function ChipPanel({
                     <tbody>
                       {list.items.map((chip) => (
                         <tr key={chip.id}>
-                          <td title={chip.chip_uid}>{chip.chip_uid}</td>
+                          <td>{chip.chip_uid}</td>
                           <td>
                             {chip.project === null
                               ? "未分配"
                               : PROJECTS[chip.project]}
                           </td>
                           <td>{STATUSES[chip.chip_status]}</td>
-                          <td title={chip.batch_no || undefined}>
-                            {chip.batch_no || "—"}
-                          </td>
+                          <td>{chip.batch_no || "—"}</td>
                           <td>{SOURCES[chip.registration_source]}</td>
                           <td>
                             {new Date(chip.created_at).toLocaleString("zh-CN", {
