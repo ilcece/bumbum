@@ -131,6 +131,19 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
             status, headers, _ = call("/api/admin/auth/login", method="POST", headers={"Origin": "https://test.bumbum.cc"}, body={"username": admin_account["username"], "password": admin_account["password"], "code": code})
             assert status == 200 and "Secure" in headers["Set-Cookie"]
             cookie = headers["Set-Cookie"].split(";", 1)[0]
+            status, _, data = call("/api/admin/auth/session", headers={"Cookie": cookie})
+            assert status == 200
+            write_headers = {"Cookie": cookie, "Origin": "https://test.bumbum.cc", "X-CSRF-Token": json.loads(data)["data"]["csrf_token"]}
+            status, _, data = call("/api/admin/items", method="POST", body={"project": "fashion", "item_uid": "FASH-2026-880001"}, headers=write_headers)
+            assert status == 200
+            item_id = json.loads(data)["data"]["id"]
+            # 大于8k的真实资料穿过TLS代理；其他入口仍维持原限制。
+            status, _, data = call(f"/api/admin/items/{item_id}/profile", method="PUT", body={"name": "服装", "description": "中" * 4000}, headers=write_headers)
+            assert status == 200 and json.loads(data)["data"]["description"] == "中" * 4000
+            status, _, data = call(f"/api/admin/items/{item_id}", method="PATCH", body={"status": "active"}, headers=write_headers)
+            assert status == 200 and json.loads(data)["data"]["status"] == "active"
+            status, _, data = call(f"/api/admin/items/{item_id}/profile", method="PUT", body={"name": "x" * (256 * 1024)}, headers=write_headers)
+            assert status == 400 and json.loads(data)["code"] == "invalid_param"
             status, _, data = call("/api/admin/chips", headers={"Cookie": cookie})
             assert status == 200 and json.loads(data)["data"]["items"][0]["chip_uid"] == UID
             assert docker(["exec", backend, "python", "-c", "import getpass; print(getpass.getuser())"]) == "bumbum"
@@ -149,6 +162,7 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
             assert call("/api/webhook/admin/scan", method="POST", body={"identifier": UID}, headers=credentials)[0] == 401
             assert call("/api/admin/chips", headers={"Cookie": cookie})[0] == 401
         else:
+            assert call("/api/admin/items/1/profile", method="PUT", body={"name": "服装", "description": "中" * 4000})[0] == 403
             assert call("/api/admin/chips", headers={**credentials, "X-Real-IP": "192.0.2.10", "X-Forwarded-For": "192.0.2.10"})[0] == 403
             assert call("/api/admin/auth/login", method="POST", body={}, headers={"Origin": "https://test.bumbum.cc"})[0] == 403
         log = docker(["exec", gateway, "cat", "/var/log/nginx/bumbum-cloud-test-access.log"])

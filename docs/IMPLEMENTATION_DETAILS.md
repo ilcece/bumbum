@@ -249,3 +249,14 @@ NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/develo
 
 
 [社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。
+
+
+## 9. 服装资料与启停实现（任务分支）
+
+feat/fashion-item-profile基于main d3449d9；实现范围以[PRD](../PRD.md#412-本小步服装基础资料编辑与启停)、字段/返回以[契约](../API_CONTRACT.md#4-管理物品)为准，待人工验收未合并。新增GET物品详情、PUT服装资料、PATCH服装状态；无数据库迁移或新依赖，不创建用户端。
+
+写入依次锁定管理员、会话和目标item，仅在服装非归档时继续。资料INSERT/重复键UPDATE仅列出五项字段，既有size_chart不读取回传、不比较、不改动；ItemView为兼容原返回结构仍可包含该既有属性，前端不展示。status检查有效名称，幂等重复不新增状态审计；业务修改、item.updated_at和审计一起commit，异常rollback。串行物品锁防止首次保存竞争，最后提交的整份可编辑资料为准，不实现编辑版本冲突检查。
+
+前端api.ts保留默认GET/POST，显式扩展PUT/PATCH，继续Cookie/Origin/内存CSRF与超时。ItemProfileEditor独立维护加载、编辑基准、保存与故障，忽略已卸载组件的迟到读取；父组件在切换/查询/翻页/创建前确认未保存修改。保存后刷新当前列表筛选，列表错误不改报保存失败。图片只由浏览器按HTTP/HTTPS预览、referrerPolicy=no-referrer，不走后端下载。
+
+request_json默认8192字节不变，仅PUT资料262144；云测试Nginx用准确路径正则对应256k，并继承管理IP限制，通用/api/admin/改普通前缀以允许该正则匹配，其余管理路由仍受原限制。以真实TLS网关测试允许/拒绝管理IP和长资料边界，不仅检查模板字符串。回退代码保留已保存资料，不能以整库恢复代替代码回退；已保存状态可能保留为active，但现阶段仍无用户验证入口。

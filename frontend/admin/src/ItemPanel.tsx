@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, createItem, listItems } from "./api";
 import type { ItemList, ItemQuery } from "./api";
+import { ItemProfileEditor } from "./ItemProfileEditor";
 
 const INITIAL: ItemQuery = { page: 1, project: "", status: "", keyword: "" };
 const PROJECTS = { fashion: "服装", jewelry: "饰品" };
@@ -19,6 +20,18 @@ export function ItemPanel({ onSessionExpired }: { onSessionExpired: () => void }
   const [created, setCreated] = useState("");
   const [createError, setCreateError] = useState("");
   const [listError, setListError] = useState("");
+  const [editing, setEditing] = useState<number | null>(null);
+  const guard = useRef({ dirty: false, busy: false });
+  const onGuard = useCallback((dirty: boolean, busy: boolean) => { guard.current = { dirty, busy }; }, []);
+  const onSaved = useCallback(() => { setCreated(""); setQuery(current => ({ ...current })); }, []);
+
+  function leaveEditor() {
+    if (guard.current.busy) return false;
+    if (guard.current.dirty && !window.confirm("有未保存修改，是否放弃？")) return false;
+    setEditing(null);
+    guard.current = { dirty: false, busy: false };
+    return true;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +47,7 @@ export function ItemPanel({ onSessionExpired }: { onSessionExpired: () => void }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!leaveEditor()) return;
     setSaving(true);
     setCreated("");
     setCreateError("");
@@ -57,8 +71,8 @@ export function ItemPanel({ onSessionExpired }: { onSessionExpired: () => void }
   const prefix = project === "jewelry" ? "JEW" : "FASH";
   return (
     <section className="item-panel" aria-labelledby="items-title">
-      <h2 id="items-title">物品草稿创建与列表</h2>
-      <p>先建立物品编号。名称、材质、图片、启停和芯片绑定后续接入；草稿不表示可以出厂。</p>
+      <h2 id="items-title">物品草稿与服装资料管理</h2>
+      <p>先建立物品编号，再编辑服装资料及启停；芯片绑定和写卡后续接入。草稿或启用均不表示可以出厂。</p>
       <form onSubmit={event => void submit(event)} aria-label="创建物品草稿">
         <fieldset disabled={saving}>
           <label>所属项目<select aria-label="所属项目" value={project} onChange={event => setProject(event.target.value)} required><option value="">请选择</option><option value="fashion">服装</option><option value="jewelry">饰品</option></select></label>
@@ -70,27 +84,28 @@ export function ItemPanel({ onSessionExpired }: { onSessionExpired: () => void }
       </form>
       {created && <div className="success-notice" role="status"><strong>草稿创建成功：{created}</strong><p>状态为草稿，基础资料未填写。列表已清除筛选并刷新第一页。</p></div>}
       {createError && <p className="notice" role="alert">{createError}</p>}
-      <form className="item-filters" aria-label="物品列表筛选" onSubmit={event => { event.preventDefault(); setQuery({ ...filters, page: 1 }); }}>
+      <form className="item-filters" aria-label="物品列表筛选" onSubmit={event => { event.preventDefault(); if (leaveEditor()) setQuery({ ...filters, page: 1 }); }}>
         <label>物品编号或款式编号关键词<input value={filters.keyword} onChange={event => setFilters({ ...filters, keyword: event.target.value })} maxLength={128} /></label>
         <label>筛选物品项目<select aria-label="筛选物品项目" value={filters.project} onChange={event => setFilters({ ...filters, project: event.target.value })}><option value="">全部项目</option><option value="fashion">服装</option><option value="jewelry">饰品</option></select></label>
         <label>筛选物品状态<select aria-label="筛选物品状态" value={filters.status} onChange={event => setFilters({ ...filters, status: event.target.value })}><option value="">全部状态</option>{Object.entries(STATUSES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <button type="submit" disabled={loading}>查询物品</button>
-        <button type="button" disabled={loading} onClick={() => { setFilters({ ...INITIAL }); setQuery({ ...INITIAL }); }}>查看全部物品</button>
+        <button type="button" disabled={loading} onClick={() => { if (leaveEditor()) { setFilters({ ...INITIAL }); setQuery({ ...INITIAL }); } }}>查看全部物品</button>
       </form>
       {listError && <p className="notice" role="alert">{listError}</p>}
       {loading ? <p>正在读取物品列表…</p> : !listError && list && <>
         <p>共 {list.total} 件物品，按创建记录ID从新到旧排列。</p>
         {list.items.length === 0 ? <p>没有符合条件的物品。</p> : <div className="table-scroll"><table>
           <caption>物品列表</caption>
-          <thead><tr><th scope="col">物品编号</th><th scope="col">项目</th><th scope="col">款式编号</th><th scope="col">状态</th><th scope="col">创建时间</th></tr></thead>
-          <tbody>{list.items.map(item => <tr key={item.id}><td>{item.item_uid}</td><td>{PROJECTS[item.project]}</td><td>{item.sku_code || "—"}</td><td>{STATUSES[item.status]}</td><td>{item.created_at ? new Date(item.created_at).toLocaleString("zh-CN", { hour12: false }) : "—"}</td></tr>)}</tbody>
+          <thead><tr><th scope="col">物品编号</th><th scope="col">名称</th><th scope="col">项目</th><th scope="col">款式编号</th><th scope="col">状态</th><th scope="col">创建时间</th><th scope="col">操作</th></tr></thead>
+          <tbody>{list.items.map(item => <tr key={item.id}><td>{item.item_uid}</td><td>{typeof item.profile?.name === "string" ? item.profile.name : "未填写"}</td><td>{PROJECTS[item.project]}</td><td>{item.sku_code || "—"}</td><td>{STATUSES[item.status]}</td><td>{item.created_at ? new Date(item.created_at).toLocaleString("zh-CN", { hour12: false }) : "—"}</td><td>{item.project === "fashion" && item.status !== "archived" ? <button type="button" disabled={saving} onClick={() => { if (editing !== item.id && leaveEditor()) setEditing(item.id); }}>编辑资料</button> : "—"}</td></tr>)}</tbody>
         </table></div>}
         <div className="actions" aria-label="物品分页">
-          <button type="button" disabled={query.page === 1} onClick={() => setQuery({ ...query, page: query.page - 1 })}>上一页</button>
+          <button type="button" disabled={query.page === 1} onClick={() => { if (leaveEditor()) setQuery({ ...query, page: query.page - 1 }); }}>上一页</button>
           <span>第 {query.page} 页</span>
-          <button type="button" disabled={query.page * list.page_size >= list.total} onClick={() => setQuery({ ...query, page: query.page + 1 })}>下一页</button>
+          <button type="button" disabled={query.page * list.page_size >= list.total} onClick={() => { if (leaveEditor()) setQuery({ ...query, page: query.page + 1 }); }}>下一页</button>
         </div>
       </>}
+      {editing !== null && <ItemProfileEditor key={editing} id={editing} onClose={() => { leaveEditor(); }} onGuard={onGuard} onSaved={onSaved} onSessionExpired={onSessionExpired} />}
     </section>
   );
 }

@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-25。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。main已有运行检查、管理员认证、手动芯片登记、列表及第1.1节扫描回调；香港测试部署、手机批量登记、去重及首次登记来源已由cece验收。物品草稿GET/POST接口已由cece验收并合入main；其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-25。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。main已有运行检查、管理员认证、手动芯片登记、列表及第1.1节扫描回调；香港测试部署、手机批量登记、去重及首次登记来源已由cece验收。物品草稿GET/POST接口已由cece验收并合入main；feat/fashion-item-profile分支新增详情、服装资料保存及启停，待验收未合并；其他业务接口仍为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -47,7 +47,7 @@
 
 ### 0.4 当前能做到哪一步
 
-main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；另已实现GET/POST /api/admin/items；其余业务接口尚未注册，访问返回404。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
+main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；另已实现GET/POST /api/admin/items；本分支另注册GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile，待验收；其余业务接口尚未注册，访问返回404。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
 
 ### 0.5 当前已实现的运行检查
 
@@ -204,18 +204,18 @@ ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）�
 | 查列表：GET /api/admin/items | page/page_size、project、status、keyword 可选，keyword 查编号/sku_code | 分页 ItemView |
 | 创建：POST /api/admin/items | project、item_uid 必填，sku_code 可空；status 省略或仅 draft | 新 ItemView，profile=null |
 | 查详情：GET /api/admin/items/{id} | 物品 id | ItemView |
-| 改部分字段：PATCH /api/admin/items/{id} | 至少 sku_code/status 之一，不许改 item_uid/project_id/project | 更新后 ItemView |
-| 查资料：GET /api/admin/items/{id}/profile | 物品 id | profile 或 null |
-| 整份存资料：PUT /api/admin/items/{id}/profile | 下表字段 | 保存后的 profile |
+| 改部分字段：PATCH /api/admin/items/{id} | 本分支仅status必填：active/disabled；仅服装，不允许sku_code或其他字段 | 更新后 ItemView |
+| 查资料：GET /api/admin/items/{id}/profile（预留未实现，当前使用详情） | 物品 id | profile 或 null |
+| 整份存资料：PUT /api/admin/items/{id}/profile | 本分支仅服装的name/description/material/care_instructions/image_urls | 保存后的 profile |
 
 | 项目 | 资料字段 |
 |---|---|
-| fashion（服装） | name（名称）必填，1–128 字符；description（介绍）、material（材质）、care_instructions（洗护）可空；size_chart（尺码表）为对象或 null；image_urls（图片地址）为 URL 数组，省略为 [] |
+| fashion（服装） | name（名称）必填，1–128字符；description最多4000、material最多256、care_instructions最多2000，可空；image_urls为URL数组，省略为[]；size_chart仅保留既有返回，本次不展示、不接收、不更新 |
 | jewelry（饰品） | name（名称）必填，1–128 字符；description（介绍）、material（材质）、meaning（寓意）可空；image_urls（图片地址）同上 |
 
-PUT 省略可选字段就清为 null/[]，不能当“保留原值”。图片只用 http/https，最多 20 项，每项最多 2048 字符；material 最长 256，其他不超 schema，不接收另一项目字段。item_uid 前缀必须匹配项目，重复 409 already_exists；无 profile 不可启用，归档不直接恢复。删除业务使用归档，不真删记录。
+PUT只整份替换本次五个可编辑字段，省略可选字段清为null/[]；空白文字归一为null。size_chart不接收，不清空已有值；JSON返回仍沿用既有ItemView结构。长度按去首尾空白后的Unicode字符数计算。图片只用完整http/https，不含账号密码、空白、控制字符或反斜杠，最多20项，每项2048字符；保留顺序，后端不下载。项目/物品编号不可改，款式修改、归档、饰品资料保存均未开放。启用要求有效服装名称，draft/disabled→active，active→disabled；相同状态幂等，不重复状态审计；归档写入409 invalid_state。
 
-GET/POST /api/admin/items已由cece验收并合入main；其余物品接口仍未实现。创建的详细编号格式以[PRD物品草稿规则](PRD.md#411-本小步物品草稿创建与列表)为准：去首尾空白后匹配ASCII `FASH-[0-9]{4}-[0-9]{6}` 或 `JEW-[0-9]{4}-[0-9]{6}`，前缀匹配项目；不接受小写或Unicode数字，允许0000/000000，不自动编号。sku_code省略/null/空字符串及纯空白均存NULL，否则须为去首尾空白后最多64字符的文字；这是本字段的明确空字符串例外。status省略或仅draft，拒绝未知字段及网址参数，请求体最多8192字节。创建返回HTTP200的ItemView，profile=null；重复409 already_exists，原记录不变。
+GET/POST /api/admin/items已由cece验收并合入main。本分支GET详情支持两项目、无资料返回profile=null；PATCH状态与PUT资料仅服装，饰品409 project_mismatch，物品不存在404 not_found。PUT最多262144字节；其余入口仍8192字节，未知字段/查询参数及超限400 invalid_param。PUT与PATCH返回HTTP200，复用登录/Origin/CSRF；写事务先重查管理员/会话，再锁物品，保存业务、item.updated_at及审计一起提交。动作item.profile.save或item.status.change，目标为item ID，detail仅项目及状态前后值，不复制正文；DB/审计失败503并回滚。创建的详细编号格式以[PRD物品草稿规则](PRD.md#411-本小步物品草稿创建与列表)为准：去首尾空白后匹配ASCII `FASH-[0-9]{4}-[0-9]{6}` 或 `JEW-[0-9]{4}-[0-9]{6}`，前缀匹配项目；不接受小写或Unicode数字，允许0000/000000，不自动编号。sku_code省略/null/空字符串及纯空白均存NULL，否则须为去首尾空白后最多64字符的文字；这是本字段的明确空字符串例外。status省略或仅draft，拒绝未知字段及网址参数，请求体最多8192字节。创建返回HTTP200的ItemView，profile=null；重复409 already_exists，原记录不变。
 
 列表只接受page/page_size/project/status/keyword，不接受重复参数；page为1–2147483647，page_size为1–100，默认20。project仅fashion/jewelry，status为draft/active/disabled/archived，省略表示全部。keyword原始长度最多128字符，去首尾空白后对编号或sku_code作包含式模糊查询，按数据库既有排序规则匹配，%和_按普通文字处理；按id倒序，空页保留真实total。ItemView的profile从对应项目资料表组装，没有记录为null，不是item表字段；已有资料不能伪报为null。失败统一status=error/code/message，适用第7节错误码，不伪造空列表。
 

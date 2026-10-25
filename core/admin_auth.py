@@ -52,10 +52,10 @@ def matching_step(secret, code, now):
     return None
 
 
-def request_json(fields, optional=()):
-    if request.content_length is not None and request.content_length > 8192:
+def request_json(fields, optional=(), *, max_bytes=8192):
+    if request.content_length is not None and request.content_length > max_bytes:
         raise AuthRequestError(400, "invalid_param", "提交内容过大。")
-    request.max_content_length = 8192
+    request.max_content_length = max_bytes
     try:
         data = request.get_json(silent=True)
     except RequestEntityTooLarge:
