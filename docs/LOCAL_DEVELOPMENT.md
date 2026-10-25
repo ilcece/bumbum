@@ -8,6 +8,29 @@
 
 Windows三个入口、手动芯片登记及项目可空调整都已由cece验收并合入main；在main双击运行后即可查看芯片。旧库先按第7节检查升级，已升级的原配置和资料继续使用。手册总入口是[操作入口](op_guide.md)。
 
+### 日常快捷检查入口
+
+除首次准备、启动、停止外，任务分支新增三个双击工具，Windows实际双击效果待cece确认。它们放在项目根目录，无需手动找地址栏或先切目录；保留在仓库里使用，不把bat单独复制到桌面。想从桌面打开时创建快捷方式，目标仍指向原文件。
+
+| 入口 | 用途 | 预期结果 |
+|---|---|---|
+| [打开项目PowerShell.bat](../打开项目PowerShell.bat) | 打开命令窗口并定位当前仓库根目录 | 显示项目路径；不切分支、不拉取代码、不启动服务。关闭该窗口不停止已运行项目 |
+| [查看启动日志.bat](../查看启动日志.bat) | 查看backend.log和frontend.log各末尾30行 | 输出日志后等待按键；不存在时明确提示。日志可能含个人信息，分享前先检查 |
+| [快速检查项目.bat](../快速检查项目.bat) | 检查后端、数据库就绪及两项旧库结构 | 按三段显示结果；只检查，不升级、不备份、不读卡或改业务数据 |
+
+快速检查最好在项目启动后使用；未启动时后端检查失败是预期。字段缺失会显示“需要升级”，即使脚本正常退出也不代表结构通过。升级仍按第7、8节另行执行，不放进一键检查。已有配置只由原脚本正常加载，工具不显示.env内容或任何密码；日志工具只读取两个固定日志文件。
+
+PowerShell常用命令（先双击上面的打开入口）：
+
+| 命令 | 目的 |
+|---|---|
+| `Get-Location` | 确认现在位于哪个文件夹 |
+| `git branch --show-current` | 核对当前分支 |
+| `git log -1 --oneline` | 核对当前提交编号 |
+| `git status --short` | 看是否有本地未提交修改；有修改时先保留核对 |
+| `Get-Content .local-run\backend.log -Encoding UTF8 -Tail 30` | 只查看后端日志末尾 |
+| `Get-Content .local-run\frontend.log -Encoding UTF8 -Tail 30` | 只查看网页日志末尾 |
+
 ### 只做一次：固定本地工作目录
 
 1. 安装 [GitHub Desktop](https://desktop.github.com/)、[Python 3.12](https://www.python.org/downloads/)、[Node.js 24 LTS](https://nodejs.org/) 和 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。Docker 使用 Linux 容器；安装或首次启动的系统确认需要本人完成。
