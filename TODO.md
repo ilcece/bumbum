@@ -18,9 +18,9 @@
 
 | 任务 | 分支 | 状态与完成条件 |
 |---|---|---|
-| 脱敏诊断 | feat/safe-diagnostics | 已推送8abb2c1，本地回归通过；待审阅及cece验收错误编号展示 |
-| 浏览器回归与CI | test/admin-browser-ci | 已推送并建草稿PR #7；核验GitHub失败截图与恢复后的正常运行，不部署 |
-| 文档状态分工 | docs/state-single-source | 精简重复状态并补文档检查；交付后待审阅，不更改业务规则 |
+| 脱敏诊断 | feat/safe-diagnostics | 已推送8abb2c1，[PR #8](https://github.com/ilcece/bumbum/pull/8)；本地回归297通过、5跳过，待cece验收 |
+| 浏览器回归与CI | test/admin-browser-ci | 已推送b8aafc0，[PR #7](https://github.com/ilcece/bumbum/pull/7)；本地回归296通过、5跳过，GitHub合成失败截图已验证，正常CI见PR Checks，待审阅 |
+| 文档状态分工 | docs/state-single-source | 已提交，[PR #9](https://github.com/ilcece/bumbum/pull/9)；6项检查测试及链接/格式通过，待cece审阅，不更改业务规则 |
 
 ## 已完成
 
