@@ -2,6 +2,7 @@
 
 from datetime import timezone
 from pathlib import Path
+import re
 import shutil
 import socket
 import subprocess
@@ -16,6 +17,12 @@ from werkzeug.serving import make_server, WSGIRequestHandler
 from core.db import get_database
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def frontend_ready(output):
+    """忽略终端颜色码，仍只识别本次Vite日志中的固定本地地址。"""
+    plain = re.sub(r'\x1b\[[0-9;]*m', '', output)
+    return 'http://127.0.0.1:5174/' in plain or 'http://localhost:5174/' in plain
 
 
 class QuietHandler(WSGIRequestHandler):
@@ -92,7 +99,7 @@ def browser_fixture(request, app, account, tmp_path):
                         if frontend.poll() is not None:
                             pytest.fail('本次前端启动失败，请核对Node与锁定依赖；日志不包含认证请求。')
                         ready = (tmp_path/'frontend.log').read_text(encoding='utf-8', errors='replace')
-                        if 'http://127.0.0.1:5174/' not in ready and 'http://localhost:5174/' not in ready:
+                        if not frontend_ready(ready):
                             threading.Event().wait(.1)
                             continue
                         try:

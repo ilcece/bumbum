@@ -7,7 +7,12 @@ import sys
 
 import pytest
 
-from tests.browser_support import assert_ports_available
+from tests.browser_support import assert_ports_available, frontend_ready
+
+
+def test_colored_startup_output():
+    assert frontend_ready('Local: \x1b[36mhttp://127.0.0.1:\x1b[1m5174\x1b[22m/\x1b[39m')
+    assert not frontend_ready('Local: http://127.0.0.1:5175/')
 
 
 def test_refuses_an_existing_listener():
