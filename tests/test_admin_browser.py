@@ -22,7 +22,6 @@ def desktop(request, auth_app, admin_account, tmp_path):
 
 def test_login_restore_logout(desktop):
     desktop.login()
-    assert False, '合成CI失败产物验证，验证完成后立即移除'
     page = desktop.page
     page.reload(wait_until='networkidle')
     page.get_by_role('heading', name='你好，cece', exact=True).wait_for()
