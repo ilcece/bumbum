@@ -261,3 +261,17 @@ docker compose stop
 成功应显示升级完成或已是目标版本；没有可补齐记录时不重复改数据。备份在backups目录，含账号秘密，不上传或分享。随后按第3节启动前后端，登录查看新增“登记来源”：网页手工、手机扫描、历史未知；首次来源在重复登记时不变。
 
 补齐只依据唯一、合法的首次登记操作记录；历史没有证据时保留未知。来源已存在但历史补齐中断，可以排查后重跑。失败时保留报错和备份，不清空库、不自动恢复备份覆盖后来数据；新增列可保留供旧版代码运行，不需删列回退。此命令只允许默认本机测试库，不连接香港或生产环境。
+
+
+### 8.1 Windows备份目录无权限时
+
+若出现PermissionError且定位为无法在仓库backups创建临时文件，可改用本人本地应用数据目录，不改旧目录权限，不删除旧备份。本参数只改变备份位置，数据库连接、容器归属及server_uuid核对、完整导出校验仍保留，备份失败不改表。默认不传参数仍使用仓库backups；只检查时不会创建目录。
+
+先停止前后端、保留数据库和Docker运行。在仓库根目录的PowerShell逐条执行；任何一步报错就停下，不继续后续步骤：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --registration-source --apply --backup-dir "$env:LOCALAPPDATA\Bumbum\backups"
+.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --registration-source
+```
+
+第一条应先显示完整备份路径，再显示升级完成；第二条应说明来源字段已存在。使用自己的私有本地目录，不选公开共享或仓库源码目录；备份包含账号秘密，不上传或分享。不要自行清理原backups或.partial文件。成功后双击启动项目，确认第5步及网页两项检查通过、原账号和芯片记录保留，再继续对应业务验收。此参数也支持第7节升级，不能用来绕过数据库身份检查。
