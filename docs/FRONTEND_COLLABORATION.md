@@ -1,6 +1,6 @@
 # 页面与 Figma 怎么协作
 
-目的：按页面接入Figma外观，同时保留真实接口和安全逻辑。Make管理端以cece上传的bumbum.zip为来源，在1d897ad后接入；cece于2026-10-26确认148199b验收通过并授权合入main。仅桌面网页，不做移动适配或用户H5。操作见[桌面管理端手册](ADMIN_DESKTOP.md)。
+目的：按页面接入Figma外观，同时保留真实接口和安全逻辑。Make管理端以cece上传的bumbum.zip为来源，仅桌面网页，不做移动适配或用户H5。操作见[桌面管理端手册](ADMIN_DESKTOP.md)，任务和验收分别见[TODO](../TODO.md)、[CHANGELOG](../CHANGELOG.md)。
 
 ## 当前页面放在哪里
 
@@ -18,7 +18,7 @@
 | `frontend/admin/src/api.ts` | 唯一接口调用层，保留Cookie、内存CSRF及失败处理 |
 | `frontend/admin/vite.config.ts` | 保留本机地址和/api代理，仅增加Tailwind构建插件 |
 
-当前页面已包含运行检查、真实登录与退出，登录后可手动登记和查询芯片，物品草稿创建与列表也已验收并合入main，服装资料与启停及Make桌面管理端也已由cece验收并合入main；绑定尚未接入。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
+当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
 
 ## cece 提供什么，AI 怎样接入
 

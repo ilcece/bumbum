@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-26。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。main已有运行检查、管理员认证、手动芯片登记、列表及第1.1节扫描回调；香港测试部署、手机批量登记、去重及首次登记来源已由cece验收。物品草稿GET/POST接口已由cece验收并合入main；物品详情、服装资料保存及启停已由cece验收并合入main；其他业务接口仍为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-26。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义地址、字段和返回；已实现与预留设计统一看第0.4节。业务看[PRD](PRD.md)，流程看[TECH_SPEC](TECH_SPEC.md)，精确安全参数看[技术附录](docs/IMPLEMENTATION_DETAILS.md)，任务和历史分别见[TODO](TODO.md)、[CHANGELOG](CHANGELOG.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -47,7 +47,7 @@
 
 ### 0.4 当前能做到哪一步
 
-main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；另已实现GET/POST /api/admin/items；main另已实现并验收GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile；其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile仍未开放，当前应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
+当前已实现：两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
 
 ### 0.5 当前已实现的运行检查
 

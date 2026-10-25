@@ -255,7 +255,7 @@ NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/develo
 
 ## 9. 服装资料与启停实现
 
-feat/fashion-item-profile基于main d3449d9；实现范围以[PRD](../PRD.md#412-本小步服装基础资料编辑与启停)、字段/返回以[契约](../API_CONTRACT.md#4-管理物品)为准；cece于2026-10-26确认148199b验收通过并授权合入main。新增GET物品详情、PUT服装资料、PATCH服装状态；无数据库迁移或新依赖，不创建用户端。
+实现范围以[PRD](../PRD.md#412-本小步服装基础资料编辑与启停)、字段/返回以[契约](../API_CONTRACT.md#4-管理物品)为准；任务与历史分别见[TODO](../TODO.md)、[CHANGELOG](../CHANGELOG.md)。新增GET物品详情、PUT服装资料、PATCH服装状态；无数据库迁移或新依赖，不创建用户端。
 
 写入依次锁定管理员、会话和目标item，仅在服装非归档时继续。资料INSERT/重复键UPDATE仅列出五项字段，既有size_chart不读取回传、不比较、不改动；ItemView为兼容原返回结构仍可包含该既有属性，前端不展示。status检查有效名称，幂等重复不新增状态审计；业务修改、item.updated_at和审计一起commit，异常rollback。串行物品锁防止首次保存竞争，最后提交的整份可编辑资料为准，不实现编辑版本冲突检查。
 
@@ -268,7 +268,7 @@ request_json默认8192字节不变，仅PUT资料262144；云测试Nginx用准�
 
 ## 10. 桌面管理端接入
 
-桌面管理端开发于feat/fashion-item-profile的1d897ad之后，复用cece上传Make源码的桌面框架、CSS变量和按钮/弹窗组件，现已由cece验收并合入main。仅管理端桌面，不包含手机H5或移动断点；登录页按同一视觉补建。保留现有React、TypeScript、Vite和npm，按package.json/lock固定Tailwind、Radix弹窗、Lucide及实际使用的辅助依赖；不复制Make专用Vite插件、pnpm锁、AI规则或部署脚本，不读取其站点配置或注入演示认证。
+桌面管理端复用cece上传Make源码的桌面框架、CSS变量和按钮/弹窗组件。仅管理端桌面，不包含手机H5或移动断点；登录页按同一视觉补建。保留现有React、TypeScript、Vite和npm，按package.json/lock固定Tailwind、Radix弹窗、Lucide及实际使用的辅助依赖；不复制Make专用Vite插件、pnpm锁、AI规则或部署脚本，不读取其站点配置或注入演示认证。
 
 AdminLayout负责导航、真实total数量和未实现提示，LoginPanel继续持有登录状态，api.ts接口保护不变。RuntimeChecks复用health/ready；不把检查结果当业务或正式部署通过。ChipPanel和ItemPanel使用独立弹窗，保留原服务端分页/查询；服装编辑复用现有字段、权限和保存语义。登记错误与列表错误分别维护，打开登记弹窗不能清除列表失败。所有权等未实现操作仅展示提示，不发送业务请求。
 

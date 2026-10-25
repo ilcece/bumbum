@@ -36,6 +36,7 @@ def inspect_markdown(path):
         errors.append(f"第{opening}行的代码框没有结束")
     anchors, seen = set(), Counter()
     for _number, line in plain:
+        anchors.update(re.findall(r'<a\s+(?:name|id)=["\x27]([^"\x27]+)["\x27]\s*>', line))
         heading = re.match(r"^#{1,6}\s+(.+?)(?:\s+#+)?$", line)
         if heading:
             slug = re.sub(r"[^\w\- ]", "", heading[1].lower().replace("`", "")).replace(" ", "-")
@@ -75,6 +76,10 @@ def check_docs(root=ROOT):
         name = path.relative_to(root.resolve())
         errors.extend(f"{name}：{problem}" for problem in problems)
         for number, line in plain:
+            if re.match(r"^(?:<{7}(?:\s|$)|={7}$|>{7}(?:\s|$))", line):
+                errors.append(f"{name}:{number}：存在未解决的Git合并标记")
+            if str(name) == "README.md" and re.search(r"(?:本|当前)分支.*(?:待验收|未合入\s*main|未合并)|(?<![A-Za-z0-9_])(?:feat|fix)/[A-Za-z0-9_-]+", line):
+                errors.append(f"{name}:{number}：临时任务分支状态应维护在TODO，历史版本应放CHANGELOG")
             for target in re.findall(r"\[[^\]]*\]\(([^)]+)\)", line):
                 parsed = urlsplit(target.strip().strip("<>"))
                 if parsed.scheme or parsed.netloc:
@@ -98,7 +103,7 @@ def main():
         for error in errors:
             print("未通过：" + error)
         return 1
-    print(f"通过：{count}份文档、{links}个本地链接及标题定位；JSON示例和代码框完整。")
+    print(f"通过：{count}份文档、{links}个本地链接及标题定位；JSON/代码框、合并标记和README临时状态检查通过。")
     print("仍需人工核对文档与代码、分支和验收状态是否一致；未检查外部网址可访问性。")
     return 0
 
