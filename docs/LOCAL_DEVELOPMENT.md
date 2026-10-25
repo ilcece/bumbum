@@ -298,3 +298,33 @@ docker compose stop
 ```
 
 第一条应先显示完整备份路径，再显示升级完成；第二条应说明来源字段已存在。使用自己的私有本地目录，不选公开共享或仓库源码目录；备份包含账号秘密，不上传或分享。不要自行清理原backups或.partial文件。成功后双击启动项目，确认第5步及网页两项检查通过、原账号和芯片记录保留，再继续对应业务验收。此参数也支持第7节升级，不能用来绕过数据库身份检查。
+
+## 9. 可重复的桌面浏览器回归
+
+这是开发/CI检查，不是日常启动。测试只用自己创建的专属临时MySQL、合成账号和本机服务；不连接现有业务库或香港环境。先停止自己的前后端，释放5000与5174，Docker保持可用；不会接管正在监听这些端口的其他服务。依赖与浏览器单独安装，不改变日常运行依赖。
+
+在Windows项目根目录，已有本机Python虚拟环境后执行：
+
+```powershell
+.\.venv\Scripts\python.exe -m venv .venv-browser
+.\.venv-browser\Scripts\python.exe -m pip install -r requirements-browser.txt
+.\.venv-browser\Scripts\python.exe -m playwright install chromium
+npm --prefix frontend/admin ci
+.\.venv-browser\Scripts\python.exe -m pytest tests/test_admin_browser.py --auth-db --browser -q
+```
+
+Linux/Mac在项目根目录使用独立环境：
+
+```bash
+python3 -m venv .venv-browser
+.venv-browser/bin/python -m pip install -r requirements-browser.txt
+.venv-browser/bin/python -m playwright install chromium
+npm --prefix frontend/admin ci
+.venv-browser/bin/python -m pytest tests/test_admin_browser.py --auth-db --browser -q
+```
+
+Linux缺浏览器系统库时由开发者按Playwright提示安装；CI使用install --with-deps chromium。成功应有3条浏览器测试通过，未提供--browser时明确跳过，缺少工具/浏览器或端口占用时明确失败；不能把跳过算通过。不能单独提供--browser而省略--auth-db。已有可用Chromium时可用--browser-executable指定它；仅适用于本机可执行文件。
+
+三条检查是登录/刷新/退出、芯片批次/去重、物品资料/启停及失败输入保留。失败截图保存在test-results下本次唯一子目录，不覆盖旧产物；截图前隐藏密码/验证码，不保存HAR、trace、页面正文或认证请求。产物不进入Git；需要反馈时仍先核对截图不含秘密。测试结束关闭自己的浏览器、前后端与临时数据库，保留失败截图。运行失败保留具体阶段，不清空本机数据库。
+
+浏览器依赖固定版本由requirements-browser.in解析生成requirements-browser.txt；生成命令为uv pip compile requirements-browser.in --universal --python-version 3.12 --output-file requirements-browser.txt，不手工改版本凑锁文件。

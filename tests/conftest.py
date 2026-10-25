@@ -24,7 +24,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def pytest_addoption(parser):
     parser.addoption("--auth-db", action="store_true", help="在独立临时MySQL中检查管理员认证和芯片管理；需要Docker")
+    parser.addoption("--browser", action="store_true", help="在独立临时MySQL中运行桌面浏览器回归；必须同时启用--auth-db")
+    parser.addoption("--browser-executable", help="可选的本机Chromium可执行文件；默认使用Playwright安装的浏览器")
+    parser.addoption("--browser-artifacts", default="test-results", help="失败截图目录；只创建本次唯一子目录")
     parser.addoption("--cloud-image", help="另用已构建的云测试镜像验证真实Gunicorn和HTTPS网关；不会连接ECS")
+
+
+def pytest_configure(config):
+    if config.getoption("--browser") and not config.getoption("--auth-db"):
+        raise pytest.UsageError("浏览器回归必须同时提供--auth-db，不能连接现有业务库。")
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_makereport(item, call):
+    outcome = yield
+    setattr(item, "report_" + call.when, outcome.get_result())
 
 
 @pytest.fixture(scope="session")

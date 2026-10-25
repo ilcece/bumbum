@@ -44,3 +44,7 @@ dumps/
 Thumbs.db
 .idea/
 .vscode/
+
+# 浏览器回归失败截图，只保留在本机或CI产物中。
+test-results/
+.venv-browser/
