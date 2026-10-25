@@ -8,7 +8,7 @@
 
 - 当前正在做第一阶段（Phase 1）：管理员登录、登记芯片、创建物品、维护绑定。具体完成标准见 [产品需求](PRD.md)。
 - 管理员登录已选定简化方案：同一表单填写账号、密码、手机 Authenticator 验证码；首次设置和丢失后重置走服务器操作，保留登录会话及防冒用检查，不做备份码、不加 Redis。见 [登录流程](TECH_SPEC.md#4-管理员怎样登录)。
-- 已完成运行骨架和管理员登录代码：最小 Flask 后端、独立本地 MySQL、React 检查与登录页；支持密码加 Authenticator、退出、账号锁定及服务器设置/重置。自动检查和合成账号网页验证通过，cece 已完成 Windows 本机扫码及网页登录验收，代码已合入 main；物品和绑定业务尚未实现，不代表第一阶段已完成。
+- 已完成运行骨架和管理员登录代码：最小 Flask 后端、独立本地 MySQL、React 检查与登录页；支持密码加 Authenticator、退出、账号锁定及服务器设置/重置。自动检查和合成账号网页验证通过，cece 已完成 Windows 本机扫码及网页登录验收，代码已合入 main；物品草稿在feat/item-drafts实现、等待cece验收且尚未合入main；绑定业务尚未实现，不代表第一阶段已完成。
 - Windows首次准备、启动和停止工具已验收并合入main，支持双击运行。
 - 手动芯片登记和列表已由cece验收并合入main，包括项目可暂不分配、重复不覆盖、跨项目保护、筛选与分页。已有测试库按手册检查升级，已升级的保留原账号和资料。物品绑定和密钥仍未接入。见[芯片登记验收](docs/CHIP_REGISTRATION.md)。
 - NFC.cool扫描回调和香港测试部署已通过cece验收：先批量写固定文本，再批量读卡自动登记，无需逐张保存；6枚卡后台可查，全部重扫无重复。代码已合入main；操作见[香港云测试](docs/CLOUD_TEST_DEPLOYMENT.md)。
@@ -69,7 +69,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 ## 代码和配置在哪里
 
-后端入口是 `app.py`，手机扫描在 `core/scan_webhook.py`，共用登记规则在 `core/chip_registry.py`，数据库连接在 `core/db.py`，认证与账号命令在 `core/admin_auth.py`、`core/admin_cli.py`，芯片登记查询在 `core/admin_chips.py`，当前前端在 `frontend/admin/`。`compose.yaml` 只启动独立测试数据库；首次给空库建表使用 `db/schema.sql`，已有库升级仍需另写迁移。
+后端入口是 `app.py`，手机扫描在 `core/scan_webhook.py`，共用登记规则在 `core/chip_registry.py`，数据库连接在 `core/db.py`，认证与账号命令在 `core/admin_auth.py`、`core/admin_cli.py`，芯片登记查询在 `core/admin_chips.py`，物品草稿接口在 `core/admin_items.py`，当前前端在 `frontend/admin/`。`compose.yaml` 只启动独立测试数据库；首次给空库建表使用 `db/schema.sql`，已有库升级仍需另写迁移。
 
 云测试部署依赖在requirements-deploy.in/txt，通过容器固定版本，不替换Ubuntu系统Python。Python 的本机直接依赖在 `requirements.in`，完整固定版本在 `requirements.txt`；开发检查对应 `requirements-dev.in` 和 `requirements-dev.txt`。前端依赖与固定版本在 `package.json`、`package-lock.json`。更新依赖时同步对应清单，不手工改锁文件凑版本。
 

@@ -92,3 +92,23 @@ export async function listChips(query: ChipQuery): Promise<ChipList> {
 export async function registerChip(chip_uid: string, project: string | null, batch_no: string | null): Promise<{ chip: ChipView; is_new: boolean }> {
   return request("/admin/chips", { chip_uid, project, batch_no });
 }
+
+export type ItemView = {
+  id: number; project: "fashion" | "jewelry"; item_uid: string; sku_code: string | null;
+  status: "draft" | "active" | "disabled" | "archived";
+  created_at: string | null; updated_at: string | null; profile: Record<string, unknown> | null;
+};
+export type ItemQuery = { page: number; project: string; status: string; keyword: string };
+export type ItemList = { items: ItemView[]; total: number; page: number; page_size: number };
+
+export async function listItems(query: ItemQuery): Promise<ItemList> {
+  const parameters = new URLSearchParams({ page: String(query.page), page_size: "20" });
+  for (const name of ["project", "status", "keyword"] as const) {
+    if (query[name]) parameters.set(name, query[name]);
+  }
+  return request(`/admin/items?${parameters}`);
+}
+
+export async function createItem(project: string, item_uid: string, sku_code: string | null): Promise<ItemView> {
+  return request("/admin/items", { project, item_uid, sku_code });
+}

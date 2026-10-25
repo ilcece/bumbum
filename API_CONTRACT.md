@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-更新日期：2026-10-25。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。main已有运行检查、管理员认证、手动芯片登记、列表及第1.1节扫描回调；香港测试部署、手机批量登记、去重及首次登记来源已由cece验收。其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
+更新日期：2026-10-25。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义接口地址、字段和返回结果。main已有运行检查、管理员认证、手动芯片登记、列表及第1.1节扫描回调；香港测试部署、手机批量登记、去重及首次登记来源已由cece验收。物品草稿GET/POST接口在feat/item-drafts实现，待cece验收、未合入main；其他业务接口均为待实现设计。业务看 [PRD](PRD.md)，流程看 [TECH_SPEC](TECH_SPEC.md)，精确安全参数看 [技术附录](docs/IMPLEMENTATION_DETAILS.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -47,7 +47,7 @@
 
 ### 0.4 当前能做到哪一步
 
-main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；其余业务接口尚未注册，访问返回404。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
+main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；本任务分支另实现GET/POST /api/admin/items；其余业务接口尚未注册，访问返回404。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
 
 ### 0.5 当前已实现的运行检查
 
@@ -214,6 +214,10 @@ ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）�
 | jewelry（饰品） | name（名称）必填，1–128 字符；description（介绍）、material（材质）、meaning（寓意）可空；image_urls（图片地址）同上 |
 
 PUT 省略可选字段就清为 null/[]，不能当“保留原值”。图片只用 http/https，最多 20 项，每项最多 2048 字符；material 最长 256，其他不超 schema，不接收另一项目字段。item_uid 前缀必须匹配项目，重复 409 already_exists；无 profile 不可启用，归档不直接恢复。删除业务使用归档，不真删记录。
+
+本小步在feat/item-drafts实现GET/POST /api/admin/items，等待cece验收，尚未合入main；其余物品接口仍未实现。创建的详细编号格式以[PRD物品草稿规则](PRD.md#411-本小步物品草稿创建与列表)为准：去首尾空白后匹配ASCII `FASH-[0-9]{4}-[0-9]{6}` 或 `JEW-[0-9]{4}-[0-9]{6}`，前缀匹配项目；不接受小写或Unicode数字，允许0000/000000，不自动编号。sku_code省略/null/空字符串及纯空白均存NULL，否则须为去首尾空白后最多64字符的文字；这是本字段的明确空字符串例外。status省略或仅draft，拒绝未知字段及网址参数，请求体最多8192字节。创建返回HTTP200的ItemView，profile=null；重复409 already_exists，原记录不变。
+
+列表只接受page/page_size/project/status/keyword，不接受重复参数；page为1–2147483647，page_size为1–100，默认20。project仅fashion/jewelry，status为draft/active/disabled/archived，省略表示全部。keyword原始长度最多128字符，去首尾空白后对编号或sku_code作包含式模糊查询，按数据库既有排序规则匹配，%和_按普通文字处理；按id倒序，空页保留真实total。ItemView的profile从对应项目资料表组装，没有记录为null，不是item表字段；已有资料不能伪报为null。失败统一status=error/code/message，适用第7节错误码，不伪造空列表。
 
 第三阶段的下列接口仅服装物品可用，否则 409 project_mismatch；未细化开放前 501 feature_not_ready。完整登录，写请求加防冒用口令；PUT 整份替换，数组最多 100 项：
 

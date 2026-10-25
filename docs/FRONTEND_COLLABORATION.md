@@ -9,11 +9,12 @@
 | `frontend/admin/src/main.tsx` | 运行检查与登录区的页面组合 |
 | `frontend/admin/src/LoginPanel.tsx` | 登录表单、登录状态、刷新与退出；登录有效时展示管理功能 |
 | `frontend/admin/src/ChipPanel.tsx` | 手动芯片登记、筛选、分页与真实列表；保留未分配项目、重复不覆盖和跨项目提示 |
+| `frontend/admin/src/ItemPanel.tsx` | 物品草稿创建、成功卡片、独立筛选与列表；保留方案A和真实错误处理 |
 | `frontend/admin/src/style.css` | 颜色、间距、字体和手机适配 |
 | `frontend/admin/src/api.ts` | 调用检查/认证接口、携带 Cookie、在内存中保存防冒用口令；后续接口调用在这一层扩展 |
 | `frontend/admin/vite.config.ts` | 本地网页如何连接后端 |
 
-当前页面已包含运行检查、真实登录与退出，登录后可手动登记和查询芯片，物品业务尚未接入。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。
+当前页面已包含运行检查、真实登录与退出，登录后可手动登记和查询芯片，本任务分支还接入物品草稿创建与列表，等待cece验收，资料及绑定尚未接入。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。
 
 ## cece 提供什么，AI 怎样接入
 
