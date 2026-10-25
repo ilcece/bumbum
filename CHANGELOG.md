@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-25 项目终端入口改为最小ASCII启动器
+
+cece提供ca120b2启动截图，CMD将命令片段当成独立命令，返回9009，未达到打开Windows PowerShell并进入项目根目录的目标。上次仅补停留提示不足以解决启动问题；不把尚未确认的具体解析原因当事实。入口改为纯ASCII/CRLF，用start新开系统Windows PowerShell，通过环境变量和Set-Location -LiteralPath指定bat所在目录，且显式设置启动工作目录；保留NoProfile/NoExit和缺失/启动失败提示，移除中文输出和编码设置命令。不修改系统或终端默认配置，不依赖Windows Terminal的配置名称。
+
+核对ASCII字节、CRLF、引用目录及文档差异；17份文档137个链接/定位检查通过。此环境没有Windows，无法原生执行，仍待cece双击确认出现PS提示符且路径为项目根目录；不将静态检查称为Windows通过。其他两个快捷工具及业务/数据库均未修改。
+
 ## 2026-10-25 项目PowerShell入口补充退出提示
 
 cece反馈双击后窗口自动关闭。核对上传文件与20616e6一致、UTF-8及CRLF正常；确认原入口目录切换失败会直接退出，PowerShell进程退出后也没有停留提示，具体Windows启动失败原因尚未取得证据。入口现固定调用SystemRoot下Windows PowerShell，编码设置改为逐项赋值，目录失败、程序缺失及进程退出均保留说明和退出码，避免失败信息闪过；不修改系统策略、业务代码或数据库。静态检查、文档及差异检查通过，当前环境没有Windows或PowerShell运行时，真实双击仍待cece验证，不声称已复现并解决其底层启动原因。
