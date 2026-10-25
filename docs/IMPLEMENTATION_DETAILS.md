@@ -232,7 +232,7 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 | WEBHOOK_SHARED_SECRET | 扫描回调的独立Basic认证密码，32字节随机值写成64位十六进制；不复用管理员密码，不放query或日志 |
 | SMS_CODE_HASH_KEY | 第二阶段短信码的独立带密钥指纹 |
 | ADMIN_TOTP_ISSUER | 验证器显示的公开发行方名称 |
-| CORS_ORIGINS / ADMIN_ORIGIN | 开发来源总清单/单个管理网页地址；后者本机http://localhost:5174、香港测试https://test.bumbum.cc、正式https://admin.bumbum.cc，各自配置 |
+| CORS_ORIGINS / ADMIN_ORIGIN | 前者为预留总清单，当前未读取；后者为实际生效的管理网页地址，本机http://localhost:5174、香港测试https://test.bumbum.cc、正式https://admin.bumbum.cc，各自配置 |
 | VITE_API_BASE_URL | 当前为 /api；开发由 Vite 转到本机5000端口，生产由 Nginx 转交；调用不重复带 /api，所有 VITE_ 值不得含秘密 |
 
 各用途密钥独立，不与数据库密码或彼此复用。更换存储密钥/KMS 或芯片密钥时，各自按对应的恢复和失效规则执行，不仅改一项环境值就当成轮换完成。

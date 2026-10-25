@@ -47,7 +47,7 @@
 
 ### 0.4 当前能做到哪一步
 
-main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；另已实现GET/POST /api/admin/items；main另已实现并验收GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile；其余业务接口尚未注册，访问返回404。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
+main已实现两个检查接口、login/session/logout、GET/POST /api/admin/chips及扫描回调；另已实现GET/POST /api/admin/items；main另已实现并验收GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile；其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile仍未开放，当前应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务功能使用501，不伪造成功。第一阶段做管理认证与基础管理，第二阶段做用户验证与短信，第三阶段做运营和养成；密钥/写卡仍需参数核验和真实卡测试。
 
 ### 0.5 当前已实现的运行检查
 
