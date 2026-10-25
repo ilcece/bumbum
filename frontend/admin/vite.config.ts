@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
+import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  plugins: [tailwindcss()],
   // 只把 VITE_ 开头的公开配置交给网页；数据库密码不进入前端。
   envDir: "../..",
   server: {

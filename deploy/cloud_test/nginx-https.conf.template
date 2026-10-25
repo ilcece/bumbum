@@ -58,7 +58,13 @@ server {
         default_type application/json;
         return 400 '{"status":"error","code":"invalid_param","message":"提交内容过大"}';
     }
-    location ^~ /api/admin/ {
+    # 服装资料含多张图片地址和长介绍；仅此入口提高大小限制，管理IP限制继续继承。
+    location ~ ^/api/admin/items/[0-9]+/profile$ {
+        client_max_body_size 256k;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location /api/admin/ {
         proxy_pass http://127.0.0.1:15000;
         include /etc/nginx/bumbum-cloud-test-proxy.conf;
     }

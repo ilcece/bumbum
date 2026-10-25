@@ -10,14 +10,14 @@ export class ApiError extends Error {
 
 export type AdminSession = { authenticated: true; expires_at: string; csrf_token: string };
 
-async function request<T>(path: string, body?: Record<string, unknown>): Promise<T> {
+async function request<T>(path: string, body?: Record<string, unknown>, method?: "PUT" | "PATCH"): Promise<T> {
   const headers: Record<string, string> = { Accept: "application/json" };
   if (body !== undefined) {
     headers["Content-Type"] = "application/json";
     if (csrfToken && path !== "/admin/auth/login") headers["X-CSRF-Token"] = csrfToken;
   }
   const response = await fetch(`${API_BASE}${path}`, {
-    method: body === undefined ? "GET" : "POST",
+    method: method || (body === undefined ? "GET" : "POST"),
     credentials: "include",
     cache: "no-store",
     signal: AbortSignal.timeout(6000),
@@ -111,4 +111,21 @@ export async function listItems(query: ItemQuery): Promise<ItemList> {
 
 export async function createItem(project: string, item_uid: string, sku_code: string | null): Promise<ItemView> {
   return request("/admin/items", { project, item_uid, sku_code });
+}
+
+export type FashionProfile = {
+  name: string; description: string | null; material: string | null;
+  care_instructions: string | null; image_urls: string[];
+};
+
+export function readItem(id: number): Promise<ItemView> {
+  return request(`/admin/items/${id}`);
+}
+
+export function saveFashionProfile(id: number, profile: FashionProfile): Promise<FashionProfile> {
+  return request(`/admin/items/${id}/profile`, profile, "PUT");
+}
+
+export function changeItemStatus(id: number, status: "active" | "disabled"): Promise<ItemView> {
+  return request(`/admin/items/${id}`, { status }, "PATCH");
 }
