@@ -42,6 +42,47 @@ def test_existing_partial_backup_is_never_removed_or_overwritten(tmp_path):
     assert partial.read_bytes() == b"existing-private-backup"
 
 
+def test_backup_permission_failure_is_actionable_and_never_exports(tmp_path, monkeypatch):
+    def denied(*_args, **_kwargs):
+        raise PermissionError(13, "合成权限拒绝")
+    monkeypatch.setattr(upgrade.os, "open", denied)
+    monkeypatch.setattr(upgrade, "run_docker", lambda *_a, **_kw: pytest.fail("无法创建文件时不应导出"))
+    with pytest.raises(upgrade.MigrationError, match="--backup-dir"):
+        upgrade.backup_database(["docker"], "test-only", tmp_path / "before.sql")
+    assert not list(tmp_path.glob("*.sql")) and not list(tmp_path.glob("*.partial"))
+
+
+@pytest.mark.auth_database
+@pytest.mark.parametrize("alternate", [False, True])
+def test_cli_backup_directory_preserves_backup_before_upgrade(auth_app, admin_account, old_schema, auth_database, tmp_path, monkeypatch, alternate):
+    import app as app_module
+    # CLI仍调用真实备份与迁移；仅将目标限定到测试夹具的新建临时库。
+    monkeypatch.setattr(app_module, "create_app", lambda: auth_app)
+    monkeypatch.setattr(upgrade, "ROOT", tmp_path / "repository")
+    monkeypatch.setattr(upgrade, "validate_local_config", lambda config: None)
+    command, container = auth_database["TEST_DOCKER_COMMAND"], auth_database["TEST_CONTAINER"]
+    monkeypatch.setattr(upgrade, "local_container", lambda: (command, container))
+    execute = pymysql.cursors.Cursor.execute
+    def current_account(cursor, sql, args=None):
+        if sql == "SELECT CURRENT_USER(),@@server_uuid":
+            sql = "SELECT 'bumbum_dev@localhost',@@server_uuid"
+        return execute(cursor, sql, args)
+    monkeypatch.setattr(pymysql.cursors.Cursor, "execute", current_account)
+    folder = tmp_path / "私有备份 带空格" if alternate else upgrade.ROOT / "backups"
+    arguments = ["migrate_local.py", "--apply"] + (["--backup-dir", str(folder)] if alternate else [])
+    monkeypatch.setattr(upgrade.sys, "argv", arguments)
+    assert upgrade.main() == 0
+    backups = list(folder.glob("before-chip-project-*.sql"))
+    assert len(backups) == 1 and not list(folder.glob("*.partial"))
+    assert b"-- Dump completed on" in backups[0].read_bytes()[-512:]
+    assert schema(old_schema) == "optional"
+    if alternate:
+        assert not (upgrade.ROOT / "backups").exists()
+    # 重跑已完成升级不创建多余备份。
+    assert upgrade.main() == 0
+    assert len(list(folder.glob("*.sql"))) == 1
+
+
 @pytest.fixture
 def old_schema(auth_app):
     with auth_app.app_context():

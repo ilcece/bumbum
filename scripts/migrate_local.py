@@ -69,10 +69,10 @@ def local_container():
 
 def backup_database(command, container, destination):
     """在容器内读取既有凭证，完整导出到私有文件；密码不进入命令参数。"""
-    destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     partial = destination.with_suffix(".partial")
     created = False
     try:
+        destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         descriptor = os.open(partial, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         created = True
         with os.fdopen(descriptor, "wb") as output:
@@ -87,6 +87,8 @@ def backup_database(command, container, destination):
             raise MigrationError("备份文件已存在，未覆盖。")
         partial.replace(destination)
         return destination
+    except PermissionError:
+        raise MigrationError("备份目录或文件无法访问，未继续修改表结构；可使用--backup-dir指定本人可写的私有目录，不要删除旧备份或关闭安全防护。") from None
     finally:
         if created:
             partial.unlink(missing_ok=True)
@@ -128,6 +130,7 @@ def main():
     parser.add_argument("--apply", action="store_true", help="完整备份成功后执行升级")
     parser.add_argument("--rollback", action="store_true", help="回退此项结构；已有未分配芯片时拒绝")
     parser.add_argument("--registration-source", action="store_true", help="检查首次登记来源；配合--apply先备份再升级")
+    parser.add_argument("--backup-dir", type=Path, help="可选的私有备份目录；默认仍为仓库backups，只在确需升级时创建备份")
     args = parser.parse_args()
     if args.registration_source and args.rollback:
         parser.error("来源升级不支持此回退参数；旧版本可保留新增字段运行。")
@@ -160,7 +163,8 @@ def main():
             if actual_id != server_id:
                 raise MigrationError("配置连接的数据库与Docker容器不一致，未执行操作。")
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            destination = ROOT / "backups" / f"before-{'chip-source' if args.registration_source else 'chip-project'}-{stamp}-{uuid.uuid4().hex[:8]}.sql"
+            folder = args.backup_dir.expanduser().resolve() if args.backup_dir is not None else ROOT / "backups"
+            destination = folder / f"before-{'chip-source' if args.registration_source else 'chip-project'}-{stamp}-{uuid.uuid4().hex[:8]}.sql"
 
             def backup():
                 backup_database(command, container, destination)

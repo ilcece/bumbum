@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, readSession, signIn, signOut } from "./api";
 import { ChipPanel } from "./ChipPanel";
+import { ItemPanel } from "./ItemPanel";
 
 type Phase = "loading" | "out" | "in" | "unavailable";
 
@@ -104,6 +105,7 @@ export function LoginPanel() {
           <button type="button" onClick={() => void logout()} disabled={busy}>退出登录</button>
         </div>
         <ChipPanel onSessionExpired={expireSession} />
+        <ItemPanel onSessionExpired={expireSession} />
       </>}
       {phase === "unavailable" && <button type="button" onClick={() => void refresh()} disabled={busy}>重新读取登录状态</button>}
       {message && <p className="notice" role="alert">{message}</p>}

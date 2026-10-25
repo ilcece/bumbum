@@ -8,6 +8,27 @@
 
 Windows三个入口、手动芯片登记及项目可空调整都已由cece验收并合入main；在main双击运行后即可查看芯片。旧库先按第7节检查升级，已升级的原配置和资料继续使用。手册总入口是[操作入口](op_guide.md)。
 
+### 日常快捷检查入口
+
+除首次准备、启动、停止外，main保留两个双击工具，所在任务分支已由cece确认测试无问题。它们放在项目根目录，无需手动找地址栏或先切目录；保留在仓库里使用，不把bat单独复制到桌面。想从桌面打开时创建快捷方式，目标仍指向原文件。
+
+| 入口 | 用途 | 预期结果 |
+|---|---|---|
+| [打开项目PowerShell.bat](../打开项目PowerShell.bat) | 打开命令窗口并定位当前仓库根目录 | 显示项目路径；不切分支、不拉取代码、不启动服务。关闭该窗口不停止已运行项目；纯ASCII入口新开Windows自带PowerShell窗口并明确设置项目目录，启动失败保留提示 |
+| [查看启动日志.bat](../查看启动日志.bat) | 查看backend.log和frontend.log各末尾30行 | 输出日志后等待按键；不存在时明确提示。日志可能含个人信息，分享前先检查 |
+
+
+PowerShell常用命令（先双击上面的打开入口）：
+
+| 命令 | 目的 |
+|---|---|
+| `Get-Location` | 确认现在位于哪个文件夹 |
+| `git branch --show-current` | 核对当前分支 |
+| `git log -1 --oneline` | 核对当前提交编号 |
+| `git status --short` | 看是否有本地未提交修改；有修改时先保留核对 |
+| `Get-Content .local-run\backend.log -Encoding UTF8 -Tail 30` | 只查看后端日志末尾 |
+| `Get-Content .local-run\frontend.log -Encoding UTF8 -Tail 30` | 只查看网页日志末尾 |
+
 ### 只做一次：固定本地工作目录
 
 1. 安装 [GitHub Desktop](https://desktop.github.com/)、[Python 3.12](https://www.python.org/downloads/)、[Node.js 24 LTS](https://nodejs.org/) 和 [Docker Desktop](https://www.docker.com/products/docker-desktop/)。Docker 使用 Linux 容器；安装或首次启动的系统确认需要本人完成。
@@ -261,3 +282,17 @@ docker compose stop
 成功应显示升级完成或已是目标版本；没有可补齐记录时不重复改数据。备份在backups目录，含账号秘密，不上传或分享。随后按第3节启动前后端，登录查看新增“登记来源”：网页手工、手机扫描、历史未知；首次来源在重复登记时不变。
 
 补齐只依据唯一、合法的首次登记操作记录；历史没有证据时保留未知。来源已存在但历史补齐中断，可以排查后重跑。失败时保留报错和备份，不清空库、不自动恢复备份覆盖后来数据；新增列可保留供旧版代码运行，不需删列回退。此命令只允许默认本机测试库，不连接香港或生产环境。
+
+
+### 8.1 Windows备份目录无权限时
+
+若出现PermissionError且定位为无法在仓库backups创建临时文件，可改用本人本地应用数据目录，不改旧目录权限，不删除旧备份。本参数只改变备份位置，数据库连接、容器归属及server_uuid核对、完整导出校验仍保留，备份失败不改表。默认不传参数仍使用仓库backups；只检查时不会创建目录。
+
+先停止前后端、保留数据库和Docker运行。在仓库根目录的PowerShell逐条执行；任何一步报错就停下，不继续后续步骤：
+
+```powershell
+.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --registration-source --apply --backup-dir "$env:LOCALAPPDATA\Bumbum\backups"
+.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --registration-source
+```
+
+第一条应先显示完整备份路径，再显示升级完成；第二条应说明来源字段已存在。使用自己的私有本地目录，不选公开共享或仓库源码目录；备份包含账号秘密，不上传或分享。不要自行清理原backups或.partial文件。成功后双击启动项目，确认第5步及网页两项检查通过、原账号和芯片记录保留，再继续对应业务验收。此参数也支持第7节升级，不能用来绕过数据库身份检查。
