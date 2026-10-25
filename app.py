@@ -1,9 +1,10 @@
 """最小后端入口：运行检查、管理员认证、芯片登记查询、物品草稿及手机回调。"""
 
-from flask import Flask, abort, jsonify, request
+from flask import Flask, abort, g, jsonify, request
 from werkzeug.exceptions import HTTPException
 
 from core.db import database_ready, init_database
+from core.diagnostics import record_failure
 
 
 def create_app(test_config=None):
@@ -43,6 +44,7 @@ def create_app(test_config=None):
                 status="error",
                 code="service_unavailable",
                 message="测试数据库尚未就绪；更新代码后请按运行手册检查项目可空及登记来源升级。",
+                **({"error_id": g.diagnostic_error_id} if g.get("diagnostic_error_id") else {}),
             ), 503
         return jsonify(status="ok", data={"database": "ready"})
 
@@ -60,8 +62,8 @@ def create_app(test_config=None):
         return response
 
     @app.errorhandler(Exception)
-    def unexpected_error(_error):
+    def unexpected_error(error):
         # 不向浏览器输出异常详情，避免泄露连接信息或将来的秘密。
-        return jsonify(status="error", code="internal_error", message="程序暂时无法处理请求。"), 500
+        return jsonify(status="error", code="internal_error", message="程序暂时无法处理请求。", error_id=record_failure(error)), 500
 
     return app

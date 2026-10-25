@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
-import { checkBackend, checkDatabase } from "./api";
+import { ApiError, checkBackend, checkDatabase } from "./api";
 import { RefreshCw } from "lucide-react";
 
 type State = "checking" | "ok" | "failed";
 export function RuntimeChecks() {
   const [states, setStates] = useState<State[]>(["checking", "checking"]);
+  const [messages, setMessages] = useState(["", ""]);
   async function refresh() {
     setStates(["checking", "checking"]);
+    setMessages(["", ""]);
     await Promise.allSettled(
       [checkBackend, checkDatabase].map((check, index) =>
         check().then(
@@ -14,10 +16,12 @@ export function RuntimeChecks() {
             setStates((current) =>
               current.map((value, i) => (i === index ? "ok" : value)),
             ),
-          () =>
+          (error: unknown) => {
             setStates((current) =>
               current.map((value, i) => (i === index ? "failed" : value)),
-            ),
+            );
+            setMessages(current => current.map((value, i) => i === index ? (error instanceof ApiError ? error.message : "暂时无法连接服务。") : value));
+          },
         ),
       ),
     );
@@ -38,6 +42,7 @@ export function RuntimeChecks() {
                   ? "检查失败"
                   : "检查中…"}
             </p>
+            {messages[index] && <p role="alert">{messages[index]}</p>}
             <p>
               {states[index] === "failed"
                 ? "请按本地运行手册核对服务，再重新检查。"

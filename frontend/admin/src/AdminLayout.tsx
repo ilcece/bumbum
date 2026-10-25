@@ -49,9 +49,11 @@ function Overview({
     null,
   ]);
   const [revision, setRevision] = useState(0);
+  const [errorIds, setErrorIds] = useState<(string | undefined)[]>([]);
   useEffect(() => {
     let cancelled = false;
     setValues([null, null, null]);
+    setErrorIds([]);
     const base = { page: 1, project: "", status: "", keyword: "" };
     [
       listChips(base),
@@ -69,10 +71,12 @@ function Overview({
           if (cancelled) return;
           if (error instanceof ApiError && error.status === 401)
             onSessionExpired();
-          else
+          else {
+            if (error instanceof ApiError && error.errorId) setErrorIds(current => { const next = [...current]; next[index] = error.errorId; return next; });
             setValues((current) =>
               current.map((value, i) => (i === index ? "failed" : value)),
             );
+          }
         });
     });
     return () => {
@@ -119,6 +123,7 @@ function Overview({
                 {i === 3 ? "暂未提供" : "实时查询"}
               </span>
             </div>
+            {errorIds[i] && <p className="diagnostic-id">错误编号：{errorIds[i]}</p>}
           </article>
         ))}
       </section>
