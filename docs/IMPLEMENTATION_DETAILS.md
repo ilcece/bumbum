@@ -260,3 +260,12 @@ feat/fashion-item-profile基于main d3449d9；实现范围以[PRD](../PRD.md#412
 前端api.ts保留默认GET/POST，显式扩展PUT/PATCH，继续Cookie/Origin/内存CSRF与超时。ItemProfileEditor独立维护加载、编辑基准、保存与故障，忽略已卸载组件的迟到读取；父组件在切换/查询/翻页/创建前确认未保存修改。保存后刷新当前列表筛选，列表错误不改报保存失败。图片只由浏览器按HTTP/HTTPS预览、referrerPolicy=no-referrer，不走后端下载。
 
 request_json默认8192字节不变，仅PUT资料262144；云测试Nginx用准确路径正则对应256k，并继承管理IP限制，通用/api/admin/改普通前缀以允许该正则匹配，其余管理路由仍受原限制。以真实TLS网关测试允许/拒绝管理IP和长资料边界，不仅检查模板字符串。回退代码保留已保存资料，不能以整库恢复代替代码回退；已保存状态可能保留为active，但现阶段仍无用户验证入口。
+
+
+## 10. 桌面管理端接入（任务分支）
+
+feat/fashion-item-profile在1d897ad后复用cece上传Make源码的桌面框架、CSS变量和按钮/弹窗组件。仅管理端桌面，不包含手机H5或移动断点；登录页按同一视觉补建。保留现有React、TypeScript、Vite和npm，按package.json/lock固定Tailwind、Radix弹窗、Lucide及实际使用的辅助依赖；不复制Make专用Vite插件、pnpm锁、AI规则或部署脚本，不读取其站点配置或注入演示认证。
+
+AdminLayout负责导航、真实total数量和未实现提示，LoginPanel继续持有登录状态，api.ts接口保护不变。RuntimeChecks复用health/ready；不把检查结果当业务或正式部署通过。ChipPanel和ItemPanel使用独立弹窗，保留原服务端分页/查询；服装编辑复用现有字段、权限和保存语义。登记错误与列表错误分别维护，打开登记弹窗不能清除列表失败。所有权等未实现操作仅展示提示，不发送业务请求。
+
+body保留overflow:hidden，桌面内容区、侧栏、登录页、表格和弹窗内部滚动；导航及退出通过离开检查，保存中不切换，未保存修改先确认，登录失效直接隐藏管理数据。原有数据库和后端未改，字段/API定义仍以既有契约为准，人工步骤见[桌面管理端](ADMIN_DESKTOP.md)。回退可回到1d897ad并按其锁文件安装依赖，业务数据保留。

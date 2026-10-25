@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { ApiError, readSession, signIn, signOut } from "./api";
-import { ChipPanel } from "./ChipPanel";
-import { ItemPanel } from "./ItemPanel";
+import { AdminLayout } from "./AdminLayout";
+import { RuntimeChecks } from "./RuntimeChecks";
+import { Sparkles } from "lucide-react";
 
 type Phase = "loading" | "out" | "in" | "unavailable";
 
 function explain(error: unknown): string {
-  return error instanceof ApiError ? error.message : "暂时无法连接，请确认后端正在运行，再重新读取登录状态。";
+  return error instanceof ApiError
+    ? error.message
+    : "暂时无法连接，请确认后端正在运行，再重新读取登录状态。";
 }
 
 export function LoginPanel() {
@@ -15,7 +18,10 @@ export function LoginPanel() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [expiry, setExpiry] = useState("");
-  const expireSession = useCallback(() => { setPhase("out"); setMessage("登录已失效，请重新登录。"); }, []);
+  const expireSession = useCallback(() => {
+    setPhase("out");
+    setMessage("登录已失效，请重新登录。");
+  }, []);
 
   async function refresh() {
     setBusy(true);
@@ -39,7 +45,9 @@ export function LoginPanel() {
     }
   }
 
-  useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,7 +56,11 @@ export function LoginPanel() {
     setBusy(true);
     setMessage("");
     try {
-      await signIn(String(fields.get("username")), String(fields.get("password")), String(fields.get("code")));
+      await signIn(
+        String(fields.get("username")),
+        String(fields.get("password")),
+        String(fields.get("code")),
+      );
       await refresh();
     } catch (error) {
       setMessage(explain(error));
@@ -84,31 +96,101 @@ export function LoginPanel() {
     }
   }
 
+  if (phase === "in")
+    return (
+      <AdminLayout
+        expiry={expiry}
+        busy={busy}
+        onLogout={() => void logout()}
+        onSessionExpired={expireSession}
+        message={message}
+      />
+    );
   return (
-    <section className="auth-panel" aria-labelledby="login-title" aria-busy={busy}>
-      <h2 id="login-title">管理员登录</h2>
-      {phase === "loading" && <p>正在读取登录状态…</p>}
-      {phase === "out" && <>
-        <p>填写账号、密码和手机 Authenticator 验证码。同一组验证码只能成功登录一次。</p>
-        <form onSubmit={event => void submit(event)} aria-label="管理员登录表单">
-          <label>账号<input name="username" autoComplete="username" maxLength={64} required /></label>
-          <label>密码<input name="password" type="password" autoComplete="current-password" maxLength={128} required /></label>
-          <label>Authenticator 验证码<input name="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" minLength={6} maxLength={6} required /></label>
-          <button disabled={busy} type="submit">{busy ? "正在登录…" : "登录"}</button>
-        </form>
-      </>}
-      {phase === "in" && <>
-        <p className="signed-in">管理员已登录</p>
-        <p>本次登录到期时间：{new Date(expiry).toLocaleString("zh-CN", { hour12: false })}</p>
-        <div className="actions">
-          <button type="button" onClick={() => void refresh()} disabled={busy}>重新读取登录状态</button>
-          <button type="button" onClick={() => void logout()} disabled={busy}>退出登录</button>
+    <main className="login-page">
+      <section
+        className="login-card"
+        aria-labelledby="login-title"
+        aria-busy={busy}
+      >
+        <div className="brand">
+          <div className="brand-symbol">
+            <Sparkles />
+          </div>
+          <div>
+            <strong>BUMBUM</strong>
+            <span>管理后台</span>
+          </div>
         </div>
-        <ChipPanel onSessionExpired={expireSession} />
-        <ItemPanel onSessionExpired={expireSession} />
-      </>}
-      {phase === "unavailable" && <button type="button" onClick={() => void refresh()} disabled={busy}>重新读取登录状态</button>}
-      {message && <p className="notice" role="alert">{message}</p>}
-    </section>
+        <div className="eyebrow">BUMBUM OPERATIONS</div>
+        <h1 id="login-title">管理员登录</h1>
+        <p>使用账号、密码与手机 Authenticator 验证码登录。</p>
+        {phase === "loading" && <p role="status">正在读取登录状态…</p>}
+        {phase === "out" && (
+          <form
+            onSubmit={(event) => void submit(event)}
+            aria-label="管理员登录表单"
+          >
+            <fieldset disabled={busy}>
+              <label>
+                账号
+                <input
+                  name="username"
+                  autoComplete="username"
+                  maxLength={64}
+                  required
+                />
+              </label>
+              <label>
+                密码
+                <input
+                  name="password"
+                  type="password"
+                  autoComplete="current-password"
+                  maxLength={128}
+                  required
+                />
+              </label>
+              <label>
+                Authenticator 验证码
+                <input
+                  name="code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]{6}"
+                  minLength={6}
+                  maxLength={6}
+                  required
+                />
+              </label>
+              <button className="action action-primary" type="submit">
+                {busy ? "正在登录…" : "登录"}
+              </button>
+            </fieldset>
+          </form>
+        )}
+        {message && (
+          <p className="feedback feedback-danger" role="alert">
+            {message}
+          </p>
+        )}
+        {phase === "unavailable" && (
+          <button
+            className="action"
+            onClick={() => void refresh()}
+            disabled={busy}
+          >
+            重新读取登录状态
+          </button>
+        )}
+        <details className="login-checks">
+          <summary>检查运行环境</summary>
+          <RuntimeChecks />
+        </details>
+        <p className="login-note">
+          账号设置或验证器重置，请按管理员操作手册处理。
+        </p>
+      </section>
+    </main>
   );
 }

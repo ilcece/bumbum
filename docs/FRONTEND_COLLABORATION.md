@@ -1,21 +1,24 @@
 # 页面与 Figma 怎么协作
 
-目的：现在先做能使用的简单页面，以后按 Figma 调整外观，同时保留已经跑通的接口和操作逻辑。
+目的：按页面接入Figma外观，同时保留真实接口和安全逻辑。本分支从1d897ad继续接入cece上传的bumbum.zip管理端；仅桌面网页，不做移动适配或用户H5，待cece验收。操作见[桌面管理端手册](ADMIN_DESKTOP.md)。
 
 ## 当前页面放在哪里
 
 | 文件 | 负责什么 |
 |---|---|
-| `frontend/admin/src/main.tsx` | 运行检查与登录区的页面组合 |
-| `frontend/admin/src/LoginPanel.tsx` | 登录表单、登录状态、刷新与退出；登录有效时展示管理功能 |
-| `frontend/admin/src/ChipPanel.tsx` | 手动芯片登记、筛选、分页与真实列表；保留未分配项目、重复不覆盖和跨项目提示 |
-| `frontend/admin/src/ItemPanel.tsx` | 物品草稿创建、成功卡片、独立筛选与列表；保留方案A和真实错误处理 |
-| `frontend/admin/src/ItemProfileEditor.tsx` | 本分支服装资料读取/保存、未保存提醒、图片预览及独立启停，不含尺码表；不等待Figma |
-| `frontend/admin/src/style.css` | 颜色、间距、字体和手机适配 |
-| `frontend/admin/src/api.ts` | 调用检查/认证接口、携带 Cookie、在内存中保存防冒用口令；后续接口调用在这一层扩展 |
-| `frontend/admin/vite.config.ts` | 本地网页如何连接后端 |
+| `frontend/admin/src/main.tsx` | 管理端入口，加载桌面样式和登录门禁 |
+| `frontend/admin/src/LoginPanel.tsx` | 密码/验证码登录、会话恢复与退出，复用既有认证 |
+| `frontend/admin/src/AdminLayout.tsx` | Make桌面框架、工作台真实数量、所有权占位、导航和统一未实现提示 |
+| `frontend/admin/src/RuntimeChecks.tsx` | 真实后端/数据库检查，供登录页、顶栏和系统状态复用 |
+| `frontend/admin/src/ChipPanel.tsx` | 登记弹窗、真实筛选分页及批次/首次来源，不模拟保存 |
+| `frontend/admin/src/ItemPanel.tsx` | 创建弹窗、真实物品列表、筛选分页与资料入口 |
+| `frontend/admin/src/ItemProfileEditor.tsx` | 服装资料弹窗、保存/启停、图片与未保存提醒，不含尺码表 |
+| `frontend/admin/src/AdminUI.tsx`、`components/ui/` | 复用Make的弹窗/按钮及反馈组件，不提前扩展设计系统 |
+| `frontend/admin/src/style.css`、`design.css` | Tailwind入口、Make桌面变量和样式，body禁止滚动、区域内部滚动 |
+| `frontend/admin/src/api.ts` | 唯一接口调用层，保留Cookie、内存CSRF及失败处理 |
+| `frontend/admin/vite.config.ts` | 保留本机地址和/api代理，仅增加Tailwind构建插件 |
 
-当前页面已包含运行检查、真实登录与退出，登录后可手动登记和查询芯片，物品草稿创建与列表也已验收并合入main，本分支另接入服装资料与启停，待cece验收未合入main；绑定尚未接入。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。
+当前页面已包含运行检查、真实登录与退出，登录后可手动登记和查询芯片，物品草稿创建与列表也已验收并合入main，本分支另接入服装资料与启停，待cece验收未合入main；绑定尚未接入。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
 
 ## cece 提供什么，AI 怎样接入
 
@@ -23,7 +26,7 @@
 2. AI 先列出涉及的组件、样式和资源，再在现有前端中逐页接入；页面多起来时，按需要拆分页面和组件文件。
 3. Figma 导出内容按需提取，不整包覆盖仓库，不直接替换依赖、构建配置或后端。
 4. 视觉调整保留接口路径、字段、登录状态、防冒用检查和错误处理；如果设计需要改变业务规则或接口，先说明影响，并按 AGENTS 的授权规则同步相关文件。
-5. 只有真实请求通过才能显示成功。设计中的模拟数据必须标注，接入时覆盖加载、无内容、失败、成功和窄屏情况；不把密钥或真实手机号放进设计文件。
+5. 只有真实请求通过才能显示成功。设计中的模拟数据必须标注，接入时覆盖加载、无内容、失败、成功和桌面矮窗口情况；不把密钥或真实手机号放进设计文件。
 6. AI 完成后运行前端构建并核对实际操作；cece 按设计确认外观和交互。说明哪些已接入、哪些仍是模拟或尚未实现。
 
 ## 文档怎样保持简洁

@@ -7,6 +7,7 @@
 | 手册 | 什么时候用 | 当前范围 |
 |---|---|---|
 | [本地运行](LOCAL_DEVELOPMENT.md) | 首次准备、日常启动、停止、更新依赖和自动检查 | Windows三个入口已验收并合入main；其他系统保留命令 |
+| [桌面管理端验收](ADMIN_DESKTOP.md) | 本分支Make管理端联调及全页面回归 | feat/fashion-item-profile待验收；桌面网页，无手机H5或移动适配 |
 | [管理员登录](ADMIN_LOGIN.md) | 创建账号、手机扫码、登录、重置或停用 | 已合入 main，cece 已通过本机扫码和登录验收 |
 | [芯片登记验收](CHIP_REGISTRATION.md) | 登录后手动登记、查重、筛选和分页 | 已由cece验收并合入main，包含项目可空和重复保护 |
 | [物品草稿及服装资料验收](ITEM_DRAFTS.md) | 创建查询草稿；本分支新增服装资料与启停 | 草稿已合入main；新增部分在feat/fashion-item-profile待验收，无改表 |
