@@ -104,13 +104,20 @@ def test_invalid_ca_does_not_replace_previous_trust(cloud_root, system_ca):
 
 
 @pytest.mark.auth_database
-def test_actual_compose_keeps_root_password_out_of_backend(cloud_root, auth_database, system_ca):
+@pytest.mark.parametrize("with_chip_keys", [False, True])
+def test_actual_compose_keeps_root_password_out_of_backend(cloud_root, auth_database, system_ca, with_chip_keys):
     prepare(cloud_root, "1.1.1.1", "cece")
     prepare_build_ca(cloud_root, system_ca)
     env = dict(os.environ)
     for name in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
                  "DB_USER", "DB_PASSWORD", "CLOUD_DB_ROOT_PASSWORD", "STORAGE_ENCRYPTION_KEY", "IP_HASH_KEY", "WEBHOOK_ADMIN_USERNAME", "WEBHOOK_SHARED_SECRET"):
         env.pop(name, None)
+    chip_values = {"MASTER_KEY_FASHION": "11"*16, "MASTER_KEY_JEWELRY": "22"*16, "SDM_META_KEY_V1": "33"*16, "SDM_META_KEY_VERSION": "v1"}
+    for name in chip_values:
+        env.pop(name, None)
+    if with_chip_keys:
+        with (cloud_root / ".env.cloud-test").open("a", encoding="utf-8") as stream:
+            stream.write("".join(f"{name}={value}\n" for name,value in chip_values.items()))
     result = subprocess.run(auth_database["TEST_DOCKER_COMMAND"] + ["compose", "--env-file", str(cloud_root / ".env.cloud-test"), "-f", str(ROOT / "deploy/cloud_test/compose.yaml"), "config", "--format", "json"], env=env, capture_output=True, text=True)
     assert result.returncode == 0, "Compose配置解析失败；不输出包含测试秘密的展开配置"
     config = json.loads(result.stdout)
@@ -119,6 +126,8 @@ def test_actual_compose_keeps_root_password_out_of_backend(cloud_root, auth_data
     assert "MYSQL_ROOT_PASSWORD" not in api["environment"]
     assert api["environment"]["DB_HOST"] == "127.0.0.1" and api["environment"]["DB_PORT"] == "33307"
     assert api["environment"]["ADMIN_ORIGIN"] == "https://test.bumbum.cc"
+    for name, value in chip_values.items():
+        assert api["environment"][name] == (value if with_chip_keys or name == "SDM_META_KEY_VERSION" else "")
     assert db["ports"][0]["host_ip"] == "127.0.0.1" and db["ports"][0]["published"] == "33307"
     assert api["read_only"] is True and "ALL" in api["cap_drop"]
     # 构建只读取项目内的暂存CA，不要求访问/etc等额外目录。

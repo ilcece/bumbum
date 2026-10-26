@@ -8,8 +8,9 @@
 
 - 管理员登录、Windows运行工具、芯片手动/手机登记与首次来源、物品草稿、服装基础资料与启停、桌面管理端已由cece验收并合入main。
 - 错误编号与脱敏诊断、可重复的桌面浏览器回归及CI已接入；文档按职责分工维护，操作入口不变。
+- 芯片首次绑定、排除已占用候选、密钥生成与受控查看、配置核验已由cece验收；两枚服装测试卡按十六进制目标密钥配置后核验通过。合并记录及当前任务看TODO和CHANGELOG。
 - 手机登记通过的流程是“先批量写固定文本，再批量读卡自动回调”；不代表空白卡、随机UID或正式SUN防伪通过。
-- 芯片绑定、正式写卡与动态验证、用户查看和短信认领尚未形成闭环；第一阶段尚未整体完成。密钥方案已确定职责，具体参数仍需真实测试卡核验。
+- 用户触碰验证后端、手机资料页和短信认领尚未形成闭环；配置核验不等于用户防重放或正式上线，第一阶段尚未整体完成。跨项目实卡对照、密钥轮换和批量生产仍需分别验证。
 - 仓库版本与服务器部署分开验收，合入main不代表香港已更新。操作见[桌面管理端](docs/ADMIN_DESKTOP.md)及[云测试手册](docs/CLOUD_TEST_DEPLOYMENT.md)。
 
 当前任务、分支和待反馈只看[TODO](TODO.md)；验收日期、提交和历史证据查[CHANGELOG](CHANGELOG.md)；逐接口实现范围集中在[接口实现概览](API_CONTRACT.md#04-当前能做到哪一步)。
@@ -39,9 +40,9 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 一个仓库、一个后端、一个数据库。共同功能放在 `core/`；服装 `fashion` 和饰品 `jewelry` 的业务分开组织，避免同一功能写两遍。
 
-计划两个网页应用（SPA，主要由浏览器切换页面），当前已建立管理端检查、登录与芯片登记页：`nfc.bumbum.cc` 给用户，`admin.bumbum.cc` 给管理员。`bumbum.cc` 品牌页可选。芯片目标为 NXP NTAG424 DNA；真实写卡工具仍需按版本核验。
+计划两个网页应用（SPA，主要由浏览器切换页面）：已有桌面管理端，用户手机端待接入。`nfc.bumbum.cc`给用户，`admin.bumbum.cc`给管理员，`bumbum.cc`品牌页可选。目标芯片为NXP NTAG424 DNA；NFC.cool的当前单卡配置及核验方式见[真实卡手册](docs/NFC_CARD_VERIFICATION.md)，不承诺其他版本或批量流程已通过。
 
-已有资源记录：阿里云内地ECS（系统待核验）及香港ECS（cece确认Ubuntu 22.04、2核4GiB）、RDS、备案中的 bumbum.cc、iPhone（原记录iOS 14，实测时核对当前版本）、Windows 11 和 MacBook Air 2024。扫描测试建议使用香港ECS和test.bumbum.cc，域名及HTTPS入口已由cece配置，手机批量扫描已验收；细节见技术说明第2.5节。当前不增加微服务、Redis、消息队列等额外运行服务，避免维护负担。改变所用工具和部署方式前，须说明理由并获 cece 确认。
+已有资源记录：阿里云内地ECS（系统待核验）及香港ECS（cece确认Ubuntu 22.04、2核4GiB）、RDS、备案中的bumbum.cc、iPhone、Windows 11和MacBook Air 2024；手机/App本轮版本证据集中在[技术附录第14.1节](docs/IMPLEMENTATION_DETAILS.md#141-已有证据与复用来源)，不沿用早期设备猜测。扫描测试建议使用香港ECS和test.bumbum.cc，域名及HTTPS入口已由cece配置，手机批量扫描已验收；细节见技术说明第2.5节。当前不增加微服务、Redis、消息队列等额外运行服务，避免维护负担。改变所用工具和部署方式前，须说明理由并获cece确认。
 
 ## 每个文件管什么
 
@@ -64,7 +65,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 ## 代码和配置在哪里
 
-后端入口是 `app.py`，手机扫描在 `core/scan_webhook.py`，共用登记规则在 `core/chip_registry.py`，数据库连接在 `core/db.py`，认证与账号命令在 `core/admin_auth.py`、`core/admin_cli.py`，芯片登记查询在 `core/admin_chips.py`，物品草稿接口在 `core/admin_items.py`，当前前端在 `frontend/admin/`。`compose.yaml` 只启动独立测试数据库；首次给空库建表使用 `db/schema.sql`，已有库升级仍需另写迁移。
+后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py，前端在frontend/admin/。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库。
 
 云测试部署依赖在requirements-deploy.in/txt，通过容器固定版本，不替换Ubuntu系统Python。Python 的本机直接依赖在 `requirements.in`，完整固定版本在 `requirements.txt`；开发检查对应 `requirements-dev.in` 和 `requirements-dev.txt`。前端依赖与固定版本在 `package.json`、`package-lock.json`。更新依赖时同步对应清单，不手工改锁文件凑版本。
 
