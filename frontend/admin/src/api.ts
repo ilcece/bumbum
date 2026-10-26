@@ -101,6 +101,14 @@ export function bindChipItem(chipId: number, itemId: number): Promise<ChipView> 
   return request(`/admin/chips/${chipId}/bind-item`, { item_id: itemId });
 }
 
+export type ChipKeys = { chip_uid: string; keys: Record<string, string>; sun_url_template: string };
+export type SunReading = { picc_data: string; cmac: string };
+
+export function chipKeyRequest<T>(id: number, action: "generate-keys" | "keys" | "confirm-provisioning", body: Record<string, unknown>): Promise<T> {
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error("记录编号超出页面可处理范围，未提交操作。");
+  return request(`/admin/chips/${id}/${action}`, body);
+}
+
 export type ItemView = {
   id: number; project: "fashion" | "jewelry"; item_uid: string; sku_code: string | null;
   status: "draft" | "active" | "disabled" | "archived";

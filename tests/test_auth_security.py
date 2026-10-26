@@ -14,6 +14,31 @@ from core.secret_storage import decrypt_totp_secret, encrypt_totp_secret
 from scripts.setup_auth_local import prepare_auth_config
 
 
+def test_local_chip_config_only_fills_empty_values(tmp_path, capsys):
+    content = "DB_HOST=127.0.0.1\nDB_USER=bumbum_dev\nDB_NAME=bumbum_digital\nSTORAGE_KEY_VERSION=v1\n"
+    target = tmp_path / ".env"
+    target.write_text(content)
+    prepare_auth_config(tmp_path, chip_keys=True)
+    first = target.read_bytes()
+    values = dotenv_values(target)
+    assert values["SDM_META_KEY_VERSION"] == "v1"
+    assert len({values[name] for name in ("MASTER_KEY_FASHION", "MASTER_KEY_JEWELRY", "SDM_META_KEY_V1")}) == 3
+    assert all(len(values[name]) == 32 for name in ("MASTER_KEY_FASHION", "MASTER_KEY_JEWELRY", "SDM_META_KEY_V1"))
+    prepare_auth_config(tmp_path, chip_keys=True)
+    assert target.read_bytes() == first
+    assert all(values[name] not in capsys.readouterr().out for name in ("MASTER_KEY_FASHION", "MASTER_KEY_JEWELRY", "SDM_META_KEY_V1"))
+
+
+@pytest.mark.parametrize("setting", ["DB_HOST=remote.example", "SDM_META_KEY_VERSION=v2", "MASTER_KEY_FASHION=00000000000000000000000000000000", "MASTER_KEY_FASHION=bad"])
+def test_local_chip_config_rejects_before_any_write(tmp_path, setting):
+    values = {"DB_HOST":"127.0.0.1", "DB_USER":"bumbum_dev", "DB_NAME":"bumbum_digital", "STORAGE_KEY_VERSION":"v1", "SDM_META_KEY_VERSION":"v1"}
+    name, value = setting.split("=",1); values[name] = value
+    target = tmp_path / ".env"; target.write_text("".join(f"{name}={value}\n" for name,value in values.items()))
+    before = target.read_bytes()
+    with pytest.raises(ValueError): prepare_auth_config(tmp_path, chip_keys=True)
+    assert target.read_bytes() == before
+
+
 @pytest.fixture
 def secured_app():
     return create_app({"TESTING": True, "APP_ENV": "development", "ADMIN_ORIGIN": "http://localhost:5174",

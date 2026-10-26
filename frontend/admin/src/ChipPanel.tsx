@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { EntryDialog, PageHeading, UnavailableButton } from "./AdminUI";
 import { BindItemDialog } from "./BindItemDialog";
+import { ChipKeysDialog } from "./ChipKeysDialog";
 import { ApiError, listChips, readSession, registerChip } from "./api";
 import type { ChipList, ChipQuery, ChipView } from "./api";
 
@@ -42,6 +43,7 @@ export function ChipPanel({
   const [error, setError] = useState("");
   const [registerError, setRegisterError] = useState("");
   const [bindingChip, setBindingChip] = useState<ChipView | null>(null);
+  const [keyChip, setKeyChip] = useState<ChipView | null>(null);
   const [bindingState, setBindingState] = useState({
     dirty: false,
     busy: false,
@@ -55,7 +57,7 @@ export function ChipPanel({
     [],
   );
   function openBinding(chip: ChipView) {
-    if (saving || bindingRef.current.busy || bindingChip) return;
+    if (saving || bindingRef.current.busy || bindingChip || keyChip) return;
     if (dirty && !window.confirm("有未保存的芯片登记输入，是否放弃？")) return;
     setOpen(false);
     setDirty(false);
@@ -188,7 +190,7 @@ export function ChipPanel({
         action={
           <button
             className="action action-primary"
-            disabled={bindingChip !== null || saving}
+            disabled={bindingChip !== null || keyChip !== null || saving}
             onClick={() => {
               setRegisterError("");
               setOpen(true);
@@ -254,6 +256,19 @@ export function ChipPanel({
           onBound={bound}
           onSessionExpired={onSessionExpired}
           onInteraction={reportBinding}
+        />
+      )}
+      {keyChip && (
+        <ChipKeysDialog
+          key={keyChip.id}
+          chip={keyChip}
+          onClose={() => setKeyChip(null)}
+          onSessionExpired={onSessionExpired}
+          onInteraction={reportBinding}
+          onUpdated={(chip) => {
+            setFilters({ ...INITIAL_QUERY, keyword: chip.chip_uid });
+            setQuery({ ...INITIAL_QUERY, keyword: chip.chip_uid });
+          }}
         />
       )}
       {notice && (
@@ -356,6 +371,7 @@ export function ChipPanel({
                         <th scope="col">关联物品</th>
                         <th scope="col">批次</th>
                         <th scope="col">登记来源</th>
+                        <th scope="col">密钥／配置</th>
                         <th scope="col">登记时间</th>
                         <th scope="col">操作</th>
                       </tr>
@@ -374,6 +390,10 @@ export function ChipPanel({
                           <td>{chip.batch_no || "—"}</td>
                           <td>{SOURCES[chip.registration_source]}</td>
                           <td>
+                            {chip.keys_generated ? "已生成" : "未生成"}／
+                            {chip.provisioned_at ? "已核验" : "未核验"}
+                          </td>
+                          <td>
                             {new Date(chip.created_at).toLocaleString("zh-CN", {
                               hour12: false,
                             })}
@@ -384,7 +404,11 @@ export function ChipPanel({
                               <button
                                 type="button"
                                 className="action"
-                                disabled={saving || bindingChip !== null}
+                                disabled={
+                                  saving ||
+                                  bindingChip !== null ||
+                                  keyChip !== null
+                                }
                                 onClick={() => openBinding(chip)}
                               >
                                 绑定物品
@@ -396,6 +420,32 @@ export function ChipPanel({
                                   : "当前状态不可绑定"}
                               </span>
                             )}
+                            {chip.chip_status === "bound" &&
+                              chip.item_id !== null && (
+                                <button
+                                  type="button"
+                                  className="action"
+                                  disabled={
+                                    saving ||
+                                    bindingChip !== null ||
+                                    keyChip !== null
+                                  }
+                                  onClick={() => {
+                                    if (
+                                      dirty &&
+                                      !window.confirm(
+                                        "有未保存的登记输入，是否放弃？",
+                                      )
+                                    )
+                                      return;
+                                    setOpen(false);
+                                    setDirty(false);
+                                    setKeyChip(chip);
+                                  }}
+                                >
+                                  密钥与配置
+                                </button>
+                              )}
                             <UnavailableButton>更多</UnavailableButton>
                           </td>
                         </tr>

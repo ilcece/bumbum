@@ -49,7 +49,7 @@
 
 ### 0.4 当前能做到哪一步
 
-当前已实现：两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
+当前已实现：两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
 
 ### 0.5 当前已实现的运行检查
 
@@ -174,11 +174,12 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 | 查详情：GET /api/admin/chips/{id} | 芯片 id | ChipView，加 ownership：null 或 item_id/user_id/phone_masked/bound_at |
 | 生成密钥：POST /api/admin/chips/{id}/generate-keys | `{}`，不接受 force | chip_id、generated=true、key_version |
 | 查看密钥：POST /api/admin/chips/{id}/keys | confirm=true | chip_uid、keys、sun_url_template |
+| 确认配置：POST /api/admin/chips/{id}/confirm-provisioning | readings：恰好两项的数组，各含picc_data/cmac；management_confirmed=true | 更新后的ChipView；不返回密钥或用户凭证 |
 | 改状态：PATCH /api/admin/chips/{id}/status | chip_status | 更新后 ChipView |
 | 绑定物品：POST /api/admin/chips/{id}/bind-item | item_id | 更新后 ChipView |
 | 解除绑定：POST /api/admin/chips/{id}/unbind-item | `{}` | 更新后 ChipView |
 
-当前手动登记、列表和首次绑定物品可用，表中其余接口仍待实现。
+当前手动登记、列表、首次绑定及三个密钥配置POST可用，表中详情、状态及解绑仍待实现。
 
 绑定物品的页面与业务规则见[绑定PRD](PRD.md#414-本小步芯片绑定物品)，具体实现见[技术附录](docs/IMPLEMENTATION_DETAILS.md#13-芯片绑定物品实现)。人工验收和合并状态分别看TODO与CHANGELOG；本节不因按钮出现就宣称所有管理能力已开放。
 
@@ -191,9 +192,15 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 列表只接受表中5项查询参数，不接受重复键。page为1–2147483647，page_size为1–100；project可为fashion/jewelry/unassigned，unassigned只作筛选值，表示project_id为空，省略表示全部；status沿用既定枚举。keyword最长128字符，匹配UID片段，忽略大小写及冒号，百分号和下划线按普通文字查找。按id倒序；空页仍返回items=[]及真实total，未分配芯片也计入全部列表。摘要不增加密钥密文、读取序号、手机号或订单信息。
 
-密钥功能等实际计算规则、权限和测试完成后才开放，否则 501 feature_not_ready。已有密钥不能覆盖，409 already_exists；传 force 是 400 invalid_param。keys 含 K0–K4 的 32 位十六进制值；K1 是对应版本全局密钥的加密副本，不逐卡生成。查看前确认并保存操作记录，返回 no-store 禁止缓存；不存在为 404 not_found。页面须提醒：查看 K1 涉及该版本所有芯片的秘密，不仅是这一枚。URL 模板见技术规格第 5.1 节。
+密钥生成只接受空对象，要求项目已确定、芯片已绑定且状态bound、物品非归档；不符合409 invalid_state。已有密钥、配置完成或读数记录不能覆盖，409 already_exists；传force是400 invalid_param。keys只接受confirm=true（不能用1代替），返回K0–K4的32位大写十六进制值；K1是对应版本全局密钥的加密副本，不逐卡生成。查看前保存操作记录，返回no-store禁止缓存；芯片或密钥不存在404 not_found。页面须提醒K1涉及该版本所有芯片的秘密。配置/密文与当前目标密钥不符503 service_unavailable，不返回秘密，不自动重算或覆盖。URL模板见技术规格第5.1节。
 
-后续生成密钥接口开放后，项目未分配时返回409 invalid_state，不能猜项目或计算密钥。bind-item在事务内：未分配芯片按物品确定项目再绑定；已有项目必须匹配；项目确定、绑定及审计一起保存。后续解绑不清空项目；解绑及密钥接口仍未实现。
+confirm-provisioning请求例如：
+```json
+{"readings":[{"picc_data":"00000000000000000000000000000000","cmac":"0000000000000000"},{"picc_data":"11111111111111111111111111111111","cmac":"1111111111111111"}],"management_confirmed":true}
+```
+示例只是格式占位，不能验签。每条只接受32位picc_data、16位cmac十六进制文字；额外字段、非布尔确认或数组长度不符400 invalid_param。management_confirmed是管理员确认新K0认证及文件权限已经人工检查，不伪装为系统自动读回。固定AES/C7布局、目标UID和零长度MAC输入均须通过，否则400 verification_failed。不接受客户端密钥、项目或UID。第二条计数须大于第一条，已有基线时第一条也须更新；第二条达到最大计数16777215时拒绝，409 invalid_counter。已配置409 already_configured，不重配或重置计数。成功同事务保存provisioned_at、第二条计数基线及审计，返回ChipView；不返回计数、不发用户凭证、不自动启用物品。三个入口均沿用JSON/Origin/Cookie/CSRF及8192字节限制，存储故障503；未知提交结果须GET列表查询，不自动重发。实现见[技术附录第14节](docs/IMPLEMENTATION_DETAILS.md#14-测试卡密钥与配置方案)，批量导出及完整密钥管理页面另排期。
+
+生成密钥不能猜项目，依赖bind-item在事务内确定项目及关联；已有项目必须匹配。后续解绑不清空项目，解绑仍未实现。
 
 状态转换见技术规格第 2.2 节，不能任意跳转；重复绑定 409 already_bound、跨项目 409 project_mismatch、目标已有芯片 409 item_already_has_chip、非法状态 409 invalid_state。确认按钮不能代替权限或防冒用检查。
 

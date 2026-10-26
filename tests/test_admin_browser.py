@@ -100,6 +100,86 @@ def binding_samples(desktop, count=2):
     return desktop.page.get_by_role('dialog',name='绑定物品',exact=True)
 
 
+def open_keys(desktop):
+    from tests.test_chip_keys import configure
+    configure(desktop.app)
+    binding = binding_samples(desktop)
+    select_binding(binding)
+    binding.get_by_role('button', name='确认绑定', exact=True).click()
+    desktop.page.get_by_role('status').filter(has_text='绑定成功').wait_for()
+    desktop.page.get_by_role('button', name='密钥与配置', exact=True).click()
+    return desktop.page.get_by_role('dialog', name='密钥与配置', exact=True)
+
+
+def test_keys_generate_view_confirm_and_clear(desktop):
+    from tests.test_admin_auth import query
+    from tests.test_chip_keys import reading
+    from core.secret_storage import decrypt_chip_keys
+    dialog = open_keys(desktop)
+    writes = []
+    desktop.page.on('request', lambda request: writes.append(request.url) if request.method == 'POST' and request.url.endswith('/generate-keys') else None)
+    dialog.get_by_role('button',name='生成密钥',exact=True).evaluate('(button)=>{button.click();button.click()}')
+    dialog.get_by_role('status').filter(has_text='密钥已生成并加密保存').wait_for()
+    assert len(writes) == 1
+    assert dialog.get_by_role('button',name='查看密钥',exact=True).is_disabled()
+    dialog.get_by_role('checkbox').first.check()
+    dialog.get_by_role('button',name='查看密钥',exact=True).click()
+    dialog.get_by_label('K0',exact=True).wait_for()
+    uid = '04:00:00:00:00:00:51'
+    row = query(desktop.app,'SELECT * FROM chip_key')[0]
+    with desktop.app.app_context(): keys = decrypt_chip_keys(row,row['chip_id'])
+    assert dialog.get_by_label('K1',exact=True).input_value() == keys['K1']
+    dialog.get_by_role('button',name='隐藏并清除密钥',exact=True).click()
+    assert dialog.get_by_label('K1',exact=True).count() == 0
+    for index,counter in enumerate((10,14)):
+        value = reading(keys, uid, counter)
+        dialog.get_by_label(f'第{index+1}条触碰链接',exact=True).fill('https://nfc.bumbum.cc/tap?picc_data='+value['picc_data']+'&cmac='+value['cmac'])
+    dialog.get_by_role('checkbox').last.check()
+    dialog.get_by_role('button',name='确认配置核验',exact=True).click()
+    dialog.get_by_role('status').filter(has_text='配置核验通过').wait_for()
+    assert query(desktop.app,'SELECT last_verified_counter FROM chip')[0]['last_verified_counter'] == 14
+    assert dialog.get_by_label('第1条触碰链接',exact=True).input_value() == ''
+    dialog.get_by_role('button',name='关闭',exact=True).click()
+    desktop.page.get_by_role('button',name='密钥与配置',exact=True).click()
+    assert dialog.get_by_label('K1',exact=True).count() == 0
+    assert dialog.get_by_text('密钥已生成；配置已核验',exact=True).count() == 1
+
+
+def test_keys_unknown_generation_queries_before_retry(desktop):
+    dialog = open_keys(desktop)
+    writes = []
+    def lost_receipt(route):
+        result = route.fetch()
+        assert result.status == 200
+        writes.append(1)
+        route.fulfill(status=503,content_type='application/json',body=json.dumps({'status':'error','code':'service_unavailable','message':'合成回执丢失'}))
+    desktop.page.route('**/generate-keys',lost_receipt)
+    dialog.get_by_role('button',name='生成密钥',exact=True).click()
+    dialog.get_by_role('alert').filter(has_text='结果暂未确认').wait_for()
+    assert dialog.get_by_role('button',name='生成密钥',exact=True).is_disabled()
+    dialog.get_by_role('button',name='查询实际记录',exact=True).click()
+    dialog.get_by_role('status').filter(has_text='已查到密钥生成记录').wait_for()
+    assert dialog.get_by_role('button',name='生成密钥',exact=True).is_disabled() and len(writes) == 1
+
+
+@pytest.mark.parametrize('status,code',[(401,'unauthorized'),(403,'csrf_failed')])
+def test_keys_expiry_does_not_retry(desktop,status,code):
+    dialog = open_keys(desktop)
+    writes=[]
+    def reject(route):
+        writes.append(1)
+        route.fulfill(status=status,content_type='application/json',body=json.dumps({'status':'error','code':code,'message':'合成权限失败'}))
+    desktop.page.route('**/generate-keys',reject)
+    dialog.get_by_role('button',name='生成密钥',exact=True).click()
+    if status == 401:
+        desktop.page.get_by_role('button',name='登录',exact=True).wait_for()
+        assert desktop.page.locator('.chip-keys-dialog').count()==0
+    else:
+        dialog.get_by_role('alert').filter(has_text='操作口令已失效').wait_for()
+        assert dialog.get_by_role('button',name='生成密钥',exact=True).is_disabled()
+    assert len(writes)==1
+
+
 def select_binding(dialog, number=1):
     dialog.get_by_label('物品关键词',exact=True).fill(f'FASH-2026-{880000+number:06d}')
     dialog.get_by_role('button',name='查询物品',exact=True).click()

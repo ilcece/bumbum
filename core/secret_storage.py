@@ -1,4 +1,4 @@
-"""按技术附录的两层AES-GCM格式保护验证器秘密。"""
+"""按技术附录的两层AES-GCM保护验证器及芯片秘密，保留各自存储格式。"""
 
 import base64
 import json
@@ -56,3 +56,40 @@ def decrypt_totp_secret(encrypted, admin_id):
         return AESGCM(dek).decrypt(values["nonce"], values["ciphertext"], aad(admin_id, version, "data")).decode("ascii")
     except (ValueError, TypeError, KeyError, UnicodeError, InvalidTag) as error:
         raise AuthUnavailable("验证器加密资料无法验证，请检查存储密钥或通过受控命令恢复。") from None
+
+
+def chip_aad(chip_id, version, layer):
+    return f"bumbum|chip_key|{chip_id}|keys|{version}|{layer}".encode("utf-8")
+
+
+def encrypt_chip_keys(keys, chip_id):
+    """芯片使用已有信封算法的分列格式，不改变验证器信封。"""
+    version = current_app.config["STORAGE_KEY_VERSION"]
+    if version != "v1":
+        raise AuthUnavailable("不支持的存储密钥版本。")
+    storage_key = secret_key("STORAGE_ENCRYPTION_KEY")
+    dek, nonce, dek_nonce = secrets.token_bytes(32), secrets.token_bytes(12), secrets.token_bytes(12)
+    payload = json.dumps(keys, separators=(",", ":")).encode("ascii")
+    return {
+        "encrypted_keys": AESGCM(dek).encrypt(nonce, payload, chip_aad(chip_id, version, "data")),
+        "nonce": nonce,
+        "dek_ciphertext": AESGCM(storage_key).encrypt(dek_nonce, dek, chip_aad(chip_id, version, "dek")),
+        "dek_nonce": dek_nonce,
+        "storage_key_version": version,
+    }
+
+
+def decrypt_chip_keys(row, chip_id):
+    """按预期芯片重新构造AAD；记录调包、损坏和未知版本均关闭功能。"""
+    try:
+        version = row["storage_key_version"]
+        if version != "v1" or version != current_app.config["STORAGE_KEY_VERSION"]:
+            raise ValueError
+        if len(row["nonce"]) != 12 or len(row["dek_nonce"]) != 12 or len(row["dek_ciphertext"]) != 48:
+            raise ValueError
+        dek = AESGCM(secret_key("STORAGE_ENCRYPTION_KEY")).decrypt(
+            bytes(row["dek_nonce"]), bytes(row["dek_ciphertext"]), chip_aad(chip_id, version, "dek"))
+        plain = AESGCM(dek).decrypt(bytes(row["nonce"]), bytes(row["encrypted_keys"]), chip_aad(chip_id, version, "data"))
+        return json.loads(plain.decode("ascii"))
+    except (ValueError, TypeError, KeyError, UnicodeError, InvalidTag):
+        raise AuthUnavailable("芯片加密资料无法验证，请检查配置；不要重新生成或覆盖。") from None

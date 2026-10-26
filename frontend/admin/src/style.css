@@ -323,3 +323,8 @@ td {
 .binding-candidates td { max-width: 220px; }
 .binding-confirmation { border: 1px solid var(--color-border, #e5e7eb); border-radius: 10px; padding: 12px; overflow-wrap: anywhere; }
 .dialog-content:has(.binding-dialog) { width: min(860px, calc(100vw - 48px)); max-width: 860px; }
+.chip-keys-dialog { display: grid; gap: 16px; }
+.chip-keys-dialog fieldset { display: grid; gap: 12px; }
+.chip-keys-dialog input[type="checkbox"] { width: auto; margin-right: 8px; }
+.chip-keys-dialog section { display: grid; gap: 10px; }
+.dialog-content:has(.chip-keys-dialog) { width: min(760px, calc(100vw - 48px)); max-width: 760px; }

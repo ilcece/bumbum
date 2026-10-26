@@ -25,7 +25,7 @@
 
 手动登记先在事务中按账号、会话的顺序锁定并重查登录状态，再保存芯片。`INSERT ... ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)` 只取回重复记录ID，不改项目、批次或状态；使用当前PyMySQL默认连接选项，首次插入的影响行数为1，重复为0。 取回摘要时使用只锁chip表的当前读（FOR UPDATE OF c），避免并发时旧快照读不到另一事务刚提交的记录；不把项目或物品表升级为排他锁。新增时审计仅保存项目和来源manual，目标ID关联芯片，IP沿用指纹规则；重复未修改资料，不新增变更审计。数据库提交失败返回503，不能提前返回成功。
 
-列表使用LEFT JOIN保留空项目记录，project=unassigned筛选c.project_id IS NULL；未分配不是第三个项目。绑定功能后续实现：按既定锁顺序，空项目时在同一事务首次设为目标物品项目，已有项目则严格匹配；解绑保留项目。未分配不能生成chip_key，未来密钥接口必须在写事务内检查，不能只靠页面隐藏；当前没有密钥生成实现。
+列表使用LEFT JOIN保留空项目记录，project=unassigned筛选c.project_id IS NULL；未分配不是第三个项目。首次绑定按既定锁顺序，空项目时在同一事务设为目标物品项目，已有项目严格匹配；后续解绑保留项目。未分配或未绑定不能生成chip_key，生成入口在事务内重查；密钥与配置实现见第14节，实际接口范围见API第0.4节。
 
 已有库通过migrate_local.py先完整备份再执行001迁移：使用一条原子ALTER将project_id改可空、添加ck_chip_project_assignment，并用不同名称的_v2外键重建相同关联规则，避免MySQL同一ALTER重用旧外键名失败；不关闭外键检查。回退同样单条ALTER，已有空项目记录时提前拒绝。ready检查本次字段及外键/检查约束版本，未完成升级时503。命令只接受默认本机测试库，备份容器与实际连接须同一server_uuid；不擅自升级生产或导入备份覆盖数据。步骤见[本地运行第7节](LOCAL_DEVELOPMENT.md#7-已有测试库升级允许芯片暂不分配项目)。
 
@@ -74,7 +74,7 @@ bumbum|<entity>|<id>|<field>|<storage_key_version>|<layer>
 ```
 entity 为 chip_key/admin_user；chip_key 的 id 使用 chip_id，admin_user 使用 admin_id；field 为 keys/totp_secret；layer 为 data/dek。解密时从预期记录重新生成，不能盲信密文附带的值。
 
-当前只实现验证器秘密的加解密，使用 cryptography 50.0.2；芯片秘密存储尚未接入。
+验证器及芯片秘密均使用cryptography 50.0.2；芯片使用分列信封格式，验证器原有JSON信封及函数保持兼容。
 
 chip_key 使用 encrypted_keys、nonce、dek_ciphertext、dek_nonce、storage_key_version 分列保存。验证器秘密 totp_secret_encrypted 则保存完整 UTF-8 JSON 信封：format_version=1、algorithm=AES-256-GCM、storage_key_version，以及以 Base64（将二进制转成文字）表示的 dek_ciphertext/dek_nonce/ciphertext/nonce；密文均含 tag，只接受已支持格式。迁移到 KMS（云端托管密钥服务）需另定格式和版本，不能假定当前字段可容纳任意服务返回内容。
 
@@ -248,7 +248,7 @@ NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/develo
 临时请求结构/原文监听及认证匹配诊断已按cece确认的收尾方案删除，不保留入口或挂载，不自动删除服务器旧Docker日志。日常只保留访问状态、业务审计和必要异常信息。来源升级先暂停登记写入并完整备份，002迁移增加字段；仅从唯一一条chip.register操作记录的合法source补齐历史来源，歧义或无证据保持unknown，显式保留原updated_at。DDL提交后若补齐失败，可重跑完成；不自动删除列或恢复备份覆盖后来数据。已有测试库升级命令只在对应操作手册维护。
 
 
-[社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥，仅供评估，不是已集成或通过测试的证明。[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf) 是需核验的官方资料；此前研究未直接读取此 PDF，不能声称已按它验证参数。pylibsdm 仍是待评估候选，须核验版本、许可证、兼容性与正确答案。
+[社区 sdm-backend 示例](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/app.py#L222-L227) 展示先解密编号再取得验签密钥。后续已核对其派生代码、固定答案和MIT许可，并读取[NXP AN12196](https://www.nxp.com/docs/en/application-note/AN12196.pdf)核对公开向量及真实测试卡样本；复用决定及证据见[第14节](#14-测试卡密钥与配置方案)，不代表已经集成或完成服务端验收。pylibsdm不纳入本小步，避免与已有NFC.cool读写流程重叠。
 
 
 <a name="9-服装资料与启停实现任务分支"></a>
@@ -404,3 +404,51 @@ admin_audit.action为chip.bind_item，target_type为chip，target_id为芯片内
 完成后跑绑定专项、全量独立MySQL及浏览器回归、前端类型/构建、文档链接与差异检查；具体每次检查结果在CHANGELOG记录，不把配置和测试存在当作检查通过。人工验收沿用PRD五组，准确步骤补进现有CHIP_REGISTRATION/ADMIN_DESKTOP手册，不为本步另建操作记录文件；命令仍只维护在LOCAL_DEVELOPMENT。API第0.4节记录实际可用范围，TODO与CHANGELOG分别记录任务状态和证据。
 
 业务实现从最新main建立任务分支，按已确认需求和方案交付。交付后按cece授权提交/推送，验收与合并分开；不自动部署。没有表变更时，代码问题用反向提交回退代码，不恢复整库；已保存绑定保留且旧版ChipView兼容，不因回退解除绑定或覆盖后来资料。业务误绑定不能用代码回退纠正，受限解绑另立小步。
+
+## 14. 测试卡密钥与配置方案
+
+本节定义已确认方案及实现规则；当前任务和验收状态只看TODO，接口可用范围看API第0.4节。本小步完成“已绑定芯片→生成并加密保存→受控查看→NFC.cool配置→读数核验→记录配置完成”。不包含用户触碰接口、手机资料页、批量生产、密钥轮换或多版本兼容。批量导出及完整密钥管理页面已保留为后续待排期需求，不因本步未做而删除。
+
+### 14.1 已有证据与复用来源
+
+- cece提供设备为iPhone 14 Plus、iOS 27.0.1、NFC.cool 7.3.0及Platinum全部功能，无其他读写工具；提供两枚NTAG424 DNA。NTAG213/215只用于登记回调对照，不能替代SUN测试。
+- A卡两条截图读数经独立解密/验签，真实UID与导出一致，计数1→2；先通过NXP AN12196公开答案核对计算方法。错误防伪码及错误K2对照未通过。七张截图全部属于A卡；卡上版本字节00不等于密钥仍为出厂值。
+- B卡由cece自行配置目标域名及/tap、加密SUN、Key 1/2和五个槽位密钥后提供CSV及读数；独立验签通过，计数12→13。cece确认后一条来自系统触碰通知打开浏览器，随机UID未开启。A卡随机UID已开启。两卡分别通过不等于共享K1通过：现有两卡K1不同、K2不同，尚未采用系统目标密钥。
+- App能配置文件权限及简化SUN选项，没有找到完整SDM偏移显示。现有样本匹配AES模式、UID/计数镜像和零长度MAC输入规则；并未读回底层偏移。CSV有旧地址或缺少SUN/URL列的情况，原因未证实，不直接断言App故障，不当完整恢复备份。失败次数限制的实际生效值仍未确认。
+- 以上是本地离线计算及cece操作证据，不是已部署的服务端或手机资料页闭环。秘密、完整动态链接及附件原文不入源码、手册或测试夹具；合成向量另建测试。
+
+复用来源固定为[sdm-backend提交37585f0c76eded73798b936b17aa5e187075b78f](https://github.com/nfc-developer/sdm-backend/tree/37585f0c76eded73798b936b17aa5e187075b78f)：[libsdm/derive.py](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/libsdm/derive.py)的derive_tag_key及[tests/test_kdf.py](https://github.com/nfc-developer/sdm-backend/blob/37585f0c76eded73798b936b17aa5e187075b78f/tests/test_kdf.py)固定答案。保留MIT版权和许可、来源提交与修改说明；不使用legacy派生。它是社区具体实现，不称为NXP官方标准KDF。
+
+保留上游HMAC-SHA256、槽位区分常量、字节顺序、截断及AES-CMAC步骤，使用现有cryptography 50.0.2和标准库适配，不新增PyCryptodome。正常输入结果须与上游公开答案完全一致；生成入口拒绝全零根密钥，不沿用全零输入返回全零卡密钥的兼容分支。K1不用上游derive_undiversified_key，仍独立安全随机生成。现有secret_storage.py的两层AES-GCM方式可复用，但芯片AAD及分列保存另做适配，不改变验证器信封格式。
+
+### 14.2 生成、保存与最小页面
+
+沿用第2、3节：项目根密钥分别独立，K0/K2/K3/K4按真实7字节UID及槽位派生；同版本全局K1共享。带冒号UID文字先规范化为二进制，不直接将展示文字送入算法。16字节根密钥/K1使用独立长度校验，不套用认证模块要求32字节秘密的读取函数；缺失、格式错误或不合格配置只关闭密钥功能，不影响已实现的登录/登记/查询。
+
+本步从已有绑定进入；未分配项目、未绑定或不可用状态不得生成。芯片密钥存在则409 already_exists，不覆盖、不自动重算；不接受force。生成与审计同事务，返回结果不含秘密，不能同时标记写卡完成。查看须有效登录、CSRF和confirm=true，先保存审计再返回K0–K4及URL模板，禁止缓存；页面提醒K1涉及同版本所有卡，关闭弹窗/退出清除内存，不进localStorage或日志。
+
+芯片列表仅增加生成、受控查看、配置确认的必要弹窗，不扩展完整管理页面；批量导出另排期。复用现有ChipView的keys_generated及provisioned_at区分已生成与已核验。项目配置版本v1与芯片版本字节00分别解释，本步不为显示一致而改写卡上版本。
+
+### 14.3 配置确认与数据库
+
+已有chip_key加密字段/版本、chip.provisioned_at、last_verified_counter及admin_audit足够，本步不改表、不迁移。接口路径、精确JSON和错误结构以API_CONTRACT为准；confirm-provisioning提交两条读数及management_confirmed=true。chip_keys.py共用事务，sdm_derivation.py保留上游正常输入计算；secret_storage.py增加芯片分列信封及AAD适配。当前项目根密钥重新派生结果与保存的五项秘密逐一恒定时间核对，K1/根密钥被替换或密文损坏时503，不返回秘密。生成、查看、确认审计分别为chip.generate_keys、chip.view_keys、chip.confirm_provisioning。
+
+两条读数都使用保存的目标K1/K2核验，检查PICC布局、UID等于目标芯片、计数递增；不接受客户端传密钥。确认过程中按管理员→会话→物品→芯片锁定重查，核对原关联、项目、状态和密钥版本未变；完成时间、第二条读数作为计数基线及审计一起提交。失败不留半完成；重复确认不重置计数、不成为重配入口。确认不发tap_token、不自动启用物品；后续用户验证必须使用更大的计数。审计只记录必要身份、配置版本、工具及固定核验结果，不保存密钥、读数正文或完整URL。
+
+当前确认审计固定标注system_checks=two_sun_readings、management_confirmed_by_admin=true，不伪造工具版本自动读回；工具及手工步骤按本手册记录。读数计数可跳号，第二条若已达到最大值则拒绝，避免配置完成后无新读数可用。重复确认409已配置；提交回执丢失后查询ChipView的keys_generated/provisioned_at，不能声称回滚已提交结果。
+
+ChipKeysDialog与绑定弹窗互斥，复用父级离开/忙碌保护；写入或查询时禁止关闭。接口超时/503/坏响应冻结写入，须先查询实际记录，再由人决定是否重试；403口令失效提示刷新，不自动换口令重发；401清除内容并隐藏管理端。新读数填写或发起请求时清除展示密钥，关闭/离开不持久保存；页面拒绝非目标域名/tap或重复参数链接。失败截图额外隐藏data-private中的密钥和动态链接，不能保存网络trace或原文。
+
+SUN读数只证明相关K1/K2和消息匹配，不证明K0/K3/K4或全部管理权限正确。K0认证及权限需cece按操作说明确认；记录中区分系统验签与人工确认，不能把操作者确认伪装成硬件自动读回。基础加密/事务规则沿用第3、5、6节，不将离线样本或生成记录当作provisioned_at。
+
+### 14.4 NFC.cool操作与恢复边界
+
+基础地址固定https://nfc.bumbum.cc/tap，SUN加密、元数据Key 1、文件Key 2、不启用enc；工具自动计算偏移，再以独立读数核验。CC/NDEF免费读取，写入及修改设置由K0管理；专有文件本步不用，权限收至K0，避免预留K3实际获得额外文件权限。保留AES，不切换LRP，不改永久性设置；随机UID保留各卡现状，不为本步统一。App失败次数限制显示值不视为生效读回，不通过故意错误认证测试。
+
+A/B都已经修改过密钥，不按出厂卡处理。先安全保存旧凭证、现有配置及通过的读数；先B后A，A暂作对照。逐步确认操作，K0最后更换，并确认新K0可认证；中途失败停止，不盲重跑整个CSV、不猜默认密钥。数据库和芯片不能原子提交，代码回退不能恢复实卡；只有各步结果和恢复凭证清楚才安排改写。具体改卡步骤另行确认，本方案不授权立即写卡。
+
+### 14.5 验证、文档与交付
+
+五组验收：生成/重复保护及无明文保存；受控查看/审计/退出清理；B卡系统触碰的两条正确读数；错误卡/防伪码/计数/数据库故障及重复确认保护；A/B共享K1、独立K2对照及已有功能回归。只有两枚卡时不宣称跨项目三卡硬件对照完成；其余组合先由合成测试覆盖，硬件证据另列。
+
+构建时用上游公开答案及合成密钥、独立临时库验证派生、加密防篡改、权限和事务；补充浏览器检查，检查结果按实际记录。接口精确请求/返回在API维护，技术在本节，人工步骤补进现有真实卡手册，状态只在TODO，重要决定与证据在CHANGELOG。更新受影响的配置说明，不读取真实.env；无schema、运行服务或第二套加密依赖变更。构建从实际main和绑定验收状态核对基线，不默认待验收功能已合main；提交、推送、合并和部署各按授权执行。

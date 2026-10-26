@@ -117,6 +117,7 @@ def browser_fixture(request, app, account, tmp_path):
                         # 不保存HAR/trace/页面正文；截图前隐藏密码和动态验证码。
                         try:
                             page.locator('input[type="password"],input[name="code"]').evaluate_all('(nodes)=>nodes.forEach(node=>{node.value="";node.style.visibility="hidden"})')
+                            page.locator('[data-private]').evaluate_all('(nodes)=>nodes.forEach(node=>{node.style.visibility="hidden";if("value" in node)node.value=""})')
                             base = Path(request.config.getoption('--browser-artifacts'))
                             if base.is_symlink():
                                 raise ValueError('截图目录不可为符号链接')

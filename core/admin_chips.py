@@ -1,4 +1,4 @@
-"""管理员登记、查询和首次绑定芯片；不生成密钥、不写卡或换绑。"""
+"""管理员芯片登记、绑定、密钥和配置核验；不连接卡片或换绑。"""
 
 import re
 
@@ -8,11 +8,17 @@ import pymysql
 from core.admin_auth import AuthRequestError, lock_admin_session, request_json
 from core.chip_registry import CHIP_VIEW, chip_view, normalize_uid, save_chip
 from core.chip_binding import bind_chip_item, valid_id
+from core.chip_keys import ChipKeyUnavailable, key_operation
 from core.db import get_database
 
 blueprint = Blueprint("admin_chips", __name__, url_prefix="/api/admin/chips")
 PROJECTS = {"fashion", "jewelry"}
 STATUSES = {"pending", "bound", "disabled", "lost"}
+
+
+@blueprint.errorhandler(ChipKeyUnavailable)
+def keys_unavailable(_error):
+    return jsonify(status="error", code="service_unavailable", message="密钥配置或加密记录无法验证，请按真实卡核验手册检查；不要覆盖原记录或重新配卡。"), 503
 
 
 def invalid(message):
@@ -92,3 +98,27 @@ def bind_item(chip_id):
     if not valid_id(chip_id) or not valid_id(data["item_id"]):
         invalid("芯片和物品ID须为有效正整数。")
     return jsonify(status="ok", data=bind_chip_item(chip_id, data["item_id"]))
+
+
+@blueprint.post("/<int:chip_id>/generate-keys")
+def generate_keys(chip_id):
+    request_json(set())
+    if not valid_id(chip_id):
+        invalid("芯片ID须为有效正整数。")
+    return jsonify(status="ok", data=key_operation(chip_id, "generate"))
+
+
+@blueprint.post("/<int:chip_id>/keys")
+def view_keys(chip_id):
+    data = request_json({"confirm"})
+    if not valid_id(chip_id) or data["confirm"] is not True:
+        invalid("请明确确认查看密钥。")
+    return jsonify(status="ok", data=key_operation(chip_id, "view"))
+
+
+@blueprint.post("/<int:chip_id>/confirm-provisioning")
+def confirm_provisioning(chip_id):
+    data = request_json({"readings", "management_confirmed"})
+    if not valid_id(chip_id) or data["management_confirmed"] is not True or not isinstance(data["readings"], list) or len(data["readings"]) != 2:
+        invalid("请提供两条读数，并确认K0认证及文件权限已人工核对。")
+    return jsonify(status="ok", data=key_operation(chip_id, "confirm", data["readings"]))
