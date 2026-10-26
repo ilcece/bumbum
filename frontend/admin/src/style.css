@@ -312,3 +312,5 @@ td {
   border-color: var(--color-accent);
 }
 .sidebar-footer button { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+
+.diagnostic-id { overflow-wrap: anywhere; font-size: 12px; margin-top: 8px; }

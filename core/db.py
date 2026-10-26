@@ -8,6 +8,8 @@ import pymysql
 from dotenv import load_dotenv
 from flask import current_app, g
 
+from core.diagnostics import record_failure
+
 ROOT = Path(__file__).resolve().parents[1]
 # 表名从唯一建表文件读取，避免在代码里维护第二份表清单。
 TARGET_TABLES = frozenset(re.findall(r"CREATE TABLE (\w+)", (ROOT / "db/schema.sql").read_text(encoding="utf-8")))
@@ -74,7 +76,8 @@ def database_ready():
             return ([row[0] for row in cursor.fetchall()] == ["fashion", "jewelry"]
                     and chip_project_schema(cursor) == "optional"
                     and registration_source_schema(cursor) == "ready")
-    except pymysql.MySQLError:
+    except pymysql.MySQLError as error:
+        record_failure(error)
         return False
 
 

@@ -3,8 +3,8 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, ""
 let csrfToken: string | null = null;
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string) {
-    super(message);
+  constructor(public status: number, public code: string, message: string, public errorId?: string) {
+    super(errorId ? `${message}（错误编号：${errorId}）` : message);
   }
 }
 
@@ -31,7 +31,8 @@ async function request<T>(path: string, body?: Record<string, unknown>, method?:
     throw new ApiError(response.status, "unexpected_response", "无法读取服务结果，请确认后端正在运行。");
   }
   if (!response.ok || result.status !== "ok" || !result.data) {
-    throw new ApiError(response.status, result.code || "unexpected_response", result.message || "请求未完成，请重试。");
+    const errorId = typeof result.error_id === "string" && /^[a-f0-9]{24}$/.test(result.error_id) ? result.error_id : undefined;
+    throw new ApiError(response.status, result.code || "unexpected_response", result.message || "请求未完成，请重试。", errorId);
   }
   return result.data as T;
 }

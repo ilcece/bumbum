@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from core.auth_settings import AuthUnavailable, auth_settings, client_ip, fingerprint, iso_time, load_auth_settings, utc_now
 from core.csrf import valid_csrf
 from core.db import get_database
+from core.diagnostics import record_failure
 from core.secret_storage import decrypt_totp_secret
 
 COOKIE_NAME = "bumbum_admin_session"
@@ -244,5 +245,5 @@ def init_auth(app):
         return failure(503, "service_unavailable", "认证配置或验证器资料未就绪，请按管理员登录说明检查。")
 
     @app.errorhandler(pymysql.MySQLError)
-    def database_error(_error):
-        return failure(503, "service_unavailable", "数据库暂时无法完成操作，请稍后再试。")
+    def database_error(error):
+        return jsonify(status="error", code="service_unavailable", message="数据库暂时无法完成操作，请稍后再试。", error_id=record_failure(error)), 503
