@@ -19,6 +19,44 @@ pytestmark = pytest.mark.auth_database
 UID = "FASH-2026-000001"
 
 
+@pytest.mark.parametrize("project,prefix", [("fashion","FASH"),("jewelry","JEW")])
+@pytest.mark.parametrize("chip_status", ["bound","disabled","lost"])
+def test_unbound_filter_excludes_all_occupied_states(auth_app, drafts, project, prefix, chip_status):
+    client, _ = drafts
+    for n in (1,2):
+        query(auth_app,"INSERT INTO item(project_id,item_uid) SELECT id,%s FROM project WHERE code=%s",(f'{prefix}-2026-{n:06d}',project))
+    occupied = query(auth_app,"SELECT * FROM item WHERE item_uid=%s",(f'{prefix}-2026-000002',))[0]
+    query(auth_app,"INSERT INTO chip(chip_uid,project_id,item_id,chip_status) VALUES (%s,%s,%s,%s)",('04:00:00:00:00:00:DD',occupied['project_id'],occupied['id'],chip_status))
+    assert client.get('/api/admin/items',query_string={'project':project}).json['data']['total']==2
+    assert client.get('/api/admin/items?unbound_only=false').json['data']['total']==2
+    data=client.get('/api/admin/items',query_string={'project':project,'unbound_only':'true'}).json['data']
+    assert data['total']==1 and [row['item_uid'] for row in data['items']]==[f'{prefix}-2026-000001']
+    assert client.get('/api/admin/items',query_string={'keyword':occupied['item_uid'],'unbound_only':'true'}).json['data']['total']==0
+
+
+def test_unbound_filter_counts_before_pagination_and_preserves_other_filters(auth_app, drafts):
+    client,_=drafts
+    for n in range(1,26):
+        query(auth_app,"INSERT INTO item(project_id,item_uid,sku_code,status) SELECT id,%s,%s,%s FROM project WHERE code='fashion'",(f'FASH-2026-{n:06d}','FILTER-SKU','archived' if n==1 else 'draft'))
+    for n in (23,24,25):
+        row=query(auth_app,'SELECT * FROM item WHERE item_uid=%s',(f'FASH-2026-{n:06d}',))[0]
+        query(auth_app,"INSERT INTO chip(chip_uid,project_id,item_id,chip_status) VALUES (%s,%s,%s,'bound')",(f'04:00:00:00:00:00:{n:02X}',row['project_id'],row['id']))
+    first=client.get('/api/admin/items?unbound_only=true&project=fashion&keyword=FILTER-SKU').json['data']
+    second=client.get('/api/admin/items?unbound_only=true&page=2').json['data']
+    assert first['total']==second['total']==22 and len(first['items'])==20 and len(second['items'])==2
+    assert first['items'][0]['item_uid']=='FASH-2026-000022'
+    assert client.get('/api/admin/items?unbound_only=true&status=draft').json['data']['total']==21
+    assert client.get('/api/admin/items?unbound_only=true&status=archived').json['data']['total']==1
+    assert client.get('/api/admin/items?unbound_only=true&page=3').json['data']['items']==[]
+    assert client.get('/api/admin/items').json['data']['total']==25
+
+
+@pytest.mark.parametrize("parameters", ['unbound_only=1','unbound_only=TRUE','unbound_only=','unbound_only=null','unbound_only=true&unbound_only=false'])
+def test_unbound_filter_strict_values(drafts,parameters):
+    response=drafts[0].get('/api/admin/items?'+parameters)
+    assert response.status_code==400 and response.json['code']=='invalid_param'
+
+
 @pytest.fixture
 def drafts(auth_app, admin_account):
     # 此连接由auth_app专属临时库提供，不使用本机或香港业务库。

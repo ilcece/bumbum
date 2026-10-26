@@ -323,8 +323,21 @@ npm --prefix frontend/admin ci
 .venv-browser/bin/python -m pytest tests/test_admin_browser.py --auth-db --browser -q
 ```
 
-Linux缺浏览器系统库时由开发者按Playwright提示安装；CI使用install --with-deps chromium。成功应有3条浏览器测试通过，未提供--browser时明确跳过，缺少工具/浏览器或端口占用时明确失败；不能把跳过算通过。不能单独提供--browser而省略--auth-db。已有可用Chromium时可用--browser-executable指定它；仅适用于本机可执行文件。
+Linux缺浏览器系统库时由开发者按Playwright提示安装；CI使用install --with-deps chromium。成功应有本次收集的全部浏览器测试通过（包含原有流程与绑定新增场景），未提供--browser时明确跳过，缺少工具/浏览器或端口占用时明确失败；不能把跳过算通过。不能单独提供--browser而省略--auth-db。已有可用Chromium时可用--browser-executable指定它；仅适用于本机可执行文件。
 
-三条检查是登录/刷新/退出、芯片批次/去重、物品资料/启停及失败输入保留。失败截图保存在test-results下本次唯一子目录，不覆盖旧产物；截图前隐藏密码/验证码，不保存HAR、trace、页面正文或认证请求。产物不进入Git；需要反馈时仍先核对截图不含秘密。测试结束关闭自己的浏览器、前后端与临时数据库，保留失败截图。运行失败保留具体阶段，不清空本机数据库。
+检查覆盖登录/刷新/退出、芯片批次/去重、物品资料/启停及失败输入保留，以及绑定选择、重复提交、未知结果查询和状态保护。失败截图保存在test-results下本次唯一子目录，不覆盖旧产物；截图前隐藏密码/验证码，不保存HAR、trace、页面正文或认证请求。产物不进入Git；需要反馈时仍先核对截图不含秘密。测试结束关闭自己的浏览器、前后端与临时数据库，保留失败截图。运行失败保留具体阶段，不清空本机数据库。
 
 浏览器依赖固定版本由requirements-browser.in解析生成requirements-browser.txt；生成命令为uv pip compile requirements-browser.in --universal --python-version 3.12 --output-file requirements-browser.txt，不手工改版本凑锁文件。
+
+## 10. 首次准备本机密钥功能
+
+目的：仅为默认本机测试环境补齐空的服装/饰品根密钥和全局K1。先确认已有登录可用、选中本次交付分支并关闭自己的后端服务；在项目根目录执行下表对应命令。脚本只写本机.env空项，不访问数据库或芯片、不输出秘密，不覆盖已有值；不会自动配卡或标记完成。
+
+| 环境 | 命令 |
+|---|---|
+| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 scripts\setup_auth_local.py --chip-keys` |
+| macOS / Linux | `.venv/bin/python scripts/setup_auth_local.py --chip-keys` |
+
+成功提示“本机密钥功能配置已准备”，再按原方式启动项目，让进程加载配置。原数据库、账号、存储密钥和业务记录保留，无须迁移或重新执行schema。若提示环境或格式不合法，停止并反馈固定错误文字，不发送.env；不要通过清空配置来绕过检查。该命令只用于首次准备，已有芯片密钥却丢失根密钥/K1时必须找回原秘密，不能用新生成值代替恢复。密钥不一致时服务端也会拒绝查看和确认。
+
+页面验收见[真实卡手册第4节](NFC_CARD_VERIFICATION.md#4-密钥与配置联合验收)。香港环境不运行此命令，也不因代码推送自动更新；云配置与部署另行对齐。

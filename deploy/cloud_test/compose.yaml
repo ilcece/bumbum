@@ -45,6 +45,11 @@ services:
       IP_HASH_KEY: ${IP_HASH_KEY:?请先准备云测试配置}
       WEBHOOK_ADMIN_USERNAME: ${WEBHOOK_ADMIN_USERNAME:?请先准备云测试配置}
       WEBHOOK_SHARED_SECRET: ${WEBHOOK_SHARED_SECRET:?请先准备云测试配置}
+      # 不自动生成或覆盖芯片秘密；未准备时只关闭密钥功能。
+      MASTER_KEY_FASHION: ${MASTER_KEY_FASHION:-}
+      MASTER_KEY_JEWELRY: ${MASTER_KEY_JEWELRY:-}
+      SDM_META_KEY_V1: ${SDM_META_KEY_V1:-}
+      SDM_META_KEY_VERSION: ${SDM_META_KEY_VERSION:-v1}
     restart: unless-stopped
     read_only: true
     tmpfs:
