@@ -180,6 +180,8 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 当前仅手动登记和列表可用，表中其余接口仍待实现。
 
+绑定物品的页面与业务细化见[绑定PRD](PRD.md#414-本小步芯片绑定物品)，产品需求已确认；不把需求文档视为接口已开放。技术方案审核后同步精确输入类型、错误与测试，本轮不新增查询接口或改变现有返回结构。
+
 手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录registration_source=manual，由后台设置，不接受请求指定；状态为pending，item_id、provisioned_at为空，keys_generated=false。
 ```json
 {"chip_uid":"04a27f1b5e8010","project":null,"batch_no":"DEMO-01"}
