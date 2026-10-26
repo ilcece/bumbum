@@ -338,6 +338,66 @@ Linux缺浏览器系统库时由开发者按Playwright提示安装；CI使用ins
 | Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 scripts\setup_auth_local.py --chip-keys` |
 | macOS / Linux | `.venv/bin/python scripts/setup_auth_local.py --chip-keys` |
 
-成功提示“本机密钥功能配置已准备”，再按原方式启动项目，让进程加载配置。原数据库、账号、存储密钥和业务记录保留，无须迁移或重新执行schema。若提示环境或格式不合法，停止并反馈固定错误文字，不发送.env；不要通过清空配置来绕过检查。该命令只用于首次准备，已有芯片密钥却丢失根密钥/K1时必须找回原秘密，不能用新生成值代替恢复。密钥不一致时服务端也会拒绝查看和确认。
+成功提示“本机密钥功能配置已准备”，再按原方式启动项目，让进程加载配置。原数据库、账号、存储密钥和业务记录保留；密钥初始化自身不改表，触碰验证版本的日志升级另见第11节，不重新执行schema。若提示环境或格式不合法，停止并反馈固定错误文字，不发送.env；不要通过清空配置来绕过检查。该命令只用于首次准备，已有芯片密钥却丢失根密钥/K1时必须找回原秘密，不能用新生成值代替恢复。密钥不一致时服务端也会拒绝查看和确认。
 
 页面验收见[真实卡手册第4节](NFC_CARD_VERIFICATION.md#4-密钥与配置联合验收)。香港环境不运行此命令，也不因代码推送自动更新；云配置与部署另行对齐。
+
+## 11. 已有测试库升级：触碰记录及后端验收
+
+目的：保留账号、密钥和原资料，为用户触碰增加可信物品归属及去重记录。使用交付说明中的功能分支；这是本机后端验收，工作台统计页面、手机页面与公网入口另行交付。新建空库已有新结构，不重跑schema。已有库必须检查，不因之前完成来源升级而跳过本项。
+
+先在启动窗口按Ctrl+C停止前后端、保留数据库；数据库若停止，按第2节启动。然后在项目根目录执行：
+
+| 操作 | macOS / Linux | Windows PowerShell |
+|---|---|---|
+| 只检查 | `.venv/bin/python scripts/migrate_local.py --tap-events` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --tap-events` |
+| 显示需要升级后，先完整备份再升级 | `.venv/bin/python scripts/migrate_local.py --tap-events --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --tap-events --apply` |
+
+成功显示触碰日志就绪或升级完成；需要升级时先显示完整备份路径，再执行单条ALTER。若backups不可写，沿用第8.1节的私有备份目录办法，将--backup-dir加到本项命令。不清空backups或修改原密码。未知结构或旧日志已有无法定位当时物品的成功记录时停止，反馈固定错误，不猜测回填、删记录或直接导入旧备份。完整备份含秘密，不分享。
+
+再按原方式启动项目，两项运行检查应通过，用原账号核对原芯片、物品和密钥/已核验标记仍在。/api/ready返回503时先检查本节，不连续等待或重建数据库。该升级不修改真实卡，不需重新配卡。
+
+### 11.1 Windows：真实卡的新读数怎样交给本机后端
+
+前提：专用测试卡已完成目标配置核验，对应物品已启用且有资料。按照[真实卡手册第5节](NFC_CARD_VERIFICATION.md#5-触碰验证后端验收)逐组验收。每次通过系统触碰通知打开浏览器并复制一条新链接；本次尚未部署用户页面，公网页面打不开不代表本机验证失败。不要重复使用后台配置确认的两条链接。
+
+在项目根目录PowerShell粘贴下段，出现输入提示后再粘贴完整链接，输入不回显。链接只进入内存，不写进命令历史，不把真实链接写成代码里的文字。请求只发本机5000端口，不访问链接中的公网地址：
+
+```powershell
+$tapSecret = Read-Host '粘贴这次新触碰的完整链接，按回车（输入隐藏）' -AsSecureString
+$tapUrl = [System.Net.NetworkCredential]::new('', $tapSecret).Password
+$tapUri = [Uri]$tapUrl
+if ($tapUri.Scheme -ne 'https' -or $tapUri.Host -ne 'nfc.bumbum.cc' -or $tapUri.AbsolutePath -ne '/tap') { throw '链接地址不符合目标配置；先核对，不发送。' }
+Add-Type -AssemblyName System.Web
+$tapQuery = [System.Web.HttpUtility]::ParseQueryString($tapUri.Query)
+if ($tapQuery.AllKeys.Count -ne 2 -or $tapQuery.GetValues('picc_data').Count -ne 1 -or $tapQuery.GetValues('cmac').Count -ne 1) { throw '链接参数缺少、重复或多余；先核对，不发送。' }
+$tapBody = @{ picc_data = $tapQuery['picc_data']; cmac = $tapQuery['cmac'] } | ConvertTo-Json -Compress
+$tapUrl = $null; $tapSecret = $null; $tapUri = $null; $tapQuery = $null
+$tapResult = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:5000/api/tap/verify' -ContentType 'application/json' -Body $tapBody
+$tapResult.data | Select-Object verified, reason, project, item_uid, expires_in, message
+```
+
+正确读数应显示verified=True、正确项目与物品编号、expires_in=300。False时看reason/message，不是成功；网络或服务错误也不算成功。只反馈上述摘要和错误编号，不直接输出$tapResult、$tapBody或token。
+
+仅在verified=True后、五分钟内，执行下段确认凭证能重新获取同一件服装资料；它不增加触碰次数：
+
+```powershell
+$tapDetail = Invoke-RestMethod -Method Get -Uri ('http://127.0.0.1:5000/api/fashion/items/' + $tapResult.data.item_id + '/detail') -Headers @{ 'X-Tap-Token' = $tapResult.data.tap_token }
+$tapDetail.data | Select-Object item_uid, owner_bound
+$tapDetail.data.profile | Select-Object name, material
+```
+
+想核对同一读数不能重复使用时，主动再执行一次下面的POST；预期verified=False、reason=replay_suspect，并提示重新触碰。不要反复点击或把它当作可自动重试的请求：
+
+```powershell
+$tapAgain = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:5000/api/tap/verify' -ContentType 'application/json' -Body $tapBody
+$tapAgain.data | Select-Object verified, reason, message
+```
+
+每次独立触碰需重新执行输入段，不能靠刷新旧链接取得新凭证。正常有效触碰会留下测试业务记录，不提供删除入口。验收结束关闭这个PowerShell窗口，或清除本轮变量；内存凭证不保存到文件：
+
+```powershell
+Remove-Variable tapBody, tapResult, tapAgain, tapDetail, tapUrl, tapSecret, tapUri, tapQuery -ErrorAction SilentlyContinue
+```
+
+macOS/Linux使用相同API契约；本轮自动测试负责接口、并发和故障验证，不要求把真实链接写入curl命令历史。缺少对应项目实卡时只记录未验证，不把服装结果推广到饰品。

@@ -342,7 +342,7 @@ def serve(node, version):
                 if stop_requested(run_id):
                     return
                 if not job.healthy() or time.monotonic() >= deadline:
-                    raise LocalError("后端或网页未能启动。请查看 .local-run 中的 backend.log / frontend.log；分享前隐藏个人信息。")
+                    raise LocalError("后端或网页未能启动。旧库更新后若health通过但ready为503，先按docs/LOCAL_DEVELOPMENT.md第11节检查触碰日志升级，不要重建库。其他情况查看.local-run中的backend.log / frontend.log；分享前隐藏个人信息。")
                 time.sleep(1)
             state["phase"] = "ready"
             write_json(RUNTIME / "services.json", state)

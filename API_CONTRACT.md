@@ -49,7 +49,7 @@
 
 ### 0.4 当前能做到哪一步
 
-当前已实现：两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
+当前已实现：POST /api/tap/verify与GET /api/fashion/items/{id}/detail、两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
 
 ### 0.5 当前已实现的运行检查
 
@@ -87,13 +87,15 @@
 
 ### 1.2 POST /api/tap/verify：核验这次触碰（第二阶段，待实测）
 
-只提交picc_data（加密芯片信息，32位十六进制）、cmac（防伪码，16位十六进制）；不增加项目、UID、版本、查找码或item_uid。现有测试卡与配置确认已核对该编码，用户验证入口仍未实现，其权限、事务及完整验收须随对应技术方案落实：
+本小步产品及交互规则见[PRD第4.2.1节](PRD.md#421-本小步触碰验证后端)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](PRD.md#422-工作台有效触碰统计)独立交付；工作台统计查询、饰品独立详情、短信与认领接口仍未接入。
+
+只提交picc_data（加密芯片信息，32位十六进制）、cmac（防伪码，16位十六进制）；不增加项目、UID、版本、查找码或item_uid。现有测试卡与配置确认已核对该编码，用户验证入口按附录第15节实现，后台配置核验不替代用户验证、真实卡或公网验收：
 ```json
 {"picc_data":"FDE4AFA99B5C820A2C1BB0F1C792D0EB","cmac":"C48B89C17A233B2C"}
 ```
 服务器按技术规格第 5.1 节：全局 K1 先解出候选编号 → 查库核对项目和配置版本 → 用独立 K2 按 SDM 规则核对防伪码 → 唯一完整通过后确认身份 → 检查状态并一起保存新读数、日志和临时凭证。
 
-不能只看“解密没报错”或“像十六进制编号”。多个版本都完整通过是配置异常，500 internal_error；普通服务故障 503，未开放 501，请求过密 429 rate_limited（次数待实测）。旧链接重试提示重新触碰；失败不能更新读数或发凭证，也不能把系统故障说成假货。
+不能只看“解密没报错”或“像十六进制编号”。多个版本都完整通过是配置异常，500 internal_error；普通服务故障 503，未开放 501，请求过密429 rate_limited，默认每IP每分钟60次，返回Retry-After秒数，阈值上线前实测。旧链接重试提示重新触碰；失败不能更新读数或发凭证，也不能把系统故障说成假货。
 
 成功返回 verified、project、item_id/item_uid、owner_bound（是否已有所有者）、tap_token、expires_in=300 秒、item_detail（物品资料）。服装含资料字段、trace 数组、story 对象或 null、channel 数组；饰品含 name/description/material/meaning/image_urls。不返回 UID、读数、订单号、手机号或“当前用户养成进度”：
 ```json
@@ -103,6 +105,8 @@
 ```json
 {"status":"ok","data":{"verified":false,"reason":"cmac_fail","message":"防伪验证未通过"}}
 ```
+本小步服装trace/channel返回[]、story返回null，扩展资料的公开字段在后续维护入口确定时补充。达到三字节计数上限返回not_ready，不清零；所有业务失败不增加有效触碰次数。
+
 reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法解析）、unknown_chip（未登记）、replay_suspect（旧读数）、disabled（芯片停用/丢失，或物品停用/归档）、not_ready（未绑定、物品草稿或未配置好）。格式错误仍为 400。
 
 ### 1.3 POST /api/public/sms/send：发绑定短信（第二阶段）
@@ -289,7 +293,7 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 ## 6. 用户看详情和饰品养成
 
-第二阶段下列 GET 要带 X-Tap-Token，核对其对应物品和当前状态，读取不消耗凭证；跨项目 409 project_mismatch，凭证无效/过期/已用掉或不匹配 403 invalid_tap_token：
+服装详情GET已接入；饰品详情GET仍预留。下列GET要带X-Tap-Token，核对其对应物品和当前状态，读取不消耗凭证；跨项目 409 project_mismatch，凭证无效/过期/已用掉或不匹配 403 invalid_tap_token：
 
 | 接口 | 返回的 data |
 |---|---|

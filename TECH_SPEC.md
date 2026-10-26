@@ -1,6 +1,6 @@
 # BUMBUM 怎么运行、怎样保护数据
 
-更新日期：2026-10-25。本文先让 cece 看懂项目怎么运转。精确的加密参数、计算公式和部署配置放在 [技术附录](docs/IMPLEMENTATION_DETAILS.md)，AI 写代码时必须一起读。两份文件共同定义技术规则；产品要求看 [PRD](PRD.md)，接口字段看 [API_CONTRACT](API_CONTRACT.md)，表结构看 [schema](db/schema.sql)。
+更新日期：2026-10-27。本文先让 cece 看懂项目怎么运转。精确的加密参数、计算公式和部署配置放在 [技术附录](docs/IMPLEMENTATION_DETAILS.md)，AI 写代码时必须一起读。两份文件共同定义技术规则；产品要求看 [PRD](PRD.md)，接口字段看 [API_CONTRACT](API_CONTRACT.md)，表结构看 [schema](db/schema.sql)。
 
 ## 1. 各部分负责什么
 
@@ -116,6 +116,8 @@ cece于2026-10-24确认域名为bumbum.cc，内地ECS的ICP备案仍在办理，
 ## 5. 用户触碰芯片后发生什么
 
 ### 5.1 验证流程
+
+本小步PRD及交互规则已确认；事务、改表及全项目统计记录见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)，技术方案已确认；代码、人工验收及部署状态分别查看接口概览和TODO。
 
 链接保持 `https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}`。picc_data 是加密的芯片信息，cmac 是一起生成的防伪码；不额外公开 UID、物品编号、项目或密钥版本，也不启用额外加密内容 enc。网页读取两个参数，再提交给后端；此链接是前端页面，不是后端直接返回 HTML 的接口。
 

@@ -1,4 +1,4 @@
-"""后端入口：运行检查、认证、芯片绑定/密钥配置、物品管理及手机登记回调。"""
+"""后端入口：运行检查、认证、芯片管理、物品资料及用户触碰验证。"""
 
 from flask import Flask, abort, g, jsonify, request
 from werkzeug.exceptions import HTTPException
@@ -24,6 +24,8 @@ def create_app(test_config=None):
     app.register_blueprint(items_blueprint)
     init_scan(app)
     init_chip_keys(app)
+    from core.tap_grants import init_tap
+    init_tap(app)
 
     @app.after_request
     def prevent_cache(response):
@@ -45,7 +47,7 @@ def create_app(test_config=None):
             return jsonify(
                 status="error",
                 code="service_unavailable",
-                message="测试数据库尚未就绪；更新代码后请按运行手册检查项目可空及登记来源升级。",
+                message="测试数据库尚未就绪；更新代码后请按运行手册检查项目可空、登记来源及触碰日志升级。",
                 **({"error_id": g.diagnostic_error_id} if g.get("diagnostic_error_id") else {}),
             ), 503
         return jsonify(status="ok", data={"database": "ready"})
