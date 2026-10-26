@@ -94,6 +94,13 @@ export async function registerChip(chip_uid: string, project: string | null, bat
   return request("/admin/chips", { chip_uid, project, batch_no });
 }
 
+export function bindChipItem(chipId: number, itemId: number): Promise<ChipView> {
+  if (![chipId, itemId].every(id => Number.isSafeInteger(id) && id > 0)) {
+    throw new Error("记录编号超出当前页面可处理范围，请反馈，未提交绑定。");
+  }
+  return request(`/admin/chips/${chipId}/bind-item`, { item_id: itemId });
+}
+
 export type ItemView = {
   id: number; project: "fashion" | "jewelry"; item_uid: string; sku_code: string | null;
   status: "draft" | "active" | "disabled" | "archived";

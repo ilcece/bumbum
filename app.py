@@ -1,4 +1,4 @@
-"""最小后端入口：运行检查、管理员认证、芯片登记查询、物品草稿及手机回调。"""
+"""最小后端入口：运行检查、管理员认证、芯片登记查询与首次绑定、物品草稿及手机回调。"""
 
 from flask import Flask, abort, g, jsonify, request
 from werkzeug.exceptions import HTTPException

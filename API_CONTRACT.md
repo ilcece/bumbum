@@ -49,7 +49,7 @@
 
 ### 0.4 当前能做到哪一步
 
-当前已实现：两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
+当前已实现：两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
 
 ### 0.5 当前已实现的运行检查
 
@@ -178,9 +178,9 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 | 绑定物品：POST /api/admin/chips/{id}/bind-item | item_id | 更新后 ChipView |
 | 解除绑定：POST /api/admin/chips/{id}/unbind-item | `{}` | 更新后 ChipView |
 
-当前仅手动登记和列表可用，表中其余接口仍待实现。
+当前手动登记、列表和首次绑定物品可用，表中其余接口仍待实现。
 
-绑定物品的页面与业务细化见[绑定PRD](PRD.md#414-本小步芯片绑定物品)，产品需求已确认；不把需求文档视为接口已开放。技术方案审核后同步精确输入类型、错误与测试，本轮不新增查询接口或改变现有返回结构。
+绑定物品的页面与业务规则见[绑定PRD](PRD.md#414-本小步芯片绑定物品)，具体实现见[技术附录](docs/IMPLEMENTATION_DETAILS.md#13-芯片绑定物品实现)。人工验收和合并状态分别看TODO与CHANGELOG；本节不因按钮出现就宣称所有管理能力已开放。
 
 手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录registration_source=manual，由后台设置，不接受请求指定；状态为pending，item_id、provisioned_at为空，keys_generated=false。
 ```json
@@ -193,9 +193,41 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 密钥功能等实际计算规则、权限和测试完成后才开放，否则 501 feature_not_ready。已有密钥不能覆盖，409 already_exists；传 force 是 400 invalid_param。keys 含 K0–K4 的 32 位十六进制值；K1 是对应版本全局密钥的加密副本，不逐卡生成。查看前确认并保存操作记录，返回 no-store 禁止缓存；不存在为 404 not_found。页面须提醒：查看 K1 涉及该版本所有芯片的秘密，不仅是这一枚。URL 模板见技术规格第 5.1 节。
 
-后续生成密钥接口开放后，项目未分配时返回409 invalid_state，不能猜项目或计算密钥。后续bind-item在事务内：未分配芯片按物品确定项目再绑定；已有项目必须匹配；项目确定、绑定及审计一起保存。解绑不清空项目；当前这些接口仍未实现。
+后续生成密钥接口开放后，项目未分配时返回409 invalid_state，不能猜项目或计算密钥。bind-item在事务内：未分配芯片按物品确定项目再绑定；已有项目必须匹配；项目确定、绑定及审计一起保存。后续解绑不清空项目；解绑及密钥接口仍未实现。
 
 状态转换见技术规格第 2.2 节，不能任意跳转；重复绑定 409 already_bound、跨项目 409 project_mismatch、目标已有芯片 409 item_already_has_chip、非法状态 409 invalid_state。确认按钮不能代替权限或防冒用检查。
+
+<a name="31-绑定物品接口细化待技术方案审核"></a>
+
+### 3.1 绑定物品接口
+
+本节定义首次绑定接口。事务、审计、前端及测试规则集中在[技术附录第13节](docs/IMPLEMENTATION_DETAILS.md#13-芯片绑定物品实现)；所有权、解绑与换绑不属于该入口。
+
+POST /api/admin/chips/{id}/bind-item，必须已有完整管理员会话，通过Origin与CSRF检查；不接收查询参数，只接受JSON对象及唯一必填字段item_id。
+
+```json
+{"item_id":23}
+```
+
+id与item_id范围1至18446744073709551615；item_id严格为JSON整数，字符串、bool、浮点数、null、数组及多余字段拒绝。数字路径匹配后，0或超过上限返回400；负数、小数和非数字路径不匹配，沿用404。输入、方法与凭证优先级沿用现有管理入口，不新增认证流程。请求体使用既有8192字节应用限制，不单独放宽网关。
+
+成功HTTP 200，返回status=ok及data=完整ChipView，结构沿用本节定义，不新包chip/is_new。芯片项目按目标物品确定或保持原同项目，状态为bound，item_id/item_uid为目标；不改变原登记来源、批次、密钥及写卡/读数记录，也不修改物品身份、资料、状态或更新时间。
+
+| HTTP／code | 触发条件 |
+|---|---|
+| 400 invalid_param | ID类型/范围、必填/未知字段、应用请求体限制、额外查询参数等不符合约定 |
+| 401 unauthorized | 管理员会话无效、撤销、过期或事务内重查失败 |
+| 403 forbidden／csrf_failed | 复用现有访问来源或防冒用校验失败 |
+| 404 not_found | 匹配路由后芯片或目标物品不存在；不匹配路径仍走既有404 |
+| 409 invalid_state | 芯片disabled/lost，或物品archived |
+| 409 already_bound | 芯片已绑定，包括重复绑定同一目标；不覆盖或重复记录成功变更 |
+| 409 project_mismatch | 芯片已有项目与物品不一致 |
+| 409 item_already_has_chip | 目标物品已关联另一芯片，包括对方disabled/lost；或UPDATE时命中绑定唯一约束 |
+| 503 service_unavailable | 数据库、锁等待/死锁、审计或提交故障；沿用脱敏错误编号，不自动重发 |
+
+确认记录均存在后，业务检查依次为芯片状态/已有绑定、物品归档、项目匹配、目标占用；只允许pending且未关联的芯片。物品draft/active/disabled均可绑定，不要求资料完整，不自动启用。先锁物品后锁芯片，两个记录均不存在时先报告目标物品不存在；不要从多个业务错误中随机挑提示。
+
+参数和业务拒绝不保存变更。提交阶段的故障可能导致已保存但未收到回执，500/503/超时不能统一解释为未保存。页面复用GET /api/admin/chips按完整UID查询，核对id、item_id及chip_status；不另开放GET芯片详情，不返回成功后自动调用写卡、所有权或其他业务。
 
 ## 4. 管理物品
 

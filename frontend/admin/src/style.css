@@ -314,3 +314,12 @@ td {
 .sidebar-footer button { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 
 .diagnostic-id { overflow-wrap: anywhere; font-size: 12px; margin-top: 8px; }
+
+.binding-dialog { display: grid; gap: 12px; }
+.binding-dialog fieldset { display: grid; gap: 10px; }
+.binding-dialog input[type="radio"], .binding-dialog input[type="checkbox"] { width: auto; margin-right: 8px; }
+.binding-dialog label { display: block; }
+.binding-candidates { max-height: 260px; }
+.binding-candidates td { max-width: 220px; }
+.binding-confirmation { border: 1px solid var(--color-border, #e5e7eb); border-radius: 10px; padding: 12px; overflow-wrap: anywhere; }
+.dialog-content:has(.binding-dialog) { width: min(860px, calc(100vw - 48px)); max-width: 860px; }

@@ -1,4 +1,4 @@
-"""管理员手动登记与查询芯片；不生成密钥、不写卡、不改绑定。"""
+"""管理员登记、查询和首次绑定芯片；不生成密钥、不写卡或换绑。"""
 
 import re
 
@@ -7,6 +7,7 @@ import pymysql
 
 from core.admin_auth import AuthRequestError, lock_admin_session, request_json
 from core.chip_registry import CHIP_VIEW, chip_view, normalize_uid, save_chip
+from core.chip_binding import bind_chip_item, valid_id
 from core.db import get_database
 
 blueprint = Blueprint("admin_chips", __name__, url_prefix="/api/admin/chips")
@@ -83,3 +84,11 @@ def chips():
     if request.method in {"GET", "HEAD"}:
         return list_chips()
     return register_chip()
+
+
+@blueprint.post("/<int:chip_id>/bind-item")
+def bind_item(chip_id):
+    data = request_json({"item_id"})
+    if not valid_id(chip_id) or not valid_id(data["item_id"]):
+        invalid("芯片和物品ID须为有效正整数。")
+    return jsonify(status="ok", data=bind_chip_item(chip_id, data["item_id"]))
