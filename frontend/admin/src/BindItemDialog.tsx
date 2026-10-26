@@ -96,7 +96,7 @@ export function BindItemDialog({
     setConfirmed(false);
     setPending(false);
     setError("");
-    setQuery({ ...filters, status: "", page });
+    setQuery({ ...filters, status: "", page, unbound_only: true });
   }
   function close() {
     if (inFlight.current) return;
@@ -306,14 +306,14 @@ export function BindItemDialog({
         {!query && <p>输入编号或款式后点击查询，也可直接查询所选项目。</p>}
         {result && !searchError && !loading && (
           <>
-            <p>共 {result.total} 件物品；最终能否绑定以提交时检查为准。</p>
+            <p>共 {result.total} 件未被芯片占用的物品；最终能否绑定以提交时检查为准。</p>
             {result.items.some((item) => !safeId(item.id)) && (
               <p role="alert" className="notice">
                 有物品记录编号超出当前页面可处理范围，该行不能选择，请反馈。
               </p>
             )}
             {result.items.length === 0 ? (
-              <p>没有符合条件的物品。</p>
+              <p>没有符合条件的可绑定物品。</p>
             ) : (
               <div className="table-scroll binding-candidates">
                 <table>

@@ -204,11 +204,17 @@ def create_item():
 
 
 def list_items():
-    allowed = {"page", "page_size", "project", "status", "keyword"}
+    allowed = {"page", "page_size", "project", "status", "keyword", "unbound_only"}
     if set(request.args) - allowed or any(len(request.args.getlist(key)) != 1 for key in request.args):
         invalid("查询参数不符合约定，不能重复或增加字段。")
     page, size = positive_integer("page", 1, 2147483647), positive_integer("page_size", 20, 100)
     conditions, values = [], []
+    unbound_only = request.args.get("unbound_only")
+    if unbound_only is not None and unbound_only not in {"true", "false"}:
+        invalid("unbound_only只能为true或false。")
+    if unbound_only == "true":
+        # 停用和丢失芯片仍保留关联；先过滤再统计/分页，不在前端隐藏一页中的行。
+        conditions.append("NOT EXISTS (SELECT 1 FROM chip occupied WHERE occupied.item_id=i.id)")
     for name, options, column in (("project", PROJECT_PREFIXES, "p.code"), ("status", STATUSES, "i.status")):
         if name in request.args:
             value = request.args[name]

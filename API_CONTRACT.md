@@ -244,7 +244,7 @@ ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）�
 
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
-| 查列表：GET /api/admin/items | page/page_size、project、status、keyword 可选，keyword 查编号/sku_code | 分页 ItemView |
+| 查列表：GET /api/admin/items | page/page_size、project、status、keyword、unbound_only 可选，keyword 查编号/sku_code | 分页 ItemView |
 | 创建：POST /api/admin/items | project、item_uid 必填，sku_code 可空；status 省略或仅 draft | 新 ItemView，profile=null |
 | 查详情：GET /api/admin/items/{id} | 物品 id | ItemView |
 | 改部分字段：PATCH /api/admin/items/{id} | 当前仅status必填：active/disabled；仅服装，不允许sku_code或其他字段 | 更新后 ItemView |
@@ -260,7 +260,7 @@ PUT只整份替换本次五个可编辑字段，省略可选字段清为null/[]�
 
 GET/POST /api/admin/items已由cece验收并合入main。当前GET详情支持两项目、无资料返回profile=null；PATCH状态与PUT资料仅服装，饰品409 project_mismatch，物品不存在404 not_found。PUT最多262144字节；其余入口仍8192字节，未知字段/查询参数及超限400 invalid_param。PUT与PATCH返回HTTP200，复用登录/Origin/CSRF；写事务先重查管理员/会话，再锁物品，保存业务、item.updated_at及审计一起提交。动作item.profile.save或item.status.change，目标为item ID，detail仅项目及状态前后值，不复制正文；DB/审计失败503并回滚。创建的详细编号格式以[PRD物品草稿规则](PRD.md#411-本小步物品草稿创建与列表)为准：去首尾空白后匹配ASCII `FASH-[0-9]{4}-[0-9]{6}` 或 `JEW-[0-9]{4}-[0-9]{6}`，前缀匹配项目；不接受小写或Unicode数字，允许0000/000000，不自动编号。sku_code省略/null/空字符串及纯空白均存NULL，否则须为去首尾空白后最多64字符的文字；这是本字段的明确空字符串例外。status省略或仅draft，拒绝未知字段及网址参数，请求体最多8192字节。创建返回HTTP200的ItemView，profile=null；重复409 already_exists，原记录不变。
 
-列表只接受page/page_size/project/status/keyword，不接受重复参数；page为1–2147483647，page_size为1–100，默认20。project仅fashion/jewelry，status为draft/active/disabled/archived，省略表示全部。keyword原始长度最多128字符，去首尾空白后对编号或sku_code作包含式模糊查询，按数据库既有排序规则匹配，%和_按普通文字处理；按id倒序，空页保留真实total。ItemView的profile从对应项目资料表组装，没有记录为null，不是item表字段；已有资料不能伪报为null。失败统一status=error/code/message，适用第7节错误码，不伪造空列表。
+列表只接受page/page_size/project/status/keyword/unbound_only，不接受重复参数；page为1–2147483647，page_size为1–100，默认20。project仅fashion/jewelry，status为draft/active/disabled/archived，省略表示全部。unbound_only仅接受小写文字true/false，其他值或重复400 invalid_param；省略/false保持普通列表，true排除关联任何芯片的物品，包含其芯片为disabled/lost的情况。先过滤后计算total及分页，不改变既有物品状态筛选或ItemView。绑定弹窗固定传true，普通管理列表不传；查询不预占，最终绑定事务仍重查占用。keyword原始长度最多128字符，去首尾空白后对编号或sku_code作包含式模糊查询，按数据库既有排序规则匹配，%和_按普通文字处理；按id倒序，空页保留真实total。ItemView的profile从对应项目资料表组装，没有记录为null，不是item表字段；已有资料不能伪报为null。失败统一status=error/code/message，适用第7节错误码，不伪造空列表。
 
 第三阶段的下列接口仅服装物品可用，否则 409 project_mismatch；未细化开放前 501 feature_not_ready。完整登录，写请求加防冒用口令；PUT 整份替换，数组最多 100 项：
 

@@ -187,6 +187,27 @@ def select_binding(dialog, number=1):
     dialog.get_by_role('checkbox').check()
 
 
+def test_binding_filters_occupied_before_pagination_without_hiding_main_list(desktop):
+    from tests.test_admin_auth import query
+    dialog=binding_samples(desktop,count=25)
+    for n,status in [(23,'bound'),(24,'disabled'),(25,'lost')]:
+        target=query(desktop.app,'SELECT * FROM item WHERE item_uid=%s',(f'FASH-2026-{880000+n:06d}',))[0]
+        query(desktop.app,'INSERT INTO chip(chip_uid,project_id,item_id,chip_status) VALUES (%s,%s,%s,%s)',(f'04:00:00:00:00:00:{n:02X}',target['project_id'],target['id'],status))
+    dialog.get_by_role('button',name='查询物品',exact=True).click()
+    dialog.get_by_text('共 22 件未被芯片占用的物品；最终能否绑定以提交时检查为准。',exact=True).wait_for()
+    assert dialog.get_by_role('radio').count()==20
+    assert dialog.get_by_role('cell',name='FASH-2026-880025',exact=True).count()==0
+    dialog.get_by_role('button',name='下一页',exact=True).click()
+    dialog.get_by_role('cell',name='FASH-2026-880001',exact=True).wait_for()
+    assert dialog.get_by_role('radio').count()==2
+    dialog.get_by_label('物品关键词',exact=True).fill('FASH-2026-880025')
+    dialog.get_by_role('button',name='查询物品',exact=True).click()
+    dialog.get_by_text('没有符合条件的可绑定物品。',exact=True).wait_for()
+    dialog.get_by_role('button',name='关闭',exact=True).click()
+    desktop.navigate('物品管理')
+    desktop.page.get_by_role('cell',name='FASH-2026-880025',exact=True).wait_for()
+
+
 def test_binding_selection_and_real_save(desktop):
     from tests.test_admin_auth import query
     dialog=binding_samples(desktop)
