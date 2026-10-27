@@ -8,7 +8,8 @@
 |---|---|
 | `frontend/admin/src/main.tsx` | 管理端入口，加载桌面样式和登录门禁 |
 | `frontend/admin/src/LoginPanel.tsx` | 密码/验证码登录、会话恢复与退出，复用既有认证 |
-| `frontend/admin/src/AdminLayout.tsx` | Make桌面框架、工作台真实数量、所有权占位、导航和统一未实现提示 |
+| `frontend/admin/src/AdminLayout.tsx` | Make桌面框架、工作台全局库存/快捷操作、统计组件入口、所有权页占位、导航和统一未实现提示 |
+| `frontend/admin/src/TapStatisticsPanel.tsx`、`TapDailyChart.tsx` | 全项目有效触碰查询、卡片/明细、SVG日柱图及加载/失败状态；不写业务记录 |
 | `frontend/admin/src/RuntimeChecks.tsx` | 真实后端/数据库检查，供登录页、顶栏和系统状态复用 |
 | `frontend/admin/src/ChipPanel.tsx` | 登记弹窗、真实筛选分页及批次/首次来源，不模拟保存 |
 | `frontend/admin/src/ItemPanel.tsx` | 创建弹窗、真实物品列表、筛选分页与资料入口 |
