@@ -7,6 +7,14 @@ RUN --mount=type=secret,id=proxy_ca,required=true NODE_EXTRA_CA_CERTS=/run/secre
 COPY frontend/admin/ ./
 RUN npm run build
 
+# 用户页独立构建及导出，不覆盖管理页的入口和资源。
+FROM node:24.19.0-bookworm-slim AS user_frontend
+WORKDIR /user-src
+COPY frontend/user/package.json frontend/user/package-lock.json ./
+RUN --mount=type=secret,id=proxy_ca,required=true NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca npm ci --strict-ssl=true
+COPY frontend/user/ ./
+RUN npm run build
+
 FROM python:3.12.14-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
@@ -16,6 +24,7 @@ COPY app.py ./
 COPY core/ ./core/
 COPY db/ ./db/
 COPY --from=frontend /src/dist/ ./frontend-dist/
+COPY --from=user_frontend /user-src/dist/ ./frontend-user-dist/
 RUN chmod -R a+rX /app && groupadd --gid 10001 bumbum && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin bumbum && mkdir /app/logs && chown 10001:10001 /app/logs
 USER bumbum:bumbum
 # 仅监听本机；关闭当前未使用的控制socket，避免向只读主目录写文件。

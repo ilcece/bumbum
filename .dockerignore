@@ -14,3 +14,6 @@ dumps
 logs
 *.pem
 *.key
+
+# 独立浏览器检查的截图不进入镜像构建上下文。
+test-results

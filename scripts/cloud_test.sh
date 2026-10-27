@@ -58,6 +58,18 @@ case "${1:-status}" in
         "${compose[@]}" up -d --no-build --wait --wait-timeout 120 backend
         echo '触碰日志升级及后端启动完成；原公开路由保持关闭，后续另行部署用户入口。'
         ;;
+    upgrade-view)
+        # 先构建成功再暂停服务；备份或升级失败时不继续启动，保留原数据供排查。
+        python3 scripts/setup_cloud_test.py --prepare-build-ca
+        "${compose[@]}" build backend
+        "${compose[@]}" up -d --wait --wait-timeout 120 db
+        "${compose[@]}" stop backend
+        bash "$task_root/scripts/cloud_test.sh" backup
+        "${compose[@]}" run --rm --no-deps -T backend python -m core.tap_migration --apply-after-backup
+        "${compose[@]}" run --rm --no-deps -T backend python -m core.view_migration --apply-after-backup
+        "${compose[@]}" up -d --no-build --wait --wait-timeout 120 backend
+        echo '触碰日志和持续查看资格升级完成；用户页面发布及Nginx仍需按手册执行，未自动公开管理入口。'
+        ;;
     admin)
         shift
         "${compose[@]}" exec backend python -m flask --app app:create_app admin "$@"
@@ -67,6 +79,12 @@ case "${1:-status}" in
         "${compose[@]}" cp backend:/app/frontend-dist/. /var/www/bumbum-cloud-test/
         chmod -R a+rX /var/www/bumbum-cloud-test
         echo '本项目测试网页已更新；没有修改其他网站目录。'
+        ;;
+    publish-user-page)
+        install -d -m 0755 /var/www/bumbum-user-test
+        "${compose[@]}" cp backend:/app/frontend-user-dist/. /var/www/bumbum-user-test/
+        chmod -R a+rX /var/www/bumbum-user-test
+        echo '手机用户静态页已发布到独立目录；没有修改管理页或Nginx，HTTPS及公开入口另按手册配置。'
         ;;
     export-qr)
         task_qr="${2:-}"
@@ -101,5 +119,5 @@ case "${1:-status}" in
             exit 1
         fi
         ;;
-    *) echo '可用操作：start、stop、status、logs、upgrade-source、upgrade-tap、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
+    *) echo '可用操作：start、stop、status、logs、upgrade-source、upgrade-tap、upgrade-view、admin、publish-page、publish-user-page、export-qr、backup。' >&2; exit 1 ;;
 esac
