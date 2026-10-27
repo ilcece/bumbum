@@ -26,6 +26,8 @@ def create_app(test_config=None):
     init_chip_keys(app)
     from core.tap_grants import init_tap
     init_tap(app)
+    from core.admin_stats import blueprint as stats_blueprint
+    app.register_blueprint(stats_blueprint)
 
     @app.after_request
     def prevent_cache(response):

@@ -328,3 +328,44 @@ td {
 .chip-keys-dialog input[type="checkbox"] { width: auto; margin-right: 8px; }
 .chip-keys-dialog section { display: grid; gap: 10px; }
 .dialog-content:has(.chip-keys-dialog) { width: min(760px, calc(100vw - 48px)); max-width: 760px; }
+
+
+/* 工作台统计只改本区域，保留原有body禁止滚动和页面内部滚动。 */
+.overview-inventory-title { font-size: 16px; margin: 0 0 12px; }
+.overview-inventory.metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.overview-actions { margin: 20px 0; }
+.tap-statistics { padding: 24px; margin: 20px 0; min-width: 0; overflow: visible; }
+.tap-statistics .panel-head { padding: 0 0 16px; }
+.tap-statistics h3 { font-size: 15px; margin: 24px 0 12px; }
+.tap-statistics fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.tap-filter-row, .tap-keyword-row { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+.tap-filter-field { display: grid; gap: 6px; min-width: 180px; }
+.tap-keyword-row label { min-width: 240px; flex: 1; }
+.tap-statistics label { display: grid; gap: 6px; font-size: 13px; }
+.tap-statistics input, .tap-statistics select { width: 100%; }
+.tap-statistics button:disabled { cursor: default; opacity: .55; }
+.tap-statistics .action:focus-visible, .tap-chart-scroll:focus-visible { outline: 2px solid var(--color-accent, #2563eb); outline-offset: 3px; }
+.tap-pending { color: #92400e; font-size: 13px; margin: 10px 0; }
+.tap-applied { font-size: 13px; margin: 16px 0; color: var(--color-ink-soft, #4b5563); }
+.tap-applied p { margin: 5px 0; }
+.tap-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+.tap-summary article { border: 1px solid var(--color-border, #e5e7eb); border-radius: 12px; padding: 20px; }
+.tap-summary span { color: var(--color-ink-soft, #4b5563); font-size: 13px; }
+.tap-summary output { display: block; margin-top: 10px; font-size: 30px; font-weight: 600; }
+.tap-chart { margin: 20px 0; }
+.tap-chart-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
+.tap-chart-scroll svg { min-width: 100%; display: block; }
+.tap-chart-scroll text { fill: var(--color-ink-soft, #4b5563); font-size: 11px; }
+.tap-chart-axis { stroke: #d1d5db; }
+.tap-chart-bar { fill: #80a7f8; }
+.tap-chart-bar.selected { fill: #245eea; }
+.tap-chart-readout { min-height: 22px; color: var(--color-ink-soft, #4b5563); font-size: 13px; }
+.tap-table-scroll { overflow-x: auto; margin-top: 16px; }
+.tap-statistics table { width: 100%; min-width: 680px; }
+.tap-statistics td { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.tap-statistics td:nth-child(2) { min-width: 170px; }
+.tap-statistics .muted-text { color: var(--color-ink-soft, #4b5563); font-size: 12px; line-height: 1.6; }
+.tap-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; font-size: 13px; }
+.tap-initial { padding: 24px 0; color: var(--color-ink-soft, #4b5563); }
+.overview-actions .quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 16px 24px; }
+.overview-inventory .muted-text { color: var(--color-ink-soft, #4b5563); }

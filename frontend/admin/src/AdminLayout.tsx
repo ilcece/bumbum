@@ -21,6 +21,7 @@ import {
   Notice,
 } from "./AdminUI";
 import { RuntimeChecks } from "./RuntimeChecks";
+import { TapStatisticsPanel } from "./TapStatisticsPanel";
 import {
   Dialog,
   DialogContent,
@@ -72,7 +73,12 @@ function Overview({
           if (error instanceof ApiError && error.status === 401)
             onSessionExpired();
           else {
-            if (error instanceof ApiError && error.errorId) setErrorIds(current => { const next = [...current]; next[index] = error.errorId; return next; });
+            if (error instanceof ApiError && error.errorId)
+              setErrorIds((current) => {
+                const next = [...current];
+                next[index] = error.errorId;
+                return next;
+              });
             setValues((current) =>
               current.map((value, i) => (i === index ? "failed" : value)),
             );
@@ -87,20 +93,20 @@ function Overview({
     { label: "芯片总数", icon: Link2 },
     { label: "待绑定芯片", icon: ShieldCheck },
     { label: "数字物品", icon: Box },
-    { label: "有效所有权", icon: Users },
   ];
   return (
     <>
       <PageHeading
         title="你好，cece"
-        subtitle="查看真实库存数量，继续处理芯片与物品。"
+        subtitle="查看全局库存和有效触碰情况，继续处理芯片与物品。"
         action={
           <button className="action" onClick={() => setRevision((v) => v + 1)}>
             刷新概况
           </button>
         }
       />
-      <section className="metrics">
+      <h2 className="overview-inventory-title">全局库存概况</h2>
+      <section className="metrics overview-inventory">
         {metrics.map(({ label, icon: Icon }, i) => (
           <article key={label} className="metric-card">
             <div className="metric-top">
@@ -111,30 +117,21 @@ function Overview({
             </div>
             <div className="metric-bottom">
               <strong>
-                {i === 3
-                  ? "—"
-                  : values[i] === null
-                    ? "…"
-                    : values[i] === "failed"
-                      ? "读取失败"
-                      : values[i]}
+                {values[i] === null
+                  ? "…"
+                  : values[i] === "failed"
+                    ? "读取失败"
+                    : values[i]}
               </strong>
-              <span className="muted-text">
-                {i === 3 ? "暂未提供" : "实时查询"}
-              </span>
+              <span className="muted-text">全局库存，不受触碰筛选影响</span>
             </div>
-            {errorIds[i] && <p className="diagnostic-id">错误编号：{errorIds[i]}</p>}
+            {errorIds[i] && (
+              <p className="diagnostic-id">错误编号：{errorIds[i]}</p>
+            )}
           </article>
         ))}
       </section>
-      <section className="dashboard-grid">
-        <div className="panel">
-          <div className="panel-head">
-            <h2>入库趋势</h2>
-            <UnavailableButton>查看详情</UnavailableButton>
-          </div>
-          <div className="placeholder-chart">当前版本暂未提供趋势统计</div>
-        </div>
+      <section className="overview-actions">
         <div className="panel">
           <div className="panel-head">
             <h2>快捷操作</h2>
@@ -155,6 +152,7 @@ function Overview({
           </div>
         </div>
       </section>
+      <TapStatisticsPanel onSessionExpired={onSessionExpired} />
       <Notice>
         物品启用、芯片绑定、写卡完成与真实防伪通过是不同结果，须分别验证。
       </Notice>

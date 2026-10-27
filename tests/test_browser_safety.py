@@ -27,3 +27,21 @@ def test_browser_flag_requires_isolated_database():
         cwd=Path(__file__).resolve().parents[1], capture_output=True, encoding='utf-8')
     assert result.returncode == 4
     assert '必须同时提供--auth-db' in result.stderr
+
+
+def test_stats_browser_collection_without_optional_playwright():
+    code = """
+import importlib.abc
+import sys
+class NoBrowserPackage(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'playwright' or fullname.startswith('playwright.'):
+            raise ModuleNotFoundError('本次隔离检查故意不提供浏览器依赖')
+sys.meta_path.insert(0, NoBrowserPackage())
+import pytest
+raise SystemExit(pytest.main(['-c', 'pytest.ini', 'tests/test_tap_stats_browser.py', '--collect-only', '-q']))
+"""
+    result = subprocess.run([sys.executable, '-X', 'utf8', '-c', code],
+        cwd=Path(__file__).resolve().parents[1], capture_output=True, encoding='utf-8', timeout=30)
+    assert result.returncode == 0, '仅安装基础依赖时也必须能够收集统计浏览器测试'
+    assert 'tests collected' in result.stdout

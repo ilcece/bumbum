@@ -49,7 +49,7 @@
 
 ### 0.4 当前能做到哪一步
 
-当前已实现：POST /api/tap/verify与GET /api/fashion/items/{id}/detail、两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
+当前已实现：GET /api/admin/stats/taps、POST /api/tap/verify与GET /api/fashion/items/{id}/detail、两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
 
 ### 0.5 当前已实现的运行检查
 
@@ -87,7 +87,7 @@
 
 ### 1.2 POST /api/tap/verify：核验这次触碰（第二阶段，待实测）
 
-本小步产品及交互规则见[PRD第4.2.1节](PRD.md#421-本小步触碰验证后端)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](PRD.md#422-工作台有效触碰统计)独立交付；工作台统计查询、饰品独立详情、短信与认领接口仍未接入。
+本小步产品及交互规则见[PRD第4.2.1节](PRD.md#421-本小步触碰验证后端)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](PRD.md#422-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立详情、短信与认领接口仍未接入。
 
 只提交picc_data（加密芯片信息，32位十六进制）、cmac（防伪码，16位十六进制）；不增加项目、UID、版本、查找码或item_uid。现有测试卡与配置确认已核对该编码，用户验证入口按附录第15节实现，后台配置核验不替代用户验证、真实卡或公网验收：
 ```json
@@ -330,3 +330,54 @@ HTTP 状态码是这次请求的大类结果，code 是具体原因，message �
 
 
 管理接口共同使用第 0 节检查和上述 400/401/403/404/409/429/500/503；按实际原因返回，不泄露程序堆栈、SQL 或秘密。
+
+<a name="8-工作台有效触碰统计技术方案待审核未实现"></a>
+
+## 8. 工作台有效触碰统计
+
+本节定义已接入的查询契约，人工验收及分支状态以TODO为准；页面行为见[PRD第4.2.2节](PRD.md#422-工作台有效触碰统计)，统计与实现细节见[技术附录第16节](docs/IMPLEMENTATION_DETAILS.md#16-工作台有效触碰统计技术方案待审核)。
+
+### 8.1 GET /api/admin/stats/taps
+
+完整管理员登录，沿用管理Origin、Cookie及会话检查。只读GET不要求写操作CSRF，不需要tap_token，也不因查询新增审计或触碰次数。只接受下列参数，未知或重复参数均400 invalid_param：
+
+| 参数 | 规则 |
+|---|---|
+| project | 省略为全部；仅fashion/jewelry，按code查项目，不接收数字ID、all或空字符串 |
+| range | 省略为7d；仅7d、30d、all |
+| q | 省略或空白为无关键词；原始文字最多128字符，再去首尾空白；仅筛选明细的当前物品编号或名称，百分号和下划线按普通文字匹配 |
+| page | 默认1；1–2147483647的十进制正整数，不接受符号、小数或Unicode数字 |
+| page_size | 默认20；1–100的十进制正整数；本期页面固定20，不提供调整入口 |
+
+HTTP200 data的结构如下。示例为虚构的同一天累计数据，不是真实统计：
+
+```json
+{
+  "status": "ok",
+  "data": {
+    "filters": {"project": "fashion", "range": "all", "q": ""},
+    "timezone": "Asia/Shanghai",
+    "as_of": "2026-10-27T04:00:00.000000Z",
+    "period": {"from_date": "2026-10-27", "to_date": "2026-10-27"},
+    "first_recorded_at": "2026-10-27T03:00:00Z",
+    "summary": {"valid_taps": 2, "touched_items": 1},
+    "daily": [{"date": "2026-10-27", "valid_taps": 2}],
+    "items": [{"project": "fashion", "item_uid": "FASH-2026-000001", "name": "示例外套", "valid_taps": 2, "last_tap_at": "2026-10-27T03:05:00Z"}],
+    "total_items": 1,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 1,
+    "page_adjusted": false
+  }
+}
+```
+
+- filters回显服务器规范化的实际条件，project为null表示全部；as_of为本次查询截点，完整时间均为UTC Z，页面统一转北京时间。period的日期及daily.date本身已是北京时间日期，不当作浏览器本地时区再次换日。
+- 7d/30d含今天，分别返回7/30个按日期升序、缺日补0的daily点。all从所选项目首条有效记录所在日到今天；从未有记录时from_date=null、daily=[]，to_date仍为查询当天。
+- first_recorded_at是所选项目在本次快照内、截至as_of的首条有效记录时间，不受range或q影响；从未有记录为null，不称系统上线时间或交付时间。
+- summary和daily只按project/range统计，不受q或分页影响。items只含本范围发生过有效触碰的物品；名称来自当前对应项目资料，没有或空白为null，前端显示“未填写”。不返回内部物品ID、芯片UID、读取计数器、单次动态参数、密钥、手机号或凭证。
+- items按valid_taps倒序、last_tap_at倒序、item_uid升序；以发生时项目/物品聚合，停用、归档不排除历史。q只影响items及total_items/total_pages，不因关键词无结果把summary清零。
+- total_items是关键词筛选后的物品数，不是事件次数。page超出实际末页时，在同一次快照内调整到末页并设page_adjusted=true，不要求前端再发请求。无明细时items=[]、total_items=0、total_pages=0、page=1；请求原本不是1时page_adjusted=true。
+- 各次数、条数和分页值是非负JSON整数，前端必须检查为安全整数再显示，不能四舍五入或用精度丢失的数字充当真实统计。响应各模块必须同时有效，缺字段或格式不符按异常响应处理，不用默认0掩盖。
+
+无登录/会话失效401 unauthorized；不允许的管理来源403 forbidden；参数错误400 invalid_param；数据库不可用、旧库日志结构未就绪503 service_unavailable，故障按已有脱敏规则附error_id；程序错误500 internal_error。失败不返回部分成功数据，不能转成HTTP200空统计。统一Cache-Control:no-store，GET可人工安全重试，不扩大现有跨域来源。
