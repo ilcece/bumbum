@@ -11,6 +11,44 @@ from core.db import chip_project_schema, get_database
 from scripts import migrate_local as upgrade
 
 
+def test_windows_default_backup_uses_private_local_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(upgrade, "WINDOWS", True)
+    local = tmp_path / "用户本地 带空格"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
+    assert upgrade.backup_directory() == local / "Bumbum" / "backups"
+    assert not local.exists()
+
+
+@pytest.mark.parametrize("local", [None, "", "  ", "relative/path"])
+def test_windows_missing_private_directory_requires_explicit_choice(tmp_path, monkeypatch, local):
+    monkeypatch.setattr(upgrade, "WINDOWS", True)
+    monkeypatch.delenv("LOCALAPPDATA", raising=False)
+    if local is not None:
+        monkeypatch.setenv("LOCALAPPDATA", local)
+    with pytest.raises(upgrade.MigrationError, match="--backup-dir"):
+        upgrade.backup_directory()
+    explicit = tmp_path / "本人选择的备份"
+    assert upgrade.backup_directory(explicit) == explicit.resolve()
+    assert not explicit.exists()
+
+
+@pytest.mark.parametrize("platform", ["linux", "darwin"])
+def test_nonwindows_default_backup_keeps_repository_directory(tmp_path, monkeypatch, platform):
+    monkeypatch.setattr(upgrade, "WINDOWS", platform == "win32")
+    monkeypatch.setattr(upgrade, "ROOT", tmp_path / "repository")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "unused"))
+    assert upgrade.backup_directory() == upgrade.ROOT / "backups"
+
+
+@pytest.mark.parametrize("platform", ["win32", "linux", "darwin"])
+def test_explicit_backup_directory_takes_precedence(tmp_path, monkeypatch, platform):
+    monkeypatch.setattr(upgrade, "WINDOWS", platform == "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "unused"))
+    monkeypatch.chdir(tmp_path)
+    assert upgrade.backup_directory(Path("私有备份 带空格")) == tmp_path / "私有备份 带空格"
+    assert not list(tmp_path.iterdir())
+
+
 @pytest.mark.parametrize("changes", [{"DB_HOST": "db.example.com"}, {"APP_ENV": "production"}, {"DB_PORT": 3306}, {"DB_USER": "root"}, {"DB_NAME": "production"}])
 def test_migration_refuses_nonlocal_configuration(changes):
     with pytest.raises(upgrade.MigrationError, match="本机测试库"):
@@ -54,11 +92,15 @@ def test_backup_permission_failure_is_actionable_and_never_exports(tmp_path, mon
 
 @pytest.mark.auth_database
 @pytest.mark.parametrize("alternate", [False, True])
-def test_cli_backup_directory_preserves_backup_before_upgrade(auth_app, admin_account, old_schema, auth_database, tmp_path, monkeypatch, alternate):
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_cli_backup_directory_preserves_backup_before_upgrade(auth_app, admin_account, old_schema, auth_database, tmp_path, monkeypatch, alternate, platform):
     import app as app_module
     # CLI仍调用真实备份与迁移；仅将目标限定到测试夹具的新建临时库。
     monkeypatch.setattr(app_module, "create_app", lambda: auth_app)
     monkeypatch.setattr(upgrade, "ROOT", tmp_path / "repository")
+    monkeypatch.setattr(upgrade, "WINDOWS", platform == "win32")
+    local = tmp_path / "用户本地目录"
+    monkeypatch.setenv("LOCALAPPDATA", str(local))
     monkeypatch.setattr(upgrade, "validate_local_config", lambda config: None)
     command, container = auth_database["TEST_DOCKER_COMMAND"], auth_database["TEST_CONTAINER"]
     monkeypatch.setattr(upgrade, "local_container", lambda: (command, container))
@@ -68,7 +110,8 @@ def test_cli_backup_directory_preserves_backup_before_upgrade(auth_app, admin_ac
             sql = "SELECT 'bumbum_dev@localhost',@@server_uuid"
         return execute(cursor, sql, args)
     monkeypatch.setattr(pymysql.cursors.Cursor, "execute", current_account)
-    folder = tmp_path / "私有备份 带空格" if alternate else upgrade.ROOT / "backups"
+    default = local / "Bumbum" / "backups" if platform == "win32" else upgrade.ROOT / "backups"
+    folder = tmp_path / "私有备份 带空格" if alternate else default
     arguments = ["migrate_local.py", "--apply"] + (["--backup-dir", str(folder)] if alternate else [])
     monkeypatch.setattr(upgrade.sys, "argv", arguments)
     assert upgrade.main() == 0
@@ -76,7 +119,7 @@ def test_cli_backup_directory_preserves_backup_before_upgrade(auth_app, admin_ac
     assert len(backups) == 1 and not list(folder.glob("*.partial"))
     assert b"-- Dump completed on" in backups[0].read_bytes()[-512:]
     assert schema(old_schema) == "optional"
-    if alternate:
+    if alternate or platform == "win32":
         assert not (upgrade.ROOT / "backups").exists()
     # 重跑已完成升级不创建多余备份。
     assert upgrade.main() == 0

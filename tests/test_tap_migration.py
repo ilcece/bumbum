@@ -136,10 +136,13 @@ def test_partial_or_tampered_structure_not_reported_ready(auth_app, old_taps, ch
 
 
 @pytest.mark.parametrize('apply', [False, True])
-def test_local_cli_uses_correct_schema_and_private_backup(auth_app, old_taps, auth_database, tmp_path, monkeypatch, apply):
+@pytest.mark.parametrize('alternate', [False, True])
+def test_local_cli_uses_correct_schema_and_private_backup(auth_app, old_taps, auth_database, tmp_path, monkeypatch, apply, alternate):
     import app as app_module
     from scripts import migrate_local as cli
     monkeypatch.setattr(app_module, 'create_app', lambda: auth_app)
+    monkeypatch.setattr(cli, 'WINDOWS', True)
+    monkeypatch.setenv('LOCALAPPDATA', str(tmp_path/'用户本地目录'))
     monkeypatch.setattr(cli, 'validate_local_config', lambda config: None)
     monkeypatch.setattr(cli, 'local_container', lambda: (auth_database['TEST_DOCKER_COMMAND'], auth_database['TEST_CONTAINER']) if apply else pytest.fail('只检查不能检查备份容器或修改结构'))
     execute = pymysql.cursors.Cursor.execute
@@ -148,8 +151,9 @@ def test_local_cli_uses_correct_schema_and_private_backup(auth_app, old_taps, au
             sql = "SELECT 'bumbum_dev@localhost',@@server_uuid"
         return execute(cursor, sql, args)
     monkeypatch.setattr(pymysql.cursors.Cursor, 'execute', test_account)
-    folder = tmp_path/'私有升级备份'
-    arguments = ['migrate_local.py','--tap-events','--backup-dir',str(folder)]
+    folder = tmp_path/'私有升级备份' if alternate else tmp_path/'用户本地目录'/'Bumbum'/'backups'
+    arguments = ['migrate_local.py','--tap-events']
+    if alternate: arguments.extend(['--backup-dir',str(folder)])
     if apply: arguments.append('--apply')
     monkeypatch.setattr(cli.sys, 'argv', arguments)
     assert cli.main() == 0
