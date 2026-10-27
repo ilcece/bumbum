@@ -76,7 +76,8 @@ def database_ready():
             return ([row[0] for row in cursor.fetchall()] == ["fashion", "jewelry"]
                     and chip_project_schema(cursor) == "optional"
                     and registration_source_schema(cursor) == "ready"
-                    and tap_event_schema(cursor) == "ready")
+                    and tap_event_schema(cursor) == "ready"
+                    and view_grant_schema(cursor) == "ready")
     except pymysql.MySQLError as error:
         record_failure(error)
         return False
@@ -159,3 +160,26 @@ def tap_event_schema(cursor):
     check = cursor.fetchone()
     clause = "((verify_result<>'pass') OR ((chip_id IS NOT NULL) AND (item_id IS NOT NULL) AND (project_id IS NOT NULL) AND (chip_uid IS NOT NULL) AND (scan_counter IS NOT NULL) AND (scan_counter<16777215)))"
     return 'ready' if check and check[1] == 'YES' and compact(check[0]) == compact(clause) else 'unknown'
+
+
+def view_grant_schema(cursor):
+    """只认原短时结构或新增只读类型的完整结构，不猜测未知字段和约束。"""
+    cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tap_grant' ORDER BY ORDINAL_POSITION")
+    columns = cursor.fetchall()
+    expected = [('id','bigint unsigned','NO','auto_increment'), ('token_hash','binary(32)','NO',''),
+                ('chip_id','bigint unsigned','NO',''), ('item_id','bigint unsigned','NO',''),
+                ('allowed_action',"enum('read','bind','view')",'NO',''), ('expires_at','datetime','NO',''),
+                ('consumed_at','datetime','YES',''), ('created_at','datetime','NO','DEFAULT_GENERATED')]
+    if len(columns) != len(expected):
+        return 'unknown'
+    action = columns[4][1]
+    expected[4] = ('allowed_action', action, 'NO', '')
+    if list(columns) != expected or action not in {"enum('read','bind')", "enum('read','bind','view')"}:
+        return 'unknown'
+    cursor.execute("SELECT INDEX_NAME,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tap_grant'")
+    if set(cursor.fetchall()) != {('PRIMARY',0,'id',1),('uk_tap_token',0,'token_hash',1),('idx_tap_expiry',1,'expires_at',1),('fk_tap_chip',1,'chip_id',1),('fk_tap_item',1,'item_id',1)}:
+        return 'unknown'
+    cursor.execute("SELECT CONSTRAINT_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tap_grant' AND REFERENCED_TABLE_NAME IS NOT NULL")
+    if set(cursor.fetchall()) != {('fk_tap_chip','chip_id','chip','id'),('fk_tap_item','item_id','item','id')}:
+        return 'unknown'
+    return 'ready' if action == "enum('read','bind','view')" else 'missing'

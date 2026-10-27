@@ -403,3 +403,53 @@ Remove-Variable tapBody, tapResult, tapAgain, tapDetail, tapUrl, tapSecret, tapU
 ```
 
 macOS/Linux使用相同API契约；本轮自动测试负责接口、并发和故障验证，不要求把真实链接写入curl命令历史。缺少对应项目实卡时只记录未验证，不把服装结果推广到饰品。
+
+## 12. 已有测试库升级及手机资料页本机验收
+
+本节用于交付的手机页功能分支。本机预览与手机公网是两套验收：电脑浏览器打开127.0.0.1可以验证页面和本地数据，手机打开同一地址只会访问手机自身，不会连接电脑。实际手机移动网络访问按[云测试第10节](CLOUD_TEST_DEPLOYMENT.md#10-手机用户站点公开部署与验收)另行授权部署。
+
+### 12.1 先检查004，不重建数据库
+
+先停止前后端，保留Docker和数据库运行。在项目根目录执行；已有003完成就不重复升级，新建空库已含004也无需升级。第11节的触碰日志与本节是不同升级，两项都应就绪；不重新运行schema，不清空卷，不重配卡。
+
+| 操作 | macOS / Linux | Windows PowerShell |
+|---|---|---|
+| 只检查004 | `.venv/bin/python scripts/migrate_local.py --view-grants` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --view-grants` |
+| 提示需要升级后，先备份再升级 | `.venv/bin/python scripts/migrate_local.py --view-grants --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --view-grants --apply` |
+
+成功应先显示完整备份路径，再显示升级完成；重新只读检查应显示“持续查看资格已就绪”。备份位置及目录问题统一见[第8.1节](#81-windows备份目录无权限时)，Windows默认用户私有目录，显式--backup-dir仍优先。任何失败停在当前步骤、保留备份，不通过恢复整库或删除凭证解决。原read/bind、账号、资料及触碰记录保留，新view类型不能用于认领。
+
+### 12.2 启动及本机页面
+
+Windows继续双击原“启动项目”，更新依赖后启动后端5000、管理页5174、用户页5175；停止流程和数据库保留边界按原第3、4节，不用关闭浏览器代替停止进程。运行检查全部通过后，管理页仍为http://localhost:5174，用户页为http://127.0.0.1:5175/tap。原查看日志入口现在包含backend.log、frontend.log和user.log，只显示末尾，不读取.env。
+
+macOS/Linux保留后端及管理页启动方式，另在项目根目录安装并启动用户页：
+
+```bash
+npm ci --prefix frontend/user
+npm run dev --prefix frontend/user
+```
+
+已有.env没有PUBLIC_ORIGIN时，开发环境默认http://127.0.0.1:5175；若曾设置此项，核对为该值，不要混用localhost或管理端来源。不要覆盖原.env或密码。用户页固定同源/api，不需要配置管理Cookie或将其加入管理CORS。直接进入/tap显示碰卡引导，未取得资格不展示资料，这是预期。
+
+### 12.3 将真实卡新读数交给本机网页
+
+前提：本机对应物品已启用，芯片绑定和目标配置已核验；用系统通知取得一条全新链接，不重复使用后台配置核验或第11节已经验证过的读数。这一步只打开本机网页，不访问原链接的公网服务，也不向卡写入。公网链路已接通后应按选定环境单独验收，不把两套数据库次数混在一起。
+
+在项目根目录PowerShell粘贴以下命令，提示后再输入链接；输入不回显，不把原始链接写进命令历史。只在浏览器中短暂作为本机页面参数，页面立即移除参数；不要截图地址栏中的原始链接或把它发聊天。
+
+```powershell
+$mobileSecret = Read-Host '粘贴这次新触碰链接（输入隐藏）' -AsSecureString
+$mobileText = [System.Net.NetworkCredential]::new('', $mobileSecret).Password
+$mobileUri = [Uri]$mobileText
+if ($mobileUri.Scheme -ne 'https' -or $mobileUri.Host -ne 'nfc.bumbum.cc' -or $mobileUri.AbsolutePath -ne '/tap' -or $mobileUri.UserInfo -or $mobileUri.Fragment) { throw '链接地址不符合目标配置，未打开。' }
+Add-Type -AssemblyName System.Web
+$mobileQuery = [System.Web.HttpUtility]::ParseQueryString($mobileUri.Query)
+if ($mobileQuery.AllKeys.Count -ne 2 -or $mobileQuery.GetValues('picc_data').Count -ne 1 -or $mobileQuery.GetValues('cmac').Count -ne 1 -or $mobileQuery['picc_data'] -notmatch '^[0-9a-fA-F]{32}$' -or $mobileQuery['cmac'] -notmatch '^[0-9a-fA-F]{16}$') { throw '触碰参数缺失、重复、多余或格式错误，未打开。' }
+Start-Process -FilePath ('http://127.0.0.1:5175/tap' + $mobileUri.Query)
+Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction SilentlyContinue
+```
+
+应自动验证并显示服装资料，地址变为/tap/items/数字ID，无密钥或凭证。刷新无需再次碰卡，只查最新资料；超过五分钟仍可继续查询。页面前台每60秒自动更新、返回前台立即更新、后台暂停；失败标明上次内容，不能假装最新；仅新有效验证计数。通过原后台修改名称或停用该物品后，用户页下一次查询应显示修改或不可查看，测试后恢复状态使用原已验收入口，不直接改库。
+
+持续查看以最后一次成功查询计算24小时，成功查询续期；Cookie被浏览器清理可更早失效，不承诺跨设备或持有人身份。测试24小时边界由AI可控时钟覆盖，不要求cece等一天。图片及五组验收见[真实卡手册第6节](NFC_CARD_VERIFICATION.md#6-手机服装资料页与自动更新验收)，软件通过不等于手机公网通过。

@@ -39,7 +39,7 @@ class NoBrowserPackage(importlib.abc.MetaPathFinder):
             raise ModuleNotFoundError('本次隔离检查故意不提供浏览器依赖')
 sys.meta_path.insert(0, NoBrowserPackage())
 import pytest
-raise SystemExit(pytest.main(['-c', 'pytest.ini', 'tests/test_tap_stats_browser.py', '--collect-only', '-q']))
+raise SystemExit(pytest.main(['-c', 'pytest.ini', 'tests/test_tap_stats_browser.py', 'tests/test_mobile_browser.py', '--collect-only', '-q']))
 """
     result = subprocess.run([sys.executable, '-X', 'utf8', '-c', code],
         cwd=Path(__file__).resolve().parents[1], capture_output=True, encoding='utf-8', timeout=30)

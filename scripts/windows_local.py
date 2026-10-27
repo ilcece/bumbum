@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / ".local-run"
 PYTHON = ROOT / ".venv/Scripts/python.exe"
 URL = "http://localhost:5174"
+USER_URL = "http://127.0.0.1:5175"
 OPENER = build_opener(ProxyHandler({}))
 # 仅供双击入口识别“无需重复启动”，最终对用户返回成功，不保留多余窗口。
 ALREADY_RUNNING = 10
@@ -162,9 +163,12 @@ def dependencies(node, npm):
         ("frontend", ["frontend/admin/package.json", "frontend/admin/package-lock.json"],
          [node, npm, "--prefix", "frontend/admin", "ci", "--no-audit", "--no-fund"],
          [node, npm, "--prefix", "frontend/admin", "ls", "--depth=0"]),
+        ("user_frontend", ["frontend/user/package.json", "frontend/user/package-lock.json"],
+         [node, npm, "--prefix", "frontend/user", "ci", "--no-audit", "--no-fund"],
+         [node, npm, "--prefix", "frontend/user", "ls", "--depth=0"]),
     ):
         digest = hashlib.sha256(identity.encode())
-        digest.update((command([node, "--version"], "检查 Node.js") if name == "frontend" else sys.version).encode())
+        digest.update((command([node, "--version"], "检查 Node.js") if name != "python" else sys.version).encode())
         for file in files:
             digest.update((ROOT / file).read_bytes())
         fingerprint = digest.hexdigest()
@@ -201,6 +205,9 @@ def validate_config():
         matches = actual in target if isinstance(target, set) else actual == target
         if not matches:
             raise LocalError(f"{key} 不符合本机工具约定；保留现有值，让 AI 按本地说明排查。")
+    public_origin = values.get("PUBLIC_ORIGIN", os.environ.get("PUBLIC_ORIGIN", USER_URL))
+    if public_origin != USER_URL:
+        raise LocalError("PUBLIC_ORIGIN不符合本机用户网页约定；应为http://127.0.0.1:5175，保留其他配置后按本地手册调整。")
     for key in ("DB_PASSWORD", "DEV_DB_ROOT_PASSWORD"):
         if not values.get(key):
             raise LocalError(f"缺少 {key}；已有数据库请保留原配置，不重新生成密码。")
@@ -314,8 +321,11 @@ def ready():
             with OPENER.open(URL + "/api/" + path, timeout=2) as response:
                 if json.load(response) != {"status": "ok", "data": data}:
                     return False
-        with OPENER.open(URL, timeout=2) as response:
-            return response.status == 200 and b"/@vite/client" in response.read(65536)
+        for address in (URL, USER_URL + "/tap"):
+            with OPENER.open(address, timeout=2) as response:
+                if response.status != 200 or b"/@vite/client" not in response.read(65536):
+                    return False
+        return True
     except (OSError, URLError, ValueError):
         return False
 
@@ -332,21 +342,24 @@ def serve(node, version):
     write_json(RUNTIME / "services.json", state)
     job = WindowsJob()
     try:
-        with (RUNTIME / "backend.log").open("wb") as backend, (RUNTIME / "frontend.log").open("wb") as frontend:
+        with (RUNTIME / "backend.log").open("wb") as backend, (RUNTIME / "frontend.log").open("wb") as frontend, (RUNTIME / "user.log").open("wb") as user:
             job.launch([PYTHON, "-X", "utf8", "-u", "-m", "flask", "--app", "app:create_app", "--no-debug",
                         "run", "--host", "127.0.0.1", "--port", "5000", "--no-reload"], ROOT, backend)
             job.launch([node, ROOT / "frontend/admin/node_modules/vite/bin/vite.js",
                         "--host", "127.0.0.1", "--port", "5174", "--strictPort"], ROOT / "frontend/admin", frontend)
+            job.launch([node, ROOT / "frontend/user/node_modules/vite/bin/vite.js",
+                        "--host", "127.0.0.1", "--port", "5175", "--strictPort"], ROOT / "frontend/user", user)
             deadline = time.monotonic() + 60
             while not ready():
                 if stop_requested(run_id):
                     return
                 if not job.healthy() or time.monotonic() >= deadline:
-                    raise LocalError("后端或网页未能启动。旧库更新后若health通过但ready为503，先按docs/LOCAL_DEVELOPMENT.md第11节检查触碰日志升级，不要重建库。其他情况查看.local-run中的backend.log / frontend.log；分享前隐藏个人信息。")
+                    raise LocalError("后端或网页未能启动。旧库更新后若health通过但ready为503，先按docs/LOCAL_DEVELOPMENT.md第11及12节检查触碰日志与持续查看资格升级，不要重建库。其他情况查看.local-run中的backend.log / frontend.log / user.log；分享前隐藏个人信息。")
                 time.sleep(1)
             state["phase"] = "ready"
             write_json(RUNTIME / "services.json", state)
             print("[5/5] 检查通过，正在打开 " + URL, flush=True)
+            print("用户页本机预览：" + USER_URL + "/tap；手机公网访问需另行部署。", flush=True)
             webbrowser.open(URL)
             print("保持此窗口运行。验收结束双击停止项目，或在此按 Ctrl+C；关闭浏览器不会停止项目。", flush=True)
             while not stop_requested(run_id):
@@ -387,6 +400,7 @@ def start():
             node, npm, docker = tools()
             assert_port_free(5000)
             assert_port_free(5174)
+            assert_port_free(5175)
             if not PYTHON.is_file() or not (ROOT / ".env").is_file():
                 raise LocalError("请先双击首次准备，再双击启动项目。")
             print("[2/5] 检查依赖；有变化时更新", flush=True)

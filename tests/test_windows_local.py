@@ -124,7 +124,7 @@ def test_failed_stop_keeps_ownership_to_retry(workspace, monkeypatch):
 def test_unchanged_dependencies_skip_install_but_changed_or_missing_ones_update(workspace, monkeypatch):
     local.PYTHON.parent.mkdir(parents=True)
     local.PYTHON.touch()
-    for path in ("requirements.in", "requirements.txt", "requirements-dev.in", "requirements-dev.txt", "frontend/admin/package.json", "frontend/admin/package-lock.json"):
+    for path in ("requirements.in", "requirements.txt", "requirements-dev.in", "requirements-dev.txt", "frontend/admin/package.json", "frontend/admin/package-lock.json", "frontend/user/package.json", "frontend/user/package-lock.json"):
         target = workspace / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("first", encoding="utf-8")
@@ -145,7 +145,7 @@ def test_unchanged_dependencies_skip_install_but_changed_or_missing_ones_update(
     monkeypatch.setattr(local, "command", invoke)
     installs = lambda: [args for args in calls if "install" in args or "ci" in args]
     local.dependencies("node", "npm-cli.js")
-    assert len(installs()) == 2
+    assert len(installs()) == 3
     calls.clear()
     local.dependencies("node", "npm-cli.js")
     assert installs() == []
@@ -380,7 +380,7 @@ def test_service_lifecycle_closes_only_owned_job_and_cleans_state(workspace, mon
         with pytest.raises(local.LocalError, match="未能启动"):
             local.serve("node", {"branch": "test", "revision": "abc"})
         assert not any(event[0] == "open" for event in events)
-    assert sum(event[0] == "launch" for event in events) == 2
+    assert sum(event[0] == "launch" for event in events) == 3
     assert events[-1] == ("close",)
     assert not (local.RUNTIME / "services.json").exists()
     assert not (local.RUNTIME / "stop.json").exists()
@@ -404,7 +404,7 @@ def test_ctrl_c_after_start_closes_owned_services_as_normal_stop(workspace, monk
     monkeypatch.setattr(local, "stop_requested", interrupted)
     monkeypatch.setattr(local.webbrowser, "open", lambda _: None)
     assert local.serve("node", {"branch": "test", "revision": "abc"}) is None
-    assert events == ["launch", "launch", "closed"]
+    assert events == ["launch", "launch", "launch", "closed"]
     assert not (local.RUNTIME / "services.json").exists()
     assert not (local.RUNTIME / "stop.json").exists()
     output = capsys.readouterr().out

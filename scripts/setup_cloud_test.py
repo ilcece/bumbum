@@ -53,7 +53,7 @@ def prepare(root, admin_ip, username):
     schema.chmod(0o644)
     folder.mkdir(mode=0o700, exist_ok=True)
     values = {
-        "APP_ENV": "production", "ADMIN_ORIGIN": "https://test.bumbum.cc",
+        "APP_ENV": "production", "ADMIN_ORIGIN": "https://test.bumbum.cc", "PUBLIC_ORIGIN": "https://nfc.bumbum.cc",
         "ADMIN_TOTP_ISSUER": "BUMBUM-Test", "STORAGE_KEY_VERSION": "v1",
         "DB_HOST": "127.0.0.1", "DB_PORT": "33307", "DB_USER": "bumbum_test", "DB_NAME": "bumbum_digital",
         "DB_PASSWORD": secrets.token_hex(24), "CLOUD_DB_ROOT_PASSWORD": secrets.token_hex(24),

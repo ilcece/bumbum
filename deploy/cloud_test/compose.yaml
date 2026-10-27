@@ -34,6 +34,7 @@ services:
     environment:
       APP_ENV: production
       ADMIN_ORIGIN: https://test.bumbum.cc
+      PUBLIC_ORIGIN: https://nfc.bumbum.cc
       ADMIN_TOTP_ISSUER: BUMBUM-Test
       STORAGE_KEY_VERSION: v1
       DB_HOST: 127.0.0.1

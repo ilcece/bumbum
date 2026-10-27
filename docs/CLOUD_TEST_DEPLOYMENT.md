@@ -316,3 +316,56 @@ bash scripts/cloud_test.sh upgrade-tap
 服装资料与桌面管理端已验收并合入main，但尚未部署香港。本轮只合并仓库，不更新服务器。当前main模板仅对/api/admin/items/数字ID/profile提高请求体上限至256k，继承原管理IP限制；其他入口保持8k。只更新镜像而不更新现有Nginx配置，会导致较长资料被旧网关拒绝。
 
 后续经cece授权部署时，仅重跑本手册第4节的prepare命令生成HTTPS配置，再按第6节安装，安装前核对差异并备份服务器正在使用的Nginx站点配置，通过nginx -t后再reload；不得取消管理IP限制或公开管理接口。无需数据库迁移。普通短资料在旧网关也可能保存成功，不能据此断言新上限已生效。代码回退时资料保留，不重建库；模板更新不会自动改动服务器。
+
+## 10. 手机用户站点公开部署与验收
+
+**以下涉及服务器、配置、升级和发布，只有cece明确授权本次云部署后才执行。** 仓库有模板和本地网关检查不表示香港已更新。管理端继续test.bumbum.cc及原管理IP限制；用户站点为nfc.bumbum.cc，使用现有独立云测试数据库，不连接生产RDS，不改变正式admin.bumbum.cc规划。
+
+### 10.1 部署前核对
+
+由有权限的部署者只读核对当前仓库版本/本地修改、运行服务、DNS指向、80/443归属、现有证书、001/002/003状态，以及目标物品、绑定、密钥及配置核验是否与测试卡对应。已有数据及根秘密保留；缺失样品先通过现有后台建档，根秘密与卡不一致时停下重新对齐，不自动复制本地整库或重新写卡。确认备份位置、可回退代码版本及是否已有用户站点，不覆盖其他服务。原服务器安装、Git拉取、秘密配置与管理IP操作沿用前文，不重复抄另一套命令。
+
+以下命令在/opt/bumbum-test执行，使用交付说明指定版本；不是main每次更新都要重做迁移。确保构建证书及Docker按前文准备，原.env.cloud-test不覆盖。PUBLIC_ORIGIN由本项目Compose固定为https://nfc.bumbum.cc，管理来源仍为https://test.bumbum.cc，不把两个来源合并。
+
+### 10.2 升级及分别发布静态页
+
+当前用户版本要求003和004均就绪。新入口先构建，再暂停本项目后端、完整备份；依次检查/升级003与004，已完成则跳过，任何失败停下保留备份和服务停止状态。未知旧成功日志仍按原规则拒绝，不猜历史归属。使用upgrade-view，不用只升级003的旧入口来代替本轮两项升级。
+
+```bash
+bash scripts/cloud_test.sh upgrade-view
+bash scripts/cloud_test.sh publish-page
+bash scripts/cloud_test.sh publish-user-page
+```
+
+成功应显示完整备份路径、检查/升级完成及后端就绪。管理静态文件发布到/var/www/bumbum-cloud-test，用户静态文件发布到/var/www/bumbum-user-test，互不覆盖index.html。两个发布命令不会安装或重载Nginx，不自动公开接口；后端和数据库端口仍只在本机，失败不重建数据库。新空库已含结构，无需再次导入schema。
+
+### 10.3 用户域名及HTTPS
+
+先核对nfc.bumbum.cc已指向本机且80/443允许访问；不假设AI已经设置DNS。仅首次没有该域名证书时，启用挑战专用HTTP配置到同一站点文件，不同时启用HTTP和HTTPS两个模板：
+
+```bash
+sudo install -m 0644 deploy/cloud_test/nginx-user-http.conf /etc/nginx/sites-available/bumbum-user-test
+sudo ln -s /etc/nginx/sites-available/bumbum-user-test /etc/nginx/sites-enabled/bumbum-user-test
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot certonly --webroot -w /var/www/bumbum-user-test -d nfc.bumbum.cc
+```
+
+已有此符号链接或用户站点时先核对其目标，不重复创建或覆盖未知配置。任何命令失败就停下；HTTP配置仅开放证书挑战，不提供资料/API，不暂时放开整个网站。证书已存在且有效时跳过首次申请。不要为签证书停掉其他站点或将证书秘密复制进仓库。
+
+再将同一站点切换为HTTPS配置，原管理站点文件和代理头配置保持不变：
+
+```bash
+sudo install -m 0644 deploy/cloud_test/nginx-user-https.conf.template /etc/nginx/sites-available/bumbum-user-test
+sudo nginx -t
+sudo systemctl reload nginx
+sudo certbot renew --dry-run
+```
+
+先前应已按本手册安装/etc/nginx/bumbum-cloud-test-proxy.conf；缺失先核对，不绕过来源头处理。HTTPS用户模板保留HTTP的/.well-known/acme-challenge/路径供续期，其他HTTP访问转HTTPS；不要把模板同时复制到另一个也被加载的文件造成重复站点。此站点仅开放用户静态资源、POST /api/tap/verify、准确的GET /api/tap/items/数字ID/view；其他/api包括管理、短信、旧详情、扫描回调均404。原手机登记回调仍走原已验收站点，不迁移地址。
+
+### 10.4 公网验收与回退
+
+按[真实卡手册第6节](NFC_CARD_VERIFICATION.md#6-手机服装资料页与自动更新验收)五组使用手机正常移动网络验收；对应云后台核对次数，电脑本地后台不会自动同步。验证时间与资料读取时间分开；自动查询不重放旧读数、不重复计数。用用户域名请求/api/admin/chips、/api/admin/auth/login和管理页面应拒绝；管理站点从非允许IP仍被拒。核对用户日志不含查询参数、Cookie或动态原文，不发送完整日志到聊天。
+
+记录实际部署提交、备份路径、证书结果、手机/浏览器与测试物品、通过和未通过项及重启保留结果；不以一次本地构建代替。回退先明确旧代码/静态版本和用户站点维护方式，再按授权操作；保留004枚举及已存在view、触碰事件、已推进计数和后来的数据，不恢复整库、不缩回枚举删除记录、不重配卡。撤回页面不会撤回已接受的真实触碰。任何失败先保留现场，管理端可用性、用户站点及数据库分别排查。

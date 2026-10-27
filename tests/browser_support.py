@@ -19,10 +19,10 @@ from core.db import get_database
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def frontend_ready(output):
+def frontend_ready(output, port=5174):
     """忽略终端颜色码，仍只识别本次Vite日志中的固定本地地址。"""
     plain = re.sub(r'\x1b\[[0-9;]*m', '', output)
-    return 'http://127.0.0.1:5174/' in plain or 'http://localhost:5174/' in plain
+    return f'http://127.0.0.1:{port}/' in plain or f'http://localhost:{port}/' in plain
 
 
 class QuietHandler(WSGIRequestHandler):
@@ -62,34 +62,39 @@ def assert_ports_available(ports=(5000, 5174)):
                 pytest.fail('浏览器测试端口被占用；未接管现有服务，请先停止自己的开发服务。')
 
 
-def browser_fixture(request, app, account, tmp_path):
+def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", clear_items=True):
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
         pytest.fail('请先按联调手册安装requirements-browser.txt及Chromium，未跳过浏览器检查。')
-    assert_ports_available()
-    if not shutil.which('node') or not (ROOT/'frontend/admin/node_modules/vite/bin/vite.js').is_file():
+    if frontend_name not in {"admin", "user"}:
+        raise ValueError("未知前端测试入口")
+    port=5174 if frontend_name == "admin" else 5175
+    address=f"http://127.0.0.1:{port}" if frontend_name == "user" else "http://localhost:5174"
+    assert_ports_available((5000,port))
+    if not shutil.which('node') or not (ROOT/f'frontend/{frontend_name}/node_modules/vite/bin/vite.js').is_file():
         pytest.fail('请先准备Node和前端依赖；未启动或接管任何已有服务。')
-    with app.app_context():
-        conn = get_database()
-        with conn.cursor() as cursor:
-            for table in ('fashion_item_profile','jewelry_item_profile','item'):
-                cursor.execute(f'DELETE FROM {table}')
-        conn.commit()
+    if clear_items:
+        with app.app_context():
+            conn = get_database()
+            with conn.cursor() as cursor:
+                for table in ('fashion_item_profile','jewelry_item_profile','item'):
+                    cursor.execute(f'DELETE FROM {table}')
+            conn.commit()
     server = make_server('127.0.0.1', 5000, app, threaded=True, request_handler=QuietHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     frontend = None
     with open(tmp_path/'frontend.log', 'w', encoding='utf-8') as output:
         try:
-            frontend = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js'], cwd=ROOT/'frontend/admin', stdout=output, stderr=output)
+            frontend = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js'], cwd=ROOT/f'frontend/{frontend_name}', stdout=output, stderr=output)
             with sync_playwright() as playwright:
                 options = {'headless': True}
                 executable = request.config.getoption('--browser-executable')
                 if executable:
                     options['executable_path'] = executable
                 browser = playwright.chromium.launch(**options)
-                page = browser.new_page(viewport={'width':1280,'height':720})
+                page = browser.new_page(viewport={'width':1280,'height':720} if frontend_name == 'admin' else {'width':390,'height':844}, **({'is_mobile':True,'has_touch':True} if frontend_name == 'user' else {}))
                 page.set_default_timeout(12000)
                 failures = []
                 page.on('pageerror', lambda error: failures.append(type(error).__name__))
@@ -99,11 +104,11 @@ def browser_fixture(request, app, account, tmp_path):
                         if frontend.poll() is not None:
                             pytest.fail('本次前端启动失败，请核对Node与锁定依赖；日志不包含认证请求。')
                         ready = (tmp_path/'frontend.log').read_text(encoding='utf-8', errors='replace')
-                        if not frontend_ready(ready):
+                        if not frontend_ready(ready,port):
                             threading.Event().wait(.1)
                             continue
                         try:
-                            page.goto('http://localhost:5174', timeout=1000)
+                            page.goto(address, timeout=1000)
                             break
                         except Exception:
                             threading.Event().wait(.1)

@@ -270,7 +270,7 @@ CREATE TABLE tap_grant (
   token_hash BINARY(32) NOT NULL,
   chip_id BIGINT UNSIGNED NOT NULL,
   item_id BIGINT UNSIGNED NOT NULL,
-  allowed_action ENUM('read','bind') NOT NULL COMMENT '仅可查看read或绑定bind；增加经验touch须等第三阶段确认，当前不能发放此权限',
+  allowed_action ENUM('read','bind','view') NOT NULL COMMENT 'read及bind为五分钟触碰资格；view仅供浏览器持续查看，成功查询后延长24小时，不允许认领',
   expires_at DATETIME NOT NULL,
   consumed_at DATETIME DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -278,7 +278,7 @@ CREATE TABLE tap_grant (
   KEY idx_tap_expiry (expires_at),
   CONSTRAINT fk_tap_chip FOREIGN KEY (chip_id) REFERENCES chip(id),
   CONSTRAINT fk_tap_item FOREIGN KEY (item_id) REFERENCES item(id)
-) COMMENT='短时触碰凭证，只存校验指纹；查看read不标记已用，成功绑定bind时在同一事务内标记已用';
+) COMMENT='触碰与持续查看凭证，只存摘要；read和bind保持五分钟，view仅续只读期限；不证明所有者身份';
 
 -- 短信验证记录：必须同时对应本次触碰凭证、手机号和有效验证码。
 CREATE TABLE sms_challenge (

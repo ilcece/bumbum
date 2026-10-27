@@ -138,15 +138,15 @@ def public_detail(cursor, item, chip):
     return profile, cursor.fetchone() is not None
 
 
-def issue_grant(cursor, item, chip, owner_bound):
+def issue_grant(cursor, item, chip, owner_bound, *, view=False, at=None):
     token = secrets.token_hex(32)
-    now = utc_now()
+    now = at or utc_now()
     cursor.execute('INSERT INTO tap_grant(token_hash,chip_id,item_id,allowed_action,expires_at,created_at) VALUES (%s,%s,%s,%s,%s,%s)',
-                   (hashlib.sha256(token.encode('ascii')).digest(), chip['id'], item['id'], 'read' if owner_bound else 'bind', now + timedelta(seconds=300), now))
+                   (hashlib.sha256(token.encode('ascii')).digest(), chip['id'], item['id'], 'view' if view else 'read' if owner_bound else 'bind', now + timedelta(hours=24) if view else now + timedelta(seconds=300), now))
     return token
 
 
-def verify_in_transaction(cursor, reading):
+def verify_in_transaction(cursor, reading, *, browser_view=False):
     if current_app.config['SDM_META_KEY_VERSION'] != 'v1':
         raise AuthUnavailable('不支持的全局密钥版本。')
     try:
@@ -181,16 +181,22 @@ def verify_in_transaction(cursor, reading):
     token = issue_grant(cursor, item, chip, owner_bound)
     cursor.execute('UPDATE chip SET last_verified_counter=%s WHERE id=%s', (counter, chip['id']))
     log_event(cursor, 'pass', chip, counter)
-    return {'verified': True, 'project': chip['project'], 'item_id': item['id'], 'item_uid': item['item_uid'],
+    result = {'verified': True, 'project': chip['project'], 'item_id': item['id'], 'item_uid': item['item_uid'],
             'owner_bound': owner_bound, 'tap_token': token, 'expires_in': 300, 'item_detail': profile}
+    if browser_view and chip['project'] == 'fashion':
+        from core.auth_settings import iso_time
+        verified_at = utc_now()
+        result['_view_cookie'] = issue_grant(cursor, item, chip, owner_bound, view=True, at=verified_at)
+        result.update(view_path=f"/tap/items/{item['id']}", verified_at=iso_time(verified_at), retrieved_at=iso_time(verified_at))
+    return result
 
 
-def verify_tap(reading):
+def verify_tap(reading, *, browser_view=False):
     connection = get_database()
     connection.begin()
     try:
         with connection.cursor(pymysql.cursors.DictCursor) as cursor:
-            result = verify_in_transaction(cursor, reading)
+            result = verify_in_transaction(cursor, reading, browser_view=browser_view)
         connection.commit()
         return result
     except Exception:

@@ -1,0 +1,311 @@
+:root {
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  color: #26322d;
+  background: #f5f5f2;
+  font-synthesis: none;
+  font-weight: 400;
+  line-height: 1.65;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  overflow: auto;
+}
+button,
+summary {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  font: inherit;
+  cursor: pointer;
+  min-height: 44px;
+  padding: 8px 18px;
+  border: 1px solid #bcc9c1;
+  background: #fff;
+  color: #294b3a;
+  border-radius: 10px;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #3e7862;
+  outline-offset: 3px;
+}
+.app {
+  max-width: 540px;
+  margin: auto;
+  background: #fff;
+  min-height: 100vh;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #e7eae6;
+  letter-spacing: 0.12em;
+}
+.brand-mark {
+  font-size: 26px;
+  line-height: 1;
+  background: #244936;
+  color: white;
+  border-radius: 8px;
+  padding: 3px 9px;
+  letter-spacing: 0;
+}
+.brand strong {
+  font-size: 15px;
+}
+.brand-caption {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: #65746c;
+}
+h1,
+h2,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 27px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+h2 {
+  font-size: 14px;
+  font-weight: 600;
+}
+.state-card {
+  padding: 72px 28px;
+  min-height: 65vh;
+}
+.state-card h1 {
+  font-size: 24px;
+  margin-bottom: 18px;
+}
+.state-card > p {
+  color: #647168;
+  font-size: 15px;
+}
+.state-icon {
+  font-size: 42px;
+  margin-bottom: 24px;
+  color: #42785b;
+}
+.verification {
+  margin: 22px 24px;
+  background: #edf5ef;
+  border: 1px solid #c5dacb;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+}
+.verification > span {
+  font-size: 24px;
+}
+.verification strong {
+  font-size: 15px;
+}
+.verification p {
+  font-size: 11px;
+  color: #52685a;
+  margin-top: 3px;
+}
+.gallery {
+  position: relative;
+  margin: 0 24px;
+  background: #f2f1ec;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.image-open {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  display: block;
+  background: transparent;
+}
+.gallery img {
+  display: block;
+  width: 100%;
+  height: 340px;
+  object-fit: contain;
+}
+.image-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 280px;
+  font-size: 14px;
+  color: #68746b;
+}
+.image-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 18px;
+  padding: 8px 12px;
+  background: #ffffffd9;
+  font-size: 12px;
+}
+.image-controls button {
+  min-width: 44px;
+  border: 0;
+  background: transparent;
+  font-size: 20px;
+}
+.image-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #17211df5;
+  padding: 65px 12px 24px;
+}
+.image-modal img {
+  height: auto;
+  max-height: 75vh;
+  object-fit: contain;
+}
+.image-modal .image-placeholder {
+  color: white;
+}
+.image-modal .image-controls {
+  background: transparent;
+  color: white;
+}
+.image-modal .image-controls button {
+  color: white;
+}
+.close-image {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  background: #fff;
+}
+.profile {
+  padding: 30px 26px 38px;
+}
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: #6a796f;
+  margin-bottom: 10px;
+}
+.item-uid {
+  font-size: 12px;
+  color: #637168;
+  margin-top: 12px;
+  overflow-wrap: anywhere;
+}
+.profile-section {
+  border-top: 1px solid #e7ebe5;
+  margin-top: 26px;
+  padding-top: 22px;
+}
+.profile-section p {
+  font-size: 15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin-top: 10px;
+}
+.data-note {
+  font-size: 11px;
+  color: #617066;
+  line-height: 1.8;
+  margin-top: 32px;
+}
+.tap-help {
+  border-top: 1px solid #e4e9e2;
+  margin-top: 24px;
+  padding-top: 18px;
+  font-size: 13px;
+  color: #526557;
+}
+.tap-help summary {
+  cursor: pointer;
+  padding: 4px 0;
+  min-height: 36px;
+}
+.tap-help p {
+  padding: 12px 0;
+  font-size: 13px;
+  line-height: 1.8;
+}
+.notice {
+  background: #fff5e9;
+  border: 1px solid #e8c8a2;
+  border-radius: 10px;
+  padding: 15px;
+  margin: 16px 24px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.notice p {
+  margin-top: 8px;
+}
+.notice button {
+  margin-top: 10px;
+}
+.notice .text-action {
+  background: transparent;
+  border: 0;
+  text-decoration: underline;
+  padding: 0 4px;
+  margin: 0;
+}
+.state-card .notice {
+  margin: 24px 0;
+}
+.meta {
+  font-size: 12px;
+  color: #66746b;
+}
+.loader {
+  width: 28px;
+  height: 28px;
+  border: 2px solid #d8e2da;
+  border-top-color: #426b51;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 28px;
+}
+footer {
+  padding: 20px 26px 28px;
+  font-size: 10px;
+  color: #6d786f;
+  border-top: 1px solid #edf0eb;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .loader {
+    animation: none;
+  }
+}
+@media (min-width: 600px) {
+  .app {
+    margin: 32px auto;
+    border: 1px solid #e0e7de;
+    border-radius: 18px;
+    overflow: hidden;
+    min-height: calc(100vh - 64px);
+  }
+}
