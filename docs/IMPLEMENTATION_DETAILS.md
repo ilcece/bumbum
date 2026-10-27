@@ -711,6 +711,6 @@ browser_view模式先核对允许的用户网页Origin，再沿用现有“物�
 
 独立TLS网关检查两个域名、证书/HTTPS Cookie、公开用户路由与管理隔离、资源发布、header及不记录秘密；镜像/前端构建、既有业务回归及文档链接检查。手机真机按PRD五组由cece验收，公网部署/域名/重启保留和跨项目硬件另有证据，不混作自动通过。
 
-文档分工：本节维护实现细节，API第9节维护持续查看契约，PRD维护交互，TODO维护审核/构建状态；构建时同步schema/004、配置模板、现有LOCAL_DEVELOPMENT/CLOUD_TEST_DEPLOYMENT/NFC_CARD_VERIFICATION手册及op_guide、前端协作和CI入口，不新增重复命令手册。本轮已按方案确认建立feat/mobile-tap-view实施，技术验证和人工验收分别记录；提交推送、合并和云部署按各自授权。
+文档分工：本节维护实现细节，API第9节维护持续查看契约，PRD维护交互，TODO维护审核/构建状态；构建时同步schema/004、配置模板、现有LOCAL_DEVELOPMENT/CLOUD_TEST_DEPLOYMENT/NFC_CARD_VERIFICATION手册及OP_GUIDE、前端协作和CI入口，不新增重复命令手册。本轮已按方案确认建立feat/mobile-tap-view实施，技术验证和人工验收分别记录；提交推送、合并和云部署按各自授权。
 
 交付顺序：本地实现与独立库/浏览器检查→cece本地页面验收→单独确认云部署计划、数据及备份→公网真机验收。回退分别处理代码、数据库与芯片；撤回本步代码不会恢复已接受读数，不删除历史统计/凭证或重配卡。保留可恢复的旧静态产物；旧后端回退时用户站点明确维护，不在旧链路上伪装持续查看可用。
