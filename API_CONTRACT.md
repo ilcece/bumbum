@@ -85,7 +85,9 @@
 ```
 参数错误仍用400 invalid_param，message说明UID须为7字节真实编号、content类型/长度或date格式的具体要求；不会通过放宽规则接收随机标识。错误：400 invalid_param、401 webhook_auth_failed、503 service_unavailable；香港Nginx对同IP平均每秒5次、突发最多额外10次，超限429 rate_limited。本机直接运行Flask不含该频率限制。额外字段先拒绝，实测App如有新字段先改契约。官方说明无网络/非成功响应时不会自动排队重试，需在App查看失败记录并人工重扫。部署及真实卡限制见[技术说明第2.5节](TECH_SPEC.md#25-手机扫描后自动登记)。
 
-### 1.2 POST /api/tap/verify：核验这次触碰（第二阶段，待实测）
+<a name="12-post-apitapverify核验这次触碰第二阶段待实测"></a>
+
+### 1.2 POST /api/tap/verify：核验这次触碰
 
 本小步产品及交互规则见[PRD第4.2.1节](PRD.md#421-本小步触碰验证后端)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](PRD.md#422-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立详情、短信与认领接口仍未接入。
 

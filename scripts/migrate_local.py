@@ -11,6 +11,7 @@ import sys
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
+WINDOWS = sys.platform == "win32"
 sys.path.insert(0, str(ROOT))
 
 from core.db import chip_project_schema, get_database, registration_source_schema, tap_event_schema
@@ -25,6 +26,18 @@ MIGRATIONS = {
 
 class MigrationError(Exception):
     """只包含可公开的阶段说明，不输出数据库连接或秘密。"""
+
+
+def backup_directory(override=None):
+    """显式目录优先；Windows使用用户本地目录，不创建目录或搬迁旧备份。"""
+    if override is not None:
+        return override.expanduser().resolve()
+    if WINDOWS:
+        local = os.environ.get("LOCALAPPDATA", "").strip()
+        if not local or not Path(local).is_absolute():
+            raise MigrationError("无法确定Windows用户本地备份目录；请使用--backup-dir指定本人可写的私有绝对路径，未继续修改表结构。")
+        return Path(local) / "Bumbum" / "backups"
+    return ROOT / "backups"
 
 
 def validate_local_config(config):
@@ -132,7 +145,7 @@ def main():
     parser.add_argument("--rollback", action="store_true", help="回退此项结构；已有未分配芯片时拒绝")
     parser.add_argument("--tap-events", action="store_true", help="检查触碰日志结构；配合--apply先备份再升级")
     parser.add_argument("--registration-source", action="store_true", help="检查首次登记来源；配合--apply先备份再升级")
-    parser.add_argument("--backup-dir", type=Path, help="可选的私有备份目录；默认仍为仓库backups，只在确需升级时创建备份")
+    parser.add_argument("--backup-dir", type=Path, help="可选的私有备份目录；Windows默认LOCALAPPDATA下Bumbum/backups，其他系统默认仓库backups；只在确需升级时创建备份")
     args = parser.parse_args()
     if args.tap_events and (args.rollback or args.registration_source):
         parser.error("触碰日志升级不与回退或来源升级混用。")
@@ -169,7 +182,7 @@ def main():
             if actual_id != server_id:
                 raise MigrationError("配置连接的数据库与Docker容器不一致，未执行操作。")
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-            folder = args.backup_dir.expanduser().resolve() if args.backup_dir is not None else ROOT / "backups"
+            folder = backup_directory(args.backup_dir)
             destination = folder / f"before-{'tap-events' if args.tap_events else 'chip-source' if args.registration_source else 'chip-project'}-{stamp}-{uuid.uuid4().hex[:8]}.sql"
 
             def backup():
