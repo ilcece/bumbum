@@ -49,7 +49,9 @@
 
 ### 0.4 当前能做到哪一步
 
-当前已实现：GET /api/admin/stats/taps、POST /api/tap/verify与GET /api/fashion/items/{id}/detail、两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
+当前已实现：GET /api/admin/stats/taps、POST /api/tap/verify（含可选browser_view模式）、GET /api/tap/items/{id}/view与GET /api/fashion/items/{id}/detail、两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
+
+手机页持续查看接口（POST /api/tap/verify 的 browser_view 模式及 GET /api/tap/items/{id}/view）已在功能分支 `feat/mobile-tap-view@143c738` 实现并推送，尚未合入 `main`；该分支的软件回归、跳过项、人工验收及部署状态见 TODO 和 CHANGELOG。不要把功能分支代码当作 main 已开放的接口。
 
 ### 0.5 当前已实现的运行检查
 
@@ -384,13 +386,15 @@ HTTP200 data的结构如下。示例为虚构的同一天累计数据，不是�
 
 无登录/会话失效401 unauthorized；不允许的管理来源403 forbidden；参数错误400 invalid_param；数据库不可用、旧库日志结构未就绪503 service_unavailable，故障按已有脱敏规则附error_id；程序错误500 internal_error。失败不返回部分成功数据，不能转成HTTP200空统计。统一Cache-Control:no-store，GET可人工安全重试，不扩大现有跨域来源。
 
-## 9. 手机页持续查看接口提案（待审核）
+<a name="9-手机页持续查看接口提案待审核"></a>
 
-本节为[技术附录第17节](docs/IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)的待审核提案，不属于第0.4节当前已实现接口。产品范围及自动更新见[PRD第4.2.4节](PRD.md#424-本小步手机触碰验证与服装资料页)。批准实施后才更新当前契约、结构和配置；现有已验收调用不提前改变。
+## 9. 手机页持续查看
+
+本节定义已在功能分支 `feat/mobile-tap-view` 实现的持续查看契约；该接口尚未合入 `main`。实现细节见[技术附录第17节](docs/IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)，软件检查、人工验收与部署状态分别见 TODO 和 CHANGELOG。产品范围及自动更新见[PRD第4.2.4节](PRD.md#424-本小步手机触碰验证与服装资料页)。旧调用不发 view 资格，原五分钟 read/bind 行为保留。
 
 ### 9.1 POST /api/tap/verify的可选浏览器模式
 
-在原picc_data/cmac之外拟增加browser_view，可省略或为布尔值；省略/false保持现有五分钟凭证和不发查看Cookie的行为。true须Origin精确匹配PUBLIC_ORIGIN，否则403 forbidden；其他字段/类型仍400。现有限流、错误和单次读数接受规则不变。
+在原picc_data/cmac之外可增加browser_view，可省略或为布尔值；省略/false保持现有五分钟凭证和不发查看Cookie的行为。true须Origin精确匹配PUBLIC_ORIGIN，否则403 forbidden；其他字段/类型仍400。现有限流、错误和单次读数接受规则不变。
 
 服装验证通过时同一事务额外发view资格，生产响应设置bumbum_item_view Cookie：HttpOnly、Secure、SameSite=Strict、Path=/api/tap/items/{item_id}，无Domain、无持久Max-Age；仅明确的本机开发HTTP关闭Secure。Cookie原值不放JSON，数据库只存摘要。JSON沿用原成功字段，并增加固定构造的view_path=/tap/items/{item_id}及verified_at/retrieved_at（ISO 8601 UTC），供手机路由和显示时间。tap_token仍五分钟，不当作持续查看凭证；view资格不消费或扩展原短时权限。
 
@@ -400,13 +404,13 @@ HTTP200 data的结构如下。示例为虚构的同一天累计数据，不是�
 
 id为正整数；不接受任何查询参数、请求正文或X-Tap-Token代替Cookie。仅核对对应物品路径的唯一bumbum_item_view Cookie及数据库view类型，不接受read/bind。来源/跨站规则见技术附录；同源Cookie请求，不向管理端或其他网站放开CORS。
 
-成功HTTP 200，拟返回下列白名单。project始终为fashion，profile只含name/description/material/care_instructions/image_urls；不返回所有权、尺码表、内部芯片信息或未维护扩展资料。verified_at是最近发放该view的真实验证时间，retrieved_at是本次服务器读取时间，不相互替代。
+成功HTTP 200，返回下列白名单。project始终为fashion，profile只含name/description/material/care_instructions/image_urls；不返回所有权、尺码表、内部芯片信息或未维护扩展资料。verified_at是最近发放该view的真实验证时间，retrieved_at是本次服务器读取时间，不相互替代。
 
 ```json
 {"status":"ok","data":{"project":"fashion","item_id":12,"item_uid":"FASH-2026-000012","verified_at":"2026-10-27T02:23:00Z","retrieved_at":"2026-10-27T02:31:00Z","profile":{"name":"外套","description":null,"material":"棉","care_instructions":null,"image_urls":[]}}}
 ```
 
-提案view为连续24小时无成功查询失效，成功查询滑动续期24小时；原创建时间不变，失败不续期。每次查询重查物品、芯片、原关联和当前配置；不写scan_log/admin_audit，不推进读取计数、不计触碰。原GET /api/fashion/items/{id}/detail继续仅接受五分钟read/bind，不能使用view。
+view为连续24小时无成功查询失效，成功查询滑动续期24小时；原创建时间不变，失败不续期。每次查询重查物品、芯片、原关联和当前配置；不写scan_log/admin_audit，不推进读取计数、不计触碰。原GET /api/fashion/items/{id}/detail继续仅接受五分钟read/bind，不能使用view。
 
 | 响应 | 含义和页面行为 |
 |---|---|
@@ -419,4 +423,4 @@ id为正整数；不接受任何查询参数、请求正文或X-Tap-Token代替C
 | 503 service_unavailable | 结构/配置/数据库不可用，可能附脱敏error_id；保留上次内容时标旧，不把故障当停用或假货 |
 | 500 internal_error | 意外异常，附可用error_id；无资料假成功 |
 
-所有资料响应no-store。GET失败不发清除Cookie指令，避免旧失败响应覆盖新资格；浏览器依据响应停止或退避，Cookie保留不代表后端仍授权。错误文案按“读取资料”场景，不能把可重试查询故障统一提示为重新触碰。未注册/未开放接口仍按当前实现返回404，不用提案伪装已可用。
+所有资料响应no-store。GET失败不发清除Cookie指令，避免旧失败响应覆盖新资格；浏览器依据响应停止或退避，Cookie保留不代表后端仍授权。错误文案按“读取资料”场景，不能把可重试查询故障统一提示为重新触碰。未注册/未开放接口仍按当前实现返回404，不把文档中后续需求伪装为已接入。
