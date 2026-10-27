@@ -48,7 +48,7 @@
 
 脱敏诊断、浏览器回归与CI、文档状态分工已获cece确认并合入main；版本与验证证据见[CHANGELOG](CHANGELOG.md)。无需数据库迁移，服务器尚未更新。
 
-里程碑见[README](README.md#现在做到哪一步)，具体日期、版本和验收证据保留在[CHANGELOG](CHANGELOG.md)。回归操作从[手册入口](docs/op_guide.md)进入；这里不再复制已完成任务的历史。
+里程碑见[README](README.md#现在做到哪一步)，具体日期、版本和验收证据保留在[CHANGELOG](CHANGELOG.md)。回归操作从[手册入口](docs/OP_GUIDE.md)进入；这里不再复制已完成任务的历史。
 
 ## 怎样维护状态
 
