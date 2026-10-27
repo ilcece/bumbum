@@ -36,3 +36,5 @@
 
 
 浏览器回归入口为tests/test_admin_browser.py，安装/运行只维护在[本地运行第9节](LOCAL_DEVELOPMENT.md#9-可重复的桌面浏览器回归)。CI在PR/main推送运行基础和隔离数据库/浏览器层；镜像/TLS层为手动开关。截图不含密码/验证码，不保留认证网络记录；配置存在不代表GitHub运行已通过，须看PR Checks。
+
+手机页后续工程提案为frontend/user，与admin样式及构建入口隔离；前台自动更新、只读Cookie及公网发布尚未实现，先按[技术附录第17节](IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)审核。本表仍只列当前实际存在的组件，不把提案路径当成已接入。
