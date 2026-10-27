@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-27 香港用户站点部署及基础检查通过
+
+cece明确授权香港测试环境更新、数据库升级及公网用户站点发布，并在ECS逐批执行。首次fetch未取得完成结果，后续限时fetch成功取得main@f3eeb5b；cece反馈upgrade-view完成，随后确认管理/用户网页发布和证书申请成功。现场输出确认nginx -t成功、后端database ready、HTTP首页301转HTTPS、HTTPS /tap为200并含no-store/no-referrer/nosniff，用户域名/api/admin/chips为404。目标域名解析和ECS公网IP均为47.242.24.84；原已加载站点只有管理站点及default，本轮新增独立用户站点。
+
+首批完整库备份路径为.cloud-test/backups/database-3EroR6XB.sql；升级批次另按脚本先停后端再备份，实际备份路径未反馈，不编造。回退材料按首批指令保留于私有release目录，具体目录待现场确认。证据来自cece反馈和终端输出，AI未直接连接ECS。当前不宣称真机触碰、云端卡/物品/密钥一致性、管理IP隔离回归、续期演练、重启保留或独立恢复已通过；不因基础HTTP检查完成关闭整体验收。仅更新TODO和历史记录，产品、接口、代码、数据库定义及部署步骤未变；文档检查通过，不重复业务回归。
+
 ## 2026-10-27 收到香港旧版运行状态汇总
 
 cece提供检查截图：ECS Git为feat/nfc-scan-webhook@886a621，backend/db显示healthy，API为HTTP 200及database ready，Nginx语法检查成功。证据来源为cece提供的汇总，不声称AI已直接连接服务器，也不把“与远程同步”推定为已获取当前GitHub分支状态。886a621的ready检查不包含后续003/004等新版条件，因此旧服务健康不代表手机资料页已部署或公网验收通过。
