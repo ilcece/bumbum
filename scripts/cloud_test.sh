@@ -11,6 +11,7 @@ fi
 docker_local=(env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH
     -u DB_USER -u DB_PASSWORD -u CLOUD_DB_ROOT_PASSWORD -u STORAGE_ENCRYPTION_KEY
     -u IP_HASH_KEY -u WEBHOOK_ADMIN_USERNAME -u WEBHOOK_SHARED_SECRET
+    -u MASTER_KEY_FASHION -u MASTER_KEY_JEWELRY -u SDM_META_KEY_V1 -u SDM_META_KEY_VERSION -u TAP_VERIFY_PER_MINUTE
     docker --host=unix:///var/run/docker.sock)
 compose=("${docker_local[@]}" compose --env-file .env.cloud-test -f deploy/cloud_test/compose.yaml)
 # 同名项目若来自另一个目录，先停下核对，不接管其服务。
@@ -45,6 +46,17 @@ case "${1:-status}" in
         "${compose[@]}" run --rm --no-deps -T backend python -m core.registration_migration --apply-after-backup
         "${compose[@]}" up -d --no-build --wait --wait-timeout 120 backend
         echo '来源升级及后端启动完成；请执行publish-page更新网页，再核对原账号和芯片。'
+        ;;
+    upgrade-tap)
+        # 先构建成功再暂停服务；备份或升级失败时不继续启动，保留原数据供排查。
+        python3 scripts/setup_cloud_test.py --prepare-build-ca
+        "${compose[@]}" build backend
+        "${compose[@]}" up -d --wait --wait-timeout 120 db
+        "${compose[@]}" stop backend
+        bash "$task_root/scripts/cloud_test.sh" backup
+        "${compose[@]}" run --rm --no-deps -T backend python -m core.tap_migration --apply-after-backup
+        "${compose[@]}" up -d --no-build --wait --wait-timeout 120 backend
+        echo '触碰日志升级及后端启动完成；原公开路由保持关闭，后续另行部署用户入口。'
         ;;
     admin)
         shift
@@ -89,5 +101,5 @@ case "${1:-status}" in
             exit 1
         fi
         ;;
-    *) echo '可用操作：start、stop、status、logs、upgrade-source、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
+    *) echo '可用操作：start、stop、status、logs、upgrade-source、upgrade-tap、admin、publish-page、export-qr、backup。' >&2; exit 1 ;;
 esac

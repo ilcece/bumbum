@@ -7,7 +7,7 @@
 -- 仅用于第一次给空库建表，不是已有数据库的升级脚本，也不能重复运行。
 -- 执行前核对连接和数据库内容；已有库要另做升级、备份和验证，不要为重跑而删库。
 -- MySQL 至少 8.0.16，确保 CHECK 实际生效；utf8mb4 支持中文，InnoDB 支持关联检查和一起保存。
--- 第二、三阶段的表只是预留，不表示功能已实现，也不表示待确认方案已经获批。
+-- 阶段表不表示所有功能已实现；触碰验证已接入，短信、认领与养成仍按API_CONTRACT区分。
 SET SESSION time_zone = '+00:00';
 SET SESSION default_storage_engine = InnoDB;
 
@@ -171,10 +171,20 @@ CREATE TABLE scan_log (
   picc_data VARCHAR(256) DEFAULT NULL,
   cmac VARCHAR(64) DEFAULT NULL,
   scan_counter BIGINT UNSIGNED DEFAULT NULL,
-  verify_result ENUM('pass','cmac_fail','decrypt_fail','unknown_chip','replay_suspect','disabled') NOT NULL,
+  verify_result ENUM('pass','cmac_fail','decrypt_fail','unknown_chip','replay_suspect','disabled','not_ready') NOT NULL,
   user_agent VARCHAR(512) DEFAULT NULL,
   ip_hash VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  chip_id BIGINT UNSIGNED DEFAULT NULL COMMENT '完整验签后的芯片关联；未验证的候选身份不写入',
+  item_id BIGINT UNSIGNED DEFAULT NULL COMMENT '触碰发生时的物品，不随未来换绑迁移历史',
+  accepted_counter BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN verify_result='pass' THEN scan_counter ELSE NULL END) STORED,
+  UNIQUE KEY uk_scan_accepted (chip_id, accepted_counter),
+  KEY idx_scan_success_time (verify_result, created_at),
+  KEY idx_scan_project_success (project_id, verify_result, created_at),
+  KEY idx_scan_item_success (item_id, verify_result, created_at),
+  CONSTRAINT fk_scan_chip FOREIGN KEY (chip_id) REFERENCES chip(id),
+  CONSTRAINT fk_scan_item_project FOREIGN KEY (item_id, project_id) REFERENCES item(id, project_id),
+  CONSTRAINT ck_scan_pass CHECK (verify_result<>'pass' OR (chip_id IS NOT NULL AND item_id IS NOT NULL AND project_id IS NOT NULL AND chip_uid IS NOT NULL AND scan_counter IS NOT NULL AND scan_counter<16777215)),
   KEY idx_chip_time (chip_uid, created_at),
   KEY idx_verify_result (verify_result),
   KEY idx_project_time (project_id, created_at)
@@ -231,7 +241,7 @@ CREATE TABLE admin_session (
   CONSTRAINT fk_session_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
 ) COMMENT='密码加Authenticator验证码通过后的登录会话，最长8小时；没有备份码或设置阶段权限';
 
--- 第二阶段请求次数限制预留：短信和芯片验证共用数据库计数；第一阶段登录不使用此表。
+-- 请求次数表由触碰验证使用，短信仍预留；第一阶段登录不使用此表。
 CREATE TABLE security_rate_limit (
   bucket_key BINARY(32) PRIMARY KEY COMMENT '按用途和统一格式的账号或IP等标识，用带秘密的HMAC算法计算指纹；不存原始IP或手机号',
   window_started_at DATETIME NOT NULL,
@@ -253,7 +263,7 @@ CREATE TABLE admin_login_event (
   CONSTRAINT fk_login_admin FOREIGN KEY (admin_id) REFERENCES admin_user(id)
 ) COMMENT='登录事件，未知账号的失败也可记录，不写密码或验证码';
 
--- 第二阶段预留：全局K1方案已定，实际参数、真实单卡测试和养成身份方案仍待完成。
+-- 触碰凭证供查看使用；短信认领及养成接口仍按阶段单独实现和验收。
 -- 触碰凭证表：验证通过后临时允许查看或绑定，不证明访问者是登记所有者。
 CREATE TABLE tap_grant (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

@@ -75,7 +75,8 @@ def database_ready():
             cursor.execute("SELECT code FROM project ORDER BY id")
             return ([row[0] for row in cursor.fetchall()] == ["fashion", "jewelry"]
                     and chip_project_schema(cursor) == "optional"
-                    and registration_source_schema(cursor) == "ready")
+                    and registration_source_schema(cursor) == "ready"
+                    and tap_event_schema(cursor) == "ready")
     except pymysql.MySQLError as error:
         record_failure(error)
         return False
@@ -107,3 +108,54 @@ def registration_source_schema(cursor):
     if column is None:
         return "missing"
     return "ready" if column == ("enum('unknown','manual','nfc_cool')", "NO", "unknown") else "unknown"
+
+
+def tap_event_schema(cursor):
+    """识别完整触碰事件结构；部分升级或约束被改动时不冒充就绪。"""
+    cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,GENERATION_EXPRESSION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log'")
+    columns = {row[0]: row[1:] for row in cursor.fetchall()}
+    old_names = {'id', 'chip_uid', 'project_id', 'picc_data', 'cmac', 'scan_counter', 'verify_result', 'user_agent', 'ip_hash', 'created_at'}
+    old_enum = "enum('pass','cmac_fail','decrypt_fail','unknown_chip','replay_suspect','disabled')"
+    base_types = {'id': ('bigint unsigned', 'NO'), 'chip_uid': ('varchar(32)', 'YES'),
+                  'project_id': ('tinyint unsigned', 'YES'), 'picc_data': ('varchar(256)', 'YES'),
+                  'cmac': ('varchar(64)', 'YES'), 'scan_counter': ('bigint unsigned', 'YES'),
+                  'user_agent': ('varchar(512)', 'YES'), 'ip_hash': ('varchar(64)', 'YES'),
+                  'created_at': ('timestamp', 'YES')}
+    if any(name not in columns or columns[name][:2] != expected for name, expected in base_types.items()):
+        return 'unknown'
+    if set(columns) == old_names and columns['verify_result'][:2] == (old_enum, 'NO'):
+        return 'missing'
+    new_names = {'chip_id', 'item_id', 'accepted_counter'}
+    if set(columns) != old_names | new_names or columns['verify_result'][:2] != (old_enum[:-1] + ",'not_ready')", 'NO'):
+        return 'unknown'
+    if any(columns[name][:2] != ('bigint unsigned', 'YES') for name in new_names):
+        return 'unknown'
+
+    def compact(value):
+        normalized = value.lower().replace("\\'", "'").replace('_utf8mb4', '').replace('_latin1', '')
+        return ''.join(character for character in normalized if not character.isspace() and character not in " `")
+
+    # MySQL按创建连接可能输出latin1或utf8mb4常量及转义引号；只规范化已知等价形式。
+    expression = compact(columns['accepted_counter'][2])
+    if expression != "(casewhen(verify_result='pass')thenscan_counterelsenullend)":
+        return 'unknown'
+    cursor.execute("SELECT INDEX_NAME,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log' ORDER BY INDEX_NAME,SEQ_IN_INDEX")
+    indexes = {}
+    for name, non_unique, column, position in cursor.fetchall():
+        indexes.setdefault(name, []).append((non_unique, column))
+    expected = {
+        'PRIMARY': [(0, 'id')],
+        'uk_scan_accepted': [(0, 'chip_id'), (0, 'accepted_counter')],
+        'idx_scan_success_time': [(1, 'verify_result'), (1, 'created_at')],
+        'idx_scan_project_success': [(1, 'project_id'), (1, 'verify_result'), (1, 'created_at')],
+        'idx_scan_item_success': [(1, 'item_id'), (1, 'verify_result'), (1, 'created_at')],
+    }
+    if any(indexes.get(name) != values for name, values in expected.items()):
+        return 'unknown'
+    cursor.execute("SELECT CONSTRAINT_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log' AND REFERENCED_TABLE_NAME IS NOT NULL")
+    if set(cursor.fetchall()) != {('fk_scan_chip', 'chip_id', 'chip', 'id'), ('fk_scan_item_project', 'item_id', 'item', 'id'), ('fk_scan_item_project', 'project_id', 'item', 'project_id')}:
+        return 'unknown'
+    cursor.execute("SELECT c.CHECK_CLAUSE,t.ENFORCED FROM information_schema.CHECK_CONSTRAINTS c JOIN information_schema.TABLE_CONSTRAINTS t ON t.CONSTRAINT_SCHEMA=c.CONSTRAINT_SCHEMA AND t.CONSTRAINT_NAME=c.CONSTRAINT_NAME WHERE t.TABLE_SCHEMA=DATABASE() AND t.TABLE_NAME='scan_log' AND t.CONSTRAINT_NAME='ck_scan_pass'")
+    check = cursor.fetchone()
+    clause = "((verify_result<>'pass') OR ((chip_id IS NOT NULL) AND (item_id IS NOT NULL) AND (project_id IS NOT NULL) AND (chip_uid IS NOT NULL) AND (scan_counter IS NOT NULL) AND (scan_counter<16777215)))"
+    return 'ready' if check and check[1] == 'YES' and compact(check[0]) == compact(clause) else 'unknown'

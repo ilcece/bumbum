@@ -5,7 +5,6 @@ import json
 import os
 import re
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from flask import current_app, g
 import pymysql
 
@@ -13,7 +12,8 @@ from core.admin_auth import AuthRequestError, lock_admin_session
 from core.auth_settings import AuthUnavailable, client_ip, fingerprint, utc_now
 from core.chip_registry import CHIP_VIEW, chip_view
 from core.db import get_database
-from core.sdm_derivation import aes_cmac, derive_tag_key
+from core.sdm_derivation import derive_tag_key
+from core.sdm_verification import InvalidReading, InvalidLayout, decode_reading, valid_mac
 from core.secret_storage import decrypt_chip_keys, encrypt_chip_keys
 
 URL_TEMPLATE = "https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}"
@@ -52,18 +52,26 @@ def target_keys(project, uid):
 
 def verify_reading(reading, keys, uid):
     """固定AES、C7布局和零长度MAC输入，不自动猜测其他配置。"""
-    if not isinstance(reading, dict) or set(reading) != {"picc_data", "cmac"}:
-        raise AuthRequestError(400, "invalid_param", "每条读数只接受picc_data和cmac。")
-    for name, length in (("picc_data", 32), ("cmac", 16)):
-        if not isinstance(reading[name], str) or not re.fullmatch(r"[0-9a-fA-F]{%d}" % length, reading[name]):
-            raise AuthRequestError(400, "invalid_param", "读数须为完整十六进制参数。")
-    decryptor = Cipher(algorithms.AES(bytes.fromhex(keys["K1"])), modes.CBC(bytes(16))).decryptor()
-    plain = decryptor.update(bytes.fromhex(reading["picc_data"])) + decryptor.finalize()
-    session = aes_cmac(bytes.fromhex(keys["K2"]), bytes.fromhex("3CC300010080") + plain[1:11])
-    valid_mac = hmac.compare_digest(aes_cmac(session, b"")[1::2], bytes.fromhex(reading["cmac"]))
-    if plain[0] != 0xC7 or not hmac.compare_digest(plain[1:8], bytes.fromhex(uid.replace(":", ""))) or not valid_mac:
+    try:
+        candidate, counter = decode_reading(reading, bytes.fromhex(keys["K1"]))
+    except InvalidReading:
+        raise AuthRequestError(400, "invalid_param", "读数须包含完整十六进制picc_data和cmac。") from None
+    except InvalidLayout:
+        raise AuthRequestError(400, "verification_failed", "读数与该芯片的目标配置不匹配，请核对卡片和配置。") from None
+    if not hmac.compare_digest(candidate, uid) or not valid_mac(reading, bytes.fromhex(keys["K2"]), candidate, counter):
         raise AuthRequestError(400, "verification_failed", "读数与该芯片的目标配置不匹配，请核对卡片和配置。")
-    return int.from_bytes(plain[8:11], "little")
+    return counter
+
+
+def checked_saved_keys(stored, chip):
+    """核对保存的五个槽位与当前目标配置，供配置和用户验证共同使用。"""
+    expected = target_keys(chip["project"], chip["chip_uid"])
+    saved = decrypt_chip_keys(stored, chip["id"])
+    if stored["key_version"] != "v1" or stored["master_key_version"] != "v1" or not isinstance(saved, dict) or set(saved) != set(expected) or any(
+        not isinstance(saved[name], str) or not hmac.compare_digest(saved[name], expected[name]) for name in expected
+    ):
+        raise AuthUnavailable("保存的密钥与当前配置不一致，请停止操作，不要覆盖记录或重配卡片。")
+    return saved
 
 
 def audit(cursor, action, chip, extra=None):
@@ -116,11 +124,7 @@ def key_operation(chip_id, operation, readings=None):
                 audit(cursor, "chip.generate_keys", chip)
                 result = {"chip_id": chip_id, "generated": True, "key_version": "v1"}
             else:
-                saved = decrypt_chip_keys(stored, chip_id)
-                if stored["key_version"] != "v1" or stored["master_key_version"] != "v1" or not isinstance(saved, dict) or set(saved) != set(keys) or any(
-                    not isinstance(saved[name], str) or not hmac.compare_digest(saved[name], keys[name]) for name in keys
-                ):
-                    raise AuthUnavailable("保存的密钥与当前配置不一致，请停止操作，不要覆盖记录或重配卡片。")
+                saved = checked_saved_keys(stored, chip)
                 if operation == "view":
                     audit(cursor, "chip.view_keys", chip)
                     result = {"chip_uid": chip["chip_uid"], "keys": saved, "sun_url_template": URL_TEMPLATE}

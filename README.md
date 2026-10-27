@@ -10,7 +10,7 @@
 - 错误编号与脱敏诊断、可重复的桌面浏览器回归及CI已接入；文档按职责分工维护，操作入口不变。
 - 芯片首次绑定、排除已占用候选、密钥生成与受控查看、配置核验已由cece验收并合入main；两枚服装测试卡按十六进制目标密钥配置后核验通过。合并记录及当前任务看TODO和CHANGELOG。
 - 手机登记通过的流程是“先批量写固定文本，再批量读卡自动回调”；不代表空白卡、随机UID或正式SUN防伪通过。
-- 用户触碰验证后端、手机资料页和短信认领尚未形成闭环；配置核验不等于用户防重放或正式上线，第一阶段尚未整体完成。跨项目实卡对照、密钥轮换和批量生产仍需分别验证。
+- 用户触碰验证后端已由cece验收通过，支持有效读数验证、旧读数拒绝及短时资料凭证；手机资料页和短信认领尚未形成闭环，第一阶段未整体完成。配置核验、用户验证、跨项目实卡、密钥轮换和批量生产分别取证；工作台统计的当前状态见TODO。
 - 仓库版本与服务器部署分开验收，合入main不代表香港已更新。操作见[桌面管理端](docs/ADMIN_DESKTOP.md)及[云测试手册](docs/CLOUD_TEST_DEPLOYMENT.md)。
 
 当前任务、分支和待反馈只看[TODO](TODO.md)；验收日期、提交和历史证据查[CHANGELOG](CHANGELOG.md)；逐接口实现范围集中在[接口实现概览](API_CONTRACT.md#04-当前能做到哪一步)。
@@ -65,7 +65,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 ## 代码和配置在哪里
 
-后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py，前端在frontend/admin/。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库。
+后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py，触碰入口在core/tap_grants.py，验证事务在core/tap_verification.py，共用验签在core/sdm_verification.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py，前端在frontend/admin/。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库；触碰记录升级见[本地运行第11节](docs/LOCAL_DEVELOPMENT.md#11-已有测试库升级触碰记录及后端验收)。
 
 云测试部署依赖在requirements-deploy.in/txt，通过容器固定版本，不替换Ubuntu系统Python。Python 的本机直接依赖在 `requirements.in`，完整固定版本在 `requirements.txt`；开发检查对应 `requirements-dev.in` 和 `requirements-dev.txt`。前端依赖与固定版本在 `package.json`、`package-lock.json`。更新依赖时同步对应清单，不手工改锁文件凑版本。
 

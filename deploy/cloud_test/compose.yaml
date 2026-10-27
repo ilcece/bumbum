@@ -50,6 +50,7 @@ services:
       MASTER_KEY_JEWELRY: ${MASTER_KEY_JEWELRY:-}
       SDM_META_KEY_V1: ${SDM_META_KEY_V1:-}
       SDM_META_KEY_VERSION: ${SDM_META_KEY_VERSION:-v1}
+      TAP_VERIFY_PER_MINUTE: ${TAP_VERIFY_PER_MINUTE:-60}
     restart: unless-stopped
     read_only: true
     tmpfs:

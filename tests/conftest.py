@@ -114,7 +114,7 @@ def auth_app(auth_database, tmp_path):
     with app.app_context():
         connection = get_database()
         with connection.cursor() as cursor:
-            for table in ("admin_login_event", "admin_session", "admin_audit", "admin_user", "chip_key", "chip"):
+            for table in ("sms_challenge", "tap_grant", "scan_log", "security_rate_limit", "ownership_history", "ownership", "admin_login_event", "admin_session", "admin_audit", "admin_user", "chip_key", "chip"):
                 cursor.execute(f"DELETE FROM {table}")
         connection.commit()
     return app
