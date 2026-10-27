@@ -6,7 +6,7 @@
 
 ## 0. Windows：GitHub Desktop＋双击运行
 
-Windows使用根目录的首次准备、启动、停止入口。旧库先按第7、8节检查，已升级的原配置和资料继续使用；不重建数据库。手册总入口是[操作入口](op_guide.md)，验收记录查[CHANGELOG](../CHANGELOG.md)。
+Windows使用根目录的首次准备、启动、停止入口。旧库先按第7、8节检查，已升级的原配置和资料继续使用；不重建数据库。手册总入口是[操作入口](OP_GUIDE.md)，验收记录查[CHANGELOG](../CHANGELOG.md)。
 
 ### 日常快捷检查入口
 
