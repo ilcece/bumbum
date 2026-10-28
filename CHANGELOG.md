@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-10-28 样品编号澄清与公网无资格、隔离检查通过
+
+cece确认第二枚卡的物品编号是本人主动重填，当前FASH-2026-222222无误。关闭TODO中编号核对事项；原恢复报告及历史记录保留当时发现与待确认状态，本条补充后续确认，不篡改恢复证据、不修改物品编号或绑定。两枚卡当前对照为04:84:81:CA:84:20:90 → FASH-2026-990001、04:86:81:CA:84:20:90 → FASH-2026-222222；独立恢复通过结论不变。
+
+本轮GitHub原生HTTPS Git访问恢复，先ls-remote及fetch核对main仍为f3eeb5b、文档分支仍为098a014，确认该远端头是本地f7ab1cd的祖先，未发现其他会话新提交，才继续同一分支同步。此前401属于当时实际失败，不删除记录，也未要求cece提供令牌。文档同步不代表合并main或更新ECS。
+
+从Codex经继承的HTTP/HTTPS代理对真实nfc.bumbum.cc执行12项无凭证检查，全部通过：HTTP /tap为301且准确转向HTTPS同路径；HTTPS入口200、实际引用的用户JavaScript可读取；no-store、no-referrer、nosniff三项头符合预期；用户域名的/api/admin/chips、/api/admin/items、/api/admin/login、/api/health、/api/ready、/api/fashion/items/1/detail、/api/webhook/admin-scan均404。无Cookie访问两件实际样品的/api/tap/items/1/view及/2/view均403、code=invalid_view_session，响应无data资料对象；未提交动态读数或管理员凭证。
+
+另用系统Chromium 154.0.8037.57及固定Playwright 1.62.0，在新建、无资格的手机尺寸浏览器中，经现有代理打开真实公网/tap/items/1及/tap/items/2，均显示“本次查看资格不可用”，不展示样品资料；保持TLS验证，没有保存截图、trace、Cookie或凭证。此项直接验证公网无资格页面，不证明已取得资格后的停用或断网恢复通过。
+
+仓库现有浏览器回归命令`.venv-browser/bin/python -m pytest tests/test_mobile_browser.py --auth-db --browser --browser-executable=/usr/bin/chromium --browser-artifacts test-results -q`实际执行5项，全部通过，用时27.27秒，无跳过。覆盖合成触碰后刷新与停用、前后台自动查询和模拟服务失败/恢复、旧读数与无Cookie、429等待、图片及滚动位置保护；使用独立临时MySQL及合成数据，未连接ECS业务库，夹具清理自身资源。模拟服务失败不同于真实手机断网，自动化回归不能替代本轮公网人工证据；依赖装在被忽略的.venv-browser，不改依赖声明、锁文件或应用代码。
+
+cece选择现在配合公网验收，已提供三组步骤：第二枚样品手机断网约65秒再恢复；通过现有管理入口停用物品、手机确认不可查看、再恢复启用；用剪贴板保留完全同一条动态链接重复打开并核对第二次不计数。完整触碰链接不发聊天，不改芯片、密钥或服务器；无法取得原动态链接时重放组保留未执行，不以浏览器后退或再次碰卡代替。当前三组结果待cece反馈，公网整体仍为部分通过，跨项目实卡继续单列。仅更新TODO和本历史，不扩展部署、业务代码、接口、数据库或手册步骤。
+
 ## 2026-10-28 独立备份恢复技术验证通过，样品编号差异待核对
 
 cece先确认具体隔离目标、资源占用、验证项目与清理边界，再明确授权执行。本次在香港ECS现场main@f3eeb5bd8a9efed01517ace6b3599a8d9f76f003运行，演练标识`bumbum-recovery-20261028T052209Z-eeadb8c4`。通过仓库现有backup入口生成新备份`/opt/bumbum-test/.cloud-test/backups/database-PlnCeUAK.sql`，49020字节、权限600，SHA256为`16b6881024386ee0476a49e8b47dca885aa858a88461a4136f7aaf434f8b3307`；保留旧备份，不使用早于样品准备的database-3EroR6XB.sql作为本次恢复源。
