@@ -42,7 +42,8 @@
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
 | 登录 | 一次提交账号、密码和验证码；强制检查网页来源 Origin 和 JSON，不依赖现有登录凭证 |
 | 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
-| 用户查看详情 | 请求头 X-Tap-Token 放触碰后的临时凭证 |
+| 兼容详情接口 | 请求头 X-Tap-Token 放触碰后的临时凭证，沿用原五分钟规则 |
+| 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
 | 用户发短信/绑定 | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
 所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的 Origin 和 JSON；除 login 外，还必须有有效 Cookie 和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
