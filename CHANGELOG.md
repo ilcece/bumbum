@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-28 新发布环境SSH只读连接及续期、重启证据补录
+
+按cece交接授权，核对当前运行实例与bumbum_ECS草稿基准均来自发布版本`6ae180f2618081a18f803294fb3945a4`，运行观察为current；策略文件显示VPN已配置且automatic_tailscale_access开启。显式TCP列表为空，但经受支持的proxy:8088 CONNECT访问100.84.3.100:22实测返回200，不能仅凭空列表判定需新增授权。旧专用私钥不存在，生成新的专用身份，仅向cece提供公钥；不查看或输出私钥。ED25519主机指纹与cece事先确认值完全一致，记录后使用StrictHostKeyChecking=yes。连接实际返回Tailscale SSH额外验证提示，与“未启用Tailscale SSH”的交接描述存在差异；cece完成验证后重连成功。本次成功证明该代理/VPN路径的SSH远程执行可用，不证明新公钥已添加或普通OpenSSH公钥认证已独立验证，也未修改SSH/Tailscale服务配置。
+
+Codex本轮直接只读检查（首次远端时间为北京时间2026-10-28 13:15:51）：登录用户root；/opt/bumbum-test为main@f3eeb5bd8a9efed01517ace6b3599a8d9f76f003，git status --short无输出；ssh、tailscaled、nginx、docker均active，backend和db容器均healthy。首次误用本机开发端口5000返回连接拒绝，按仓库云端配置改用15000后，/api/health返回service=bumbum、state=running，/api/ready返回database=ready。certbot.timer为active，下一次计划为2026-10-28 17:10:42 CST（UTC+8）；系统报告启动时间2026-10-28 11:20:04。现场内存总量约3623MiB、available约2596MiB，无swap；根盘40GiB、可用约31GiB，供后续隔离方案评估，不构成恢复演练授权或容量保证。
+
+补录cece本轮交接中已确认的历史证据：nfc.bumbum.cc证书dry-run续期通过，certbot.timer有计划；ECS重启后四项服务active、后端与数据库healthy、ready正常，cece确认业务数据均保留。本次没有重新执行续期或重启，没有直接查询账号、卡片及加密业务资料，因此历史数据保留依据为cece确认，现场只读结果仅补充当前运行证据；不扩展为旧读数重放或独立恢复已通过。
+
+接手时远端main仍为f3eeb5b、文档分支docs/public-deployment-acceptance仍为c24aee922f91b41408a9f829365d878538c73e48；保留该分支既有记录继续更新，不覆盖其他会话工作。仅修改TODO与本记录，不改业务代码、配置、部署手册步骤或服务器，不读取真实.env、密码、芯片密钥或备份内容，不执行备份、恢复、重启、重装或部署。独立恢复仍待具体方案获cece确认；现有backup使用mysqldump --databases包含原库名，不能只换库名视为隔离；已知database-3EroR6XB.sql早于样品准备，不能默认作为最新恢复源。公网异常边界及跨项目实卡继续分别取证，不自动合并main。18份文档289处本地链接/标题定位及git diff --check通过；仅文档记录更新，不重复无关业务回归。
+
 ## 2026-10-28 两枚服装卡公网业务验收通过
 
 cece确认两枚专用服装卡均验收通过，承接本轮三项验收范围：云端资料展示正确、修改后前台约60秒自动更新及刷新读取最新资料、真实触碰计数而刷新/自动查询不重复计数；前序已确认配置核验及验证成功后跳转/tap/items/数字ID。测试UID为04:84:81:CA:84:20:90及04:86:81:CA:84:20:90；按约定以真实UID核对，不以早期A/B标签推断。云端原无物品、绑定及密钥记录；cece最终选择只准备这两枚样品并私密填写原服装根密钥和全局K1，容器加载和计算检查通过，不迁移本机数据库、不构建迁移工具、不重写实卡。
