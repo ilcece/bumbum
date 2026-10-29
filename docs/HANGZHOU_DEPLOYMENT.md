@@ -423,6 +423,24 @@ docker run --rm -it --network host --read-only --memory=256m --cpus=0.5 \
 
 成功结果应包含charset=utf8mb4、collation=utf8mb4_unicode_ci、table_count=24、tables_complete=true及客户端TLS套件；后端ready和业务仍单独验收。只有--normalize-empty-collation而没有--initialize-empty时仅修正空库默认值，不建表。任何错误都保留现场，不重跑部分初始化、不删库、不扩大权限。MySQL类错误只返回数字编号，不输出可能包含秘密的原始异常或SQL。
 
+### 5.4.2 初始化返回1045时，先只读区分账号与库授权
+
+1045表示访问被拒绝，但仅有编号不能确定失败阶段或原因。先停止建表/修正命令，不重建运行配置、不切换高权限身份、不修改网络或扩大授权。应用账号连接成功也不能证明初始化账号可用。
+
+由cece在杭州ECS的root终端执行一次以下诊断，隐藏输入bumbum_hz_test_init自己的密码。它不指定业务库，只验证该账号登录并显示自己的授权，不读取业务数据或执行DDL。MySQL8的SHOW GRANTS不包含密码；仅反馈结果或脱敏错误，不发送密码。
+
+```bash
+mysql --no-defaults --no-login-paths \
+  --protocol=TCP --connect-timeout=5 \
+  --host=rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com --port=3306 \
+  --user=bumbum_hz_test_init --password \
+  --ssl-mode=VERIFY_IDENTITY \
+  --ssl-ca=/opt/bumbum-hangzhou/test/public/rds-ca.pem \
+  --execute="SELECT 1 AS authentication_ok, CURRENT_USER() AS account, VERSION() AS mysql_version; SHOW GRANTS;"
+```
+
+若仍为1045，停止重复尝试，由cece在目标RDS控制台核对初始化账号是否可用、是否锁定及密码是否对应；不据此重置应用账号密码。若返回authentication_ok=1，核对实际身份以及授权是否只限目标测试库，再根据报错阶段检查库权限或客户端差异；登录通过不等于允许重跑初始化。恢复执行前须重新核对固定实例、目标库及所有对象是否为空，发现部分结构则保留现场排查。
+
 ## 6. 数据与域名：两种路径分开决定
 
 | 路径 | 适用情况 | 关键边界 |
