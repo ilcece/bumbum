@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-10-30 TXT权威生效，申请会话中断后受控重新申请
+
+cece确认新TXT已保存启用。Codex通过既有严格SSH及受支持CONNECT路径，直接查询dns21.hichina.com和dns22.hichina.com，两台均aa/NOERROR、ANSWER=1并返回上一申请的正确公开值，TTL600；记录确已生效，不再归因于控制台保存失败。恢复时原交互执行会话不可用，杭州pgrep未发现Certbot进程，目标fullchain.pem尚不存在；未读取私有日志、账号文件或私钥，也未删除锁或修改服务。
+
+核对中断现场后，使用既有ACME账号重新发起一次相同域名的正常CLI申请，成功停在新的公开TXT提示处，尚未继续CA验证。新值与上一值不同，已请cece只更新本次_acme-challenge.test记录，保存后再核对两权威；不把上一申请记录生效当成本次校验通过，不复用旧提示或并发运行Certbot。第二域名、Nginx启用、HTTPS与续期均未因此完成，业务A/AAAA及香港不变。
+
+同时只读获取main新头911bd22ab98d11465e22140a3d3a1d01da9f013b，相对已审阅c8abbee仅6份文档变化，新增PRODUCT.md及愿景/需求分工，应用及部署代码无变化。已阅读新增AGENTS分工规则，保持本任务分支独立，未合并或覆盖其他会话文档。仅同步TODO与历史，现有手册已覆盖会话中断检查；README里程碑、接口、表结构、依赖不受影响，无需重复应用回归。 文档19份297处链接及差异检查通过。
+
 ## 2026-10-30 初次DNS-01因TXT缺失失败，停止并核对权威记录
 
 cece反馈Certbot账号已注册，test.bumbum.cc申请在继续后被CA以_acme-challenge.test.bumbum.cc TXT NXDOMAIN拒绝。Codex没有重跑签证、读取Certbot私有日志或修改DNS，先使用杭州现有resolvectl核对当前仍为该名称不存在；再用已有dig分别直接查询dns21.hichina.com和dns22.hichina.com，两台均带aa返回NXDOMAIN、ANSWER=0，SOA序列2026100918。此结果证明查询时权威记录不存在，不能仅归为本机缓存，也不据此断言cece未操作或控制台具体填错。
