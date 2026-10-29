@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 杭州测试管理员设置完成，转入DNS校验证书
+
+cece反馈“账号已创建且副本已清理”。Codex通过既有应用身份只读事务，仅查询username/status/totp_enabled，返回ilcece/active/1；仅检查固定ECS导出文件的存在状态为false，未读取认证字段、真实二维码页面或秘密。账号设置完成不代表网页登录/CSRF及公网验收通过；不重复创建管理员或生成新运行秘密。
+
+两测试域名的fullchain.pem存在状态均false，Nginx仍masked/inactive。按已批准的保留香港解析路径，已给cece逐个运行Certbot手动DNS-01的两域名命令：test.bumbum.cc与nfc-test.bumbum.cc，联系资料/条款由cece在终端处理，私钥只在杭州本机生成保留；在DNS控制台只新增本次_acme-challenge.test及_acme-challenge.nfc-test的TXT值，保留既有TXT和A/AAAA，确认TXT生效后继续，成功后只清理本次值。待证书成功/错误或公开TXT协查，不在没有证书前启用Nginx，也不据Certbot定时器存在认定续期通过。
+
+只读预检：杭州到https://acme-v02.api.letsencrypt.org/directory的正常TLS请求返回200、newAccount端点存在，未注册账号或申请证书；域名NS为dns21.hichina.com及dns22.hichina.com。证书命令与TXT操作由cece继续，不把公共目录可达当成签证通过。
+
+本轮只同步TODO及历史，现有操作手册5.3.1/5.5仍一致，README里程碑、TECH_SPEC、接口/表结构、依赖及工具无需修改，不重复应用测试；未改香港、现有解析或main。 文档19份297处链接及差异检查通过。
+
 ## 2026-10-30 杭州权限收敛完成，测试后端启动通过
 
 cece执行固定b220946维护工具反馈changes_applied=30，目标仍bumbum_hz_test、8.0.36、d8379dd3-cace-11f1-8fdd-00163e17e38a；应用账号只剩USAGE及目标库SELECT/INSERT/UPDATE/DELETE，初始化身份仅目标库ALL且locked=Y，两账号全局及系统表额外授权已撤回。客户端ECDHE-RSA-AES256-GCM-SHA384，前快照2ed10a14f6d9339bb9e9c53511ac3f63148a7dfccd3b56ba62702bfdca800e80，后快照228a9312138be375325d6ee545ad82ec6feb4c598a524211ec95adf37d630bc1；Codex按公开反馈结构化保存并重新计算一致。没有取得维护密码，不重跑收敛命令或初始化。
