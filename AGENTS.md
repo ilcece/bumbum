@@ -71,6 +71,7 @@ cece已确认文档分支审核方式：概要通过后，可将PRD、原型及�
 
 | 领域 | 定义文件 |
 |---|---|
+| 长期产品愿景与跨业务线原则 | [PRODUCT.md](PRODUCT.md) |
 | 产品规则、阶段和验收 | [PRD.md](PRD.md) |
 | NFC 文创祈愿 H5 的专属体验规则与验收 | [docs/NFC_PRAYER_H5_PRD.md](docs/NFC_PRAYER_H5_PRD.md)；共用能力和服装主线仍以 [PRD.md](PRD.md) 为准 |
 | 架构、技术、安全和状态流转 | [TECH_SPEC.md](TECH_SPEC.md) 及其明确引用的 [docs/IMPLEMENTATION_DETAILS.md](docs/IMPLEMENTATION_DETAILS.md) |
@@ -83,7 +84,7 @@ cece已确认文档分支审核方式：概要通过后，可将PRD、原型及�
 | 操作手册入口 | [docs/OP_GUIDE.md](docs/OP_GUIDE.md) |
 | Figma 与前端协作 | [docs/FRONTEND_COLLABORATION.md](docs/FRONTEND_COLLABORATION.md) |
 
-两条产品线的详细需求分开维护：根目录 PRD 负责共用能力与服装主线，祈愿 H5 专属规则集中在 docs/NFC_PRAYER_H5_PRD.md；接口、安全和数据规则仍按本表引用各自权威技术文件，不复制第二套技术规范。
+长期愿景与详细需求分开维护：PRODUCT.md 负责 BUMBUM 的长期愿景和跨业务线概念；根目录 PRD 负责共用能力与服装主线，祈愿 H5 专属规则集中在 docs/NFC_PRAYER_H5_PRD.md；接口、安全和数据规则仍按本表引用各自权威技术文件，不复制第二套技术规范。
 
 各功能操作与验收手册统一从 [docs/OP_GUIDE.md](docs/OP_GUIDE.md) 进入，再阅读当前任务对应的手册。本文件不另列完整手册目录；新增或调整手册时更新该入口，避免多处目录维护不一致。
 
