@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-29 杭州Tailnet SSH可达且指纹匹配，待添加专用公钥
+
+cece提供杭州Tailscale地址100.96.225.127，随后明确杭州专用公钥尚未添加。Codex重新核对当前云环境及策略后，通过支持的CONNECT代理发起SSH；实际收到的ED25519主机指纹SHA256:h62A/DKvJNUEfg453gUR/d427aSUsPmNVRUQtAhIexQ与cece在阿里云控制台取得值完全一致，匹配后保存到本次杭州专用known_hosts。后续公钥认证返回Permission denied (publickey)，符合缺少公钥授权这一已知前置条件；不将其当作网络或主机指纹故障，不反复重试、不关闭校验或改密码登录。
+
+本轮证明Codex到杭州SSH的传输可达及主机身份匹配，未执行远程命令，也未复测接入后DNS/RDS、读取秘密或修改服务器。下一步由cece在杭州控制台追加本次专用公钥，保留已有条目；添加后Codex再使用严格主机校验测试只读登录。仅补录文档，检查通过，不部署应用或改数据库。
+
 ## 2026-10-29 杭州DNS、路由及RDS TCP基线通过
 
 cece连续提供杭州控制台只读结果：eth0使用阿里DNS100.100.2.136/138，DNS路由经172.23.223.253、源地址172.23.211.159；RDS端点解析172.23.211.160并在5秒内TCP3306建连成功。仅local/main/default三条策略规则，主路由为单eth0直连172.23.208.0/20和默认网关，两个DNS有明确eth0路由；UFW inactive、INPUT默认ACCEPT，nft list tables无输出；all/default/eth0的rp_filter均0。TCP通过不代表RDS账号、TLS或应用已通过；CPU仍未测，Tailscale尚未安装。
