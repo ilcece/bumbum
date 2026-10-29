@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-29 杭州ECS基础只读核对完成
+
+cece明确开始按手册接入，并提供杭州控制台输出：root，主机iZbp1cj6pt88wbxmhlsp1nZ，Ubuntu26.04.1 LTS/resolute；内存总量约1.7GiB、available约1.1GiB，swap4GiB且未使用，根盘40GiB、可用31GiB。监听为IPv4/IPv6的22及本机DNS53，已有/usr/bin/python3，command -v未找到Docker、Nginx或MySQL客户端。不据此推断CPU规格或断定所有工具均已安装/卸载，也不把仅监听SSH说成已登录成功。
+
+本步结果支持继续维护通道预检，尚未完成实际DNS、RDS解析、路由和现有防火墙核对，未确定杭州netfilter模式、安装Tailscale或验证SSH/RDS。下一步由cece在同一控制台执行手册第3.5节只读检查；Codex只补录TODO与本历史，不改目标服务器。文档链接及差异检查通过，不重复业务测试。
+
 ## 2026-10-29 香港netfilter模式后续变更补充
 
 cece补充：阿里云工程师以off恢复香港连接之后，自己又手动运行命令将模式改成nodivert。原截图中的off处置记录保持不变，新增后续变更，香港最新模式按cece说明为nodivert；不将旧off记录继续当作当前模式。没有获知后续命令的完整参数或独立现场验证结果，不编造已检查过当前规则及所有协议的结论，也不将此变化自动套用到杭州。
