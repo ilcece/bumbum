@@ -545,6 +545,37 @@ mysql --no-defaults --no-login-paths \
 
 RDS的explicit_defaults_for_timestamp=0时，现有schema中scan_log.created_at的TIMESTAMP DEFAULT CURRENT_TIMESTAMP会生成非空列；参数为1时生成可空列。结构识别兼容这两种已知形式，同时要求TIMESTAMP类型、默认CURRENT_TIMESTAMP且不带ON UPDATE，继续拒绝缺省/固定时间、自动更新时间及未知精度/类型，保留其余索引和约束检查。只交付兼容识别修复，不修改RDS参数、现有表、数据或唯一schema。先在独立临时MySQL覆盖参数开/关、普通更新不改事件时间及异常定义拒绝，再按第5.3节交付固定新镜像并用应用身份只读复核。数据库检查通过后，实际HTTP ready、权限与业务仍分别验收。
 
+### 5.5 保留香港解析时的HTTPS定向验证
+
+当test.bumbum.cc仍指向香港、nfc-test.bumbum.cc尚未解析或未指向杭州时，不能直接用杭州HTTP-01签发这两个测试域名的证书。预验证采用DNS-01：由cece在自己的杭州root终端运行Certbot，在域名DNS控制台新增本次TXT校验值；私钥由杭州本机生成和保存，不复制香港私钥或上传聊天。此阶段保留现有A/AAAA及业务流量，域名正式切换仍按第6节单独安排。
+
+先由Codex模拟安装范围、确认无既有Nginx配置，再屏蔽新nginx.service以防包默认启动，安装Nginx/Certbot；公开项目稿仅放sites-available及独立代理配置位置。Nginx保持masked/inactive、80/443不监听，直到证书、站点与白名单准备完成。维护时不得套用此初装屏蔽步骤到已运行站点。
+
+cece需能管理这两个域名的TXT。以下每条完成后再执行下一条；首次运行按Certbot提示自行填写联系邮箱及阅读/确认服务条款，不向聊天发送账号私有资料：
+
+```bash
+certbot certonly --manual --preferred-challenges dns \
+  --cert-name test.bumbum.cc -d test.bumbum.cc
+```
+
+```bash
+certbot certonly --manual --preferred-challenges dns \
+  --cert-name nfc-test.bumbum.cc -d nfc-test.bumbum.cc
+```
+
+Certbot显示TXT值时保持终端等待。在bumbum.cc的DNS控制台分别使用本次提示对应的_acme-challenge.test或_acme-challenge.nfc-test主机记录；只新增本次值，保留已有TXT和其他记录，不覆盖其他校验。确认公网TXT已生效后再回Certbot继续；需要协助时只反馈公开记录名/值或脱敏错误，不发私钥。成功后只清理本次TXT值；失败先保留提示，不反复申请或关闭校验。
+
+cece反馈两域名签发成功后，由Codex按以下边界继续，无需cece逐条运行服务命令：
+
+| 阶段 | Codex操作与证据 |
+|---|---|
+| 公共证书检查 | 核对两域名公有证书的链、名称、有效期及文件权限；不读取/输出私钥或ACME账号资料 |
+| 受控启用 | 核对仅本次项目配置、证书路径及当前管理出口；备份并停用已核实的包默认站点链接，启用两个项目配置，nginx -t成功后才解除本次屏蔽并启动Nginx；不修改现有DNS |
+| 定向验证 | 本机保留Host/SNI和证书验证请求用户域名/tap、管理接口隔离、HTTP跳转和安全头；管理来源不在白名单时403为预期。cece电脑仅将这两个测试域名定向到杭州，验证允许来源的管理页和登录，手机/正式域名仍按各自DNS路由，不混作杭州实卡证据 |
+| 后续续期 | 手动DNS-01证书没有无人值守续期能力；Certbot定时器存在不等于续期通过。DNS正式切至杭州后，再核对Certbot4支持的认证重配置方式，改为对应webroot并实际dry-run续期；在取得真实证据前保持待验收，不复制香港dry-run结论 |
+
+证书签发、Nginx启用、浏览器定向验证、公网DNS切换及真实业务验收分别记录。该流程不生成生产密钥、不迁移香港数据，也不把两枚服装卡通过等同跨项目实卡通过。
+
 ## 6. 数据与域名：两种路径分开决定
 
 | 路径 | 适用情况 | 关键边界 |

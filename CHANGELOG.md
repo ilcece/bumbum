@@ -24,6 +24,8 @@ HTTPS依赖准备：先模拟确认仅新增10包、无升级/移除，确认Ngi
 
 预发布模板修正：审阅发现管理HTTPS模板中的HTTP重定向段未显式使用安全日志，可能继承默认含查询参数的格式；在该段加入已有的仅记录时间/方法/路径/状态的日志配置，继续原样保留重定向参数，不改变路由、白名单或后端。真实临时Nginx/TLS/Gunicorn/独立MySQL允许与拒绝来源两组回归通过，21.59秒，合成HTTP查询保留在Location而不出现在访问及容器日志。仅使用合成资料；未访问香港/杭州真实日志或业务链接，未据模板缺口编造香港实际日志内容。此修正用于杭州待启用的公开配置稿，不重启业务镜像、启用Nginx或切域名。文档与差异检查通过，未重跑不受影响的后端/浏览器测试。
 
+HTTPS配置稿交付：提交d8e758944924d14ff81ace2873742165127fb2e3源码归档SHA256=471e67173564fc509acd9a915c3057ee92c204f1e81e099a829c375c92096b2b，管理HTTPS模板SHA256=cfd6d6d346be4cc96038dc6c806bef00380c448e569145aee2fc665345b2835f，严格SSH/SFTP传入后均一致，源码及归档位于同根releases/artifacts该版本目录。目标三个公开稿先精确匹配5f24175生成基线，admin.conf原稿备份到新产物目录admin.conf.before，再原子更新其HTTP安全日志；管理/用户稿仅复制到/etc/nginx/sites-available/bumbum-hangzhou-test-admin.conf及-user.conf，代理稿在/etc/nginx/bumbum-hangzhou-test-proxy.conf，拒绝覆盖已存在目标。没有创建启用链接，Nginx仍masked/inactive、80/443无监听，后端仍仅127.0.0.1:15001。手册5.5补保留A/AAAA的DNS-01初始签证、受控启用和定向验证分工；证书还未签发，未执行签证命令或对真实项目nginx -t，不以默认配置测试代替验收；手动DNS证书续期未通过，未来域名切换后须转webroot并实际dry-run。当前先等管理员创建/清理反馈，不并行要求cece进行证书操作。 文档19份297处链接、杭州手册27段Bash及差异检查通过。
+
 ## 2026-10-30 维护身份方案获批，定向权限工具验证通过
 
 cece确认按第5.1.1节方案执行，随后确认bumbum_hz_ops已创建。cece隐藏输入密码的原生客户端VERIFY_IDENTITY只读预检返回bumbum_hz_ops@%、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、MySQL8.0.36；维护账号持实际公开清单中的静态全局权限及GRANT OPTION，未单列XA_RECOVER_ADMIN。应用/初始化授权与此前一致，三账号各仅Host=%且account_locked=N。未读取认证字段、真实配置或系统日志，创建不等于已收敛。
