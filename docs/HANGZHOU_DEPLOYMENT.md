@@ -589,6 +589,30 @@ dig @dns22.hichina.com _acme-challenge.test.bumbum.cc TXT +norecurse +noall +com
 
 证书签发、Nginx启用、浏览器定向验证、公网DNS切换及真实业务验收分别记录。该流程不生成生产密钥、不迁移香港数据，也不把两枚服装卡通过等同跨项目实卡通过。
 
+### 5.5.1 Windows公网预检与浏览器定向
+
+云端回环与Codex的Tailscale检查只证明对应路径；还需cece电脑验证杭州公网入口及允许来源。保持已确认的电脑VPN设置，在Windows PowerShell中逐条执行下面只读命令；只将本次请求定向杭州，不改hosts或公网DNS，不输入登录凭据：
+
+```powershell
+curl.exe --resolve "nfc-test.bumbum.cc:443:47.98.19.79" --connect-timeout 10 --max-time 20 --silent --show-error --output NUL --write-out "user HTTP=%{http_code} remote=%{remote_ip}\n" "https://nfc-test.bumbum.cc/tap"
+curl.exe --resolve "test.bumbum.cc:443:47.98.19.79" --connect-timeout 10 --max-time 20 --silent --show-error --output NUL --write-out "admin HTTP=%{http_code} remote=%{remote_ip}\n" "https://test.bumbum.cc/"
+```
+
+预期均200且remote为47.98.19.79，TLS保持正常CA/域名验证。只反馈状态、目标IP或错误，不发送密码或真实触碰链接。管理403时先由Codex核对错误日志client与cece实际出口，不能沿用旧IP或信任自报X-Forwarded-For；超时可能涉及公网安全组、VPN或代理路径，先区分层次，不反复开端口；证书错误先检查实际目的地与代理，不加-k。使用HTTP代理时--resolve可能不能控制代理端的解析，须核对结果；curl通过也不证明浏览器走相同路径。
+
+公网预检通过后，再安排浏览器定向与登录，按下面三组验收；未反馈前保持待验收：
+
+1. **电脑临时定向**：用管理员身份记事本打开C:\Windows\System32\drivers\etc\hosts，先保存备份。若两个域名已有有效条目先反馈，不覆盖；否则仅新增下方两行并保存，保留其他内容。Windows运行ipconfig /flushdns，保持VPN设置；浏览器使用新隐私窗口。代理或VPN可能绕过本机解析，必须在输入新杭州密码前检查浏览器收到证书的SHA-256指纹，与Codex当次从杭州读取的公有证书一致；不一致先停止，不把香港页面当杭州。
+2. **页面与身份**：证书目的地确认后，打开https://nfc-test.bumbum.cc/tap，应正常展示无触碰资格的入口；打开https://test.bumbum.cc/，用新测试管理员ilcece及手机BUMBUM-test验证码正常登录，进入工作台并刷新，最后退出。不得把香港账号/密钥迁入测试，密码与验证码不发聊天；登录及CSRF/业务检查按[管理员登录手册](ADMIN_LOGIN.md)和当次交付清单分别取证，能打开页面不代表全部通过。
+3. **清理与反馈**：结束后退出测试账号、关闭隐私窗口，只删除本次新增两行hosts并再次刷新DNS；不整份覆盖回旧备份，以免覆盖别人的后续修改。仅报告各组通过或失败位置，不发送Cookie、验证码或完整触碰链接。手机未做电脑定向，仍按公网DNS访问，不算杭州实卡验收。
+
+电脑临时hosts内容如下；这是本机定向，不是阿里云DNS的A记录变更：
+
+```text
+47.98.19.79 test.bumbum.cc
+47.98.19.79 nfc-test.bumbum.cc
+```
+
 ## 6. 数据与域名：两种路径分开决定
 
 | 路径 | 适用情况 | 关键边界 |

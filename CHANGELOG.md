@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-10-30 两测试证书齐备，杭州Nginx启用及定向技术检查通过
+
+cece反馈第二条TXT已保存。Codex确认同一Certbot会话仍等待，dns21.hichina.com和dns22.hichina.com均aa/NOERROR返回匹配本次值后才继续，nfc-test.bumbum.cc签发成功并退出0。公有证书CN/SAN匹配，Let's Encrypt YE1，SHA256为B5:69:C3:EA:F6:29:C7:F5:D3:81:60:34:98:51:D0:F8:6B:6F:8C:A6:3A:6F:2B:C3:AD:5D:FB:8E:8D:61:65:06，过期时间2027-01-27 17:35:29 UTC（北京时间2027-01-28 01:35:29）。两证书均通过系统CA链及verify_hostname验证；fullchain root/644、私钥仅核对root/600元数据，未读取私钥。仍为手动DNS，无自动续期通过证据。
+
+启用前首次稿件比较因误用test/public/admin.conf路径停止，未修改站点；只读核对源码及目录后确认公开稿实际位于test/admin.conf、user.conf、proxy.conf。三稿均与/etc/nginx目标一致，并与d8e7589源码按固定test域名/出口104.243.39.38渲染结果逐字匹配。仅一个包默认启用链接、conf.d为空、Nginx原屏蔽且inactive，静态index存在、后端ready正常。将包默认链接及其目标公开配置保留于/opt/bumbum-hangzhou/artifacts/d8e758944924d14ff81ace2873742165127fb2e3/nginx-initial-enable-20261030/default.link及default.conf；仅启用两个已核对项目链接、停用该默认链接。实际项目nginx -t通过后解除本次初装屏蔽，Nginx active/enabled，80/443监听，后端仍仅127.0.0.1:15001，3306未监听；没有重启后端、SSH或Tailscale。
+
+真实ECS回环使用正常系统CA及域名SNI验证HTTPS：用户/tap、/tap/items/1及实际JS资源200；管理接口、内部ready、登记回调与未知路径404，GET触碰验证405；管理页/管理接口/ready对非白名单回环均403；两站HTTP跳转301保留合成查询。13个请求断言通过，11个HTTPS请求均核对no-store/no-referrer/nosniff；未用真实触碰参数或读取真实访问日志。health/ready回环仍200，后端healthy、重启0、固定镜像ID不变，快照53.25MiB/256MiB、2进程，不作为容量通过证据。
+
+Codex另经正常CONNECT 8088/Tailscale到杭州443直接进行TLS域名/CA验证，用户/tap=200、管理/=403，收到公有证书指纹与ECS一致；没有新建监听或伪造来源，403为白名单拒绝的预期。公网DNS只读仍为test/nfc指香港47.242.24.84、nfc-test无A；未修改业务解析或香港。以上只证明云端回环及Tailnet路径，公网安全组/cece允许来源和浏览器登录未验证，不能报公网验收完成。
+
+已请cece在Windows保持VPN，执行两条curl.exe --resolve的只读公网定向预检，反馈状态/目标IP或错误；不改hosts、不登录、不关闭TLS验证，失败不自行扩白名单或安全组。手册5.5.1补公网预检、后续浏览器目的地/临时hosts/登录和清理边界，操作入口同步；TODO压缩为当前证据与待反馈，历史保留本文件。未改业务代码、接口、表结构、依赖或运行秘密，README里程碑及技术规则仍一致，不重复应用回归。生产迁移、域名切换、续期及真实业务另行验收。文档19份298处链接、28段Bash语法及差异检查通过，PowerShell命令待Windows真实反馈。
+
 ## 2026-10-30 杭州管理测试域名证书签发通过，用户测试证书等待TXT
 
 cece确认更新TXT后，Codex先确认原交互会话仍在等待，直接查询dns21.hichina.com及dns22.hichina.com均aa/NOERROR、ANSWER=1，完整匹配本次值，才向当前Certbot发送继续输入。Certbot成功返回并正常退出0，test.bumbum.cc证书保存在杭州标准live目录。公有证书CN/SAN均为test.bumbum.cc，签发者Let's Encrypt YE1，系统CA链验证OK；notAfter为2027-01-27 17:29:38 UTC，即北京时间2027-01-28 01:29:38，公有证书SHA256指纹为1B:D9:22:0E:25:1B:23:F4:33:F4:C3:BE:73:D0:2E:D7:FA:1F:11:9E:2C:5A:94:C7:E0:B7:52:D7:10:69:95:04。仅查看公有证书及文件元数据，fullchain root/644、私钥root/600，未读取私钥内容。Certbot明确提示manual无认证钩子，因此不自动续期，不以成功签发或定时器当续期通过。
