@@ -16,6 +16,14 @@ Codex用既有应用配置独立只读确认相同目标、应用自身仅四项
 
 仅修改部署工具和相关测试/手册，应用镜像与运行秘密不变；README里程碑、TECH_SPEC/接口/表结构及依赖仍一致，无需修改，不重复不受影响的后端/浏览器回归。 收敛后公开结果已存入b220946产物目录after-public.json并核验文件SHA256=aeed1f861dc3b70689c8443ab8a45e167ad27b7546741fa3cb421b31beb6010e。只读公网DNS现状为test.bumbum.cc和nfc.bumbum.cc仍解析47.242.24.84，nfc-test.bumbum.cc及admin.bumbum.cc未解析；杭州Nginx/Certbot尚未安装，下一步采用受控HTTPS定向验证而不直接切DNS。 文档19份297处链接、杭州手册25段Bash语法及差异检查通过。
 
+管理员工具交付：b66504ff558c0f044942d3b25ef13c24d0bbcc83已推送，源码归档SHA256=63204d458a1dfc72808731253c362ad892a7190ace0bebb02744259ad4103521，scripts/hangzhou.py SHA256=c85c075c987fd17179eb0607dbe5ab14f818ad847912d80b4bb8f38d87009662，严格SSH/SFTP传入并逐项一致，保留于/opt/bumbum-hangzhou/releases/b66504ff558c0f044942d3b25ef13c24d0bbcc83及artifacts同版本目录。最终部署/导出24项在统一Docker选择器后再次通过，3.69秒；目标端--help及部署check通过，secrets目录root/700、当时无已有导出副本，仅核对元数据。cece已确认Workbench文件管理可下载，已给两终端隐藏密码/验证码、受限导出、本地扫码与两端清理的完整步骤；实际创建结果待反馈，Codex未接触真实页面或验证器秘密。
+
+HTTPS依赖准备：先模拟确认仅新增10包、无升级/移除，确认Nginx及其配置原不存在后创建nginx.service屏蔽，安装nginx1.28.3-2ubuntu1.12、certbot4.0.0及依赖，下载1189kB、增加约4412kB。包配置因预期屏蔽而未能preset Nginx并明确跳过启动，dpkg成功完成，Nginx实际masked/inactive，80/443不监听；没有重启现有服务或容器。Certbot定时器由软件包安排，但尚无杭州证书/续期验收，不据此声明自动续期通过。安装后SSH/tailscaled/docker active，后端仍正常，阿里DNS保留；未改域名、白名单、Tailscale、数据库参数或业务秘密。
+
+只读获取远端main发现新头c8abbee99abf5c72a41506614d5a0049a198d3c9，内容为NFC文创祈愿H5 PRD及路线/文档分工；与fc7d740相比仅7份文档变化，应用/core/scripts/deploy/db/frontend及部署依赖无新业务改动。已审阅新增AGENTS分工规则，不将新产品线混入杭州工作；未合并/覆盖该新工作或自动同步分支，未来main整合须保留两边文档及TODO。杭州仍固定5f24175应用镜像，b220946维护工具和b66504f管理员工具分别记录。
+
+预发布模板修正：审阅发现管理HTTPS模板中的HTTP重定向段未显式使用安全日志，可能继承默认含查询参数的格式；在该段加入已有的仅记录时间/方法/路径/状态的日志配置，继续原样保留重定向参数，不改变路由、白名单或后端。真实临时Nginx/TLS/Gunicorn/独立MySQL允许与拒绝来源两组回归通过，21.59秒，合成HTTP查询保留在Location而不出现在访问及容器日志。仅使用合成资料；未访问香港/杭州真实日志或业务链接，未据模板缺口编造香港实际日志内容。此修正用于杭州待启用的公开配置稿，不重启业务镜像、启用Nginx或切域名。文档与差异检查通过，未重跑不受影响的后端/浏览器测试。
+
 ## 2026-10-30 维护身份方案获批，定向权限工具验证通过
 
 cece确认按第5.1.1节方案执行，随后确认bumbum_hz_ops已创建。cece隐藏输入密码的原生客户端VERIFY_IDENTITY只读预检返回bumbum_hz_ops@%、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、MySQL8.0.36；维护账号持实际公开清单中的静态全局权限及GRANT OPTION，未单列XA_RECOVER_ADMIN。应用/初始化授权与此前一致，三账号各仅Host=%且account_locked=N。未读取认证字段、真实配置或系统日志，创建不等于已收敛。

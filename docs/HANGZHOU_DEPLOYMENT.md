@@ -423,6 +423,8 @@ read -r -p '已核对管理出口IP：' HZ_ADMIN_IP
 python3 scripts/hangzhou.py prepare --slot test   --manifest /opt/bumbum-hangzhou/test/compose.json   --image "bumbum-hangzhou-backend:$HZ_REVISION" --image-id "$HZ_IMAGE_ID"   --admin-host "$HZ_ADMIN_HOST" --user-host "$HZ_USER_HOST" --admin-ip "$HZ_ADMIN_IP"
 ```
 
+管理站点的HTTP重定向和HTTPS请求均须使用不含查询参数的安全访问日志；跳转Location保留原参数，不为脱敏破坏实际触碰链接。
+
 公开配置生成器不读取真实.env，不生成密码。独立Compose只有后端，使用raw env_file防止密码中的$被模板插值（需Docker Compose>=2.30）；只监听回环地址、非root、只读根目录、独立日志卷与限额。脚本固定本机Docker socket，启动前核对镜像内容ID、已有项目归属、首次端口占用、秘密文件权限及安静的Compose解析；不执行config输出秘密，也不自动拉取、重建镜像或修改数据库。
 
 cece随后在杭州root控制台执行，按隐藏提示输入bumbum_hz_test密码（不发聊天）：

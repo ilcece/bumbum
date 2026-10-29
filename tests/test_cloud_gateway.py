@@ -113,6 +113,17 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
             pytest.fail("专属HTTPS网关未就绪；合成环境启动记录：\n" + diagnostics.stdout + diagnostics.stderr)
         status, _, _ = call("/")
         assert status == (200 if allowed else 403)
+        # HTTP跳转继续携带原参数，但任何访问日志都不能保存其值。
+        marker = 'SYNTHETIC_HTTP_PRIVATE_QUERY'
+        plain = http.client.HTTPConnection('127.0.0.1', http_port, timeout=3)
+        try:
+            plain.request('GET', '/?value=' + marker, headers={'Host': 'test.bumbum.cc'})
+            redirected = plain.getresponse()
+            assert redirected.status == 301
+            assert redirected.getheader('Location') == 'https://test.bumbum.cc/?value=' + marker
+            redirected.read()
+        finally:
+            plain.close()
         challenge, headers, _ = call("/api/webhook/admin/scan", method="POST", body={"identifier": UID})
         assert challenge == 401 and headers["WWW-Authenticate"] == 'Basic realm="bumbum-scan"'
         diagnostics = subprocess.run(command + ["logs", backend], env=env, capture_output=True, text=True)
@@ -167,6 +178,8 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
             assert call("/api/admin/auth/login", method="POST", body={}, headers={"Origin": "https://test.bumbum.cc"})[0] == 403
         log = docker(["exec", gateway, "cat", "/var/log/nginx/bumbum-cloud-test-access.log"])
         assert password not in log and UID not in log and admin_account["password"] not in log
+        assert 'GET / 301' in log and marker not in log
+        assert marker not in docker(['logs', gateway])
         with pytest.raises(ConnectionError):
             call("/api/webhook/admin/scan", method="POST", body={}, headers={"Host": "unknown.example"})
         for _ in range(30):
