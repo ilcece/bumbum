@@ -598,7 +598,7 @@ curl.exe --resolve "nfc-test.bumbum.cc:443:47.98.19.79" --connect-timeout 10 --m
 curl.exe --resolve "test.bumbum.cc:443:47.98.19.79" --connect-timeout 10 --max-time 20 --silent --show-error --output NUL --write-out "admin HTTP=%{http_code} remote=%{remote_ip}\n" "https://test.bumbum.cc/"
 ```
 
-预期均200且remote为47.98.19.79，TLS保持正常CA/域名验证。只反馈状态、目标IP或错误，不发送密码或真实触碰链接。管理403时先由Codex核对错误日志client与cece实际出口，不能沿用旧IP或信任自报X-Forwarded-For；超时可能涉及公网安全组、VPN或代理路径，先区分层次，不反复开端口；证书错误先检查实际目的地与代理，不加-k。使用HTTP代理时--resolve可能不能控制代理端的解析，须核对结果；curl通过也不证明浏览器走相同路径。
+预期均200且remote为47.98.19.79，TLS保持正常CA/域名验证。只反馈状态、目标IP或错误，不发送密码或真实触碰链接。若HTTP=000、remote为空且报建立连接超时，表示尚未取得HTTP响应，不能归因于管理白名单；先核对ECS实际监听、主机入站过滤及绑定安全组的入方向TCP80/443授权对象/优先级，再区分电脑VPN路径，不盲改规则。管理403时先由Codex核对错误日志client与cece实际出口，不能沿用旧IP或信任自报X-Forwarded-For；超时可能涉及公网安全组、VPN或代理路径，先区分层次，不反复开端口；证书错误先检查实际目的地与代理，不加-k。使用HTTP代理时--resolve可能不能控制代理端的解析，须核对结果；curl通过也不证明浏览器走相同路径。
 
 公网预检通过后，再安排浏览器定向与登录，按下面三组验收；未反馈前保持待验收：
 

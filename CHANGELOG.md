@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 Windows公网定向请求超时，等待安全组规则只读核对
+
+cece保持电脑VPN执行两条定向curl，用户域名及管理域名均curl28建立连接超时（约10秒），HTTP=000、remote为空；没有HTTP响应，不能认定为管理白名单拒绝、登录错误或证书问题。Codex随后通过既有严格SSH只读确认nginx/ssh/tailscaled/docker均active，Nginx监听0.0.0.0:80/443、后端仅127.0.0.1:15001，本机正常CA/域名验证的用户HTTPS仍200。
+
+只读主机防火墙：UFW inactive、iptables INPUT ACCEPT，无跳转到ts-input；nft的ts-input/forward链存在但未挂入主机INPUT，Docker FORWARD策略drop与本次本机Nginx入口不同，未据此改规则。未发现主机入站过滤解释本轮超时的证据，不宣称已排除云安全组、云防火墙/ACL或电脑VPN路径。
+
+Codex通过正常HTTP代理做有界公网补充探测，代理返回403 Destination forbidden（envoy），属于平台路径限制，停止该路径，不绕过代理、不改TCP授权；它既不证明杭州公网403，也不能代替cece公网可达验证。已请cece只读查看杭州ECS47.98.19.79所绑定安全组数量，以及入方向TCP80/443的允许/拒绝、授权对象与优先级，未要求新增规则或扩大范围。待规则反馈后再决定最小验证，当前不重启、清空配置或继续登录验收。
+
+同步TODO、手册5.5.1的HTTP000分层判断与历史；其余文档、业务代码、运行秘密、A/AAAA及香港未改，不重复已经通过的应用检查。 文档19份298处链接及差异检查通过。
+
 ## 2026-10-30 两测试证书齐备，杭州Nginx启用及定向技术检查通过
 
 cece反馈第二条TXT已保存。Codex确认同一Certbot会话仍等待，dns21.hichina.com和dns22.hichina.com均aa/NOERROR返回匹配本次值后才继续，nfc-test.bumbum.cc签发成功并退出0。公有证书CN/SAN匹配，Let's Encrypt YE1，SHA256为B5:69:C3:EA:F6:29:C7:F5:D3:81:60:34:98:51:D0:F8:6B:6F:8C:A6:3A:6F:2B:C3:AD:5D:FB:8E:8D:61:65:06，过期时间2027-01-27 17:35:29 UTC（北京时间2027-01-28 01:35:29）。两证书均通过系统CA链及verify_hostname验证；fullchain root/644、私钥仅核对root/600元数据，未读取私钥。仍为手动DNS，无自动续期通过证据。
