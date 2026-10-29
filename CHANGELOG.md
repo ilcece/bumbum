@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 初次DNS-01因TXT缺失失败，停止并核对权威记录
+
+cece反馈Certbot账号已注册，test.bumbum.cc申请在继续后被CA以_acme-challenge.test.bumbum.cc TXT NXDOMAIN拒绝。Codex没有重跑签证、读取Certbot私有日志或修改DNS，先使用杭州现有resolvectl核对当前仍为该名称不存在；再用已有dig分别直接查询dns21.hichina.com和dns22.hichina.com，两台均带aa返回NXDOMAIN、ANSWER=0，SOA序列2026100918。此结果证明查询时权威记录不存在，不能仅归为本机缓存，也不据此断言cece未操作或控制台具体填错。
+
+已请cece核对云解析bumbum.cc下TXT主机记录_acme-challenge.test的保存/名称/状态；暂不重试或修改A/AAAA。手册补manual不会自动添加TXT、相对主机记录/默认线路、权威查询与失败停止步骤。后续准备好控制台后只安排一次受控重试，以当次新校验值为准，两权威答案匹配后再继续；不复用失败挑战值、不反复申请或关闭验证。旧公开校验值不作为后续执行依据。nfc-test证书尚未签发，Nginx保持原屏蔽状态。
+
+在缺失权威TXT的事实核对后，为避免再次提前继续校验，Codex使用已注册ACME账号，通过正常Certbot CLI的--force-interactive接管一次新申请，成功停在test.bumbum.cc的新公开TXT提示，未发送继续输入。无需读取账号文件或私钥；已给cece默认线路/TXT/相对主机记录及本次新值的控制台操作，明确不用再运行命令或回车。先前询问是否保存旧记录的待答项由新操作替代，当前等待新TXT保存后，两权威答案匹配才继续；值随当前会话，不写成长期执行常量。
+
+仅同步部署手册、TODO与历史，程序、运行秘密、域名业务解析及香港未改；README/技术规则/接口/表结构和依赖不受影响，不重复应用测试。 文档19份297处链接、28段Bash语法及差异检查通过。
+
 ## 2026-10-30 杭州测试管理员设置完成，转入DNS校验证书
 
 cece反馈“账号已创建且副本已清理”。Codex通过既有应用身份只读事务，仅查询username/status/totp_enabled，返回ilcece/active/1；仅检查固定ECS导出文件的存在状态为false，未读取认证字段、真实二维码页面或秘密。账号设置完成不代表网页登录/CSRF及公网验收通过；不重复创建管理员或生成新运行秘密。

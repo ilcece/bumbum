@@ -565,7 +565,20 @@ certbot certonly --manual --preferred-challenges dns \
 
 Certbot显示TXT值时保持终端等待。在bumbum.cc的DNS控制台分别使用本次提示对应的_acme-challenge.test或_acme-challenge.nfc-test主机记录；只新增本次值，保留已有TXT和其他记录，不覆盖其他校验。确认公网TXT已生效后再回Certbot继续；需要协助时只反馈公开记录名/值或脱敏错误，不发私钥。成功后只清理本次TXT值；失败先保留提示，不反复申请或关闭校验。
 
-cece反馈两域名签发成功后，由Codex按以下边界继续，无需cece逐条运行服务命令：
+`--manual`只显示校验值，不会替操作者新增DNS解析；运行命令后直接按回车不能完成这一步。若报NXDOMAIN，先停止失败的申请，核对阿里云“云解析DNS→bumbum.cc”中记录类型TXT、主机记录_acme-challenge.test（另一域名为_acme-challenge.nfc-test）、解析线路默认、状态启用。主机记录栏使用相对bumbum.cc的名称，不误填成其他域名或重复拼接bumbum.cc。
+
+Codex可在杭州用已有dig分别查询两台权威DNS，区分当前权威记录缺失与递归缓存：
+
+```bash
+dig @dns21.hichina.com _acme-challenge.test.bumbum.cc TXT +norecurse +noall +comments +answer +authority +time=3 +tries=1
+dig @dns22.hichina.com _acme-challenge.test.bumbum.cc TXT +norecurse +noall +comments +answer +authority +time=3 +tries=1
+```
+
+若两台均带权威标记aa返回NXDOMAIN，表示当前权威记录尚不存在，先核对控制台保存位置/名称/状态；不据此改DNS服务器、重启ECS或开启Nginx。已失败挑战不继续使用旧校验值。准备好DNS操作后再安排一次受控重试，使用新一次Certbot显示的TXT值并保持等待；两台权威答案均包含本次值后才继续，不自动反复申请。TXT为公开校验资料，可反馈协查；ACME账号文件、私钥及密码仍不发送。
+
+账号已由cece注册、域名范围已批准后，也可由Codex使用既有Certbot的--force-interactive保持申请会话，停在公开TXT提示处；不读取ACME私有资料。此模式下cece只操作DNS控制台，不另开Certbot或自行回车，Codex确认两台权威答案匹配本次值后才继续。会话中断时先核对实际订单/进程状态，不沿用旧提示或删除其他进程的锁。
+
+确认两域名签发成功后，由Codex按以下边界继续，无需cece逐条运行服务命令：
 
 | 阶段 | Codex操作与证据 |
 |---|---|
