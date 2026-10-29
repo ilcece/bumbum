@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-29 补录阿里云工程师确认的香港Tailscale故障原因与处置
+
+cece提供阿里云售后工程师回复截图（显示2026-10-28 12:09:20，截图未注明时区），并明确确认香港此前内网失联是Tailscale防火墙与阿里云CGNAT地址兼容性问题。工程师说明没有修改root密码，执行tailscale up --reset --netfilter-mode=off后问题解决，并建议另一台后续安装也可参考处理。将先前“原因未定/需核实”的判断按新证据更新为已确认，不篡改旧记录；截图直接记录的处置模式是off，不是nodivert，不扩展为杭州已经验证或工程师已审查杭州完整防火墙策略。
+
+补充杭州手册第3.5节，暂停原先未指定netfilter模式的直接接入步骤；首次接入候选采用off并保留accept-dns=false、accept-routes=false，但先核对杭州实际DNS、路由、RPF及现有防火墙放行和反欺骗保护。香港历史--reset只留作证据，不加入杭州候选命令，不在任一服务器自动执行。说明off/nodivert均带来自行维护规则责任，off不直接禁用路由功能；针对CGNAT规则的官方节点属性仅作为待评估选项，不改全Tailnet。纠正ping和status不能代替真实协议验证、完整debug prefs可能包含敏感配置等问题，避免将nodivert直接归为特定CVE。只更新手册、TODO和本记录，没有连接或修改香港、杭州、RDS及Codex侧代理配置。19份文档295处本地链接/标题定位、git diff --check及9个Bash示例语法检查通过；未将语法检查当作目标机验证。
+
 ## 2026-10-29 杭州ECS＋RDS方案及连接手册准备
 
 cece确认bumbum.cc域名ICP备案通过，要求评估Codex到杭州ECS及RDS的连接，并输出最新代码部署方案和必要操作手册。本轮先检查实际云环境及仓库：运行状态current、VPN已配置且automatic_tailscale_access开启，显式TCP授权列表为空；这不是杭州目标连通证明，也不能仅凭空列表判定必须新增授权。未发现杭州ECS地址、主机指纹、RDS端点或现成数据库绑定，未擅自沿用香港地址/指纹、扫描设备或索取秘密。远端仅main@fc7d740，工作区干净，创建docs/hangzhou-ecs-rds-plan仅整理文档。

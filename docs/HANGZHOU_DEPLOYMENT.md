@@ -124,14 +124,14 @@ apt-get install -y tailscale
 BASH
 ```
 
-成功后，在同一终端执行：
+**安装完成后先不要接入。先完成第3.5节兼容性预检，确认杭州采用的防火墙维护方式。**下面是参考阿里云工程师香港处置的杭州首次接入候选命令，须在该方式确认后执行；不照搬历史命令中的`--reset`：
 
 ```bash
-tailscale up --accept-dns=false --accept-routes=false
+tailscale up --netfilter-mode=off --accept-dns=false --accept-routes=false
 tailscale ip -4
 ```
 
-按终端显示的官方登录链接，用与当前Codex环境相同的Tailnet账号/组织授权。保留系统DNS，不接受子网路由，不开启`--ssh`或广告路由。预期得到本机100.x地址；将这个地址交给Codex，不发送认证密钥。若提示已有配置、需要额外批准或安装失败，保留步骤和固定错误，不重置客户端、不重启ECS、不反复修改安全组。
+按终端显示的官方登录链接，用与当前Codex环境相同的Tailnet账号/组织授权。保留系统DNS，不接受子网路由，不开启`--ssh`或广告路由。`off`只表示Tailscale不管理防火墙，不表示现有系统防火墙已安全放行；需要自行核对规则。预期得到本机100.x地址；将这个地址交给Codex，不发送认证密钥。若提示已有配置、需要额外批准或安装失败，保留步骤和固定错误，不重置客户端、不重启ECS、不反复修改安全组。
 
 ### 3.4 添加本次杭州专用公钥
 
@@ -152,6 +152,40 @@ unset HZ_SSH_PUBKEY
 ```
 
 完成后只反馈Tailscale IP和“公钥已添加”。若普通OpenSSH仍拒绝登录，再由cece从控制台核对ssh服务及root公钥登录策略；不开放密码登录、不关闭主机校验、不替换现有私钥。
+
+### 3.5 阿里云CGNAT兼容性预检与接入后验证
+
+**已确认的香港现场证据：**cece提供阿里云售后工程师2026-10-28回复截图，并确认此前失联原因属于Tailscale防火墙兼容性问题。工程师说明没有修改root密码，执行`tailscale up --reset --netfilter-mode=off`后问题解决，并表示另一台后续安装也可参考处理。该命令在此作为香港历史证据，不是要求现在在香港或杭州重跑；`--reset`会将未显式指定的设置重置为默认，不加入杭州首次接入命令。
+
+阿里云使用的100.100.2.136等DNS地址及100.100.100.200元数据地址处于Tailscale所用100.64.0.0/10范围内。Tailscale默认的Linux规则会丢弃从非tailscale0接口进入的该范围源地址流量，可能误伤云内网服务响应。`--accept-dns=false`与`--accept-routes=false`不关闭这条规则；此前手册只列这两个参数不够完整。杭州仍须核对实际DNS、路由、Tailscale版本和防火墙后端，不能将香港处置结果当作杭州已验证。
+
+| 方式 | 准确含义与使用边界 |
+|---|---|
+| off | Tailscale不创建或管理防火墙规则；与香港工程师处置一致，本次杭州优先评估。已有防火墙仍生效，必须自行维护必要放行及反欺骗保护；不等于直接丢失子网路由/出口节点功能，但若需要这些功能，其转发/NAT规则也由管理员负责。本项目不启用这些功能 |
+| nodivert | 创建Tailscale规则但不自动挂接；同样需要管理员维护调用、顺序和放行，不能称作天然更安全的默认方案，也不是工程师本次用过的模式 |
+| 默认on＋定向兼容设置 | 最新官方文档提供节点属性disable-linux-cgnat-drop-rule，可保留其他自动规则；需要核对版本支持、限定目标节点及RPF/其他反欺骗保护。不是本轮已批准的Tailnet策略变更，不对全部设备自动启用 |
+
+不将nodivert简单描述为“带有CVE-2019-14899漏洞”。这里明确记录的风险是取消默认CGNAT反欺骗保护后，需由管理员补足相应保护；不把off说成更安全的替代，也不凭“受信任内网”省略评估。模式选择以实际规则及维护方案为准，原始漏洞归因需有适用版本和权威证据。
+
+接入前，在杭州控制台先只读核对：
+
+```bash
+resolvectl dns
+ip -4 route get 100.100.2.136
+getent ahostsv4 rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com
+sysctl net.ipv4.conf.all.rp_filter
+command -v ufw
+command -v nft
+command -v iptables
+```
+
+命令或工具不存在时只记录缺失，不为检查立即安装或重置网络。确认现有安全组、UFW及实际iptables/nftables入站策略：维护SSH/必要Tailscale流量是否允许、80/443是否按业务范围开放、数据库和应用端口是否仍受限。完整防火墙规则仅在本机审查，只反馈必要摘要；工具存在、单个rp_filter值或一条默认ACCEPT都不能代替整体核对，不盲目写入全局sysctl或放宽安全组。不要访问元数据服务正文，它可能涉及实例凭证；只核对必要路由。
+
+接入后重复同一组DNS/路由及第4节RDS的DNS、TCP、TLS/SELECT 1检查，并验证阿里云原控制台/维护入口仍可用、Codex能严格校验主机身份后SSH执行只读命令。保持控制台窗口，不关闭既有入口。`ping 100.100.2.136`成功不能证明DNS/RDS正常，失败也不自动证明内网断开；实际协议检查才是结论依据。
+
+若核对Tailscale配置，只报告NetfilterMode、CorpDNS、RouteAll等必要字段，不贴完整debug prefs或整个设备列表；配置值仅说明意图，仍须核对实际防火墙挂接及连通性。官方枚举off=0、nodivert=1、on=2；tailscale status不要求所有空闲对端都显示Connected，最终以所需SSH/RDS操作成功为准。失败时保留步骤及脱敏错误，不执行--reset、重启或清空规则作为默认补救。
+
+依据：[Tailscale netfilter模式](https://tailscale.com/docs/reference/netfilter-modes)、[CGNAT互操作说明](https://tailscale.com/docs/reference/cgnat-interoperability)及cece提供的工程师截图。这里的ECS防火墙兼容性与Codex代理拒绝公网IP是两层问题；修改ECS的netfilter模式不会解除代理的vpn_protected_destination限制。
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 

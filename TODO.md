@@ -8,7 +8,7 @@
 
 | 优先级 | 任务 | 状态 | 完成时至少看到什么 |
 |---|---|---|---|
-| P1，当前准备 | 杭州ECS＋RDS部署方案与连接检查 | cece确认ICP备案通过；杭州公网47.98.19.79、Ubuntu26.04、拟用root及主机指纹已提供，尚未安装Tailscale。RDS为MySQL8.0，内网端点/3306及同VPC已由cece确认，账号准备未知。cece选择先独立验证、保留香港与现有解析；说明无须保留的数据，空库仍待实际检查。Codex实测公网SSH目标被CONNECT代理返回403 vpn_protected_destination，尚未登录杭州或验证RDS。方案在docs/hangzhou-ecs-rds-plan的[手册](docs/HANGZHOU_DEPLOYMENT.md)，未实施业务代码或部署 | cece先按手册第3.3、3.4节在杭州控制台安装/授权Tailscale并添加杭州专用公钥，反馈Tailscale IP；同时核对RDS账号状态，不发秘密。Codex收到后严格校验指纹完成SSH及ECS到RDS只读检查。后续RDS TLS、配置及初始化入口适配须在方案获批后另行实施；不迁移香港数据、不切DNS |
+| P1，当前准备 | 杭州ECS＋RDS部署方案与连接检查 | cece确认ICP备案通过；杭州公网47.98.19.79、Ubuntu26.04、拟用root及主机指纹已提供，尚未安装Tailscale。RDS为MySQL8.0，内网端点/3306及同VPC已由cece确认，账号准备未知。cece选择先独立验证、保留香港与现有解析；说明无须保留的数据，空库仍待实际检查。Codex实测公网SSH目标被CONNECT代理返回403 vpn_protected_destination，尚未登录杭州或验证RDS。方案在docs/hangzhou-ecs-rds-plan的[手册](docs/HANGZHOU_DEPLOYMENT.md)，未实施业务代码或部署 | 香港故障已由cece及阿里云工程师截图确认：netfilter兼容问题，off处置解决且未改root密码。cece先按手册第3.5节预检杭州DNS/路由及现有防火墙，确认off接入维护方式后再按3.3、3.4节接入并添加专用公钥，反馈Tailscale IP；同时核对RDS账号状态，不发秘密。Codex收到后严格校验指纹完成SSH及ECS到RDS只读检查。后续RDS TLS、配置及初始化入口适配须在方案获批后另行实施；不迁移香港数据、不切DNS |
 | P1，试用配套 | 芯片停用与恢复 | 待单独小步；不混入首次绑定 | 保留关联，恢复状态由有无绑定决定；用户验证重查状态，停用后旧凭证不可继续使用 |
 | P1，追加目标 | 短信首次认领 | 提前确认服务与模板；开发排在基础流程后 | 真实短信、凭证对应、并发仅一个所有者、历史与凭证消耗一起提交；不能以固定验证码冒充完成 |
 
