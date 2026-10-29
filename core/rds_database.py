@@ -35,7 +35,7 @@ def schema_for_selected_database(source):
     return source
 
 
-def inspect_target(connection, database):
+def inspect_target(connection, database, *, require_collation=True):
     """只查询当前连接身份及结构数量，不读取业务行或秘密字段。"""
     with connection.cursor() as cursor:
         cursor.execute("SELECT DATABASE(), VERSION(), @@server_uuid, CURRENT_USER()")
@@ -47,7 +47,7 @@ def inspect_target(connection, database):
             raise RdsPreparationError("目标库或MySQL版本不符合已验证范围，未初始化。")
         cursor.execute("SELECT DEFAULT_CHARACTER_SET_NAME,DEFAULT_COLLATION_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME=%s", (database,))
         charset = cursor.fetchone()
-        if charset != ("utf8mb4", "utf8mb4_unicode_ci"):
+        if require_collation and charset != ("utf8mb4", "utf8mb4_unicode_ci"):
             raise RdsPreparationError("目标库字符集/排序规则不符，未自动修改已有库。")
         cursor.execute("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=%s", (database,))
         tables = {row[0] for row in cursor.fetchall()}
@@ -62,8 +62,34 @@ def inspect_target(connection, database):
         raise RdsPreparationError("当前客户端连接没有TLS证据，停止而不尝试明文。")
     return {"database": selected, "mysql_version": version, "server_uuid": server_uuid,
             "account": account, "table_count": len(tables), "other_object_count": extra,
+            "charset": charset[0], "collation": charset[1],
             "tables_complete": tables == TARGET_TABLES, "empty": not tables and not extra,
             "client_tls_cipher": cipher[0]}
+
+
+def normalize_empty_collation(connection, database, expected_uuid):
+    """只修正已确认空测试库的MySQL8默认排序规则；使用普通查询协议，避免PREPARE兼容性问题。"""
+    if database != SLOTS["test"]["database"]:
+        raise RdsPreparationError("本次排序规则修正只允许独立杭州测试库，未修改其他目标。")
+    lock_name = "bumbum.rds-init." + database
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT GET_LOCK(%s,5)", (lock_name,))
+        if cursor.fetchone()[0] != 1:
+            raise RdsPreparationError("其他初始化正在执行，未修正排序规则。")
+        try:
+            report = inspect_target(connection, database, require_collation=False)
+            if report["server_uuid"] != expected_uuid or not report["empty"]:
+                raise RdsPreparationError("实例标识不符或目标不是空库；未修正排序规则。")
+            if report["charset"] != "utf8mb4" or report["collation"] not in {"utf8mb4_0900_ai_ci", "utf8mb4_unicode_ci"}:
+                raise RdsPreparationError("字符集或排序规则超出本次已确认差异，未自动转换。")
+            changed = report["collation"] != "utf8mb4_unicode_ci"
+            if changed:
+                cursor.execute("ALTER DATABASE bumbum_hz_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+            result = inspect_target(connection, database)
+            result["collation_changed"] = changed
+            return result
+        finally:
+            cursor.execute("SELECT RELEASE_LOCK(%s)", (lock_name,))
 
 
 def initialize_empty(connection, database, expected_uuid, source):
@@ -95,6 +121,8 @@ def main(argv=None):
     parser.add_argument("--slot", required=True, choices=SLOTS)
     parser.add_argument("--ca", required=True)
     parser.add_argument("--initialize-empty", action="store_true")
+    parser.add_argument("--normalize-empty-collation", action="store_true",
+                        help="显式修正空测试库0900默认排序规则；仍需确认库名及实例UUID")
     parser.add_argument("--confirm-database")
     parser.add_argument("--confirm-server-uuid")
     args = parser.parse_args(argv)
@@ -103,9 +131,11 @@ def main(argv=None):
               "DB_HOST": RDS_HOST, "DB_PORT": 3306, "DB_NAME": target["database"],
               "DB_USER": target["user"] + "_init", "DB_SSL_MODE": "VERIFY_IDENTITY", "DB_SSL_CA": args.ca}
     try:
+        if args.normalize_empty_collation and args.slot != "test":
+            raise RdsPreparationError("排序规则修正只允许test，未请求生产密码或连接生产库。")
         validate_target(config, initialization=True)
         tls = database_tls_options(config)
-        if args.initialize_empty:
+        if args.initialize_empty or args.normalize_empty_collation:
             if args.confirm_database != target["database"] or not args.confirm_server_uuid:
                 raise RdsPreparationError("初始化须明确填写目标库名及先前只读检查的server_uuid。")
             uuid.UUID(args.confirm_server_uuid)
@@ -119,15 +149,23 @@ def main(argv=None):
                              connect_timeout=5, read_timeout=30, write_timeout=10,
                              client_flag=CLIENT.MULTI_STATEMENTS if args.initialize_empty else 0,
                              autocommit=False, **tls) as connection:
+            normalized = None
+            if args.normalize_empty_collation:
+                normalized = normalize_empty_collation(connection, target["database"], args.confirm_server_uuid)
             if args.initialize_empty:
                 report = initialize_empty(connection, target["database"], args.confirm_server_uuid,
                                           SCHEMA.read_text(encoding="utf-8"))
             else:
-                report = inspect_target(connection, target["database"])
+                report = normalized or inspect_target(connection, target["database"])
+            if normalized is not None:
+                report["collation_changed"] = normalized["collation_changed"]
             print(json.dumps(report, ensure_ascii=False))
         return 0
     except RdsPreparationError as error:
         print("未完成：" + str(error), file=sys.stderr)
+    except pymysql.MySQLError as error:
+        number = error.args[0] if error.args and isinstance(error.args[0], int) else "unknown"
+        print(f"未完成：MySQL错误编号{number}；保留现场，不自动重跑，未输出秘密或原始SQL。", file=sys.stderr)
     except Exception:
         print("未完成：配置、认证、证书或结构检查失败；未显示秘密或原始SQL。若已开始DDL，保留现场，不自动重跑。", file=sys.stderr)
     return 1

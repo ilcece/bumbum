@@ -400,6 +400,29 @@ docker run --rm -it --network host --read-only --memory=256m --cpus=0.5   --moun
 
 唯一schema.sql中的CREATE DATABASE/USE只按已知精确语句移除，所有建表和种子数据都作用于已选连接库，不复制另一套DDL、不通用替换SQL。空库没有既有业务数据可备份；已有任何表/视图/过程/触发器/事件均拒绝。DDL中途失败可能保留部分结构，停止排查，不重跑、不自动删除/恢复。验收包含24表、完整ready及两个初始项目；初始化后收回或限制专用初始化身份，应用只用自己的DML账号。
 
+### 5.4.1 空测试库默认排序规则不符
+
+RDS控制台若只提供字符集选项，选择utf8mb4后仍可能得到MySQL8默认的utf8mb4_0900_ai_ci。项目唯一schema约定utf8mb4_unicode_ci，排序规则影响文本比较及唯一性，不能删除检查来继续。已有表时不能把修改数据库默认值当作已有表转换或迁移。
+
+先由Codex以已准备的应用身份只读核对实际实例UUID、库、默认规则及可见对象；元数据可见性受应用权限限制，写入前须由初始化身份再次完整检查。以下只适用于已明确的独立杭州测试空库，所用镜像必须包含修正版--normalize-empty-collation；旧4afec78镜像不支持此选项，不拿旧聊天中的PREPARE命令重试。
+
+修正版通过普通查询协议执行固定ALTER DATABASE，不使用服务器PREPARE。它在初始化锁内核对专用初始化身份、TLS、版本、实例UUID及所有对象为空，只允许utf8mb4_0900_ai_ci到utf8mb4_unicode_ci；其他字符集/规则、生产库、错误实例或非空库均拒绝，已经是unicode_ci的空库保持不变。可与--initialize-empty合并，一次隐藏输入密码完成默认值修正及再次校验后的24表初始化；不重跑运行配置，不改变应用账号权限。
+
+在杭州root终端输入Codex已核验并导入的修正版完整提交，以及本次只读结果的UUID；不从旧历史猜测UUID，不在聊天传密码：
+
+```bash
+read -r -p '已导入修正版镜像的完整Git提交：' HZ_REVISION
+read -r -p '本次只读确认的server_uuid：' HZ_SERVER_UUID
+docker run --rm -it --network host --read-only --memory=256m --cpus=0.5 \
+  --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly \
+  "bumbum-hangzhou-backend:$HZ_REVISION" \
+  python -m core.rds_database --slot test --ca /run/rds-ca.pem \
+  --normalize-empty-collation --initialize-empty \
+  --confirm-database bumbum_hz_test --confirm-server-uuid "$HZ_SERVER_UUID"
+```
+
+成功结果应包含charset=utf8mb4、collation=utf8mb4_unicode_ci、table_count=24、tables_complete=true及客户端TLS套件；后端ready和业务仍单独验收。只有--normalize-empty-collation而没有--initialize-empty时仅修正空库默认值，不建表。任何错误都保留现场，不重跑部分初始化、不删库、不扩大权限。MySQL类错误只返回数字编号，不输出可能包含秘密的原始异常或SQL。
+
 ## 6. 数据与域名：两种路径分开决定
 
 | 路径 | 适用情况 | 关键边界 |

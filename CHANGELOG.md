@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-29 新Codex环境接续与RDS空库排序规则修正
+
+cece已保存600权限独立测试运行配置，新测试管理员名ilcece；该配置不等于管理员账号已创建。只读初始化检查因实际utf8mb4_0900_ai_ci与约定utf8mb4_unicode_ci不同而停止。Codex随后提供的PREPARE包裹ALTER DATABASE写法在该RDS返回1295，报错位于PREPARE且命令以&&连接，排序规则修改和后续建表均未执行；这是所给操作的兼容性问题，不要求cece删库、重建账号或重跑秘密生成。旧环境在文档写入/检查期间offline，未确认完成的文档不作为已提交证据。
+
+cece发布新环境并明确继续后，实际实例改为ccarenv_b64_Y2NhcmVudl9mMDA2NWIxMjQ4Mzg4MTkxYjhkM2VjOWZiODcxZjhiNw，启动完成后current/running/connected；策略仍vpn_configured和automatic_tailscale_access为true，显式TCP列表空。工作区是干净的work@fc7d740，远端杭州分支仍d5ec5b5，因此获取已有分支接续，未重放已完成代码/安装或修改环境草稿。旧杭州私钥不存在，为新实例建立专用身份，仅提供公钥，由cece追加并确认。通过CONNECT/Tailscale再次严格匹配控制台指纹SHA256:h62A/DKvJNUEfg453gUR/d427aSUsPmNVRUQtAhIexQ后公钥登录成功，root及主机名吻合，ssh/tailscaled/docker active，测试runtime.env仍600；不读取私钥/配置正文或沿用旧实例VPN状态。保存公开主机记录前按预期指纹验证，初次KnownHostsCommand因非绝对程序路径拒绝，改用绝对路径后验证及登录成功，未关闭严格主机校验。
+
+使用既有应用认证入口再次执行只读元数据事务：bumbum_hz_test、8.0.36、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、bumbum_hz_test@%、utf8mb4/utf8mb4_0900_ai_ci；可见表/过程/触发器/事件计数均0、初始化锁无持有者，客户端TLS为ECDHE-RSA-AES256-GCM-SHA384。未读业务行或秘密值、未写数据库，一次性容器自动清理。此时仍未启动业务后端，香港、DNS、私有配置与已安装软件均保留。
+
+修正core/rds_database.py，增加显式--normalize-empty-collation，生产目标在请求密码或连接前拒绝；仅允许已确认空测试库的0900到unicode默认值修正，初始化身份、TLS/版本、实际UUID、空对象及初始化锁检查完整保留。使用普通COM_QUERY执行固定ALTER，未知字符集/规则和已有对象拒绝；可与原--initialize-empty合并，一次隐藏输入密码，建表前再次验证。成功JSON补充实际字符集/规则，MySQL异常仅显示数字编号，不输出秘密或原始SQL。真实临时MySQL专项24项通过，覆盖错误实例、含合成数据的非空库拒绝并保留数据、正确空库修正、重复无改动、生产拒绝、24表及ready；补充生产CLI在密码/连接前拒绝1项通过。手册、TODO及历史同步，本轮不重复不受影响的600项后端/浏览器回归；原API、表定义、依赖及运行秘密未变。文档与差异、Bash示例检查通过，实际RDS修正与初始化仍待修正版交付后的cece终端执行证据。
+
 ## 2026-10-29 杭州适配获批，构建单ECS隔离与RDS初始化保护
 
 cece批准杭州手册第5—7节，并决定生产/测试先共用现有杭州ECS、独立隔离，容量验证后再决定升配；香港计划下个月不再使用，但其按量试用到期日未确认、cece说明至少还能使用一个月，不编造具体下线时间。RDS规格由cece提供为mysql.n2.serverless.1c、RCU0.5—2、CPU0.5—2、内存1—4GiB、存储20G，维护窗北京时间02:00—06:00，小版本rds_20260620、自动升级策略未明确，释放保护未开启。备份用量已提供，但PITR/保留/自动暂停及恢复状态尚未取得证据。单ECS/同RDS逻辑隔离不消除宿主机、实例维护和资源争用影响，测试限额且不在生产宿主执行完整测试、构建或恢复负载；香港退出须先完成杭州生产迁移、实卡、容量、续期/重启和独立恢复验证。

@@ -22,7 +22,7 @@ import pytest
 
 from app import create_app
 from core.db import TARGET_TABLES, database_tls_options
-from core.rds_database import RdsPreparationError, initialize_empty, inspect_target, schema_for_selected_database
+from core.rds_database import RdsPreparationError, initialize_empty, inspect_target, normalize_empty_collation, schema_for_selected_database
 from core.rds_target import RDS_HOST, SLOTS, validate_target
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -135,6 +135,14 @@ def test_selected_schema_keeps_only_current_database_and_all_tables():
         schema_for_selected_database(source.replace("USE bumbum_digital;", "USE another_database;"))
 
 
+def test_normalization_rejects_production_before_password_or_connection(monkeypatch):
+    from core import rds_database
+    monkeypatch.setattr(rds_database.getpass, "getpass", lambda *a: pytest.fail("不能请求生产密码"))
+    monkeypatch.setattr(pymysql, "connect", lambda **kw: pytest.fail("不能连接生产库"))
+    assert rds_database.main(["--slot", "production", "--ca", "/unused-public-ca.crt",
+                              "--normalize-empty-collation"]) == 1
+
+
 @pytest.fixture
 def tls_mysql(request, certificates, tmp_path):
     if not request.config.getoption("--auth-db"):
@@ -190,10 +198,33 @@ def test_real_mysql_verified_tls_wrong_identity_ca_and_guarded_initialization(tl
         with pytest.raises(RdsPreparationError, match="标识不符"):
             initialize_empty(connection, "bumbum_hz_test", str(uuid.uuid4()), (ROOT / "db/schema.sql").read_text())
         assert inspect_target(connection, "bumbum_hz_test")["empty"]
+        with connection.cursor() as cursor:
+            cursor.execute("ALTER DATABASE bumbum_hz_test COLLATE utf8mb4_0900_ai_ci")
+        with pytest.raises(RdsPreparationError, match="排序规则不符"):
+            inspect_target(connection, "bumbum_hz_test")
+        with pytest.raises(RdsPreparationError, match="标识不符"):
+            normalize_empty_collation(connection, "bumbum_hz_test", str(uuid.uuid4()))
+        assert inspect_target(connection, "bumbum_hz_test", require_collation=False)["collation"] == "utf8mb4_0900_ai_ci"
+        with connection.cursor() as cursor:
+            cursor.execute("CREATE TABLE guard_probe (id INT PRIMARY KEY)")
+            cursor.execute("INSERT INTO guard_probe VALUES (42)")
+        with pytest.raises(RdsPreparationError, match="不是空库"):
+            normalize_empty_collation(connection, "bumbum_hz_test", report["server_uuid"])
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT id FROM guard_probe")
+            assert cursor.fetchall() == ((42,),)
+            cursor.execute("DROP TABLE guard_probe")
+        fixed = normalize_empty_collation(connection, "bumbum_hz_test", report["server_uuid"])
+        assert fixed["collation_changed"] and fixed["collation"] == "utf8mb4_unicode_ci" and fixed["empty"]
+        assert not normalize_empty_collation(connection, "bumbum_hz_test", report["server_uuid"])["collation_changed"]
+        with pytest.raises(RdsPreparationError, match="只允许"):
+            normalize_empty_collation(connection, "bumbum_hz_production", report["server_uuid"])
         result = initialize_empty(connection, "bumbum_hz_test", report["server_uuid"], (ROOT / "db/schema.sql").read_text())
         assert result["tables_complete"] and result["table_count"] == 24
         with pytest.raises(RdsPreparationError, match="不是空库"):
             initialize_empty(connection, "bumbum_hz_test", report["server_uuid"], (ROOT / "db/schema.sql").read_text())
+        with pytest.raises(RdsPreparationError, match="不是空库"):
+            normalize_empty_collation(connection, "bumbum_hz_test", report["server_uuid"])
         assert inspect_target(connection, "bumbum_hz_test")["table_count"] == 24
         with connection.cursor() as cursor:
             cursor.execute("SELECT code FROM project ORDER BY id")
