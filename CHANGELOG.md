@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-10-29 杭州ECS＋RDS方案及连接手册准备
+
+cece确认bumbum.cc域名ICP备案通过，要求评估Codex到杭州ECS及RDS的连接，并输出最新代码部署方案和必要操作手册。本轮先检查实际云环境及仓库：运行状态current、VPN已配置且automatic_tailscale_access开启，显式TCP授权列表为空；这不是杭州目标连通证明，也不能仅凭空列表判定必须新增授权。未发现杭州ECS地址、主机指纹、RDS端点或现成数据库绑定，未擅自沿用香港地址/指纹、扫描设备或索取秘密。远端仅main@fc7d740，工作区干净，创建docs/hangzhou-ecs-rds-plan仅整理文档。
+
+基于源码确认现有Compose固定香港本机数据库，三个云迁移入口共用香港配置保护，不能直接用于RDS；core/db.py尚未设置TLS验证，而已安装驱动支持CA、证书和主机名校验，需审核后实施最小适配。新增docs/HANGZHOU_DEPLOYMENT.md，推荐Codex经受支持代理/VPN进入杭州ECS，再从同VPC访问RDS内网；区分CONNECT、SSH、数据库网络、TLS/SQL和应用就绪，提供cece控制台主机指纹、系统资源及RDS只读检查命令，明确未装工具/未接入Tailscale时先核对、不盲目重装或放宽网络。
+
+手册列出待审核的代码/部署适配、空库与已有库保护、镜像固定版本、独立验证与香港迁移两条路径、域名及证书准备、停写/防双写、保留读数计数和加密资料、回退及分工验收。根域名、正式管理域名和现有香港子域名不自动改解析，未批准前不迁移数据或复制秘密。README修正备案资源状态，TECH_SPEC将2026-10-24备案办理描述标为历史背景；OP_GUIDE增加新环境手册入口，TODO保留当前缺失信息及方案待审核状态。没有修改应用、配置模板、依赖、迁移或数据库，也未部署或改动杭州/RDS；不将文档完成当作连通或上线。
+
+cece随后提供杭州公网47.98.19.79、Ubuntu26.04 64位、拟用root及ED25519指纹SHA256:h62A/DKvJNUEfg453gUR/d427aSUsPmNVRUQtAhIexQ；尚未安装Tailscale。RDS为MySQL8.0，端点rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com:3306，与ECS同VPC；cece说明无须保留的数据、账号状态未知，并明确选择杭州独立验证、保留香港与现有域名解析。Codex通过支持的proxy:8088对公网SSH做一次有界CONNECT，收到403 vpn_protected_destination，未绕过或反复尝试，不判定为安全组/密码错误；未获得SSH或数据库认证成功证据。
+
+核验Tailscale官方pkgs.tailscale.com提供Ubuntu26.04 resolute的公钥、软件源及InRelease均200，为杭州生成新的专用ED25519身份，仅提供公钥，未复用香港私钥或输出私钥内容。手册补入经签名APT安装、保留系统DNS且不接受子网路由、不启用Tailscale SSH的接入步骤，以及仅追加带restrict公钥的操作；均待cece在杭州控制台执行。RDS网络/TLS/只读SQL步骤保留，未在目标机执行，不向代理声明原始TCP密码注入。19份文档295处本地链接/标题定位、git diff --check及8个Bash示例语法检查通过；这些检查不等于目标机安装、SSH或RDS认证已通过。
+
 ## 2026-10-28 清理已合并分支
 
 按cece明确授权，核对工作区干净、仅main被当前工作目录使用，远端仅main@1bb1936和docs/public-deployment-acceptance@f376899。确认文档分支f376899及本地初始work@f3eeb5b均已完整进入main历史后，删除远端及本地文档分支、删除本地work；远端删除使用精确头提交保护，防止覆盖并发新增工作。清理后本地与远端均仅保留main，验收记录与提交历史仍可从main追溯，不删除未合并工作、不操作ECS。仅补充历史记录；文档链接和差异检查通过，无业务代码变更，不重复业务测试。

@@ -42,7 +42,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 分别提供桌面管理端与用户手机端两个网页应用（SPA，主要由浏览器切换页面）；用户端本期只开放触碰验证及服装资料查看，香港测试站点已公开并通过本轮服装样品验收；其他环境发布另行授权执行。`nfc.bumbum.cc`给用户，`admin.bumbum.cc`给管理员，`bumbum.cc`品牌页可选。目标芯片为NXP NTAG424 DNA；NFC.cool的当前单卡配置及核验方式见[真实卡手册](docs/NFC_CARD_VERIFICATION.md)，不承诺其他版本或批量流程已通过。
 
-已有资源记录：阿里云内地ECS（系统待核验）及香港ECS（cece确认Ubuntu 22.04、2核4GiB）、RDS、备案中的bumbum.cc、iPhone、Windows 11和MacBook Air 2024；手机/App本轮版本证据集中在[技术附录第14.1节](docs/IMPLEMENTATION_DETAILS.md#141-已有证据与复用来源)，不沿用早期设备猜测。扫描测试建议使用香港ECS和test.bumbum.cc，域名及HTTPS入口已由cece配置，手机批量扫描已验收；细节见技术说明第2.5节。当前不增加微服务、Redis、消息队列等额外运行服务，避免维护负担。改变所用工具和部署方式前，须说明理由并获cece确认。
+已有资源记录：杭州ECS（系统、配置及连接待核验）及香港ECS（cece确认Ubuntu 22.04、2核4GiB）、RDS、已完成ICP备案的bumbum.cc、iPhone、Windows 11和MacBook Air 2024；手机/App本轮版本证据集中在[技术附录第14.1节](docs/IMPLEMENTATION_DETAILS.md#141-已有证据与复用来源)，不沿用早期设备猜测。扫描测试建议使用香港ECS和test.bumbum.cc，域名及HTTPS入口已由cece配置，手机批量扫描已验收；细节见技术说明第2.5节。当前不增加微服务、Redis、消息队列等额外运行服务，避免维护负担。改变所用工具和部署方式前，须说明理由并获cece确认。
 
 ## 每个文件管什么
 
