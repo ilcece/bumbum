@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 杭州权限收敛完成，测试后端启动通过
+
+cece执行固定b220946维护工具反馈changes_applied=30，目标仍bumbum_hz_test、8.0.36、d8379dd3-cace-11f1-8fdd-00163e17e38a；应用账号只剩USAGE及目标库SELECT/INSERT/UPDATE/DELETE，初始化身份仅目标库ALL且locked=Y，两账号全局及系统表额外授权已撤回。客户端ECDHE-RSA-AES256-GCM-SHA384，前快照2ed10a14f6d9339bb9e9c53511ac3f63148a7dfccd3b56ba62702bfdca800e80，后快照228a9312138be375325d6ee545ad82ec6feb4c598a524211ec95adf37d630bc1；Codex按公开反馈结构化保存并重新计算一致。没有取得维护密码，不重跑收敛命令或初始化。
+
+Codex用既有应用配置独立只读确认相同目标、应用自身仅四项DML、实际TLS及database_ready=true后，通过固定5f24175源码的受保护start入口启动test。真实回环GET /api/health与/api/ready均200并返回no-store，ready为database=ready；bumbum-hangzhou-test-backend-1运行healthy、重启0、镜像实际ID仍1f3cd78b524463d2089715b58a947c7f157e5c0e6c88ed4f22949f9c063f63dc，归属固定test/compose.json。非root10001:10001、只读根、cap_drop ALL、no-new-privileges、128pids、256MiB内存/无额外交换及0.5核限制均核对。监听仅SSH及127.0.0.1:15001，80/443/15000/3306未监听；SSH/tailscaled/docker active。启动时后端约46.43MiB、2进程，宿主可用986MiB、根盘约30G可用；这是快照，不代表生产+测试并行容量或压测已通过。
+
+为完成独立测试管理员ilcece设置，scripts/hangzhou.py增加仅test的admin-create和export-qr，沿用固定镜像/清单、项目归属及运行检查，密码/验证码由cece在终端隐藏输入，调用已有Flask创建流程，不新增认证方案。受限页面由同一运行容器内存盘直接传到root自持700目录下600文件，固定来源/目标、拒绝覆盖和符号链接、失败不留部分下载文件，不经终端或日志；Codex未执行真实页面导出或查看其内容，实际真实页面操作仍由cece执行。临时无网络Python容器与合成页面验证真实tmpfs导出及链接拒绝，相关部署/原香港导出回归24项通过，6.11秒；源为合成文字，无真实验证器秘密，测试资源已清理。 页面读取进一步限制为2MiB+1字节，变更后8项相关检查通过；统一Docker环境选择器复用，保留代理/证书/注册表设置。杭州/登录手册补具体两终端设置与清理步骤，cece已确认Workbench文件管理可安全下载；管理员尚未创建，公网HTTPS、登录及业务未验收，香港、DNS及生产不变。
+
+仅修改部署工具和相关测试/手册，应用镜像与运行秘密不变；README里程碑、TECH_SPEC/接口/表结构及依赖仍一致，无需修改，不重复不受影响的后端/浏览器回归。 收敛后公开结果已存入b220946产物目录after-public.json并核验文件SHA256=aeed1f861dc3b70689c8443ab8a45e167ad27b7546741fa3cb421b31beb6010e。只读公网DNS现状为test.bumbum.cc和nfc.bumbum.cc仍解析47.242.24.84，nfc-test.bumbum.cc及admin.bumbum.cc未解析；杭州Nginx/Certbot尚未安装，下一步采用受控HTTPS定向验证而不直接切DNS。 文档19份297处链接、杭州手册25段Bash语法及差异检查通过。
+
 ## 2026-10-30 维护身份方案获批，定向权限工具验证通过
 
 cece确认按第5.1.1节方案执行，随后确认bumbum_hz_ops已创建。cece隐藏输入密码的原生客户端VERIFY_IDENTITY只读预检返回bumbum_hz_ops@%、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、MySQL8.0.36；维护账号持实际公开清单中的静态全局权限及GRANT OPTION，未单列XA_RECOVER_ADMIN。应用/初始化授权与此前一致，三账号各仅Host=%且account_locked=N。未读取认证字段、真实配置或系统日志，创建不等于已收敛。

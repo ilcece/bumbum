@@ -9,8 +9,10 @@ from pathlib import Path
 import re
 import secrets
 import socket
+import stat
 import subprocess
 import sys
+from tempfile import NamedTemporaryFile
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -134,15 +136,51 @@ def prepare_test_runtime(destination, password, username):
         stream.write("".join(f"{key}={value}\n" for key, value in values.items()))
 
 
+def docker_environment():
+    """统一清理远端Docker选择器，保留现有代理、证书和注册表配置。"""
+    return {name: value for name, value in os.environ.items()
+            if name not in {"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"}}
+
+
 def docker(arguments):
     """固定本机Docker socket；只返回必要元数据，失败时不显示含配置的原始输出。"""
-    env = {name: value for name, value in os.environ.items()
-           if name not in {"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"}}
     result = subprocess.run(["docker", "--host=unix:///var/run/docker.sock", *arguments],
-                            env=env, capture_output=True, text=True, timeout=180)
+                            env=docker_environment(), capture_output=True, text=True, timeout=180)
     if result.returncode:
         raise DeploymentError("本机Docker命令未完成；保留现场，未输出容器配置、环境或原始日志。")
     return result.stdout.strip()
+
+
+def export_authenticator(arguments, source, destination):
+    """只把本次临时页面直接写入受限文件，不经终端、日志或网站目录。"""
+    if not re.fullmatch(r'/tmp/bumbum-authenticator-[A-Za-z0-9_-]+/authenticator\.html', source or ''):
+        raise DeploymentError('须提供本次设置终端显示的完整临时页面路径。')
+    parent = destination.parent
+    if (parent.is_symlink() or not parent.is_dir() or parent.stat().st_uid != os.getuid()
+            or stat.S_IMODE(parent.stat().st_mode) & 0o077):
+        raise DeploymentError('导出目录须由当前操作者持有且仅本人可访问。')
+    if destination.exists() or destination.is_symlink():
+        raise DeploymentError('已有验证器导出副本，未覆盖；请先按手册清理。')
+    # 仅允许容器当前用户自己的普通文件，拒绝符号链接及其他私有文件路径。
+    reader = '''import os,stat,sys
+from pathlib import Path
+p=Path(sys.argv[1])
+d=p.parent.stat(follow_symlinks=False)
+assert stat.S_ISDIR(d.st_mode) and d.st_uid==os.getuid() and not d.st_mode&0o077
+fd=os.open(p,os.O_RDONLY|os.O_NOFOLLOW)
+with os.fdopen(fd,'rb') as f:
+    s=os.fstat(f.fileno())
+    assert stat.S_ISREG(s.st_mode) and s.st_uid==os.getuid() and not s.st_mode&0o077 and 0<s.st_size<=2097152
+    sys.stdout.buffer.write(f.read(2097153))
+'''
+    with NamedTemporaryFile(prefix='.authenticator-', dir=parent) as output:
+        result = subprocess.run(['docker', '--host=unix:///var/run/docker.sock', *arguments,
+                                 'python', '-c', reader, source],
+                                env=docker_environment(), stdout=output, stderr=subprocess.PIPE, timeout=30)
+        output.flush()
+        if result.returncode or not 0 < os.fstat(output.fileno()).st_size <= 2097152:
+            raise DeploymentError('临时页面导出未完成，未保留不完整副本；请保持设置终端等待。')
+        os.link(output.name, destination, follow_symlinks=False)
 
 
 def check_deployment(path, slot, *, require_runtime=True):
@@ -182,7 +220,7 @@ def check_deployment(path, slot, *, require_runtime=True):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="杭州独立环境准备及受保护启停；不自动初始化数据库、启用Nginx或切换DNS。")
-    parser.add_argument("action", choices=["prepare", "prepare-runtime", "check", "start", "status", "stop"])
+    parser.add_argument("action", choices=["prepare", "prepare-runtime", "check", "start", "status", "stop", "admin-create", "export-qr"])
     parser.add_argument("--slot", required=True, choices=SLOTS)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--image")
@@ -191,10 +229,17 @@ def main(argv=None):
     parser.add_argument("--user-host")
     parser.add_argument("--admin-ip")
     parser.add_argument("--confirm-production", action="store_true")
+    parser.add_argument("--username")
+    parser.add_argument("--qr-path")
     args = parser.parse_args(argv)
     try:
         if args.action != "prepare-runtime" and args.manifest is None:
             raise DeploymentError("此操作须明确指定公开Compose清单的--manifest路径。")
+        if args.action in {'admin-create', 'export-qr'}:
+            if args.slot != 'test':
+                raise DeploymentError('本入口只允许独立测试管理员设置，未操作生产账号。')
+            if args.action == 'admin-create' and (not sys.stdin.isatty() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', args.username or '')):
+                raise DeploymentError('须在操作者终端设置已确认的测试账号名，密码及验证码仅隐藏输入。')
         if args.action == "prepare-runtime":
             if args.slot != "test":
                 raise DeploymentError("此入口只生成独立测试配置；生产必须按批准的数据迁移方案安全注入并保留必要原密钥。")
@@ -217,9 +262,21 @@ def main(argv=None):
             return 0
         if args.slot == "production" and args.action in {"start", "stop"} and not args.confirm_production:
             raise DeploymentError("生产启停须明确--confirm-production，并按已批准窗口执行。")
-        document = check_deployment(args.manifest, args.slot, require_runtime=args.action in {"check", "start"})
+        document = check_deployment(args.manifest, args.slot, require_runtime=args.action in {"check", "start", "admin-create", "export-qr"})
         command = ["compose", "-p", document["name"], "-f", str(args.manifest.resolve())]
-        if args.action == "start":
+        if args.action in {'admin-create', 'export-qr'}:
+            if not docker([*command, 'ps', '-q', 'backend']):
+                raise DeploymentError('指定测试后端未运行，未启动或接管其他服务。')
+            if args.action == 'export-qr':
+                destination = Path(document['services']['backend']['env_file'][0]['path']).parent / 'authenticator.html'
+                export_authenticator([*command, 'exec', '-T', 'backend'], args.qr_path, destination)
+                print(f'验证器页面已安全导出到{destination}；仅本人下载，完成或取消后删除两边副本。')
+            else:
+                result = subprocess.run(['docker', '--host=unix:///var/run/docker.sock', *command, 'exec', 'backend',
+                                         'python', '-m', 'flask', '--app', 'app:create_app', 'admin', 'create', args.username], env=docker_environment())
+                if result.returncode:
+                    raise DeploymentError('管理员设置未确认完成，请保留提示核对，不覆盖已有账号。')
+        elif args.action == "start":
             docker([*command, "up", "-d", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "120"])
             print("指定后端已就绪；未启用公网或切换域名，仍须完成网页、安全及业务验收。")
         elif args.action == "stop":

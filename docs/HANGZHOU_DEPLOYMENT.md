@@ -443,6 +443,39 @@ python3 scripts/hangzhou.py status --slot test --manifest /opt/bumbum-hangzhou/t
 
 stop仅停止该环境后端、不删卷、不停另一环境或数据库；生产启停还需显式--confirm-production并遵守批准窗口。日后更新时先将新公开清单生成到另一个审核目录，与固定清单对比，保留旧清单和镜像；在批准发布范围内原子替换原固定路径的清单后，再从原路径启动。不直接从新审核目录接管已运行项目；跨路径拒绝属于归属保护。代码回退只使用已验证RDS适配且与当前表结构兼容的旧镜像，香港原镜像不能直接充当RDS回退版本。网页从已验证镜像导出至对应/var/www/bumbum-hangzhou-test-admin及-user；生成的admin.conf/user.conf/proxy.conf先检查两个域名、证书及来源IP，再nginx -t和受控启用，不能复制生成文件后立即认为HTTPS或公网业务通过。尚无证书时不安装启用引用不存在证书的站点；未确认DNS前用受控定向请求验证。
 
+### 5.3.1 创建独立测试管理员及安全下载验证器页面
+
+前提：测试库已初始化、权限收敛通过、测试后端healthy且实际回环health/ready均200。使用已交付新版scripts/hangzhou.py，复用同一固定测试清单及运行镜像，不重启服务、生成新运行秘密或重新初始化。此入口只允许test，生产管理员随批准的迁移另行安排。
+
+cece在杭州root控制台的第一个终端执行，按提示设置12—128字符密码并再次确认；密码只隐藏输入。以下ilcece是已确认的新测试账号名，重复创建会拒绝覆盖：
+
+```bash
+read -r -p '已核验管理员设置工具的完整提交：' HZ_TOOL_REVISION
+python3 "/opt/bumbum-hangzhou/releases/$HZ_TOOL_REVISION/scripts/hangzhou.py" admin-create \
+  --slot test --manifest /opt/bumbum-hangzhou/test/compose.json --username ilcece
+```
+
+看到容器内/tmp/bumbum-authenticator-…/authenticator.html路径后，保持第一个终端等待，不在浏览器直接打开该服务器路径。另开第二个杭州root终端，输入同一工具提交及**本次**完整临时路径：
+
+```bash
+read -r -p '已核验管理员设置工具的完整提交：' HZ_TOOL_REVISION
+read -r -p '第一个终端显示的完整临时页面路径：' HZ_QR_PATH
+python3 "/opt/bumbum-hangzhou/releases/$HZ_TOOL_REVISION/scripts/hangzhou.py" export-qr \
+  --slot test --manifest /opt/bumbum-hangzhou/test/compose.json --qr-path "$HZ_QR_PATH"
+```
+
+成功后，仅通过阿里云远程连接的安全文件下载功能或已有SSH/SFTP，将/opt/bumbum-hangzhou/test/secrets/authenticator.html下载到cece自己的电脑；没有可用下载方式时先反馈，不放网站目录。该文件权限600、父目录仅本人访问，工具拒绝覆盖已有副本；从容器内存盘直接传入受限文件，内容不经终端或日志，来源须为当前容器用户自持的受限普通文件，拒绝符号链接和其他路径。报错时保留设置终端提示，不把页面上传聊天。
+
+在电脑本地打开下载页面，手机Authenticator添加BUMBUM-test/ilcece，扫码或按页面手动添加；回第一个终端隐藏输入当前6位验证码。看到“账号已创建”才算完成；验证失败/取消前不保存新账号，不读取或覆盖同名账号。等待下一组验证码再网页登录，不能复用设置时的验证码。
+
+完成或取消后关闭本地页面，删除电脑下载副本，在杭州第二个终端删除本次ECS导出文件：
+
+```bash
+rm -- /opt/bumbum-hangzhou/test/secrets/authenticator.html
+```
+
+容器内临时页面由设置命令退出时自动清理。只反馈创建成功或错误，不发送密码、验证码、二维码或手动添加密钥；Codex随后只核对账号存在、启用及验证器已设置的状态，不读取认证字段。后续HTTPS、管理白名单、登录/CSRF及业务验收仍分别进行。
+
 ### 5.4 只读识别后，明确确认空库初始化
 
 以下由cece在杭州控制台交互执行，因为初始化身份密码仍由cece自持。镜像内容由Codex按上一节锁定；只读检查显示server_uuid、实际账号、对象数量及客户端加密套件，不显示密码或业务行。非交互入口拒绝读取环境、配置或管道密码。

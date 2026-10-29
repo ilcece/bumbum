@@ -122,6 +122,103 @@ def test_production_never_generates_replacement_secrets(tmp_path):
     assert hangzhou.main(["prepare-runtime", "--slot", "production", "--manifest", str(tmp_path / "none")]) == 1
 
 
+@pytest.mark.parametrize('action', ['admin-create', 'export-qr'])
+def test_test_account_setup_never_touches_production(action, tmp_path, monkeypatch):
+    monkeypatch.setattr(hangzhou, 'docker', lambda args: pytest.fail('不得调用Docker'))
+    assert hangzhou.main([action, '--slot', 'production', '--manifest', str(tmp_path / 'none')]) == 1
+
+
+def test_authenticator_export_is_private_and_never_prints_or_overwrites(tmp_path, monkeypatch, capsys):
+    parent = tmp_path / 'secrets'
+    parent.mkdir(mode=0o700)
+    destination = parent / 'authenticator.html'
+    page = b'<html>synthetic-authenticator-page-only</html>'
+    calls = []
+
+    def run(command, *, env, stdout, stderr, timeout):
+        calls.append(command)
+        stdout.write(page)
+        return subprocess.CompletedProcess(command, 0, stderr=b'')
+
+    monkeypatch.setattr(hangzhou.subprocess, 'run', run)
+    hangzhou.export_authenticator(['exec', 'synthetic-container'], '/tmp/bumbum-authenticator-test/authenticator.html', destination)
+    assert destination.read_bytes() == page
+    assert destination.stat().st_mode & 0o777 == 0o600
+    assert page.decode() not in capsys.readouterr().out
+    with pytest.raises(hangzhou.DeploymentError, match='已有'):
+        hangzhou.export_authenticator(['exec', 'synthetic-container'], '/tmp/bumbum-authenticator-test/authenticator.html', destination)
+    assert len(calls) == 1 and destination.read_bytes() == page
+    assert list(parent.iterdir()) == [destination]
+
+
+def test_failed_authenticator_export_removes_partial_and_hides_stderr(tmp_path, monkeypatch, capsys):
+    parent = tmp_path / 'secrets'
+    parent.mkdir(mode=0o700)
+
+    def run(command, *, env, stdout, stderr, timeout):
+        stdout.write(b'synthetic-partial-page')
+        return subprocess.CompletedProcess(command, 1, stderr=b'synthetic-private-marker')
+
+    monkeypatch.setattr(hangzhou.subprocess, 'run', run)
+    with pytest.raises(hangzhou.DeploymentError, match='未完成'):
+        hangzhou.export_authenticator(['exec', 'synthetic-container'], '/tmp/bumbum-authenticator-test/authenticator.html', parent / 'authenticator.html')
+    assert list(parent.iterdir()) == []
+    assert 'synthetic-private-marker' not in capsys.readouterr().out
+
+
+@pytest.mark.parametrize('source', ['/etc/shadow', '/tmp/other.html', '/tmp/bumbum-authenticator-../authenticator.html'])
+def test_authenticator_export_rejects_other_paths_before_docker(source, tmp_path, monkeypatch):
+    monkeypatch.setattr(hangzhou.subprocess, 'run', lambda *a, **kw: pytest.fail('不得读取'))
+    with pytest.raises(hangzhou.DeploymentError, match='完整临时页面路径'):
+        hangzhou.export_authenticator([], source, tmp_path / 'authenticator.html')
+
+
+@pytest.mark.auth_database
+def test_authenticator_export_from_real_tmpfs_refuses_symlink(request, tmp_path):
+    """只用合成页面和无网络容器，验证真实内存盘导出与符号链接拒绝。"""
+    if not request.config.getoption('--auth-db'):
+        pytest.skip('需显式--auth-db，用专属无网络容器验证私有页面传输')
+    import time
+    import uuid
+    name = 'bumbum-qr-export-test-' + uuid.uuid4().hex[:12]
+    folder = '/tmp/bumbum-authenticator-synthetic'
+    page = b'<html>synthetic-tmpfs-page-only</html>'
+    program = ('from pathlib import Path; import signal; '
+               f'p=Path({folder!r}); p.mkdir(mode=0o700); '
+               f'q=p/"authenticator.html"; q.write_bytes({page!r}); q.chmod(0o600); '
+               'signal.pause()')
+    env = {name: value for name, value in os.environ.items()
+           if name not in {'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_TLS', 'DOCKER_TLS_VERIFY', 'DOCKER_CERT_PATH'}}
+    command = ['docker', '--host=unix:///var/run/docker.sock']
+
+    def docker(args):
+        return subprocess.run([*command, *args], env=env, capture_output=True, text=True, timeout=60)
+
+    try:
+        assert docker(['run', '-d', '--name', name, '--label', 'bumbum.test=qr-export', '--network', 'none',
+                       '--read-only', '--user', '10001:10001', '--tmpfs', '/tmp:mode=1777',
+                       'python:3.12.14-slim-bookworm', 'python', '-c', program]).returncode == 0
+        for _ in range(50):
+            if docker(['exec', name, 'test', '-f', folder + '/authenticator.html']).returncode == 0:
+                break
+            time.sleep(0.1)
+        else:
+            pytest.fail('合成页面未就绪，不输出容器配置或原始日志')
+        destination = tmp_path / 'authenticator.html'
+        hangzhou.export_authenticator(['exec', name], folder + '/authenticator.html', destination)
+        assert destination.read_bytes() == page and destination.stat().st_mode & 0o777 == 0o600
+        destination.unlink()
+        replace = ('from pathlib import Path; '
+                   f'p=Path({folder + "/authenticator.html"!r}); p.rename(p.with_name("synthetic-original.html")); '
+                   'p.symlink_to(p.with_name("synthetic-original.html"))')
+        assert docker(['exec', name, 'python', '-c', replace]).returncode == 0
+        with pytest.raises(hangzhou.DeploymentError, match='未完成'):
+            hangzhou.export_authenticator(['exec', name], folder + '/authenticator.html', destination)
+        assert not destination.exists() and list(tmp_path.iterdir()) == []
+    finally:
+        docker(['rm', '-f', name])
+
+
 @pytest.mark.auth_database
 def test_both_slot_nginx_configurations_parse_together(request, certificates, tmp_path):
     if not request.config.getoption("--auth-db"):
