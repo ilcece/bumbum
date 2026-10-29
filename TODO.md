@@ -8,7 +8,7 @@
 
 | 优先级 | 任务 | 状态 | 完成时至少看到什么 |
 |---|---|---|---|
-| P1，当前准备 | 杭州ECS＋RDS部署方案与连接检查 | Codex经受支持代理/Tailscale及专用公钥成功登录100.96.225.127，严格主机校验、root及主机名匹配；2核、Tailscale1.104.4，nodivert、不接管DNS/路由、不启用Tailscale SSH。阿里DNS和eth0路由保留，eth0.rp_filter=1、all/default仍0，RDS解析及TCP通过。cece已创建bumbum_probe并开启SSL；Codex使用上传的官方CA从杭州验证RDS证书链与内网域名通过，协商TLS1.2；cece反馈bumbum_probe的SELECT 1=1、版本8.0.36，账号及只读SQL通过，但服务端Ssl_cipher为空，该账号连接的客户端TLS证据待补。mysql客户端8.4.11及专用公开CA已准备，方案见[杭州手册](docs/HANGZHOU_DEPLOYMENT.md)，香港及DNS不变 | 待cece在杭州控制台按手册4.3.1保持VERIFY_IDENTITY并补充客户端status的SSL行；服务端Ssl_cipher为空的原因未定，不先归因或降级验证。密码仅在隐藏提示输入，不在聊天传密码。eth0临时保护未持久化，后续明确维护/重启方案；RDS应用TLS和部署适配仍待方案批准，不改用明文认证、不部署业务或切域名 |
+| P1，当前准备 | 杭州ECS＋RDS部署方案与连接检查 | Codex经受支持代理/Tailscale及专用公钥成功登录100.96.225.127，严格主机校验、root及主机名匹配；2核、Tailscale1.104.4，nodivert、不接管DNS/路由、不启用Tailscale SSH。阿里DNS和eth0路由保留，eth0.rp_filter=1、all/default仍0，RDS解析及TCP通过。cece已创建bumbum_probe并开启SSL；Codex使用上传的官方CA从杭州验证RDS证书链与内网域名通过，协商TLS1.2；cece反馈bumbum_probe的SELECT 1=1、版本8.0.36，并在保留VERIFY_IDENTITY的客户端status中确认Cipher in use is ECDHE-RSA-AES128-GCM-SHA256。SSH、证书链/域名、账号及安全只读连接验收通过；服务端Ssl_cipher为空的差异保留，原因未确认。mysql客户端8.4.11及专用公开CA已准备，方案见[杭州手册](docs/HANGZHOU_DEPLOYMENT.md)，香港及DNS不变 | 接入检查已完成，下一步由cece审核杭州手册第5—7节的最小实施范围：RDS应用TLS、独立部署配置及初始化保护；目标库/权限、验证域名及新环境配置需在实施前明确。批准后Codex按范围构建和验证；eth0临时保护仍待持久维护/重启方案。数据库密码不发聊天，香港/DNS不变，不自动部署、迁移、合并main或扩大范围 |
 | P1，试用配套 | 芯片停用与恢复 | 待单独小步；不混入首次绑定 | 保留关联，恢复状态由有无绑定决定；用户验证重查状态，停用后旧凭证不可继续使用 |
 | P1，追加目标 | 短信首次认领 | 提前确认服务与模板；开发排在基础流程后 | 真实短信、凭证对应、并发仅一个所有者、历史与凭证消耗一起提交；不能以固定验证码冒充完成 |
 
