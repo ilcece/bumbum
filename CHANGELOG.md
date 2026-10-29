@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-10-29 杭州RDS测试库初始化完成，修复时间戳元数据兼容
+
+cece运行已确认4faac3a镜像的受保护规则修正及初始化命令，反馈bumbum_hz_test、MySQL8.0.36、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、bumbum_hz_test_init@%、24表完整、其他对象0、utf8mb4/utf8mb4_unicode_ci、collation_changed=true及客户端ECDHE-RSA-AES256-GCM-SHA384。初始化成功，不再等待同一命令或重跑schema；此前1045未复现，但原因未确定。
+
+Codex随后以应用身份执行只读事务确认同一实例/库、24表、fashion/jewelry两个初始项目及初始化锁空闲，实际database_ready=false。分项为chip_project=optional、registration_source=ready、tap_event=unknown、view_grant=ready；只读核对触碰日志列、索引、外键及生效CHECK后，唯一已定位差异为scan_log.created_at非空，默认CURRENT_TIMESTAMP、EXTRA=DEFAULT_GENERATED，RDS explicit_defaults_for_timestamp=0。既有DDL未显式声明该列NULL，在此参数下产生非空元数据，旧识别只接受可空形式。没有读业务行、真实配置或系统日志，没有改表/参数或重新初始化。
+
+core/db.py仅兼容这两种已知时间戳可空形式，同时要求TIMESTAMP、自动当前时间默认且无ON UPDATE；错误默认值、固定时间、自动更新时间及未知类型/精度仍拒绝，其余生成表达式、索引、外键及CHECK保持严格检查。独立MySQL8.0.46中关闭该会话参数，修复前新增用例确实失败并复现unknown；修复后迁移/恢复、触碰、统计、RDS TLS及部署保护专项125通过、1跳过，61.55秒。跳过项是需显式RUN_DB_TESTS的现有本机真实库检查，未连接既有库；7个新增场景覆盖参数开/关、普通更新不改变事件时间和5种未知定义拒绝。使用夹具专属临时库/合成资料并自动清理，不在杭州运行测试负载。
+
+阿里云官方账号权限列表确认“仅DML”预设包含临时表、事件、触发器、PROCESS及复制等额外权限，与现场SHOW GRANTS一致；此前将该预设等同四项DML的手册表述已纠正。官方普通账号权限修改文档支持SQL精细授权及DMS自定义管理；原有账号文档确认高权限维护身份可管理普通账号，普通账号不能自行管理其他账号。手册加入原始来源及边界，已请cece仅反馈是否已有可用、自持密码的高权限账号，不自动创建、重置或撤权，也不将维护身份放入应用配置。
+
+本轮只修正结构识别及测试，同步TODO、部署手册和技术附录；表定义/迁移、接口、业务规则、依赖和秘密方案不变，README里程碑及操作入口仍一致，无需更改。未重复不受影响的完整后端/浏览器回归；新镜像交付及杭州复核结果另记，后端、管理员、Nginx/证书和业务验收仍未完成。香港、DNS与生产未改动。
+
 ## 2026-10-29 新Codex环境接续与RDS空库排序规则修正
 
 cece已保存600权限独立测试运行配置，新测试管理员名ilcece；该配置不等于管理员账号已创建。只读初始化检查因实际utf8mb4_0900_ai_ci与约定utf8mb4_unicode_ci不同而停止。Codex随后提供的PREPARE包裹ALTER DATABASE写法在该RDS返回1295，报错位于PREPARE且命令以&&连接，排序规则修改和后续建表均未执行；这是所给操作的兼容性问题，不要求cece删库、重建账号或重跑秘密生成。旧环境在文档写入/检查期间offline，未确认完成的文档不作为已提交证据。

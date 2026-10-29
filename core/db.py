@@ -153,16 +153,21 @@ def registration_source_schema(cursor):
 
 def tap_event_schema(cursor):
     """识别完整触碰事件结构；部分升级或约束被改动时不冒充就绪。"""
-    cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,GENERATION_EXPRESSION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log'")
+    cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,GENERATION_EXPRESSION,COLUMN_DEFAULT,EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log'")
     columns = {row[0]: row[1:] for row in cursor.fetchall()}
     old_names = {'id', 'chip_uid', 'project_id', 'picc_data', 'cmac', 'scan_counter', 'verify_result', 'user_agent', 'ip_hash', 'created_at'}
     old_enum = "enum('pass','cmac_fail','decrypt_fail','unknown_chip','replay_suspect','disabled')"
     base_types = {'id': ('bigint unsigned', 'NO'), 'chip_uid': ('varchar(32)', 'YES'),
                   'project_id': ('tinyint unsigned', 'YES'), 'picc_data': ('varchar(256)', 'YES'),
                   'cmac': ('varchar(64)', 'YES'), 'scan_counter': ('bigint unsigned', 'YES'),
-                  'user_agent': ('varchar(512)', 'YES'), 'ip_hash': ('varchar(64)', 'YES'),
-                  'created_at': ('timestamp', 'YES')}
+                  'user_agent': ('varchar(512)', 'YES'), 'ip_hash': ('varchar(64)', 'YES')}
     if any(name not in columns or columns[name][:2] != expected for name, expected in base_types.items()):
+        return 'unknown'
+    # 同一DDL在时间戳默认参数开/关时分别生成可空/非空列；只接受自动创建且不随更新变化的时间。
+    created_at = columns.get('created_at')
+    if (not created_at or created_at[0] != 'timestamp' or created_at[1] not in {'YES', 'NO'}
+            or str(created_at[3]).upper() not in {'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP()'}
+            or created_at[4] != 'DEFAULT_GENERATED'):
         return 'unknown'
     if set(columns) == old_names and columns['verify_result'][:2] == (old_enum, 'NO'):
         return 'missing'
