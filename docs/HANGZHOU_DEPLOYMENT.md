@@ -101,6 +101,24 @@ Codex 随后使用本任务受支持的 CONNECT 代理访问该 Tailscale IP 的
 
 操作位置：保持阿里云控制台的杭州实例终端打开，确认`id -un`为root，且`cat /etc/os-release`确为Ubuntu 26.04、VERSION_CODENAME=resolute；否则先停下，不套用以下软件源。如果不是root，先在这个实例终端执行`sudo -i`。本步骤只接入维护网络，不安装应用、接管RDS、改业务DNS或启用Tailscale SSH。
 
+本次cece控制台预检已确认：单网卡eth0、仅默认策略路由，阿里云DNS为100.100.2.136/138并经eth0访问；RDS解析172.23.211.160且TCP3306通过；UFW inactive、INPUT默认ACCEPT、nft未列出表；all/default/eth0的rp_filter均为0。本次采用nodivert接入，并先对eth0临时启用严格反向路径校验，保持all/default不变、不写永久配置。该决定基于杭州本次实际路由，不是要求其他多网卡或不对称路由服务器照搬。
+
+先在杭州root控制台执行以下块；失败会将本次eth0设置恢复到预检值0，停止后续接入：
+
+```bash
+bash <<'BASH'
+set -euo pipefail
+trap 'sysctl -q -w net.ipv4.conf.eth0.rp_filter=0; echo "临时检查失败，eth0已恢复预检值0；停止后续步骤。"' ERR
+sysctl -w net.ipv4.conf.eth0.rp_filter=1
+getent ahostsv4 rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com
+timeout 5 bash -c 'exec 3<>/dev/tcp/rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com/3306'
+echo '通过：临时eth0反向路径校验已启用，DNS与RDS TCP正常；尚未验证账号。'
+trap - ERR
+BASH
+```
+
+只有看到这行“通过”并且原控制台仍正常，才继续下面的安装。若其他命令失败或入口异常，保留输出先反馈，不直接重跑；临时保护不代替后续完整防火墙审查。
+
 已在Tailscale官方域名核验resolute公钥、软件源清单及签名InRelease均返回200。下面保留APT包签名和HTTPS校验；若已有同名软件源或密钥文件，会停下而不是覆盖。
 
 ```bash
@@ -124,14 +142,23 @@ apt-get install -y tailscale
 BASH
 ```
 
-**安装完成后先不要接入。先完成第3.5节兼容性预检，确认杭州采用的防火墙维护方式。**下面保留off方式的杭州首次接入候选示例，须先确认所选模式和维护规则后才执行；不能根据香港历史处置或后续变更直接认定杭州应使用哪种模式，不照搬历史命令中的`--reset`：
+安装成功后，按本次杭州预检选择的模式接入，不使用--reset：
 
 ```bash
-tailscale up --netfilter-mode=off --accept-dns=false --accept-routes=false
+tailscale up --netfilter-mode=nodivert --accept-dns=false --accept-routes=false
 tailscale ip -4
 ```
 
-按终端显示的官方登录链接，用与当前Codex环境相同的Tailnet账号/组织授权。保留系统DNS，不接受子网路由，不开启`--ssh`或广告路由。`off`只表示Tailscale不管理防火墙，不表示现有系统防火墙已安全放行；需要自行核对规则。预期得到本机100.x地址；将这个地址交给Codex，不发送认证密钥。若提示已有配置、需要额外批准或安装失败，保留步骤和固定错误，不重置客户端、不重启ECS、不反复修改安全组。
+按终端显示的官方登录链接，用与当前Codex环境相同的Tailnet账号/组织授权。不接受系统DNS或子网路由，不开启--ssh或广告路由。nodivert创建规则但不自动挂接，不会自动提供完整放行/反欺骗保护；本步eth0保护也不等于整个主机防火墙已验收。获得100.x地址后重复第3.5节DNS/路由及第4节TCP检查；原控制台和RDS仍正常，再按第3.4节添加专用公钥并交Codex核验SSH。
+
+若接入后出现原控制台/SSH、DNS或RDS异常，在保留的阿里云控制台停止新接入并恢复本步临时参数：
+
+```bash
+tailscale down
+sysctl -w net.ipv4.conf.eth0.rp_filter=0
+```
+
+仅在异常时执行恢复；不重置客户端、不清空防火墙、不重启ECS、不反复修改安全组。确认操作与错误后再继续。正常完成时暂不写永久sysctl，待Codex从Tailnet验证SSH及RDS并核对实际Tailscale路由后，再确定持久化和后续防火墙维护；不默认为重启后已经保留。
 
 ### 3.4 添加本次杭州专用公钥
 

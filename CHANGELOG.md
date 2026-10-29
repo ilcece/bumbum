@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-29 杭州DNS、路由及RDS TCP基线通过
+
+cece连续提供杭州控制台只读结果：eth0使用阿里DNS100.100.2.136/138，DNS路由经172.23.223.253、源地址172.23.211.159；RDS端点解析172.23.211.160并在5秒内TCP3306建连成功。仅local/main/default三条策略规则，主路由为单eth0直连172.23.208.0/20和默认网关，两个DNS有明确eth0路由；UFW inactive、INPUT默认ACCEPT，nft list tables无输出；all/default/eth0的rp_filter均0。TCP通过不代表RDS账号、TLS或应用已通过；CPU仍未测，Tailscale尚未安装。
+
+据此更新手册第3.3节为本次杭州可执行步骤：先只对eth0临时设rp_filter=1，复测DNS和RDS TCP，失败恢复原值0；通过后安装Tailscale并用nodivert、accept-dns=false、accept-routes=false接入，不使用--reset。若接入后异常，从保留的阿里云控制台tailscale down并恢复本次eth0临时参数，不改全局/永久sysctl，不清空规则或重启。单网卡基线支持采用此最小可回退方案，不将其推广到其他路由环境；实际路由、防火墙及重启保留仍需后续检查。Codex只更新文档，目标设置和安装待cece执行；未声明已连接杭州或认证RDS成功。19份文档295处本地链接/标题定位、差异及11个Bash示例语法检查通过。
+
 ## 2026-10-29 杭州ECS基础只读核对完成
 
 cece明确开始按手册接入，并提供杭州控制台输出：root，主机iZbp1cj6pt88wbxmhlsp1nZ，Ubuntu26.04.1 LTS/resolute；内存总量约1.7GiB、available约1.1GiB，swap4GiB且未使用，根盘40GiB、可用31GiB。监听为IPv4/IPv6的22及本机DNS53，已有/usr/bin/python3，command -v未找到Docker、Nginx或MySQL客户端。不据此推断CPU规格或断定所有工具均已安装/卸载，也不把仅监听SSH说成已登录成功。
