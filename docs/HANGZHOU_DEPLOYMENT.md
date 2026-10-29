@@ -273,10 +273,11 @@ read -r -p 'RDS 官方 CA 文件绝对路径：' RDS_CA
 mysql --no-defaults --no-login-paths --protocol=TCP --connect-timeout=5 \
   --host="$RDS_HOST" --port="$RDS_PORT" --user="$RDS_CHECK_USER" --password \
   --ssl-mode=VERIFY_IDENTITY --ssl-ca="$RDS_CA" \
-  --execute="SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 'Ssl_cipher';"
+  --execute="status
+SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 'Ssl_cipher';"
 ```
 
-密码在客户端提示时输入，不写在命令中、不发到聊天。`--no-defaults --no-login-paths`避免自动载入既有客户端配置或登录凭证；保持在其他连接选项之前。预期 connection_ok=1、版本符合要求、Ssl_cipher 非空且无证书/主机名错误。TLS 失败时核对官方 CA、实例域名及控制台 SSL 设置，不改成不验证或允许明文回退。Codex 已能登录 ECS 且已有服务器端安全配置的检查身份时，可由 Codex 执行同等只读检查，cece 不必逐条代跑。
+密码在客户端提示时输入，不写在命令中、不发到聊天。`--no-defaults --no-login-paths`避免自动载入既有客户端配置或登录凭证；保持在其他连接选项之前。预期connection_ok=1、版本符合要求、客户端status的SSL行显示Cipher in use且无证书/主机名错误。SHOW SESSION STATUS的Ssl_cipher作为服务端补充证据；若其为空，不能单凭该值认定客户端明文或TLS通过，须核对同一连接的客户端SSL行。TLS 失败时核对官方 CA、实例域名及控制台 SSL 设置，不改成不验证或允许明文回退。Codex 已能登录 ECS 且已有服务器端安全配置的检查身份时，可由 Codex 执行同等只读检查，cece 不必逐条代跑。
 
 Codex 的原始 TCP 通道不做凭证注入，HTTP 代理中的秘密占位值不能作为 SSH/MySQL 的实际密码。没有现成服务器端认证入口时，先由 cece 在控制台完成上述密码提示检查；后续需要自动维护时另行准备限权、受保护的服务器端入口，不要求将密码或真实配置复制给 Codex。
 
@@ -293,10 +294,11 @@ mysql --no-defaults --no-login-paths \
   --user=bumbum_probe --password \
   --ssl-mode=VERIFY_IDENTITY \
   --ssl-ca=/root/.local/share/bumbum/rds-ca/ApsaraDB-CA-Chain-2dc6de20.pem \
-  --execute="SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 'Ssl_cipher';"
+  --execute="status
+SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 'Ssl_cipher';"
 ```
 
-出现`Enter password:`后，仅在该终端输入bumbum_probe的密码并回车；输入不回显是正常情况。只反馈查询结果或脱敏错误，不发送密码。connection_ok=1且Ssl_cipher非空才记录该账号的安全只读连接通过；若失败，保留具体错误，不换高权限账号、不去掉证书/主机名验证或尝试明文连接。
+出现`Enter password:`后，仅在该终端输入bumbum_probe的密码并回车；输入不回显是正常情况。只反馈客户端SSL行、查询结果或脱敏错误，不发送密码。connection_ok=1、保持VERIFY_IDENTITY且同一客户端连接显示SSL: Cipher in use is ...，才记录该账号的安全只读连接通过。服务端Ssl_cipher为空时保留该差异，代理/TLS终止只是待核对原因，不当作已确认事实；若客户端显示SSL: Not in use或出现证书/主机名错误，暂停验收，保留错误，不换高权限账号、不去掉验证或尝试明文连接。客户端SSL行取自mysql_get_ssl_cipher，见[MySQL 8.4.11官方源码](https://github.com/mysql/mysql-server/blob/mysql-8.4.11/client/mysql.cc#L5274)。
 
 ## 5. 最新代码在杭州运行前的最小适配
 

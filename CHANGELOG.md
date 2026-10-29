@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-29 RDS账号与只读SQL通过，服务端Ssl_cipher为空待交叉验证
+
+cece反馈按接入命令得到connection_ok=1、mysql_version=8.0.36，证明该次账号认证及只读查询成功；SHOW SESSION STATUS的Ssl_cipher为空。保留这一实际差异，不将空值直接解释为明文，也不将此前Codex未认证TLS握手通过替代该账号会话的客户端证据。RDS入口代理与数据库后端可能分别处理TLS，但未获得该实例的配置或权威证据确认原因，不记录为已确认归因。
+
+核对MySQL8.4.11官方client/mysql.cc第5274行，status输出的SSL行来自mysql_get_ssl_cipher，而非上述服务端状态查询。手册连接命令增加同一连接的status，与SELECT 1及服务端状态交叉检查：保持VERIFY_IDENTITY、官方CA和内网域名，客户端应显示SSL: Cipher in use is ...；如Not in use或证书/主机名错误则暂停验收，不换为关闭验证或明文重试。待cece补充该客户端结果，TODO保留待反馈。未获取账号密码，未再次认证、访问业务表、修改RDS或部署应用；文档链接、Bash示例语法及差异检查通过。
+
 ## 2026-10-29 官方CA验证RDS证书链及域名通过，准备只读SQL入口
 
 cece上传ApsaraDB-CA-Chain.zip。先只列条目，包含PEM、P7B及JKS三种格式；仅选取PEM作证书解析，未打开其他格式或执行附件内容。PEM的81个块均为CA公钥证书，文件157498字节，SHA256为2dc6de20eab8451cc779001466f42b5ed05e554bbf479de6f194c35a1bfbc436；ZIP的SHA256为8ee7f3755ca3c41b89bc19502f9580f2612d8d74ea637be1d122f9c3739c683e。解析器对包内非正序列号证书给出弃用警告，未修改证书或关闭验证，以下结论仅针对实际RDS服务证书链，不声称包内每个历史CA均符合未来解析规则。
