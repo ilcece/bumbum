@@ -13,7 +13,7 @@
 | 后端运行工具 | Gunicorn | 正式运行 Flask，可同时安排多个进程处理请求 |
 | 部署位置 | 阿里云 ECS、RDS | 分别运行程序、保存数据库；实际系统版本部署前核验 |
 
-一个后端、一个数据库、两个网页应用。`core/`放共同功能；`fashion/`和`jewelry/`放各自业务。逐接口可用范围只维护在[实现概览](API_CONTRACT.md#04-当前能做到哪一步)，当前任务见[TODO](TODO.md)，历史验收见[CHANGELOG](CHANGELOG.md)。服装资料的事务和请求限制见[附录第9节](docs/IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)；扫描回调和云测试边界见第2.5节。建议的目录和规则不代表已有代码。
+每个环境各有一个后端、一个业务数据库和两个网页应用。`core/`放共同功能；`fashion/`和`jewelry/`放各自业务。逐接口可用范围只维护在[实现概览](API_CONTRACT.md#04-当前能做到哪一步)，当前任务见[TODO](TODO.md)，历史验收见[CHANGELOG](CHANGELOG.md)。服装资料的事务和请求限制见[附录第9节](docs/IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)；扫描回调和云测试边界见第2.5节。建议的目录和规则不代表已有代码。
 
 ## 2. 芯片、物品和所有者怎么关联
 

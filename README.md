@@ -38,11 +38,11 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 | 正式运行 | Gunicorn + Nginx | 分别运行后端、接收网站访问并转交请求 |
 | 云服务 | 阿里云 ECS、RDS | 分别提供运行程序的服务器、托管数据库 |
 
-一个仓库、一个后端、一个数据库。共同功能放在 `core/`；服装 `fashion` 和饰品 `jewelry` 的业务分开组织，避免同一功能写两遍。
+一个仓库；每个环境各有一个后端和一个业务数据库。共同功能放在 `core/`；服装 `fashion` 和饰品 `jewelry` 的业务分开组织，避免同一功能写两遍。
 
 分别提供桌面管理端与用户手机端两个网页应用（SPA，主要由浏览器切换页面）；用户端本期只开放触碰验证及服装资料查看，香港测试站点已公开并通过本轮服装样品验收；其他环境发布另行授权执行。`nfc.bumbum.cc`给用户，`admin.bumbum.cc`给管理员，`bumbum.cc`品牌页可选。目标芯片为NXP NTAG424 DNA；NFC.cool的当前单卡配置及核验方式见[真实卡手册](docs/NFC_CARD_VERIFICATION.md)，不承诺其他版本或批量流程已通过。
 
-已有资源记录：杭州ECS（已核对Ubuntu 26.04.1、2核、约1.7GiB内存；接入与部署步骤见[杭州手册](docs/HANGZHOU_DEPLOYMENT.md)）及香港ECS（cece确认Ubuntu 22.04、2核4GiB）、RDS、已完成ICP备案的bumbum.cc、iPhone、Windows 11和MacBook Air 2024；手机/App本轮版本证据集中在[技术附录第14.1节](docs/IMPLEMENTATION_DETAILS.md#141-已有证据与复用来源)，不沿用早期设备猜测。扫描测试建议使用香港ECS和test.bumbum.cc，域名及HTTPS入口已由cece配置，手机批量扫描已验收；细节见技术说明第2.5节。当前不增加微服务、Redis、消息队列等额外运行服务，避免维护负担。改变所用工具和部署方式前，须说明理由并获cece确认。
+已有资源记录：杭州ECS（已核对Ubuntu 26.04.1、2核、约1.7GiB内存；接入与部署步骤见[杭州手册](docs/HANGZHOU_DEPLOYMENT.md)）及香港ECS（cece确认Ubuntu 22.04、2核4GiB）、RDS、已完成ICP备案的bumbum.cc、iPhone、Windows 11和MacBook Air 2024；手机/App本轮版本证据集中在[技术附录第14.1节](docs/IMPLEMENTATION_DETAILS.md#141-已有证据与复用来源)，不沿用早期设备猜测。香港既有扫描测试入口为test.bumbum.cc，HTTPS及手机批量扫描已验收；历史细节见技术说明第2.5节。长期生产和测试将按杭州手册分别隔离，不将香港作为永久依赖；当前部署状态只看TODO。当前不增加微服务、Redis、消息队列等额外运行服务，避免维护负担。改变所用工具和部署方式前，须说明理由并获cece确认。
 
 ## 每个文件管什么
 
@@ -69,7 +69,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 云测试部署依赖在requirements-deploy.in/txt，通过容器固定版本，不替换Ubuntu系统Python。Python 的本机直接依赖在 `requirements.in`，完整固定版本在 `requirements.txt`；开发检查对应 `requirements-dev.in` 和 `requirements-dev.txt`。前端依赖与固定版本在 `package.json`、`package-lock.json`。更新依赖时同步对应清单，不手工改锁文件凑版本。
 
-`.env.example` 是配置模板，准备脚本生成本机 `.env` 并保留已有文件。`VITE_` 配置会进入网页，只能放公开信息；接口地址拼接规则见 [接口说明](API_CONTRACT.md#01-地址和字段)。云开发环境与生产 ECS/RDS 分开，本轮没有连接生产数据库。
+`.env.example` 是配置模板，准备脚本生成本机 `.env` 并保留已有文件。`VITE_` 配置会进入网页，只能放公开信息；接口地址拼接规则见 [接口说明](API_CONTRACT.md#01-地址和字段)。自动检查使用专属临时数据库；云端现有业务库的连接、初始化及升级分别按对应手册授权和验收，不用测试指令替代生产操作。
 
 ## 后续开发顺序
 

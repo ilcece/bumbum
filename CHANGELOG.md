@@ -8,13 +8,22 @@
 
 ## 2026-10-29 杭州适配获批，构建单ECS隔离与RDS初始化保护
 
-cece批准杭州手册第5—7节，并决定生产/测试先共用现有杭州ECS、独立隔离，容量验证后再决定升配；香港计划下个月不再使用，但其按量试用到期日未确认、cece说明至少还能使用一个月，不编造具体下线时间。RDS规格由cece提供为mysql.n2.serverless.1c、RCU0.5—2、CPU0.5—2、内存1—4GiB、存储20G，维护窗北京时间02:00—06:00，小版本自动升级、释放保护未开启。备份用量已提供，但PITR/保留/自动暂停及恢复状态尚未取得证据。单ECS/同RDS逻辑隔离不消除宿主机、实例维护和资源争用影响，测试限额且不在生产宿主执行完整测试、构建或恢复负载；香港退出须先完成杭州生产迁移、实卡、容量、续期/重启和独立恢复验证。
+cece批准杭州手册第5—7节，并决定生产/测试先共用现有杭州ECS、独立隔离，容量验证后再决定升配；香港计划下个月不再使用，但其按量试用到期日未确认、cece说明至少还能使用一个月，不编造具体下线时间。RDS规格由cece提供为mysql.n2.serverless.1c、RCU0.5—2、CPU0.5—2、内存1—4GiB、存储20G，维护窗北京时间02:00—06:00，小版本rds_20260620、自动升级策略未明确，释放保护未开启。备份用量已提供，但PITR/保留/自动暂停及恢复状态尚未取得证据。单ECS/同RDS逻辑隔离不消除宿主机、实例维护和资源争用影响，测试限额且不在生产宿主执行完整测试、构建或恢复负载；香港退出须先完成杭州生产迁移、实卡、容量、续期/重启和独立恢复验证。
 
 以7aa38fe为起始，core/db.py增加LOCAL/VERIFY_IDENTITY与公开CA配置，远端生产连接强制证书/主机名校验；固定PyMySQL1.2.3显式TLS在入口无SSL能力时认证前失败，已用回环假握手实测没有发送认证响应。初轮回归发现显式关闭本机SSL会改变原有协商并触发重启认证失败，改为LOCAL保留原有驱动路径，不改驱动版本或原香港/本机升级保护。core/rds_target.py交叉核对杭州slot、端点、库及应用/初始化身份；core/rds_database.py只读识别实例/对象，只有明确库名、server_uuid、初始化身份及空库同时符合才执行唯一schema的受限定向，已有/部分库拒绝，不删库或自动恢复。
 
 scripts/hangzhou.py生成公开Compose/Nginx配置，两个slot独立项目、目录、回环端口15000/15001、日志卷、运行密码及样品密钥，后端限额生产512MiB/1.25核、测试256MiB/0.5核，测试单worker、生产双worker。无本机MySQL依赖，raw env_file避免密码插值；固定镜像提交标签及内容ID、主机Docker socket、清单路径/已有项目归属、私有文件权限和首次端口保护，生产启停额外显式确认，不自动切DNS或启用Nginx。独立测试配置由cece在杭州终端隐藏输入数据库密码，原子创建600文件，不读取/覆盖已有秘密；生产不允许随机替换旧密钥。模板、TECH_SPEC、手册、入口及TODO同步；API、产品规则、表结构与依赖版本未改变。
 
 本地专项真实MySQL验证错误CA/域名拒绝、24表空库初始化、错误实例/重复执行拒绝及应用ready通过；修复兼容性后非浏览器完整回归600通过、6跳过、36浏览器项未执行，177.91秒；补充两环境Nginx同机配置在无网络临时容器nginx -t通过。文档19份296处链接、18段Bash语法及差异检查通过，真实.env加载已在测试中禁用。普通沙箱不允许socket，按标准审批路径完成本机隔离验证；临时容器/卷与合成凭证均由夹具清理。杭州只读包预检：x86_64、Docker未安装，候选docker.io29.1.3、Compose2.40.3、Nginx1.28.3；SSH/tailscaled active，可用内存约1105MiB、根盘可用31G。此时尚未构建/传输新镜像、安装业务运行环境、创建RDS测试库/账号或初始化，未接收数据库密码、迁移香港资料、切换DNS或合并main。待cece反馈测试域名及RDS测试库/专用账号准备，Codex继续镜像和运行环境准备。
+
+
+后续构建/杭州准备：固定源码提交4afec789473955b257e7b9b115e7edc7e8f4a7ae，构建镜像标签bumbum-hangzhou-backend:4afec789473955b257e7b9b115e7edc7e8f4a7ae，构建端配置ID为sha256:fe2bf854a62cbbab2cb2b7c66e5c17e6cae648e4cab1d2c9458311c013e6bdab（150724242字节）。固定镜像的真实HTTPS/Nginx/Gunicorn/独立MySQL网关回归3项通过，24.53秒；前端构建已有依赖的use client指令警告不影响构建，未为此改依赖。源码归档SHA256=f22ad67d3ebb04eb326f1f197d98102fdd12bc179ea71754a9856f0ff0cc7445，镜像归档SHA256=011c02a13430ad386686b21e69acdf04d39a1fea5af66b6dc6a9c3d9818134dc，公开CA哈希沿用前条；通过严格SSH/SFTP传到杭州后逐项核验一致。实际保留于/opt/bumbum-hangzhou/artifacts/4afec789473955b257e7b9b115e7edc7e8f4a7ae，源码解包到同根releases/4afec789473955b257e7b9b115e7edc7e8f4a7ae，不包含真实配置、私钥或备份。
+
+杭州经模拟确认后安装Docker29.1.3、Compose2.40.3及containerd/runc，共新增4包、下载88.2MB、磁盘约增加346MB，无升级/移除。Docker/containerd/SSH/tailscaled均active，阿里DNS100.100.2.136/138及原eth0路由保留，RPF仍eth0=1/all=0/default=0，RDS解析及TCP3306复测通过；可用内存约1057MiB，未运行业务容器。未声称Docker安装没有新建桥接/防火墙规则，仅记录所需实际协议和路径正常。
+
+Docker28 classic构建端与Docker29 containerd导入端报告镜像ID不同，初次ID比较按保护停止，未直接跳过。随后在杭州导出镜像元数据流，清单引用blobs/sha256/fe2bf854a62cbbab2cb2b7c66e5c17e6cae648e4cab1d2c9458311c013e6bdab，配置内容SHA256与构建端完全相同，13个层，amd64及来源提交匹配；在归档哈希一致的基础上证明配置及其根文件系统引用一致，再固定杭州端实际ID sha256:0a0a89ea5f0f7697d6545d20613b6c0364ccc2be25efb73e9f9b9c52236bc91b供后续启停核对。未修改验证代码或把不明镜像当作同一版本。
+
+cece确认测试库/账号已创建；选择测试test.bumbum.cc/nfc-test.bumbum.cc、生产admin.bumbum.cc/nfc.bumbum.cc，当前管理出口104.243.39.38并保持电脑VPN。按这些输入生成/opt/bumbum-hangzhou/test/compose.json及三个Nginx公开配置稿，CA位于test/public/rds-ca.pem；从已验证镜像提取管理/用户静态页到/var/www/bumbum-hangzhou-test-admin及-user，临时提取容器未启动并已清理。尝试公开Compose安静解析时因私有runtime.env尚不存在而停止，未用假配置绕过；此项待cece安全准备后继续。杭州无网络临时容器中的RDS工具帮助命令运行通过；已提供cece终端隐藏输入和只读实例核对步骤。尚未执行杭州RDS建表、实际应用启动、Nginx安装/启用、证书申请、DNS切换或香港迁移/退出；没有读取或接收数据库密码。README将每个环境的独立后端/库与长期杭州方向讲清，旧香港事实保留为历史，持续操作边界仍见手册。
 
 ## 2026-10-29 杭州ECS与RDS安全只读连接验收通过
 
