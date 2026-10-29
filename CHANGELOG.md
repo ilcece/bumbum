@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-10-29 杭州SSH专用公钥登录成功及RDS协议检查
+
+cece确认杭州专用公钥已添加后，Codex通过受支持的CONNECT代理和Tailscale100.96.225.127，以杭州专用身份重新登录；StrictHostKeyChecking=yes、固定已核验ED25519主机记录、仅指定公钥，成功执行只读命令，身份root、主机iZbp1cj6pt88wbxmhlsp1nZ与目标一致。远端时间2026-10-29T04:36:25Z（北京时间12:36:25），nproc为2；Tailscale1.104.4，ssh/tailscaled均active。不是仅有CONNECT200、开放端口或用户授权成功的推断。
+
+接入后只读复测：eth0仍使用阿里DNS100.100.2.136/138，tailscale0未接管DNS；100.100.2.136经原网关172.23.223.253、源172.23.211.159及eth0访问。eth0.rp_filter=1，all/default均0，INPUT默认ACCEPT。Tailscale配置在服务器进程内仅筛选必要字段输出：NetfilterMode=1、CorpDNS=false、RouteAll=false、RunSSH=false、WantRunning=true，确认nodivert、无DNS/子网路由接管、未启用Tailscale SSH；未输出完整debug prefs或敏感配置。本次是普通OpenSSH公钥认证通过，未改网络、规则、sysctl或服务。eth0保护仍属临时设置，未宣称重启后保留。
+
+RDS端点继续解析172.23.211.160，5秒有界TCP3306检查通过。另从杭州接收一次未认证MySQL初始握手，只返回协议版本及TLS能力，未输出认证随机数、账号密码或业务内容：服务器声明8.0.36，CLIENT_SSL能力位未设置，当前入口未声明TLS支持。未发送凭证、未尝试明文认证、未执行SELECT/DDL/DML；这不证明RDS账号或证书/主机名验证通过。mysql客户端仍未找到，待cece核对实例SSL开关、官方CA及账号状态后继续；不能用TCP成功代替数据库认证或就绪。仅更新TODO、手册中的处理边界及本记录，未部署业务、迁移数据或变更香港/DNS。
+
 ## 2026-10-29 杭州Tailnet SSH可达且指纹匹配，待添加专用公钥
 
 cece提供杭州Tailscale地址100.96.225.127，随后明确杭州专用公钥尚未添加。Codex重新核对当前云环境及策略后，通过支持的CONNECT代理发起SSH；实际收到的ED25519主机指纹SHA256:h62A/DKvJNUEfg453gUR/d427aSUsPmNVRUQtAhIexQ与cece在阿里云控制台取得值完全一致，匹配后保存到本次杭州专用known_hosts。后续公钥认证返回Permission denied (publickey)，符合缺少公钥授权这一已知前置条件；不将其当作网络或主机指纹故障，不反复重试、不关闭校验或改密码登录。
