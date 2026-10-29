@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 杭州管理测试域名证书签发通过，用户测试证书等待TXT
+
+cece确认更新TXT后，Codex先确认原交互会话仍在等待，直接查询dns21.hichina.com及dns22.hichina.com均aa/NOERROR、ANSWER=1，完整匹配本次值，才向当前Certbot发送继续输入。Certbot成功返回并正常退出0，test.bumbum.cc证书保存在杭州标准live目录。公有证书CN/SAN均为test.bumbum.cc，签发者Let's Encrypt YE1，系统CA链验证OK；notAfter为2027-01-27 17:29:38 UTC，即北京时间2027-01-28 01:29:38，公有证书SHA256指纹为1B:D9:22:0E:25:1B:23:F4:33:F4:C3:BE:73:D0:2E:D7:FA:1F:11:9E:2C:5A:94:C7:E0:B7:52:D7:10:69:95:04。仅查看公有证书及文件元数据，fullchain root/644、私钥root/600，未读取私钥内容。Certbot明确提示manual无认证钩子，因此不自动续期，不以成功签发或定时器当续期通过。
+
+随后新SSH连接在CONNECT层短暂返回503 Service Unavailable，第二域名的首次启动命令未到杭州。环境状态仍显示running/connected、VPN failure=null，此状态不能代替实际连通证据；未据此重启或改网络。再次使用同一受支持CONNECT路径进行有界只读诊断返回200，随后严格SSH及公有证书检查成功，证明连接已恢复，未发现需要cece修改ECS的证据。
+
+第一Certbot已退出后，正常发起nfc-test.bumbum.cc申请并停在其本次公开TXT提示处，未继续验证。已请cece在bumbum.cc下新增TXT主机记录_acme-challenge.nfc-test、默认线路/启用，保留其他记录，待两权威匹配再继续。第一张无需重签；第二张尚未签发，Nginx仍未启用、HTTPS/浏览器及续期待验收，不改A/AAAA或香港。
+
+另只读确认sites-enabled仍只有包默认链接；两项目公开站点稿保留独立域名/证书、管理出口104.243.39.38、仅路径日志及用户域名管理接口隔离，Nginx为masked/inactive、80/443无监听。仅更新TODO与历史，现有手册5.5、README里程碑、接口、表结构与依赖仍一致，不重复应用测试；文档19份297处链接及差异检查通过。
+
 ## 2026-10-30 TXT权威生效，申请会话中断后受控重新申请
 
 cece确认新TXT已保存启用。Codex通过既有严格SSH及受支持CONNECT路径，直接查询dns21.hichina.com和dns22.hichina.com，两台均aa/NOERROR、ANSWER=1并返回上一申请的正确公开值，TTL600；记录确已生效，不再归因于控制台保存失败。恢复时原交互执行会话不可用，杭州pgrep未发现Certbot进程，目标fullchain.pem尚不存在；未读取私有日志、账号文件或私钥，也未删除锁或修改服务。
