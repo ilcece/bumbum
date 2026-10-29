@@ -8,7 +8,7 @@
 
 | 优先级 | 任务 | 状态 | 完成时至少看到什么 |
 |---|---|---|---|
-| P1，当前准备 | 杭州ECS＋RDS部署方案与连接检查 | Codex已通过受支持代理/Tailscale和杭州专用公钥成功登录100.96.225.127，严格主机校验通过，身份root及主机名匹配；2核、Tailscale1.104.4，实际nodivert、不接管DNS/路由、不启用Tailscale SSH。接入后阿里DNS及eth0路由保留，eth0.rp_filter=1、all/default仍0，RDS解析及TCP3306复测通过。cece已创建普通检查账号bumbum_probe、开启SSL并下载官方CA；Codex复测MySQL8.0.36握手已声明TLS支持，尚未验证证书、认证或执行SQL。方案见[杭州手册](docs/HANGZHOU_DEPLOYMENT.md)，香港及DNS不变 | 待cece提供官方公开CA证书（PEM/CRT；不含私钥），Codex校验证书与主机名；mysql客户端尚未安装，已有OpenSSL。账号密码留在cece控制的隐藏输入/受保护服务器端认证入口，按手册4.3完成只读SQL，不在聊天传密码。eth0临时保护未持久化，后续明确维护/重启方案；RDS应用TLS和部署适配仍待方案批准，不改用明文认证、不部署业务或切域名 |
+| P1，当前准备 | 杭州ECS＋RDS部署方案与连接检查 | Codex经受支持代理/Tailscale及专用公钥成功登录100.96.225.127，严格主机校验、root及主机名匹配；2核、Tailscale1.104.4，nodivert、不接管DNS/路由、不启用Tailscale SSH。阿里DNS和eth0路由保留，eth0.rp_filter=1、all/default仍0，RDS解析及TCP通过。cece已创建bumbum_probe并开启SSL；Codex使用上传的官方CA从杭州验证RDS证书链与内网域名通过，协商TLS1.2，尚未账号认证或执行SQL。mysql客户端8.4.11及专用公开CA已准备，方案见[杭州手册](docs/HANGZHOU_DEPLOYMENT.md)，香港及DNS不变 | 待cece在杭州控制台按手册4.3.1执行只读SQL，密码仅在隐藏提示输入，反馈connection_ok、版本与Ssl_cipher或脱敏错误，不在聊天传密码。eth0临时保护未持久化，后续明确维护/重启方案；RDS应用TLS和部署适配仍待方案批准，不改用明文认证、不部署业务或切域名 |
 | P1，试用配套 | 芯片停用与恢复 | 待单独小步；不混入首次绑定 | 保留关联，恢复状态由有无绑定决定；用户验证重查状态，停用后旧凭证不可继续使用 |
 | P1，追加目标 | 短信首次认领 | 提前确认服务与模板；开发排在基础流程后 | 真实短信、凭证对应、并发仅一个所有者、历史与凭证消耗一起提交；不能以固定验证码冒充完成 |
 

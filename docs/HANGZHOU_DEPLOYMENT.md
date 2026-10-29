@@ -270,17 +270,33 @@ PY
 ```bash
 read -r -p 'RDS 检查账号名：' RDS_CHECK_USER
 read -r -p 'RDS 官方 CA 文件绝对路径：' RDS_CA
-mysql --protocol=TCP --connect-timeout=5 \
+mysql --no-defaults --no-login-paths --protocol=TCP --connect-timeout=5 \
   --host="$RDS_HOST" --port="$RDS_PORT" --user="$RDS_CHECK_USER" --password \
   --ssl-mode=VERIFY_IDENTITY --ssl-ca="$RDS_CA" \
   --execute="SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 'Ssl_cipher';"
 ```
 
-密码在客户端提示时输入，不写在命令中、不发到聊天。预期 connection_ok=1、版本符合要求、Ssl_cipher 非空且无证书/主机名错误。TLS 失败时核对官方 CA、实例域名及控制台 SSL 设置，不改成不验证或允许明文回退。Codex 已能登录 ECS 且已有服务器端安全配置的检查身份时，可由 Codex 执行同等只读检查，cece 不必逐条代跑。
+密码在客户端提示时输入，不写在命令中、不发到聊天。`--no-defaults --no-login-paths`避免自动载入既有客户端配置或登录凭证；保持在其他连接选项之前。预期 connection_ok=1、版本符合要求、Ssl_cipher 非空且无证书/主机名错误。TLS 失败时核对官方 CA、实例域名及控制台 SSL 设置，不改成不验证或允许明文回退。Codex 已能登录 ECS 且已有服务器端安全配置的检查身份时，可由 Codex 执行同等只读检查，cece 不必逐条代跑。
 
 Codex 的原始 TCP 通道不做凭证注入，HTTP 代理中的秘密占位值不能作为 SSH/MySQL 的实际密码。没有现成服务器端认证入口时，先由 cece 在控制台完成上述密码提示检查；后续需要自动维护时另行准备限权、受保护的服务器端入口，不要求将密码或真实配置复制给 Codex。
 
 这三层通过后，还须核对目标库是否存在、是否为空及结构版本；不执行 INSERT/UPDATE/CREATE/ALTER，不读取秘密字段或完整业务表。原库有数据时不得重跑 schema.sql。
+
+### 4.3.1 本次杭州目标的只读账号检查
+
+在杭州实例的root控制台执行以下命令。专用客户端与公开CA准备的实际版本、哈希和验证结果见CHANGELOG；这里的CA路径不代表其他服务器已有同名文件，不将证书加入系统全局信任。命令不依赖上一节的临时变量，只检查连接、版本及本次会话TLS，不建库、不读取业务表。
+
+```bash
+mysql --no-defaults --no-login-paths \
+  --protocol=TCP --connect-timeout=5 \
+  --host=rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com --port=3306 \
+  --user=bumbum_probe --password \
+  --ssl-mode=VERIFY_IDENTITY \
+  --ssl-ca=/root/.local/share/bumbum/rds-ca/ApsaraDB-CA-Chain-2dc6de20.pem \
+  --execute="SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 'Ssl_cipher';"
+```
+
+出现`Enter password:`后，仅在该终端输入bumbum_probe的密码并回车；输入不回显是正常情况。只反馈查询结果或脱敏错误，不发送密码。connection_ok=1且Ssl_cipher非空才记录该账号的安全只读连接通过；若失败，保留具体错误，不换高权限账号、不去掉证书/主机名验证或尝试明文连接。
 
 ## 5. 最新代码在杭州运行前的最小适配
 
