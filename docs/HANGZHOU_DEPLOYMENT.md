@@ -339,6 +339,27 @@ RDS应用账号只授权目标库的SELECT/INSERT/UPDATE/DELETE；阿里云控�
 
 阿里云[账号权限列表](https://help.aliyun.com/zh/rds/apsaradb-rds-for-mysql/account-permissions)明确“仅DML”含临时表、事件、触发器、进程查看及复制等额外权限；[修改普通账号权限](https://help.aliyun.com/zh/rds/apsaradb-rds-for-mysql/modify-the-permissions-of-a-standard-account-on-an-apsaradb-rds-for-mysql-instance)说明更细粒度权限使用SQL命令，亦支持DMS自定义管理。由cece核对是否已有可用高权限维护身份及自持密码；不把高权限身份写入应用配置，也不默认新建。按实际SHOW GRANTS制定精确收敛清单，只作用于明确应用/初始化账号，执行后重新核对并验证应用连接；不照搬全实例GRANT示例，不读系统日志，不重置已有密码。
 
+### 5.1.1 无高权限账号时的维护身份方案
+
+普通账号不能管理其他账号，无法自行完成这里的精确撤权。若尚无可用高权限维护身份，先由cece确认本节新增身份及收敛范围；没有确认前只整理提案，不创建账号或执行授权变更。确认沿用后，不为后续每条已约定命令重复确认。
+
+维护账号建议为bumbum_hz_ops，由cece在**杭州目标RDS实例**的“账号管理→创建账号”中选择“高权限账号”，设置独立密码并自行保管。每实例最多一个高权限账号；若发现已有账号先停下核对，不删除或重置它。密码不发聊天、不交给Codex、不写应用运行配置，已有应用/初始化账号及密码保留。维护身份拥有全实例管理能力，不限于测试库；它只用于受控维护，不作为生产或测试后端身份。此步骤不新增ECS或RDS实例，优先使用已安装MySQL客户端，不引入付费管理工具。
+
+确认后的操作边界：
+
+| 阶段 | 明确操作与目标 | 证据及停止条件 |
+|---|---|---|
+| 创建维护身份 | cece按上方控制台步骤创建bumbum_hz_ops，只反馈创建状态 | 不索取密码；出现已有高权限账号或控制台限制时先反馈，不创建第二个或重置 |
+| 只读预检 | cece隐藏输入维护密码，以VERIFY_IDENTITY及既有CA连接固定内网端点；核对server_uuid、维护身份、两目标账号的SHOW GRANTS及锁定状态 | UUID须与已验收实例一致；只选取账号名、Host及ACCOUNT_LOCKED等公开状态，不读取密码/认证字段或系统日志；授权有新变化则重新审查差异 |
+| 定向收敛应用账号 | 只作用于bumbum_hz_test@%：保留bumbum_hz_test的SELECT/INSERT/UPDATE/DELETE；撤回该库额外的CREATE TEMPORARY TABLES、LOCK TABLES、EXECUTE、SHOW VIEW、EVENT、TRIGGER | 依据实际转义后的库授权匹配，不能用其他库或全实例权限替代；不改用户名、密码、表、数据或运行配置 |
+| 撤回两账号的额外范围 | 只作用于bumbum_hz_test@%和bumbum_hz_test_init@%：定向撤回全局PROCESS、REPLICATION SLAVE、REPLICATION CLIENT、XA_RECOVER_ADMIN及下方已核对系统表的SELECT | 不执行全实例批量REVOKE ALL；维护身份无权撤回某项时停止反馈，不申请内部超级账号或扩大权限 |
+| 停用初始化登录 | 完成后锁定bumbum_hz_test_init@%，保留其目标库初始化权限和密码，未来受控迁移再解锁 | 不删除账号；只读确认ACCOUNT_LOCKED=Y，不反复尝试密码 |
+| 复核与继续 | 两账号重新SHOW GRANTS；Codex用已有应用配置验证TLS、24表、结构ready，然后按原批准范围启动测试后端 | 应用身份须只剩目标库四项DML及无权限的USAGE，初始化身份须受限并锁定；维护身份不进入容器。权限不符合时仍不启动 |
+
+已核对的系统表SELECT范围为mysql.func、mysql.general_log、mysql.help_category、mysql.help_keyword、mysql.help_relation、mysql.help_topic、mysql.slow_log、mysql.time_zone_leap_second、mysql.time_zone_name、mysql.time_zone_transition、mysql.time_zone_transition_type和mysql.time_zone。只撤回这两账号已有的授权，不读取表内容，不影响维护账号或RDS内部账号；若实际授权清单不同则停止核对。
+
+账号授权变更不是可整体回滚的事务。执行前保留两账号的公开授权及锁定状态，逐阶段核验；中途失败保留已生效状态，不自动扩大授权来回退，不重建账号或数据库。测试后端在此之前尚未启动，收敛不需要停业务服务；已运行环境应另行安排对应维护窗口。
+
 ### 5.2 cece准备RDS测试库及身份
 
 1. 在目标RDS控制台核对内网端点后创建空库bumbum_hz_test，字符集utf8mb4、排序规则utf8mb4_unicode_ci；若名字已存在先反馈并只读检查，不删库、不导入旧备份。
