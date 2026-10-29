@@ -360,6 +360,42 @@ RDS应用账号只授权目标库的SELECT/INSERT/UPDATE/DELETE；阿里云控�
 
 账号授权变更不是可整体回滚的事务。执行前保留两账号的公开授权及锁定状态，逐阶段核验；中途失败保留已生效状态，不自动扩大授权来回退，不重建账号或数据库。测试后端在此之前尚未启动，收敛不需要停业务服务；已运行环境应另行安排对应维护窗口。
 
+### 5.1.2 固定目标的权限收敛工具
+
+core/rds_accounts.py提供只读预检及显式--apply入口，固定杭州端点、bumbum_hz_ops维护身份和第5.1.1节两个测试账号，不接受其他库/账号或通用SQL。密码只在终端隐藏输入，不从配置、环境或管道读取；客户端强制VERIFY_IDENTITY并验证实际TLS。维护进程不加载应用runtime.env，不启动业务服务。
+
+Codex先在独立临时MySQL验证定向撤权、保留四项DML、锁定初始化登录和错误拒绝；将工具所在完整提交的源码归档经SSH传入，核对归档/模块哈希，再将**仅该公开模块**只读挂入已验证运行镜像，不必为维护工具更新应用镜像或私有配置。具体源码、镜像及公开快照位置看CHANGELOG，不能从旧示例猜测路径。
+
+cece在杭州root终端按Codex提供的已核验版本执行。首次只读预检命令如下：
+
+```bash
+read -r -p '已核验维护工具源码完整提交：' HZ_ACCOUNT_REVISION
+read -r -p '已核验运行镜像完整提交：' HZ_RUNTIME_REVISION
+docker run --rm -it --network host --read-only --memory=256m --cpus=0.5 \
+  --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly \
+  --mount "type=bind,src=/opt/bumbum-hangzhou/releases/$HZ_ACCOUNT_REVISION/core/rds_accounts.py,dst=/app/core/rds_accounts.py,readonly" \
+  "bumbum-hangzhou-backend:$HZ_RUNTIME_REVISION" \
+  python -m core.rds_accounts --ca /run/rds-ca.pem
+```
+
+预检核对固定维护身份、MySQL8.0、24表、初始项目、唯一Host条目及公开授权/锁定状态，返回规范化快照SHA256和计划。角色、GRANT OPTION、其他数据库/系统表或未知权限拒绝；基础DML缺失时不自动补权。若原生客户端已提供相同完整公开预检，Codex可据反馈结构化保存基线并计算同一规则摘要，无需cece重复登录。Codex在权限变更前保存该公开基线，不能保存密码或认证字段。
+
+依据已批准范围，在实例UUID、快照摘要与基线同时匹配后执行一次：
+
+```bash
+read -r -p '已确认server_uuid：' HZ_SERVER_UUID
+read -r -p '已保存公开授权快照SHA256：' HZ_ACCOUNT_SNAPSHOT
+docker run --rm -it --network host --read-only --memory=256m --cpus=0.5 \
+  --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly \
+  --mount "type=bind,src=/opt/bumbum-hangzhou/releases/$HZ_ACCOUNT_REVISION/core/rds_accounts.py,dst=/app/core/rds_accounts.py,readonly" \
+  "bumbum-hangzhou-backend:$HZ_RUNTIME_REVISION" \
+  python -m core.rds_accounts --ca /run/rds-ca.pem --apply \
+  --confirm-database bumbum_hz_test --confirm-server-uuid "$HZ_SERVER_UUID" \
+  --confirm-snapshot-sha256 "$HZ_ACCOUNT_SNAPSHOT"
+```
+
+工具同时取得账号维护/初始化锁，重新读取并比对快照，使用普通查询协议逐项撤回，不使用PREPARE。每一项执行后重新核对公开状态必须与预期完全相同；最后确认无待收敛权限、初始化账号locked=Y，并释放锁。最终JSON中应用账号只保留目标库四项DML及无权限USAGE，初始化身份保留目标库ALL但已锁定。MySQL错误仅输出编号；任何错误均保留已生效状态停止，不自动重跑、补权或恢复密码。之后由Codex用既有应用配置复核TLS、结构和实际就绪，再继续原批准的测试启动。
+
 ### 5.2 cece准备RDS测试库及身份
 
 1. 在目标RDS控制台核对内网端点后创建空库bumbum_hz_test，字符集utf8mb4、排序规则utf8mb4_unicode_ci；若名字已存在先反馈并只读检查，不删库、不导入旧备份。
