@@ -28,6 +28,8 @@ build/
 .local-run/
 # 香港云测试的生成配置、二维码副本和数据库备份。
 .cloud-test/
+# 杭州本机生成的部署配置和其他运行产物不作源码提交。
+.hangzhou/
 .coverage
 htmlcov/
 coverage/

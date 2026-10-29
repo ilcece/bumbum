@@ -1,6 +1,6 @@
 # 杭州 ECS＋RDS：连接检查与部署方案
 
-本稿供 cece 审核，目标是将审核时最新的代码部署到杭州 ECS，应用通过内网连接 RDS。先验证连接，再适配部署工具、验证新环境，最后单独确认数据迁移及域名切换。本文不是已经执行部署的证明。
+cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和测试先共用现有杭州ECS、分别隔离。目标是将审核时最新的代码部署到杭州 ECS，应用通过内网连接 RDS。先验证连接，再适配部署工具、验证新环境，最后单独确认数据迁移及域名切换。本文不是已经执行部署的证明。
 
 当前安排与待反馈只看 [TODO](../TODO.md)，实际检查、批准与执行证据写入 [CHANGELOG](../CHANGELOG.md)。香港现有环境、数据和域名解析在新环境验收前保持原样；香港手册仍只用于香港，不将其命令直接用于 RDS。
 
@@ -302,7 +302,7 @@ SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 
 
 ## 5. 最新代码在杭州运行前的最小适配
 
-这里是待审核的实现范围，不表示相关文件已经写好。构建阶段以当时最新、已审核的 main 完整提交 SHA 为候选，锁定不可变镜像摘要及回退版本；部署中不反复 git pull 或直接跟随移动的 main。
+以下范围已获cece批准；实现、技术检查、杭州部署及人工验收分别记录，不能把批准当作已部署。构建阶段以当时最新、已审核的 main 完整提交 SHA 为候选，锁定不可变镜像摘要及回退版本；部署中不反复 git pull 或直接跟随移动的 main。
 
 | 现有依据 | 杭州部署需要的改动 | 验证标准 |
 |---|---|---|
@@ -313,9 +313,92 @@ SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 
 | 香港 Nginx 与 Compose 固定 test/nfc 域名及来源 | 新环境独立站点、来源配置、证书和静态发布目录；管理域名继续 IP 限制、登录与CSRF，用户域名只开放精确用户路径 | 用户域名无法访问管理、扫描回调或内部运行检查；真实登录和资料查询正常 |
 | 已有 Dockerfile 固定 Python/Node 和依赖 | 复用已验证版本，先检查杭州拉取依赖/镜像能力；必要时在构建环境产出镜像，经受控传输或已有仓库交付并校验摘要 | 不因下载失败关闭签名、校验和或TLS验证，不擅自采购新服务 |
 
-TLS、RDS初始化及配置支持属于后续代码任务；本轮只交方案，不修改应用。拟新增的杭州部署入口必须在实现、测试后写入正式执行命令，不能将香港 cloud_test.sh 的 start、backup、upgrade-view直接套在 RDS 上。
+TLS配置由core/db.py统一处理；core/rds_database.py提供只读识别及双重确认的空库初始化，已有或部分初始化的库一律停止，不自动重建。scripts/hangzhou.py准备公开Compose/Nginx配置及测试私有配置，按镜像内容ID、固定清单路径与项目归属检查后启停。不能将香港cloud_test.sh的start、backup、upgrade-view直接套在RDS上；本工具不提供香港数据导入或现有RDS升级的通用后门。
 
 资源与费用先以现有杭州实例为准，不因为本稿自动购买或升配。需核对 ECS 运行与构建余量、RDS 规格/存储/备份保留额度、带宽及已有镜像仓库；若本机构建资源不足，优先评估在构建环境产出镜像再交付，不能把香港2核4GiB视为杭州实际配置。新增镜像仓库、跨VPC互联、扩容或付费证书均单独说明成本并由 cece 决定；目标信息不足时不报未经核实的月费或交付时长。
+
+### 5.1 杭州两个环境的固定隔离约定
+
+以下是实施约定，不表示账号或库已创建。APP_ENV两者均为production以启用HTTPS/Cookie保护；HANGZHOU_SLOT区分运行用途。
+
+| 项目 | 测试 | 生产 |
+|---|---|---|
+| HANGZHOU_SLOT | test | production |
+| RDS库 / 应用账号 | bumbum_hz_test / bumbum_hz_test | bumbum_hz_production / bumbum_hz_production |
+| 初始化账号 | bumbum_hz_test_init | bumbum_hz_production_init |
+| ECS根目录 | /opt/bumbum-hangzhou/test | /opt/bumbum-hangzhou/production |
+| 回环后端端口 | 15001 | 15000 |
+| Compose项目 | bumbum-hangzhou-test | bumbum-hangzhou-production |
+| 后端进程 / 容器内存上限 / CPU上限 | 1 / 256MiB / 0.5核 | 2 / 512MiB / 1.25核 |
+
+同一RDS实例内不同库只提供逻辑隔离，不隔离实例故障、维护或CPU/内存争用；同一ECS上的进程/容器隔离也不能隔离宿主机故障。测试不开第二个本机MySQL，不在杭州执行完整pytest、镜像构建、压测或恢复演练；日常开发和回归用Codex临时数据库，镜像在构建环境产出后校验并传入。上述容器限额是初始保护，不是容量通过证明；保留系统/Nginx余量并实际观察内存、延迟与RDS负载，再决定是否升配。生产与测试使用不同密码、存储/指纹/回调秘密、样品根密钥、域名、静态目录及日志卷，不能将生产卡与密钥复制到长期测试库。
+
+RDS应用账号只授权目标库的SELECT/INSERT/UPDATE/DELETE（控制台若提供“仅DML”选该项）；初始化账号是单独普通账号，限目标库的建表、索引、外键、必要读写权限。不要给应用账号全实例管理或DDL权限；控制台选项不符先反馈，不扩大授权。bumbum_probe继续只用于连接检查，不作为业务账号。
+
+### 5.2 cece准备RDS测试库及身份
+
+1. 在目标RDS控制台核对内网端点后创建空库bumbum_hz_test，字符集utf8mb4、排序规则utf8mb4_unicode_ci；若名字已存在先反馈并只读检查，不删库、不导入旧备份。
+2. 创建上一节的两个测试普通账号，权限只作用于该库，密码分别保管，不发送聊天；无法选精确权限先反馈。生产库/账号及香港数据迁移在生产步骤明确后另行准备，不能拿测试库当未来生产库。
+3. 核对备份保留天数、日志备份/PITR、Serverless自动暂停/恢复设置及释放保护；反馈状态即可，不发送配置正文。备份用量不等于PITR已启用、最新备份完整或恢复已通过。生产接管前准备独立恢复验证，不能直接算作香港演练已覆盖RDS。
+
+### 5.3 构建、准备公开部署配置与后端启停
+
+Codex先完成本地技术检查，再从工作区干净的、已交付完整提交构建镜像。复用固定Python/Node依赖和现有Dockerfile，不在杭州换系统Python或安装Node；在受管云环境构建须保留代理并通过BuildKit secret传入组合CA，不将CA复制到镜像层。示例在仓库根目录执行，实际镜像提交与内容ID写入CHANGELOG，不把示例当已构建证据：
+
+```bash
+task_revision="$(git rev-parse HEAD)"
+test -z "$(git status --porcelain)" || { echo '工作区有修改，停止构建，先核对交付版本。'; exit 1; }
+env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH   docker --host=unix:///var/run/docker.sock build   --secret id=proxy_ca,src=/etc/ssl/certs/ca-certificates.crt   --label "org.opencontainers.image.revision=$task_revision"   -f deploy/cloud_test/Dockerfile -t "bumbum-hangzhou-backend:$task_revision" .
+```
+
+镜像通过受控传输导入杭州后，Codex核对镜像内容ID与来源提交；不为了下载绕过网络策略。下面准备公开配置，按提示输入实际非秘密值；测试域名最终名称待cece反馈，生成不改DNS、不启用Nginx。清单路径固定保存，镜像更新先审查新版本再更新明确清单，不接管其他路径的同名项目。
+
+```bash
+read -r -p '已交付完整Git提交：' HZ_REVISION
+read -r -p '已验证镜像内容ID（sha256:开头）：' HZ_IMAGE_ID
+read -r -p '已确认测试管理域名（不带https）：' HZ_ADMIN_HOST
+read -r -p '已确认测试用户域名（不带https）：' HZ_USER_HOST
+read -r -p '已核对管理出口IP：' HZ_ADMIN_IP
+python3 scripts/hangzhou.py prepare --slot test   --manifest /opt/bumbum-hangzhou/test/compose.json   --image "bumbum-hangzhou-backend:$HZ_REVISION" --image-id "$HZ_IMAGE_ID"   --admin-host "$HZ_ADMIN_HOST" --user-host "$HZ_USER_HOST" --admin-ip "$HZ_ADMIN_IP"
+```
+
+公开配置生成器不读取真实.env，不生成密码。独立Compose只有后端，使用raw env_file防止密码中的$被模板插值（需Docker Compose>=2.30）；只监听回环地址、非root、只读根目录、独立日志卷与限额。脚本固定本机Docker socket，启动前核对镜像内容ID、已有项目归属、首次端口占用、秘密文件权限及安静的Compose解析；不执行config输出秘密，也不自动拉取、重建镜像或修改数据库。
+
+cece随后在杭州root控制台执行，按隐藏提示输入bumbum_hz_test密码（不发聊天）：
+
+```bash
+python3 scripts/hangzhou.py prepare-runtime --slot test
+```
+
+该命令仅创建test的secrets/runtime.env，权限600，不读取或覆盖已有文件；独立生成新测试环境的存储/指纹/回调及样品密钥，不写卡、不修改香港。生产配置禁止从这个入口随机重建，迁移时须按批准方案安全保留原数据所需密钥。手工准备时模板为deploy/hangzhou/runtime.env.example，不提交真实值。
+
+Codex将已验证的公开CA放到该环境public/rds-ca.pem，不加入系统全局信任。库完成下一节初始化后才执行：
+
+```bash
+python3 scripts/hangzhou.py check --slot test --manifest /opt/bumbum-hangzhou/test/compose.json
+python3 scripts/hangzhou.py start --slot test --manifest /opt/bumbum-hangzhou/test/compose.json
+python3 scripts/hangzhou.py status --slot test --manifest /opt/bumbum-hangzhou/test/compose.json
+```
+
+stop仅停止该环境后端、不删卷、不停另一环境或数据库；生产启停还需显式--confirm-production并遵守批准窗口。网页从已验证镜像导出至对应/var/www/bumbum-hangzhou-test-admin及-user；生成的admin.conf/user.conf/proxy.conf先检查两个域名、证书及来源IP，再nginx -t和受控启用，不能复制生成文件后立即认为HTTPS或公网业务通过。尚无证书时不安装启用引用不存在证书的站点；未确认DNS前用受控定向请求验证。
+
+### 5.4 只读识别后，明确确认空库初始化
+
+以下由cece在杭州控制台交互执行，因为初始化身份密码仍由cece自持。镜像内容由Codex按上一节锁定；只读检查显示server_uuid、实际账号、对象数量及客户端加密套件，不显示密码或业务行。非交互入口拒绝读取环境、配置或管道密码。
+
+```bash
+read -r -p 'Codex已核验的完整Git提交：' HZ_REVISION
+docker run --rm -it --network host --read-only --memory=256m --cpus=0.5   --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly   "bumbum-hangzhou-backend:$HZ_REVISION"   python -m core.rds_database --slot test --ca /run/rds-ca.pem
+```
+
+只有实际账号、目标库、版本、排序规则正确、empty=true且server_uuid与目标一致，才执行以下显式初始化；控制台建库及初始化属于本次已批准的独立测试范围，不适用于已有生产/香港库。脚本会再次核对并加初始化锁：
+
+```bash
+read -r -p '上一步只读检查返回的server_uuid：' HZ_SERVER_UUID
+docker run --rm -it --network host --read-only --memory=256m --cpus=0.5   --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly   "bumbum-hangzhou-backend:$HZ_REVISION"   python -m core.rds_database --slot test --ca /run/rds-ca.pem   --initialize-empty --confirm-database bumbum_hz_test --confirm-server-uuid "$HZ_SERVER_UUID"
+```
+
+唯一schema.sql中的CREATE DATABASE/USE只按已知精确语句移除，所有建表和种子数据都作用于已选连接库，不复制另一套DDL、不通用替换SQL。空库没有既有业务数据可备份；已有任何表/视图/过程/触发器/事件均拒绝。DDL中途失败可能保留部分结构，停止排查，不重跑、不自动删除/恢复。验收包含24表、完整ready及两个初始项目；初始化后收回或限制专用初始化身份，应用只用自己的DML账号。
 
 ## 6. 数据与域名：两种路径分开决定
 
@@ -336,6 +419,16 @@ TLS、RDS初始化及配置支持属于后续代码任务；本轮只交方案�
 6. 切换后持续核对新连接、有效事件、HTTPS与管理隔离。新库尚无写入时可按批准方案撤回；新库已产生写入后，不能仅将DNS切回旧库就宣称无损回退，须先停写、保留增量并确定数据处理方案。
 
 根域名 bumbum.cc 的品牌页、正式 admin 子域名和现有 test/nfc 的用途分别确认；不把所有DNS记录一次覆盖。证书可采用已批准的DNS验证方式提前准备，不为签证书提前把业务流量切到未就绪站点。
+
+### 6.1 香港计划停用与杭州长期生产/测试
+
+cece说明香港是按量计费试用实例，实际到期日尚不明确、至少还能使用一个月；“下个月不用”是迁移目标，不编造固定到期日或已关闭计费。先核对阿里云试用权益、实例释放和实际计费状态，停机不一定停止所有资源费用；本工具不自动释放实例或删除数据。
+
+杭州先验证测试环境，再按单独批准窗口迁移香港现有账号、样品、历史、计数器及必要加密资料到生产库，完成域名切换与真实手机验收。长期生产和测试分库分身份，不能把两套后台指向同一库，也不能让同一实卡在两个独立库同时接受读数。测试使用独立合成样品/专用卡；现有服装卡迁入生产所需原密钥和读数要保留，不为搬服务器重新写卡。
+
+香港退出前至少取得：杭州生产及测试隔离和容量证据、HTTPS及续期、重启后服务/网络保留、RDS备份/PITR状态及独立恢复证据；核对阿里云接入备案、必要主体/接入信息与域名证书的实际控制台状态，不把ICP备案通过等同所有接入步骤自动完成。保存可用的备份、秘密及恢复手册到不依赖香港实例的受保护位置，不能只留在即将停用的磁盘。切换观察期与回退边界按第6节另行批准；香港停用后回退依赖杭州旧版镜像和受控数据恢复，不再把香港在线当永久前提。仅代码回退不解决新写入后的数据倒退。
+
+本次RDS规格由cece提供：mysql.n2.serverless.1c、RCU0.5—2、CPU0.5—2、内存1—4GiB，存储20G、已用3.97G，数据备份5.85G及日志备份34.81M，维护窗口北京时间02:00—06:00，开启小版本自动升级、释放保护未开启。资源范围不代表长期占有2核4GiB；自动暂停、备份策略、PITR及恢复仍须核对。建议生产前开启释放保护，并评估维护/小版本更新对两个环境的共同影响；没有在控制台替cece修改这些设置，也不凭“40G以内免费”估算全部费用。
 
 ## 7. 分步交付与 cece／Codex 分工
 
@@ -359,4 +452,4 @@ TLS、RDS初始化及配置支持属于后续代码任务；本轮只交方案�
 
 ## 9. 本轮操作边界
 
-本文只提供方案、cece可执行的连接检查和后续实施门槛。杭州ECS/RDS的实际地址、认证及只读检查没有取得结果前，不写“已连通”；适配代码没有完成前，不写“可直接部署”。不输出现有秘密，不执行建表/导入/升级、不迁移香港数据、不切换域名，也不因ICP备案通过就认为网络、证书、权限和应用部署已经就绪。
+方案审核已授权按范围构建、技术验证和准备杭州独立测试部署；连接验收已取得证据，实际构建/部署状态仍只看TODO及CHANGELOG。生产初始化、香港数据与秘密迁移、正式域名切换、关闭/释放香港实例仍需对应具体范围与窗口，不因本方案通过自动执行。不同资源或权限需求只暂停依赖部分；不输出现有秘密，不把技术检查、ICP备案或生成配置当作应用上线证据。
