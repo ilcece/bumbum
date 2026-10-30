@@ -17,9 +17,9 @@
 ## 2. 开始会话时先读什么
 
 1. 确认唯一仓库是 `ilcece/bumbum`，当前工具确实能读取它；不输出Token、密码、真实.env或完整认证环境。
-2. 取得GitHub当前main的完整40位SHA；固定这个提交读取AGENTS.md、README.md、TODO.md、CHANGELOG.md，避免混用不同时间的文件。
+2. 取得GitHub当前main的完整40位SHA；固定这个提交读取AGENTS.md、README.md、TODO.md，CHANGELOG.md只读最新相关记录，避免混用不同时间的文件；需追溯决策时再按任务关键词或具体事项查历史，不要求每次全文读取。
 3. 有明确任务分支时再取它的完整HEAD，并读取对应任务文件和与main的差异；未指定时以main为基线。分支未推送或本地有未提交工作时单列本地状态，不冒充GitHub已经接收。
-4. 获取全部远端分支，完成分页；以完整SHA比较每个分支相对main的ahead/behind。查询开放PR，并按任务核对必要的合并状态。
+4. 完整分页读取远端分支名称并查询开放PR，结合当前TODO和任务发现活动分支；只对任务分支和明确活动分支读取完整SHA并计算ahead/behind。历史分支简要记录，发现未合并工作或状态疑问时再深入，不随意删除。
 5. 按当前任务补读PRODUCT、PRD、TECH_SPEC、API_CONTRACT、业务PRD或技术文档。查到足够上下文就回到当前主任务，不无差别重读全部历史。
 6. 结束查询时复查main及分支清单。期间变化、分页不全或权限不足时明确报告，不能用旧聊天或旧报告补齐。
 
@@ -39,36 +39,40 @@ gh api --method GET repos/ilcece/bumbum --jq '{full_name,default_branch}'
 gh api --method GET repos/ilcece/bumbum/commits/main --jq .sha
 ```
 
-指定任务分支的SHA可以按实际名称查询：
+### 第一步：发现活动工作
+
+```bash
+gh api --method GET --paginate 'repos/ilcece/bumbum/branches?per_page=100' \
+  --jq '.[].name'
+
+gh api --method GET --paginate 'repos/ilcece/bumbum/pulls?state=open&per_page=100' \
+  --jq '.[] | {number,title,base:.base.ref,head:.head.ref,head_sha:.head.sha}'
+```
+
+两项列表都须完成分页；结合当前TODO、开放PR和任务确定活动分支。API附带历史分支SHA不意味着必须对它们逐一分析，也不能仅凭名称把分支认定为历史残留。
+
+### 第二步：仅深入核对任务与活动分支
+
+main每次都读取完整40位SHA；有任务分支时也必须读取完整SHA，并对明确活动分支做同样核对：
 
 ```bash
 gh api --method GET 'repos/ilcece/bumbum/commits/指定任务分支' --jq .sha
 ```
 
-分支名称中的特殊字符由AI按API要求编码。分支不存在或未推送就如实报告；不要把本地HEAD填成远端查询结果。
-
-获取全部远端分支：
-
-```bash
-gh api --method GET --paginate 'repos/ilcece/bumbum/branches?per_page=100' \
-  --jq '.[] | {name,sha:.commit.sha}'
-```
-
-`--paginate`必须成功执行完全部页；不能仅取第一页或忽略中途失败。随后使用刚读取的完整SHA逐个比较：
+分支名称中的特殊字符由AI按API要求编码。分支不存在或未推送就如实报告，不把本地HEAD填成远端结果。仅对当前任务及明确活动分支，用本轮读取的完整SHA比较：
 
 ```bash
 gh api --method GET 'repos/ilcece/bumbum/compare/MAIN完整SHA...目标分支完整SHA' \
   --jq '{ahead_by,behind_by}'
 ```
 
-ahead_by是目标分支尚未进入main历史的提交数，behind_by是main尚未进入目标分支历史的提交数。数量是历史关系，不直接表示业务文件遗漏。远端只有main时也可用它的同一完整SHA比较，预期0/0；本地未推送分支另行说明。
+ahead_by是目标分支尚未进入main历史的提交数，behind_by是main尚未进入目标分支历史的提交数。数量是历史关系，不直接表示业务文件遗漏；没有任务或活动分支时简要说明即可，本地未推送分支另行说明。
 
-查询开放PR及必要的合并状态：
+### 第三步：历史分支只做必要补查
+
+对已有依据确认没有活动任务、开放PR或待处理独有工作的历史分支，仅简要记录，不逐一拉取完整SHA和比较。状态不明确或发现未合并工作时，再针对相关分支及PR深入核对；不随意删除历史分支。必要时查询PR合并状态：
 
 ```bash
-gh api --method GET --paginate 'repos/ilcece/bumbum/pulls?state=open&per_page=100' \
-  --jq '.[] | {number,title,base:.base.ref,head:.head.ref,head_sha:.head.sha}'
-
 gh api --method GET repos/ilcece/bumbum/pulls/25 \
   --jq '{number,state,merged,merged_at,head_sha:.head.sha,base_sha:.base.sha,merge_commit_sha}'
 ```
@@ -82,18 +86,40 @@ gh api --method GET -H 'Accept: application/vnd.github.raw+json' \
   'repos/ilcece/bumbum/contents/AGENTS.md?ref=MAIN完整SHA'
 ```
 
-AI把MAIN完整SHA换成实际提交，并依次替换文件路径读取README、TODO、CHANGELOG及当前任务需要的文件。当前任务分支文件使用它自己的完整SHA；文件过大或接口未返回完整正文时说明缺口，不拿搜索片段替代。
+AI把MAIN完整SHA换成实际提交，按需替换文件路径。每次读AGENTS、README、TODO；CHANGELOG只取最新相关记录，追溯决策时再按关键词或具体事项查历史。任务分支的状态及相关文件使用其完整SHA，PRODUCT、PRD、TECH_SPEC、API_CONTRACT等按任务分层读取，不无差别读整个仓库。必要内容过大或接口返回不完整时说明缺口，不拿搜索片段替代。
 
 ## 4. 统一基线报告
 
-报告简洁，保留以下事实和边界即可；不要为报告再建设生成器。
+用简短上下文摘要即可。以下是结构示例，不要求每次机械填满全部字段：
 
-- 核对时间：ISO 8601，注明时区，面向cece按Asia/Shanghai显示。
-- 唯一仓库、main完整SHA、指定任务分支完整HEAD；没有远端任务分支时注明本地状态。
-- 全部远端分支的完整SHA、相对main的ahead/behind、活动/历史/待确认依据，以及分页是否完整。没有非main分支也要明确说明。
-- 开放PR及当前任务必要的合并证据；权威文件的读取版本和未覆盖范围。
-- 分别说明已实现、已验收、已合并main、已部署，引用文件、提交或验收记录。部署没有现场复核时标为最后已知状态，不因main已合并就断言服务器已更新。
-- 当前产品主任务、优先级、待决事项和下一步负责人；优先沿用TODO，不把同步本身升级为长期主项目。
+```text
+BUMBUM 项目基线摘要
+
+核对时间：
+仓库：
+main完整SHA：
+
+当前任务：
+当前任务分支：
+分支完整SHA：
+
+活动分支：
+开放PR：
+
+产品当前主线：
+已完成的关键事项：
+当前待处理：
+下一步：
+
+基线结论：
+是否可以直接继续当前工作？
+```
+
+正式报告保留AGENTS第1.1节必要版本标识：核对时间及时区、main完整SHA、任务分支完整SHA（如有）、活动分支名称/完整SHA及必要ahead/behind、开放PR和分页是否完整；分页情况可写在基线结论中。面向cece按Asia/Shanghai显示时间，不以短SHA替代完整标识。
+
+没有任务分支、活动分支或开放PR时，一句话说明即可。历史分支只简记，不逐个展示完整SHA和比较结果；分页不完整、SHA不一致、权限不足等异常单独说明，不展示完整审计过程，也不开发报告生成器。
+
+主任务和下一步负责人沿用TODO。涉及实现、验收、合并或部署时区分证据；未现场复核部署时标为最后已知状态，不因main已合并就断言服务器已更新，不为摘要罗列全部历史。
 
 无需每次重跑历史测试、重新连接生产或要求cece重复验收；只有当前任务依赖新证据时才继续核对。报告完成后直接继续已授权的产品或商业工作。
 
