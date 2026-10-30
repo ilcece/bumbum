@@ -10,7 +10,7 @@
 
 cece两次反馈“STS已签发、变量已保存”，按本人操作反馈关闭原签发待答，未索取/读取其STS响应。接续实际检查：Workbench v1.0.4正常，environment_status为running/connected、observations_current=true、HTTP unrestricted/enforced，但runtime_variables仍为空；单独运行sts_provider.py --check退出4，固定错误为缺少运行时变量BUMBUM_WB_STS_JSON。未执行无--check的提供器、未发起真实Workbench exec，不能判断ECS拒绝或云授权失败。
 
-云环境技能明确配置保存可异步请求运行时更新，草稿保存不等于当前机器已应用；现阶段核对保存入口与变量生效，不重复创建IAM、重签STS或自行发布。STS有效期、实际角色身份与调用尚未独立验证。仅同步本任务TODO及历史，不改云环境草稿、ECS/RDS或GitHub Ops实现。文档链接/JSON与git diff --check通过，未运行应用回归。
+cece进一步确认在变量弹窗填写并点“完成审阅”。只读取草稿非秘密元数据确认revision=3，该变量仍列pending_runtime_requirements、runtime_requirements为空，当前运行环境仍基于原已发布版本；未检查/输出用户填写的值。接续核验仍缺变量，下一步建议由产品面板发布工具环境配置并重连验证，受用户此前不发布指令约束，须先取得明确允许；不把发布Codex工具环境当部署网站，也不保证发布即可完成云认证。云环境技能明确配置保存可异步请求运行时更新，草稿保存不等于当前机器已应用；现阶段核对保存入口与变量生效，不重复创建IAM、重签STS或自行发布。STS有效期、实际角色身份与调用尚未独立验证。仅同步本任务TODO及历史，不改云环境草稿、ECS/RDS或GitHub Ops实现。文档链接/JSON与git diff --check通过，未运行应用回归。
 
 ## 2026-10-30 Workbench两份策略分别绑定获cece确认
 
