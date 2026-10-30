@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-10-30 全部分支审查及已合并分支清理
+
+cece授权检查项目所有分支并清理无用分支。核对时间2026-10-30T21:31:09+08:00，审查main基线ae69ee74016eaec1f1558f63968d236caef8e12c；GitHub分支列表使用per_page=100并完成--paginate全部分页，清理前共5个分支（含main），没有遗漏后续页。对四个非main分支逐一查询compare和对应PR，不能仅凭名称或PR closed判断可删除。
+
+| 清理前非main分支 | 完整HEAD | 相对审查main ahead/behind | 判断及操作 |
+|---|---|---|---|
+| docs/digital-collectible-vision | 845351348863b66ee9f1a0eee323757112f470b7 | 0/21 | PR #20已合并，头提交已进入main历史，无独有工作；删除远端 |
+| feat/hangzhou-main-deploy | edcdd75b6d2d83ec55e06feb6941b6b5c80b60f0 | 0/2 | PR #24/#25已合并，无独有工作；删除远端及本地 |
+| docs/hangzhou-ecs-rds-plan | cfb277023038b063191e35aa3a416c7a1900c506 | 58/28 | 与main分叉、头提交未入main历史；保留远端和本地，不把已整合部分代码等同整条历史已合并 |
+| docs/prayer-review-and-baseline-report | 584b70c8f295aa898f423e4ae89c2f08cb294877 | 4/19 | PR #22虽已合并，分支仍有独有历史且头提交不是main祖先；用途及历史归并待后续审阅，本次保留 |
+
+本地工作区开始及删除前均干净；将main仅快进到实时origin/main后，用git branch -d额外删除本地docs/public-deployment-acceptance（f3768992692ddc89af9bfd40b1d5134ac9f69c45）及work（fc7d740dada0c7599241ea0453bffb2b7fdc72eb），已逐个确认头提交进入main历史，ahead均0。未强删本地独有工作，未使用reset。远端删除均带对应预期HEAD的force-with-lease，避免覆盖别的会话新推送。
+
+删除后再次完整分页核对：远端只剩main和上述两个保留分支，HEAD均与审查一致；本地只剩main及杭州旧方案分支，当前工作分支为main。此记录提交会使保留分支behind各增加1，不改变其ahead、内容或头提交。未修改保留分支、业务代码、ECS、数据库或运行配置；无须运行应用测试，文档与差异检查通过。两保留分支不能按“无用”继续强删，后续需审阅独有历史并满足AGENTS的合并前提。
+
 ## 2026-10-30 正式域名公网接管、人工验收及自动续期演练通过
 
 cece明确批准admin新增A、nfc从旧香港A改为47.98.19.79，并将杭州现有80/443入方向来源改为0.0.0.0/0，随后反馈控制台更新完成；Codex没有管理DNS/安全组API权限，准确区分用户操作与外部实测。Google初次管理域名NXDOMAIN负缓存、Cloudflare查询已有杭州A，后续Google新查询同样返回47.98.19.79；用户域名A也为杭州。真实公开HTTPS用户/tap=200，管理/api/admin/chips及内部/api/ready均404，no-store/no-referrer/nosniff正确，HTTP最终跳至HTTPS。非白名单Codex来源访问管理HTTPS为403，白名单仍为111.192.247.76。cece随后反馈隐私窗口生产ilcece登录、刷新保持、退出及手机移动网络/tap均正常，记为本轮人工公网入口验收通过，不冒称已有生产样品或实卡业务验收。
