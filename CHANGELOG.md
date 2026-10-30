@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 取得真实直连IP，杭州管理白名单已更新
+
+cece在关闭电脑VPN后查询并反馈当前IPv4为111.192.247.76、北京联通；本次作为新取得的实际来源证据，虽与香港历史值相同，未从旧记录直接沿用。已请cece只编辑杭州既有80/443两条允许规则来源为111.192.247.76/32，保留优先级100及其他规则，不新增全来源；规则更新状态及Windows公网结果尚待合并反馈。
+
+Codex先严格SSH核对公开管理稿与已启用站点完全一致、现有allow104.243.39.38/deny all、链接归属正确且nginx -t通过/服务active，再用已核验d8e7589源码分别渲染旧/新IP并逐字核对旧稿，确认用户/代理稿不受影响。仅原子更新/opt/bumbum-hangzhou/test/admin.conf与/etc/nginx/sites-available/bumbum-hangzhou-test-admin.conf，原权限/属主保留。旧两稿及公开change.json存入/opt/bumbum-hangzhou/artifacts/d8e758944924d14ff81ace2873742165127fb2e3/direct-source-20261030-67g7r48g（admin.draft.before.conf、admin.site.before.conf）；新管理稿SHA256=3dc1898684fd3cd19d5562c54ff3008bb6bb1bce2f7f870ab9452e0eb5ca242e。
+
+实际nginx -t及reload成功，nginx仍active；allow为111.192.247.76、deny all保留。正常CA/域名验证的本机用户/tap=200、非允许来源管理/=403、TLS校验0，后端ready为database=ready。未重启服务或后端、未改RDS/私有配置、用户站点、Tailscale或A/AAAA。此结果证明配置生效与本机服务正常，不能代替cece允许来源的公网通过。
+
+已给cece在完成规则来源修改后、保持VPN关闭时的两条原HTTPS定向命令，要求将“两条来源已更新”与状态/目的IP或错误一并反馈，合并重复待答项，不再切VPN或重开观察。工作区仅同步TODO和历史；现有手册5.5.2步骤、README里程碑、接口/表结构及依赖仍一致，不重复应用回归。 文档19份298处链接及差异检查通过。
+
 ## 2026-10-30 按cece决定改为关闭电脑VPN直连，Workbench CLI准备完成
 
 cece明确要求访问杭州时关闭电脑VPN、使用实际直连公网IP。已按决定切换排查路线；此前短时443全来源探测提案取消、从未执行，不再推进VPN分流或同步抓包。关闭VPN后的api.ipify.org HTTP查询返回curl56 Connection reset，未取得直连IP；已停止该命令，请cece用浏览器查看阿里云IP查询的当前公网IPv4。当前待真实IP，未擅自沿用104.243.39.38或香港旧来源，也未修改安全组/Nginx。拿到后按本次明确授权更新既有两网页规则/32与管理白名单，再做实际直连验证；不将“决定采用直连”写成公网已通。
