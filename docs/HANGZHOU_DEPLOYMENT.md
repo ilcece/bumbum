@@ -778,6 +778,14 @@ cece已明确选择访问杭州时关闭电脑VPN，使用电脑实际直连IPv4
 3. 保持电脑VPN关闭，执行第5.5.1节两条定向HTTPS检查，反馈HTTP状态、目的IP或错误。允许来源的预期均200；403按真实client核对，TLS失败保留错误不关闭校验，不将IP查询成功当成网站通过。
 4. 公网预检通过后再按第5.5.1节做浏览器定向及管理员登录。以后直连公网IP变化需重新核对；测试完可恢复电脑日常VPN设置，但再访问杭州时按本轮直连约定操作。手机实卡和正式DNS切换仍分别验收。
 
+### 5.5.3 正式域名接管后的自动HTTP续期
+
+管理域名admin.bumbum.cc和用户域名nfc.bumbum.cc解析到杭州后，确认ECS公网80/443可供用户及证书机构访问，管理HTTPS仍由Nginx单IP白名单保护。DNS传播须结合公开解析器、真实HTTPS及实际证书机构验证，不因单个解析器负缓存就反复更改记录。手动DNS-01签发的证书需转换认证方式，不能只启用timer就认为可自动续期。
+
+两个站点的校验目录不同：管理域名使用/var/lib/letsencrypt，用户域名使用/var/www/bumbum-hangzhou-production-user。Certbot4转换时须同时明确webroot及preferred-challenges=http，避免继承原DNS偏好导致插件不支持；网页root不等于ACME校验root，路径错误会造成404。针对每张正式证书分别使用certbot reconfigure验证并保存配置，不覆盖测试证书或用整目录renew失败掩盖单证书结果。
+
+正式证书续期成功后的Nginx重载钩子为/etc/letsencrypt/renewal-hooks/deploy/50-bumbum-production-nginx，只匹配两张正式证书的RENEWED_LINEAGE，先nginx -t再systemctl reload nginx，不重启业务容器。保存后用每张证书的renew --dry-run --run-deploy-hooks --no-random-sleep-on-renew验证认证及钩子；该次演练关闭随机等待，避免把数分钟计划延迟误判为网络失败，正常timer保留其调度行为。确认timer启用、有计划时间，之后复核生产/测试健康。只记录真实结果；dry-run不更新正式证书有效期，不等于长期容量、RDS恢复或业务验收通过。测试域名的手动DNS续期不因本节正式域名通过而自动完成，须按其实际DNS及授权另行处理。
+
 ## 6. 当前路径：main部署到杭州ECS，复用现有杭州RDS
 
 cece明确当前杭州ECS与杭州RDS同VPC，继续使用同一RDS，不安排数据库迁移；生产库及账号已由cece确认存在，核对对象为bumbum_hz_production与对应应用/初始化身份。先通过应用身份和VERIFY_IDENTITY只读返回实际库、用户、实例UUID、表结构和行数，再决定是否仅发布代码；不能因缺少生产目录就推定数据库为空，也不能把已创建的账号重复创建。若实际名称/结构不同，停止并按原文纠正目标，不擅自改名、清库或补DDL。

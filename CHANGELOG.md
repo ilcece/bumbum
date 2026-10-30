@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-10-30 正式域名公网接管、人工验收及自动续期演练通过
+
+cece明确批准admin新增A、nfc从旧香港A改为47.98.19.79，并将杭州现有80/443入方向来源改为0.0.0.0/0，随后反馈控制台更新完成；Codex没有管理DNS/安全组API权限，准确区分用户操作与外部实测。Google初次管理域名NXDOMAIN负缓存、Cloudflare查询已有杭州A，后续Google新查询同样返回47.98.19.79；用户域名A也为杭州。真实公开HTTPS用户/tap=200，管理/api/admin/chips及内部/api/ready均404，no-store/no-referrer/nosniff正确，HTTP最终跳至HTTPS。非白名单Codex来源访问管理HTTPS为403，白名单仍为111.192.247.76。cece随后反馈隐私窗口生产ilcece登录、刷新保持、退出及手机移动网络/tap均正常，记为本轮人工公网入口验收通过，不冒称已有生产样品或实卡业务验收。
+
+两张正式证书从manual DNS转换webroot时，首次继承preferred-challenges=dns造成插件不支持；显式HTTP后管理验证404，进一步核对模板定位管理ACME root实际为/var/lib/letsencrypt，而非网页root。分别使用正确管理root和用户/var/www/bumbum-hangzhou-production-user后，两张Certbot4 reconfigure模拟校验成功并保存。随后独立renew --dry-run --run-deploy-hooks的110秒观察超时，经只提取安全延迟诊断确认随机等待321.113秒，并非站点校验失败；本次演练明确--no-random-sleep-on-renew后两张正式证书各自dry-run均成功（退出码0）。钩子输出nginx语法通过并执行reload；Certbot将该成功诊断stderr标成error output，不等于钩子失败。固定deploy钩子仅匹配正式两证书，不重启业务容器，原有钩子保留。certbot.timer启用，本次现场计划2026-10-30T22:21:34+08:00（这是当次计划，不保证以后固定同一时间），Nginx active。
+
+手动测试域名证书不因正式证书通过而算自动续期完成。RDS备份/PITR、独立恢复、杭州重启保留和长期双环境容量仍是独立运维验证，不把本轮基础公网接管写成全部生产保障已验收。香港退出已完结，不重开任务。文档证据按分工更新TODO/CHANGELOG及杭州手册，不更改业务接口/表结构。
+
 ## 2026-10-30 正式双域名证书签发与生产Nginx启用，本机定向通过
 
 cece在杭州Certbot4.0.0交互终端完成admin.bumbum.cc及nfc.bumbum.cc的DNS-01签发。管理域名首次NXDOMAIN失败已区分记录；后续本次TXT由公开DNS核对匹配后才继续，未重用失败值。cece误将test的挑战TXT改为管理挑战值，不影响已签发证书或当前站点，不将其当作测试证书重新签发通过。挑战值是公开DNS校验信息，不记录私钥或账号凭据。
