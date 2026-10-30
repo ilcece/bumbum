@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-10-30 正式双域名证书签发与生产Nginx启用，本机定向通过
+
+cece在杭州Certbot4.0.0交互终端完成admin.bumbum.cc及nfc.bumbum.cc的DNS-01签发。管理域名首次NXDOMAIN失败已区分记录；后续本次TXT由公开DNS核对匹配后才继续，未重用失败值。cece误将test的挑战TXT改为管理挑战值，不影响已签发证书或当前站点，不将其当作测试证书重新签发通过。挑战值是公开DNS校验信息，不记录私钥或账号凭据。
+
+Codex只读取证书公开元数据，两个SAN分别正确、有效期均至2027-01-28，且checkend一周通过，不读取/输出私钥。按来源111.192.247.76的已审查生成稿新建独立生产proxy/admin/user配置与启用链接，先前及新增后nginx -t均通过并reload，保留测试站点，未修改DNS/安全组。杭州本机curl保留域名/SNI/正常TLS验证，定向127.0.0.1结果：nfc /tap=200、/api/admin/chips与/api/ready均404；HTTP /tap跳HTTPS301；no-store/no-referrer/nosniff正常；admin本机来源403符合白名单；nfc-test /tap仍200。未把本机403称为真实电脑登录失败或允许来源验收完成。
+
+公开DNS查询当前admin无A/AAAA，nfc A仍47.242.24.84且无AAAA。待cece从当前出口电脑定向验证并登录，再安排正式DNS接管及公网80/443来源核对；手动DNS证书尚不具备自动续期证明，须在后续实际切换条件下转换/验证，不能用timer存在代替续期通过。此时正式站点已在杭州启用，但公网接管尚未完成。
+
 ## 2026-10-30 生产管理员设置完成及二维码副本清理
 
 cece执行生产管理员设置后清理导出文件时收到No such file；Codex没有据此重建账号或二维码，而是通过生产运行容器的应用身份只读查询username、totp_enabled及加密资料是否存在三个公开状态，不读取密码哈希或验证器密文内容。结果ilcece存在、TOTP启用、加密资料存在；服务器production/secrets/authenticator.html不存在。cece随后确认电脑下载副本已清理，因此管理员设置及两侧副本清理完成。正式网页/Nginx已准备但证书与公网验收仍待完成，生产管理员创建不替代网页登录验收。
