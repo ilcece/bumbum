@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-30 本次Codex工具环境配置发布获cece明确允许
+
+cece明确“允许发布本次Codex环境配置”，替代此前对本次工具环境发布的暂停要求，不授权部署网站、切DNS或修改ECS/RDS。当前可用工具仅支持环境状态、草稿及元数据维护，没有产品发布接口；不调用技能禁止的prototype finalize接口，也不制造发布链接。需cece通过bumbum_ECS产品面板点击发布，成功后Codex检查真实配置版本、运行时变量有效期及只读CLI连接；目前没有发布完成证据，不声称已发布或重连。
+
+仅同步TODO和历史，未重写安装脚本/草稿或触碰STS值。文档链接/JSON与git diff --check通过；记录本地提交，前轮Git认证问题尚未处理，未推送。
+
 ## 2026-10-30 Workbench STS签发与保存获确认，当前运行时仍未收到变量
 
 cece两次反馈“STS已签发、变量已保存”，按本人操作反馈关闭原签发待答，未索取/读取其STS响应。接续实际检查：Workbench v1.0.4正常，environment_status为running/connected、observations_current=true、HTTP unrestricted/enforced，但runtime_variables仍为空；单独运行sts_provider.py --check退出4，固定错误为缺少运行时变量BUMBUM_WB_STS_JSON。未执行无--check的提供器、未发起真实Workbench exec，不能判断ECS拒绝或云授权失败。
