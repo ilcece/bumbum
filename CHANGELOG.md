@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-10-30 Workbench CLI本地准备与候选授权稿完成，尚未真实连接
+
+cece提供杭州实例i-bp1cj6pt88wbxmhlsp1n、账号UID1541265267012164，确认没有专用RAM/STS身份，原三项参数待答关闭。根据官方技能和cece后续提供的CLI管理/外部Agent调用文档，明确本次产品为Workbench CLI、命令名workbench v1.0.4；浏览器Workbench和ali-instance-cli未混用，connect内置AI未启用。当前真正运维ECS仍使用已验证的Tailnet/OpenSSH，未报Workbench已连接。
+
+按官方ECS OpenAPI授权表分别确认DescribeInstances、DescribeCloudAssistantStatus、StartTerminalSession支持目标instance资源范围；候选策略仅5项动作，两条资源分别为技能给定的Workbench ecs格式及ECS instance格式，均收窄同一杭州实例。不授ecs-workbench:*、ecs:*、通用IAM或其他实例；Workbench资源格式最终需实测，拒绝时不自动扩大。服务关联角色首次创建留给管理员，不加到运行策略。候选操作/精确用户信任/签发策略、配置和验证摘要在/workspace/work/ecs-access/workbench-hangzhou；ram-policy.candidate.json SHA256=cb6cc818e82a404083328b12968388e26ca8ff77171dc157531f03b220378a1d，没有创建/授权任何云身份。
+
+核对CLI二进制的构建依赖为aliyun/credentials-go v1.4.13，并阅读其公开external提供器实现，确认process_command和规范小写JSON字段；采用规范输出/失败空stdout以避免无效JSON解析路径回显输入。提供器在运行时只接受临时STS及到期元数据，不回显真实值，不把长期AK写文件。四种缺失/损坏/长期AK/过期输入均拒绝且无凭据stdout，有效合成STS的--check仅输出就绪/有效期；实际CLI在禁用网络的独立容器中调用提供器成功，解析/profile无错，配置未缓存合成密钥，随后预期网络失败。共6项本地检查通过，不包含真实鉴权或ECS执行。两次前置失败属于容器映射用户无法读私有候选文件/二进制，改用仅含公开代码的只读测试副本后通过，候选私有权限保留；临时容器与测试副本已清理，验证摘要offline-validation.json保留。
+
+固定release/v1.0.4安装流程另行实测通过官方归档校验，归档SHA256=41ffee737fa6ae9dfea0d8a47ae2b06275b1ff202ad3e0b7efe8eeed8164a2ab；新规范工具路径/workspace/work/tools/workbench-cli/v1.0.4/bin/workbench，二进制哈希仍adec73b19422566b9cc5d69e2f460c4833a4f8ec8954c7b4f29af43eab68c02a。保留初始bootstrap，不覆盖其他工具。sts_provider.py SHA256=7f5aa091b12de9a4b95a0f2b43c7c914375ff5c5f8c01498d0b7a3e052ac4491，init_profile.py SHA256=2b95c40ef992d3479ac9b65ae6ed21f59260d9f64556cca6edaadba771868ef0。实际独占创建/home/agent/.workbench/config.json，权限600，仅含bumbum-hz/地域/读取命令，无密钥；重复初始化保留已有配置，未读取或覆盖。杭州云助手aliyun.service为active/enabled，仅通过既有SSH只读核对，未重装或重启云助手。
+
+结合云环境onboarding技能，读取当前草稿并保留原应用安装/启动内容，只增已实测固定CLI安装、无凭据工具及启动说明，声明运行时BUMBUM_WB_STS_JSON（无值），不使用代理secret注入占位符签名。保存已确认status=saved、requires_publish=true，草稿8b7953a7仍绑定当前环境；未发布、未提供/读取任何真实凭据，当前运行时字段仍缺。新环境采用需cece审核保存并发布，本轮遵守暂不发布要求；未重新执行原应用安装/测试或改变网络/仓库声明。
+
+cece补充Cloud Shell只读身份结果IdentityType=Account、Arn=acs:ram::1541265267012164:root，原公开身份待答关闭。AssumeRole官方约束主账号不能直接调用。手册据此补齐待审核方案：控制台专用RAM签发用户bumbum-codex-hz-issuer不创建AK，仅有指定角色AssumeRole权限；角色bumbum-codex-hz-workbench精确信任该用户、仅有目标实例5动作。优先使用官方OpenAPI Explorer网页登录态签发，链接来自AssumeRole官方文档，实际页面身份调用仍待现场核对；若要求长期AK或报拒绝则停止，不自动改用AK/主账号或扩大授权。候选信任和签发JSON已补齐，但未创建用户/角色、未绑定权限。首轮拟一小时STS验证，不冒称持续自动续期；角色云授权、实际exec/文件收发及后端WebSocket尚未通过。
+
+手册3.6.1提供可审阅操作/信任/签发三份策略、cece控制台步骤、运行时配置和撤销边界；TODO只保留当前缺口。无业务代码/依赖/表/运行秘密变化，README网站里程碑不变，不重复网站验收或应用回归。本轮文档检查通过：19份文档、299个本地链接/标题定位与JSON代码框，30段Bash语法、3份候选策略JSON及git diff --check；实际差异仅TODO、CHANGELOG和杭州手册。已重新读取操作入口与README，入口仍指本手册，无产品/接口/数据库定义变化，故不改PRD/API_CONTRACT/TECH_SPEC/schema。
+
 ## 2026-10-30 杭州测试浏览器入口验收通过，hosts已清理
 
 cece对给出的浏览器验收整组回复“验收无误，hosts已清理”：按本机临时hosts将两测试域名定向杭州、确认浏览器远程地址47.98.19.79:443与正常证书后，使用独立杭州ilcece/BUMBUM-test登录，工作台显示、刷新保留会话、退出及用户/tap入口提示均按预期；本次两行hosts已移除并完成清理。以cece明确人工反馈为依据，未索取/读取密码、验证码、Cookie或二维码。此前来源更新、公网定向和浏览器/清理待答项至此关闭，不再反复要求连接验收。

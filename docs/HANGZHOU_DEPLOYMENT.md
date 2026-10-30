@@ -223,19 +223,97 @@ command -v iptables
 安装位置是Codex工具目录，不在杭州ECS安装。先读取官方安装脚本，确认支持独立安装目录，再下载归档并通过官方checksums.sha256校验；保留HTTPS代理和CA校验，不执行未核验的下载。当前实际版本、哈希和位置见CHANGELOG。后续复用固定1.0.4版本时，可从官方脚本使用--version 1.0.4和--dir指向独立可写目录，不覆盖既有CLI；在当前已安装路径只读检查：
 
 ```bash
-/workspace/work/tools/workbench-cli/bootstrap-20261030/bin/workbench version
-/workspace/work/tools/workbench-cli/bootstrap-20261030/bin/workbench exec --help
+/workspace/work/tools/workbench-cli/v1.0.4/bin/workbench version
+/workspace/work/tools/workbench-cli/v1.0.4/bin/workbench exec --help
 ```
 
 CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主账号UID与现有RAM/STS身份状态，核对每项RAM操作的资源支持范围，再准备只允许目标实例执行/传输的专用身份；Describe等查询操作如需全局范围需单独说明，不能把技能中的Resource=*示例直接当成本项目批准策略。不使用主账号AccessKey；凭据由cece通过安全配置通道填写，不发聊天，不进入仓库、安装日志或命令参数。
 
-官方技能提供AK、STS/角色及凭证提供器模式；实际v1.0.4帮助还列出EcsRamRole和AliyunCLI。按当前环境真实可用身份选择，不读取元数据正文或借用未确认的账号。当前未发现Workbench/Aliyun配置文件，仅检查存在状态；不运行可能显示凭据的config get，不索取或输出配置内容。新云权限及凭据接入方案先审核，当前不创建RAM身份、发布环境或改ECS配置。
+官方技能提供AK、STS/角色及凭证提供器模式；实际v1.0.4帮助还列出EcsRamRole和AliyunCLI。按当前环境真实可用身份选择，不读取元数据正文或借用未确认的账号。初始Workbench/Aliyun配置均不存在；现已由独占创建器写入600的无凭据bumbum-hz配置，已有配置不读取或覆盖。不运行可能显示凭据的config get，不索取或输出配置内容。新云权限及凭据接入方案先审核，当前不创建RAM身份、发布环境或改ECS配置。
 
 云端适配按当前环境证据核对，不能照抄通用默认值：本环境HTTP策略已启用且Workbench已实际下载；runtime变量/secret/云身份当前均未配置。会话内可保存权限受限配置，但不依赖新任务保留文件。setup阶段有凭据不保证agent阶段可继续取用；会话会关闭、STS会过期，缓存不代替后续取凭据或续期能力，也不能据环境变量移除就认定原始凭据没有被持久化。
 
 标准ALIBABA_CLOUD_*变量是否被当前CLI实际入口直接采用，及凭据是否在所需阶段真实可用，都须验证；不凭变量名、代理占位符或SDK一般能力判定Workbench已登录。先准备限定目标的专用/短期授权，登录路径尚未定稿，不在setup缓存长期AK。remote MCP、第三方STS/OIDC中介及新增审计服务会引入独立部署/授权边界，不自动增加。RAM只限制API和目标资源，不将root执行变为命令级只读；不能用ecs-workbench:*冒充最小动作集。ActionTrail字段/覆盖以实际通道验证为准，不承诺RunCommand或每条Shell原文；auditd与告警本身不是命令阻断。
 
 授权就绪后先固定profile和cn-hangzhou，核对实例ID/公开身份，用无秘密的id/hostname/ready只读命令验收；通过后再用归属可核验的新公开文件做上传/下载哈希检查，拒绝覆盖已有文件。文件收发经OSS，不传真实运行配置、私钥、数据库备份或芯片秘密。不把关闭现有Tailscale或切换运维通道作为安装步骤；真实命令、文件传输、网络与凭据续用分别验证。
+
+### 3.6.1 首轮短期授权接入稿（尚未授予云权限）
+
+使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。当前真实运维仍用已有Tailnet SSH；Workbench CLI只完成本地准备，没有真实云会话。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
+
+目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；当前没有专用RAM身份。以下是候选操作策略，**只供审核，不是已经生效的权限**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；Workbench动作的资源格式依官方技能给定，最终仍须云端验证，拒绝时不自动改为Resource=*。运行身份不包含创建角色、全ECS或全Workbench通配权限。
+
+```json
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["ecs-workbench:LoginECSInstance", "ecs-workbench:ChatMessages"],
+      "Resource": "acs:ecs:cn-hangzhou:1541265267012164:ecs/i-bp1cj6pt88wbxmhlsp1n"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["ecs:DescribeInstances", "ecs:DescribeCloudAssistantStatus", "ecs:StartTerminalSession"],
+      "Resource": "acs:ecs:cn-hangzhou:1541265267012164:instance/i-bp1cj6pt88wbxmhlsp1n"
+    }
+  ]
+}
+```
+
+RAM将API约束到目标实例，不把root命令变成硬性只读；获准连接后仍遵守AGENTS的业务/数据/服务操作授权。本轮仅计划验证固定目标的公开身份、ready及新公开文件收发，云权限创建和实际调用尚未执行。Workbench服务关联角色如首次需要开通，由cece管理员另行处理，不给运行身份附加通用IAM创建权限；既有角色保留。
+
+**签发身份已核对：** cece在Cloud Shell执行GetCallerIdentity，返回IdentityType=Account、Arn=acs:ram::1541265267012164:root。[AssumeRole官方说明](https://help.aliyun.com/zh/ram/developer-reference/api-sts-2015-04-01-assumerole)明确主账号不能直接调用。这个身份问题已经查清，不再重复查询，也不把主账号凭据交给Codex。
+
+**以下为待cece批准的授权步骤，尚未执行。** 新增一个专用RAM用户和一个角色，成功标准是只对上述杭州实例完成真实CLI只读连接。首轮只验证一小时临时通道，不引入MCP、长期AK或自动续期服务。
+
+1. cece在RAM控制台创建用户bumbum-codex-hz-issuer，仅启用控制台登录，不创建AccessKey，不授管理员或ECS权限。登录密码由cece保管。若该名称已存在，停止核对，不覆盖或重置。
+2. 创建RAM角色bumbum-codex-hz-workbench，角色类型为阿里云账号；在绑定任何操作权限前，把信任策略改为下面的精确用户主体。创建向导若暂用本账号主体，先完成收窄再绑定权限，不能保留全账号信任。若角色名已存在，停止核对。角色最大会话时间设为3600秒。
+
+```json
+{
+  "Version": "1",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Principal": {"RAM": ["acs:ram::1541265267012164:user/bumbum-codex-hz-issuer"]}
+  }]
+}
+```
+
+3. 创建自定义权限策略BumbumCodexHzWorkbenchAccess，内容使用本节上面的5动作策略，只绑定给该角色。再创建BumbumCodexHzAssumeRole，仅绑定给签发用户，内容如下。不要附加系统管理员策略，也不授权签发用户直接操作ECS或再次授权其他身份。
+
+```json
+{
+  "Version": "1",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": "acs:ram::1541265267012164:role/bumbum-codex-hz-workbench"
+  }]
+}
+```
+
+4. cece用新的RAM用户在独立浏览器会话登录，打开官方[OpenAPI Explorer的AssumeRole调试页](https://api.aliyun.com/api/Sts/2015-04-01/AssumeRole)。确认当前是专用RAM用户，填写RoleArn=acs:ram::1541265267012164:role/bumbum-codex-hz-workbench、RoleSessionName=bumbum-codex-hz-check、DurationSeconds=3600，其余可选参数留空。优先使用页面的登录身份调用；**此页面登录态签发路径尚未现场验证**。若要求输入长期AK、不能使用该RAM身份或报权限错误，停止并只反馈不含秘密的错误，不自动创建AK、改用主账号或放宽权限。
+5. 签发成功的响应含临时秘密，**不要贴聊天或截图**。cece仅在云环境设置的运行时变量BUMBUM_WB_STS_JSON安全填写完整响应JSON，确认实际生效方式和有效期；清理剪贴板及本地临时副本。环境草稿保存不等于当前进程已注入该值；发布仍须单独遵守用户指令，Codex不自动发布。若界面没有安全填写位置，停止反馈，不改用聊天、源码或命令参数。
+6. Codex先用下方--check确认就绪元数据及environment_status的实际变量状态，再以显式profile/地域向固定实例执行id、hostname及本机ready检查。确认实例一致且只读结果正常后，才验证新建公开文件上传/下载及哈希；只清理本轮归属可核验的测试文件。鉴权/网络拒绝即保留错误停止，不能循环重试或扩大Resource。
+
+临时授权撤销边界：结束验证后关闭本轮Workbench会话，清除环境中的临时值；如要立即撤销，cece按RAM/STS官方机制撤销该角色会话并核对生效，不将仅删除用户策略视为已签发Token立刻失效。不删除现有身份、服务关联角色或Tailnet通道，不影响香港业务。若后续要让该角色持续承担运维，需另定续期、保留和撤销安排。
+
+**当前已完成的本地准备：** 固定1.0.4及官方校验；无凭据600 profile；CredentialsCmd提供器读取运行时BUMBUM_WB_STS_JSON（STS响应JSON），只在CLI内部输出规范字段。缺失/损坏/长期AK/过期四类输入均拒绝且标准输出为空；检查模式不输出凭据；实际CLI在network=none的独立容器中已调用并接受合成提供器，配置未缓存合成密钥。该网络失败是有意隔离的兼容性验证，不是云连接通过。测试副本和容器已清理。
+
+正常只读就绪检查用下面命令；**不要直接运行无--check的提供器到终端**：
+
+```bash
+python3 /workspace/work/tools/workbench-cli/init_profile.py
+python3 /workspace/work/tools/workbench-cli/sts_provider.py --check
+```
+
+首轮拟使用一小时STS，长期AK拒绝，剩余有效期必须4—65分钟。值由cece在环境设置的运行时变量BUMBUM_WB_STS_JSON安全填写，不发聊天/命令参数/仓库，不使用仅供HTTPS代理替换的secret占位符冒充本地签名凭据。本地配置文件只有profile、提供器命令和地域，不含密钥；实际提供器通过SDK子进程管道供凭据，不在setup保存长期AK。凭据缺失时就绪检查失败是明确未配置，不能写成已连接。
+
+安装/启动复用脚本及该运行时字段要求已保存到云环境草稿，**未发布、未填入值**；原应用脚本、网络和仓库声明保留。工具返回requires_publish=true，未来新环境采用该复用稿需要cece审核保存并发布，本轮按既有要求不发布。当前会话的CLI已装好，云授权仍是独立前提。
+
+这只是一小时连接验证方案，不承诺自动续期。更新运行时变量后，旧守护进程不会自动继承新值；仅清理本次会话并核对其进程退出后再取新值，不关闭别人的会话，不依赖setup会话缓存。持续自动续期提供器是后续另行确认的方案，不在本轮新建MCP/凭据服务。
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
