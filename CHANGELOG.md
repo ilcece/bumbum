@@ -6,6 +6,66 @@
 
 ---
 
+## 2026-10-31 GitHub Ops回归项目基线同步，停止过度工程化并清理专属实现
+
+cece明确批准方向调整：唯一目标是让新ChatGPT/Codex会话主动读取GitHub真实项目状态并恢复上下文，产品里程碑和商业验证优先，不再建设GitHub自动化管理平台。复盘明确这是ChatGPT在需求判断、范围控制和优先级管理上的失误，不归咎于用户需求不清；既有实现和测试投入不构成继续维护的理由。新增docs/PROJECT_PRIORITY_AND_OVERENGINEERING_REVIEW.md记录事实、未实施设想、影响、纠正和九条原则，未来会话先读；长期原则只以AGENTS为准。
+
+开始时GitHub main及两本地HEAD均为dfb36ecbab04b235fdf91dbe68303eea455c201d，分支feat/github-ops与原main目录状态符合前次交付，七个未提交文件哈希均匹配。先保存私有保护副本/tmp/bumbum-context-sync-before-_qgcdqcn/stage2-to-4.zip（目录700、文件600，仅七份已核对项目文件及公开核验元数据，无真实配置或凭据），不reset/clean或重建环境。只读依赖盘点确认仅tests/test_github_ops.py通过importlib调用scripts/github_ops.py；业务、杭州工具和公共CI均无调用，两文件只有标准库和项目原有pytest，无专属依赖/配置。另发现两份对应的忽略pyc缓存；清理决定仅限这两个专属源码/测试和两个缓存，不清空共享缓存目录。
+
+当前Codex工具清单没有GitHub连接器，不替其他ChatGPT会话宣称连接器已验证。现有gh2.46.0已经实测完成完整分支及开放PR分页、完整SHA比较、固定提交权威文件raw正文和必要PR合并状态查询；可复用既有工具，无须留下重复Python基线封装。AGENTS改为项目基线同步规范并新增创业目标优先九原则，原第0/3节正常工程授权保留；禁止直推main，PR合并仍需审查和cece明确批准，生产另行授权。手册保留旧路径但只说明只读同步和报告，OP_GUIDE换入口并链接复盘；TODO把既有祈愿交互及商业条件核实放在前面，取消阶段五平台建设，不改变产品/技术评审状态。
+
+已删除未跟踪的scripts/github_ops.py（743行）和tests/test_github_ops.py（880行），同时定向删除scripts/__pycache__/github_ops.cpython-312.pyc及tests/__pycache__/test_github_ops.cpython-312-pytest-9.1.1.pyc，未删除共享缓存目录。仓库代码/配置无残余调用；业务代码、公共测试、依赖/配置及CI与HEAD逐字节一致，无专属依赖需要额外删除。保留能力由现有连接器/gh和AI报告承担，不留下授权、写入或审计骨架。
+
+验证：gh GET完整分支/开放PR分页、main及任务SHA边界、完整SHA比较、固定提交权威文件正文和PR合并状态读取通过；本会话没有GitHub连接器，其他ChatGPT会话能力不作推断。清理后业务回归186通过、2项原生Windows检查跳过、486项按marker排除；减少的139项是退役工具专属测试，不是业务测试删除。文档检查24份/351链接、git diff --check及未跟踪文档差异检查通过。初次残留搜索包含不存在的fashion/jewelry目录而退出2，改用实际目录后确认无残留，未把失败搜索当作证据。
+
+本轮不修改业务代码、PRODUCT/PRD/TECH_SPEC/API_CONTRACT或README，不修改原杭州目录、不提交/推送/PR/合并/权限/Secrets/认证/分支保护/Actions或ECS/RDS/DNS。阶段二至四真实历史逐字节保留，不因退役重写过去验收；原第0/3节工程授权和业务安全条款保留。不将本地规范修改冒称已进入GitHub main，清理后停在ChatGPT审核及cece后续决定。
+
+随后cece明确要求从云端main创建分支，将调整内容提交推送供其审核。本次取得最新main=dfb36ecbab04b235fdf91dbe68303eea455c201d，在现有独立Worktree创建docs/project-context-sync并完整保留六份文档；审核交付仅包含AGENTS、TODO、CHANGELOG、OP_GUIDE、精简基线说明及事故复盘。该次提交和分支推送已获明确授权，替代此前本地交付的禁止提交/推送限制；不创建PR、不合并main、不触发工作流或部署，原杭州工作目录保持不变。被清理的工具及测试从未提交到main，因此本次提交没有业务源码删除项。
+
+## 2026-10-30 GitHub Ops阶段四长期协作规范，真实写入继续硬关闭
+
+cece确认阶段三操作手册审核通过，授权阶段四仅修改AGENTS、TODO和CHANGELOG。通过GitHub读取当前main的规范和指定文档，main仍为dfb36ecbab04b235fdf91dbe68303eea455c201d；远端尚无GITHUB_OPERATIONS，按要求读取Worktree手册。修改前本地AGENTS与main逐字节相同，阶段三六个文件哈希全部与交付一致；两目录HEAD不变，原目录main干净。统一入口本轮只读baseline核对时间2026-10-30T23:48:42.615640+08:00，身份ilcece、完整分页、远端仅main（无非main分支）、0开放PR，保留main未启用保护的告警。
+
+在原第3节之后、第4节之前新增独立“GitHub Ops：统一GitHub操作规范”章节，保留原章节、编号和规则。新增唯一远端操作入口、实时基线、只读/预览分类、可信目标授权和硬关闭、高风险保护、checks.yml范围、审计终态及未知结果、模拟与真实写入区分和未来开放前提；操作步骤仍引用OP_GUIDE和GITHUB_OPERATIONS。明确旧文档推送持续授权不能解除门禁，Squash预览不能豁免第3节既有历史归入要求，不以工具较宽的预览替代规范或执行许可。
+
+本轮不改工具、测试、手册或索引，不改产品/API/架构文档，不安装或调整认证，不提交、推送、PR、Actions或部署。文档检查23份/347链接通过，git diff --check通过；语义核对与手册的授权/预览/Actions/审计边界一致，不复制详细命令。去除新增章后AGENTS与修改前全文逐字节一致；工具、测试、手册、索引SHA256保持阶段三交付值，CHANGELOG去除新增条后与阶段三交付全文一致，TODO仅GitHub Ops行变化，阶段二、三及杭州等原有历史完整保留。原目录仍为main且干净，阶段五尚未开始；阶段四规范编写及检查完成，待ChatGPT审核，真实写入继续硬关闭。
+
+## 2026-10-30 GitHub Ops阶段三操作手册编写，真实写入继续硬关闭
+
+cece明确确认阶段二只读及安全预览能力已通过验收，授权阶段三仅编写操作文档。开始时通过GitHub直接取得当前main完整SHA=dfb36ecbab04b235fdf91dbe68303eea455c201d及该提交的AGENTS、README、TODO、CHANGELOG、OP_GUIDE；规范/README/索引与本地相同，TODO和CHANGELOG差异为保留的阶段二记录。两目录HEAD未变，/workspace/bumbum仍为main且干净，/workspace/bumbum-github-ops仍为feat/github-ops并保留阶段二四个未提交文件。
+
+新增docs/GITHUB_OPERATIONS.md十章操作手册，在OP_GUIDE补唯一入口；核对实际工具和测试后说明准备、实时基线、分支比较/创建删除预览、PR查询及合并检查、checks.yml查询及预览、私有JSONL状态与只读恢复、常见问题和能力边界。特别区分远端清单与本地未推送分支、固定UTC+8时间、PR摘要与合并检查、旧dispatch拒绝重跑、审计目录不自动创建及unknown不能普通追加解除。所有真实写入和独立合并门禁保持关闭，模拟验证不等于真实写入通过。
+
+本阶段只改手册、索引及TODO/CHANGELOG，不改工具、测试或AGENTS，不安装依赖、不修改认证/权限，不提交、推送、PR、Actions或部署。阶段二139项专项与基础325通过/2原生Windows跳过/486按marker排除保留为历史证据，本阶段不重跑业务测试。文档检查23份/344链接通过，17条手册工具命令仅用实际argparse解析核对；另按手册执行真实只读baseline与main/main比较，核对时间2026-10-30T23:38:46.360396+08:00，身份ilcece、远端仅main且完整分页、0开放PR、main仍为上述完整SHA并提示未启用保护，比较结果ahead0/behind0。差异格式及未跟踪文件格式检查通过，工具/测试/AGENTS哈希与阶段开始一致；原工作区仍干净。阶段三待ChatGPT审核，不提前进入阶段四。
+
+## 2026-10-30 GitHub Ops阶段二第二轮安全加固，真实写入保持硬关闭
+
+cece授权只在/workspace/bumbum-github-ops的feat/github-ops修复安全缺口，禁止提交/推送/PR/Actions及部署。起始main和两工作区HEAD均dfb36ecbab04b235fdf91dbe68303eea455c201d，先核对GitHub AGENTS与原目录干净状态；保留第一轮未提交工作，不reset或覆盖业务代码。相对第一轮的完整加固diff另行交付，以下结果不代表真实写验证。
+
+统一require_write_access无开放参数/环境开关，正常perform先拒绝再调用任何外部authorizer；低层Gh.api所有非GET、Gh.delete_ref与Ops._write入口再次硬关闭。Authorization仅是声明数据，不构成能力凭证，伪造task_id/过期/错指纹均不能授予写权。PR合并另有require_merge_protection硬门禁，正常perform、_write和低层PUT merge都检查；即使API protected=true也不能自动开放，必须未来另行实现和审核可信保护规则验证器。无条件REST删除ref明确拒绝，保留Git旧SHA force-with-lease。保护只针对正常调用路径，不声称抵抗同权限恶意运行时篡改或直接运行外部gh命令。
+
+新增标准库JSONL审计：绝对.jsonl路径、逐级openat拒绝目录链接、当前用户700父目录、600普通单链接文件、拒绝硬链接/FIFO/容量超限/损坏尾行；flock在追加/核验/fsync期间保持，意图及目录项fsync成功后才可发起模拟请求。成功追加verified，超时/异常追加unknown；请求后落盘失败可能只剩intent，不能记为成功。相同审计文件存在任何未结束/unknown意图时拒绝新写请求，禁止自动重试。只保存固定安全元数据，任务ID摘要及计划指纹，不保存请求正文、凭据、环境或原始异常。审计不是防篡改账本，POSIX本地文件系统以外的持久性/分布式锁不作保证。
+
+新增audit recover --path只读命令：根据完整分支列表、PR或运行状态给出观察；创建PR仅给候选，不自动归因、标verified、解锁或重试。真实子进程仅写合成临时意图后os._exit，用无认证环境证明硬退出后记录仍可读取；其余GitHub写子进程全部mock。旧模拟成功测试显式mock两道硬门禁及传输，不是产品测试开关，更不代表普通调用能获得写权。
+
+原子性：branch create只原子拒绝同名ref，其他基线检查有竞争窗口；branch delete仅旧SHA条件删除原子，PR/规则证据不在同一事务。PR create/close没有本实现使用的HEAD CAS，重读/后验校验不能消除窗口。PR merge的sha只约束head，不把base/CI/评审一起锁定，本阶段真实合并独立永久关闭。workflow rerun没有期望attempt条件，异步可见性或并发重跑均可能未知。这六项均可能请求发生后结果无法确认，不允许以重试“修复”。
+
+最终测试：原67项单独回归通过，新增49项单独通过，专项116项通过；基础回归302通过、2项原生Windows检查在Linux跳过、486项按marker排除。开发中补齐新HEAD模拟响应及只读PR候选核对后通过，未降低安全条件。文档与新增文件差异/空白检查通过，无新依赖、无业务/数据库/芯片/权限变化；未新建手册或改AGENTS。可信授权和保护验证器、真实写入验证、未知操作的可信人工归档/解锁仍未接入，所有真实写入继续关闭，等待ChatGPT第二轮审核。
+
+第二轮源码审查后，cece转交“有条件通过、修复审计状态机”的决定。本轮只在AuditJournal._pending_rows新增前态必须为intent的约束：每个operation_id只能有一条intent、最多一条verified或unknown终态，终态后任何追加均拒绝，unknown不能由普通append解除；原始JSONL不自动修改、覆盖或修复。先用四个非法转换测试复现缺口（4失败），修复后保留原116项并新增23项，专项139通过；基础回归325通过、2项原生Windows跳过、486项按marker排除。新增证据包括合法终态、重复intent、缺少intent、四种非法终态转换、已有非法历史失败关闭、拒绝后日志字节不变、unknown阻止新操作及同一意图并发终态只落盘一条。未扩展人工恢复或PR关闭检查，所有真实写入口继续硬关闭，未提交/推送/PR/Actions/部署；阶段二待ChatGPT复核修复，阶段三未开始。
+
+## 2026-10-30 GitHub Ops阶段二本地实现及模拟验证，未提交发布
+
+用户仅授权/workspace/bumbum-github-ops的feat/github-ops实现和本地测试，原/workspace/bumbum保持main且干净；起始两目录及GitHub main完整SHA均为dfb36ecbab04b235fdf91dbe68303eea455c201d。先直接读取GitHub最新AGENTS及所需README/TODO/CHANGELOG/技术规范/API/CI工作流，main未变化后才实施。不提交、推送或创建PR，不调用真实写接口，不触发Actions、变更认证/权限/Secrets，不访问ECS/RDS/DNS。
+
+新增scripts/github_ops.py和tests/test_github_ops.py。标准库统一封装gh REST与原子Git租约删除，校验唯一origin的fetch/push目标，固定main、完整SHA、完整分页及查询期间变化检测；本地时间+UTC基线、开放PR摘要、保护告警。写入默认预览，确认绑定操作/目标/证据指纹，还必须由可信外部当前任务授权回调提供短时授权，并重查目标及有效期。CLI没有该可信来源，默认拒绝真实写入，不能把execute、自填参数/文件或环境变量当作授权。此回调接口仅在模拟测试注入，不宣称已经接通当前会话授权。
+
+分支删除检查默认分支、保护和有效规则、开放PR、独有提交；压缩合并要求已合并PR、当前head匹配、原始树与单父合并提交树相同、合并提交已进入main历史；原子租约绑定旧HEAD，变化即拒绝，不强删独有内容。PR合并明确策略、固定head、main基线、clean/非草稿、basic/integration成功及当前HEAD批准评审，网关仅可跳过。工作流仅checks.yml、include_gateway=false；无法证明旧dispatch参数未启用网关时拒绝rerun。dispatch因现有返回缺少可靠关联ID，只提供预览，不猜测最近运行，不用未经验证替代方式触发。
+
+模拟写入覆盖再次授权、租约和SHA变化、缺证据/过期/错误授权、写后未知结果和无重试；实际输出审计含UTC/actor/repo/op/目标/前态/授权ID/结果/后态，不输出原始gh错误、认证环境或PR正文。误填参数及常见认证字符串脱敏。所有写请求均由mock子进程隔离，真实GitHub仅GET验证：baseline、branches/list/compare、PR读取、workflow列表、create/run预览，身份ilcece、gh2.46.0，远端仅main，0开放PR，main未保护的警告按实情输出。
+
+测试：专项67项通过；最终本地基础回归253通过、2项原生Windows检查因当前Linux环境跳过、486项按marker排除。首次默认Python无pytest，复用现有venv，未安装依赖；基础回归首次受沙箱socket权限影响3项失败，受控执行后通过，未修改业务测试或放宽保护。文档及含新增文件的差异/空白检查通过。未运行数据库/浏览器/网关集成或生产测试，也未真实写入验证。当前交付仍是未提交文件，完整真实写入授权接入、dispatch关联及跨仓库/fork等能力未完成；等待ChatGPT审核，不把本阶段当已发布工具。未创建操作手册或修改AGENTS，本条及TODO只在独立Worktree记录。
+
 ## 2026-10-30 祈愿审核分支历史归并及退役
 
 cece先要求专项检查，再明确批准仅归并历史、验证文件树不变并删除分支。核对时间2026-10-30T21:46:23+08:00，main审查基线a191f076c48e6a7bf19861e8c1d1b2c5c1621520；唯一非main分支docs/prayer-review-and-baseline-report完整HEAD=584b70c8f295aa898f423e4ae89c2f08cb294877，相对该基线ahead4/behind80。分支列表已完整分页核对，共main及该分支两条，没有其他活动分支被遗漏。

@@ -15,6 +15,7 @@
 
 | 手册 | 什么时候用 | 当前范围 |
 |---|---|---|
+| [项目基线同步](GITHUB_OPERATIONS.md) | 新ChatGPT和Codex会话主动读取GitHub权威文件、完整分支/PR并恢复上下文 | 优先现有连接器，不足时用已有gh只读查询；不建设写入、授权或审计恢复平台 |
 | [本地运行](LOCAL_DEVELOPMENT.md) | 首次准备、日常启动、停止、更新依赖和自动检查 | Windows双击入口；其他系统命令；第12节为004及用户页预览 |
 | [桌面管理端验收](ADMIN_DESKTOP.md) | Make管理端、工作台统计及全页面回归 | 第7节为触碰统计；桌面网页，无手机H5或移动适配 |
 | [管理员登录](ADMIN_LOGIN.md) | 创建账号、手机扫码、登录、重置或停用 | 已有账号保留；包含设置与重置 |
@@ -31,6 +32,7 @@
 | 文件 | 负责什么 |
 |---|---|
 | [技术附录](IMPLEMENTATION_DETAILS.md) | 固定参数、保存规则、加密和网站入口示例；配合 TECH_SPEC 阅读 |
+| [项目优先级与过度工程化复盘](PROJECT_PRIORITY_AND_OVERENGINEERING_REVIEW.md) | 新AI会话先读；了解本次偏离、纠正决定及创业资源保护原则，长期规则仍以AGENTS为准 |
 | [Figma 协作](FRONTEND_COLLABORATION.md) | 逐页接设计，保留真实接口、登录和错误处理 |
 
 产品、接口和表结构的定义文件见 [项目入口](../README.md#每个文件管什么)。当前任务与优先级只在 [TODO](../TODO.md) 维护，历史决定与检查结果只在 [CHANGELOG](../CHANGELOG.md) 记录。
