@@ -10,7 +10,7 @@
 
 cece授权准备生产管理员、正式网页和HTTPS并做公网验收。本次杭州只读发现Nginx仅启用test两站点，证书仅test/nfc-test；admin正式域名未返回IPv4，nfc.bumbum.cc仍解析47.242.24.84，不把旧香港解析当成杭州已接管。尚未改DNS、安全组或启用正式Nginx。
 
-从已核对的生产运行镜像导出两套前端到独立/var/www/bumbum-hangzhou-production-admin及-user，各3文件，逐文件哈希与固定main应用清单匹配，未覆盖测试目录。交付production/public/admin-setup.py，一次性入口先核对production固定清单归属，再调用既有Flask管理员创建及安全QR导出函数；账号ilcece，密码/验证码由cece交互隐藏输入，二维码不经聊天或网站。此时尚未创建管理员，未把入口交付记成人工验收通过。管理白名单当前出口IPv4待cece反馈，后续正式证书/定向/公网结果分别记录。
+从已核对的生产运行镜像导出两套前端到独立/var/www/bumbum-hangzhou-production-admin及-user，各3文件，逐文件哈希与固定main应用清单匹配，未覆盖测试目录。交付production/public/admin-setup.py，一次性入口先核对production固定清单归属，再调用既有Flask管理员创建及安全QR导出函数；账号ilcece，密码/验证码由cece交互隐藏输入，二维码不经聊天或网站。此时尚未创建管理员，未把入口交付记成人工验收通过。cece随后确认当前出口111.192.247.76，生产Nginx按该单IP生成至production/nginx-stage，尚未启用，正式证书仍缺失；后续正式证书/定向/公网结果分别记录。
 
 ## 2026-10-30 GitHub认证恢复，精简交付后杭州生产后端启动并独立就绪
 
