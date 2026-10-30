@@ -6,6 +6,58 @@
 
 ---
 
+## 2026-10-30 正式域名公网接管、人工验收及自动续期演练通过
+
+cece明确批准admin新增A、nfc从旧香港A改为47.98.19.79，并将杭州现有80/443入方向来源改为0.0.0.0/0，随后反馈控制台更新完成；Codex没有管理DNS/安全组API权限，准确区分用户操作与外部实测。Google初次管理域名NXDOMAIN负缓存、Cloudflare查询已有杭州A，后续Google新查询同样返回47.98.19.79；用户域名A也为杭州。真实公开HTTPS用户/tap=200，管理/api/admin/chips及内部/api/ready均404，no-store/no-referrer/nosniff正确，HTTP最终跳至HTTPS。非白名单Codex来源访问管理HTTPS为403，白名单仍为111.192.247.76。cece随后反馈隐私窗口生产ilcece登录、刷新保持、退出及手机移动网络/tap均正常，记为本轮人工公网入口验收通过，不冒称已有生产样品或实卡业务验收。
+
+两张正式证书从manual DNS转换webroot时，首次继承preferred-challenges=dns造成插件不支持；显式HTTP后管理验证404，进一步核对模板定位管理ACME root实际为/var/lib/letsencrypt，而非网页root。分别使用正确管理root和用户/var/www/bumbum-hangzhou-production-user后，两张Certbot4 reconfigure模拟校验成功并保存。随后独立renew --dry-run --run-deploy-hooks的110秒观察超时，经只提取安全延迟诊断确认随机等待321.113秒，并非站点校验失败；本次演练明确--no-random-sleep-on-renew后两张正式证书各自dry-run均成功（退出码0）。钩子输出nginx语法通过并执行reload；Certbot将该成功诊断stderr标成error output，不等于钩子失败。固定deploy钩子仅匹配正式两证书，不重启业务容器，原有钩子保留。certbot.timer启用，本次现场计划2026-10-30T22:21:34+08:00（这是当次计划，不保证以后固定同一时间），Nginx active。
+
+手动测试域名证书不因正式证书通过而算自动续期完成。RDS备份/PITR、独立恢复、杭州重启保留和长期双环境容量仍是独立运维验证，不把本轮基础公网接管写成全部生产保障已验收。香港退出已完结，不重开任务。文档证据按分工更新TODO/CHANGELOG及杭州手册，不更改业务接口/表结构。
+
+## 2026-10-30 正式双域名证书签发与生产Nginx启用，本机定向通过
+
+cece在杭州Certbot4.0.0交互终端完成admin.bumbum.cc及nfc.bumbum.cc的DNS-01签发。管理域名首次NXDOMAIN失败已区分记录；后续本次TXT由公开DNS核对匹配后才继续，未重用失败值。cece误将test的挑战TXT改为管理挑战值，不影响已签发证书或当前站点，不将其当作测试证书重新签发通过。挑战值是公开DNS校验信息，不记录私钥或账号凭据。
+
+Codex只读取证书公开元数据，两个SAN分别正确、有效期均至2027-01-28，且checkend一周通过，不读取/输出私钥。按来源111.192.247.76的已审查生成稿新建独立生产proxy/admin/user配置与启用链接，先前及新增后nginx -t均通过并reload，保留测试站点，未修改DNS/安全组。杭州本机curl保留域名/SNI/正常TLS验证，定向127.0.0.1结果：nfc /tap=200、/api/admin/chips与/api/ready均404；HTTP /tap跳HTTPS301；no-store/no-referrer/nosniff正常；admin本机来源403符合白名单；nfc-test /tap仍200。未把本机403称为真实电脑登录失败或允许来源验收完成。
+
+公开DNS查询当前admin无A/AAAA，nfc A仍47.242.24.84且无AAAA。待cece从当前出口电脑定向验证并登录，再安排正式DNS接管及公网80/443来源核对；手动DNS证书尚不具备自动续期证明，须在后续实际切换条件下转换/验证，不能用timer存在代替续期通过。此时正式站点已在杭州启用，但公网接管尚未完成。
+
+## 2026-10-30 生产管理员设置完成及二维码副本清理
+
+cece执行生产管理员设置后清理导出文件时收到No such file；Codex没有据此重建账号或二维码，而是通过生产运行容器的应用身份只读查询username、totp_enabled及加密资料是否存在三个公开状态，不读取密码哈希或验证器密文内容。结果ilcece存在、TOTP启用、加密资料存在；服务器production/secrets/authenticator.html不存在。cece随后确认电脑下载副本已清理，因此管理员设置及两侧副本清理完成。正式网页/Nginx已准备但证书与公网验收仍待完成，生产管理员创建不替代网页登录验收。
+
+## 2026-10-30 准备正式网页与生产管理员安全设置入口
+
+cece授权准备生产管理员、正式网页和HTTPS并做公网验收。本次杭州只读发现Nginx仅启用test两站点，证书仅test/nfc-test；admin正式域名未返回IPv4，nfc.bumbum.cc仍解析47.242.24.84，不把旧香港解析当成杭州已接管。尚未改DNS、安全组或启用正式Nginx。
+
+从已核对的生产运行镜像导出两套前端到独立/var/www/bumbum-hangzhou-production-admin及-user，各3文件，逐文件哈希与固定main应用清单匹配，未覆盖测试目录。交付production/public/admin-setup.py，一次性入口先核对production固定清单归属，再调用既有Flask管理员创建及安全QR导出函数；账号ilcece，密码/验证码由cece交互隐藏输入，二维码不经聊天或网站。此时尚未创建管理员，未把入口交付记成人工验收通过。cece随后确认当前出口111.192.247.76，生产Nginx按该单IP生成至production/nginx-stage，尚未启用，正式证书仍缺失；后续正式证书/定向/公网结果分别记录。
+
+## 2026-10-30 GitHub认证恢复，精简交付后杭州生产后端启动并独立就绪
+
+GitHub当前绑定认证再次可用：gh auth status、API user返回ilcece，目标仓库pull/push/admin通过，实际git push成功；未读取/更改认证文件、未索取Token、未创建长期密钥。之前本地文档提交已补推。main实时仍为110a76c75265e37163eea9fdb8c77eedee223308。
+
+本轮排查的是SSH交付而非已知Workbench OSS SDK问题；原生OSS未使用环境代理的历史结论保持，未重开或宣称修复。SSH 1KB/64KB定长与64KB EOF均哈希通过，较大块在20—35秒内未完成；分段回报的256KB成功，1MB探测35秒收到622592字节后停止，证明“能执行命令/传小文件”不代表59MB整镜像能在原180秒上限完成，不归因为确定的EOF或RAM拒绝。停止重复整镜像上传，改为交付固定main本地镜像导出的全部/app内容：43文件、压缩248226字节，归档SHA256=54ca8f5b175311ad1ed7eac3ca803ca7e70651caec6d6fc84296bd7c26180b62，应用清单SHA256=5bd26a00e58915349fa9b49564eba3065c6098964eea4f8cdc47493557a218e7。另9478字节主线部署工具包同样完整接收并校验。只传公开构建产物，不含实际运行配置。
+
+杭州已验运行层内容ID=sha256:1f3cd78b524463d2089715b58a947c7f157e5c0e6c88ed4f22949f9c063f63dc，Python3.12.14；其requirements-deploy.txt与固定main哈希同为0c096be8cef21172887ecd1595babc564d7202aeb18f6b8e85a699da65e650cd。在杭州只做禁网COPY层组装、替换镜像内部/app、保持10001运行用户及日志卷可写，不安装依赖、不编译前端、不进行完整构建/压测。组装镜像ID=sha256:99031945142495044fcb86752f088473432dfdadde2856b4269669159b1f27b4，与外部原始镜像96c54ac不同，明确记录运行层来源，不混称原始镜像；组装后43个应用文件哈希与固定main构建产物完全一致。
+
+公开交付位置为/opt/bumbum-hangzhou/releases/110a76c75265e37163eea9fdb8c77eedee223308-assembled；从其中主线工具生成固定production/compose.json，经镜像内容、清单归属、秘密文件元数据和回环端口保护检查，通过--confirm-production启动生产后端。Codex独立HTTP复核production/test的/api/health及/api/ready均200，数据库ready，两容器healthy；监听分别127.0.0.1:15000及15001，测试保持原5f镜像。生产runtime权限600、临时维护认证文件不存在，内存现场1735MiB、available946MiB、swap64MiB（瞬时数据，不等于长期容量验收）。未启用正式Nginx、切DNS、创建生产管理员或执行公网验收；生产后端启动不等于完整正式上线。香港退出已完结，不再作为排查目标或待办。
+
+## 2026-10-30 固定main镜像构建与生产独立运行配置准备
+
+实时公开GitHub API确认main仍为110a76c75265e37163eea9fdb8c77eedee223308；gh API认证返回401，不读取认证文件、不修改认证，公开仓库读取不受影响。从该完整提交的公开归档构建，构建上下文不含工作区本地.env/秘密。Docker镜像ID为sha256:96c54ac939d607ec2e39d0f5fd60cf7efc11f20068620b6cea6c80c0edf86803，版本标签固定main提交；前端及依赖构建成功，不以构建代替部署验证。公开镜像归档59132966字节。
+
+杭州现场确认生产runtime/compose此前均不存在、磁盘余约30GB、1.7GiB内存约1GiB可用。复核现有生产库其余23表均0后，正常加载已保存应用认证，为全新生产准备独立存储/指纹/回调/项目/SDM密钥及600运行配置，不显示秘密、不读取或复制测试配置。WEBHOOK_ADMIN_USERNAME使用ilcece；尚未创建生产管理员、未写卡或修改数据库。公开CA复制到生产public目录，测试目录与服务不变。
+
+经受支持的代理/Tailscale和严格主机验证开始SSH镜像交付与源码交付；源码传输35秒超时，镜像传输180秒超时；现场核对未见新镜像或完整源码，既有测试后端运行20小时且healthy，不盲目重跑覆盖。尚未生成生产Compose或启动生产后端、启用正式Nginx/切DNS。此记录为本地准备及传输状态，不能据此声称生产发布完成。
+
+## 2026-10-30 杭州生产RDS初始化及最小权限完成，应用身份复核通过
+
+后续实际账号截图及cece确认纠正此前“生产库/账号已存在”的口头状态：当时生产库和两账号均不存在；cece在同一杭州RDS新建bumbum_hz_production、同名应用账号及_init普通账号，未迁移或清空测试数据。应用认证通过root专用600文件安全配置，仅供客户端正常认证使用，未展示内容。首次只读检查确定默认utf8mb4_0900_ai_ci及控制台“仅DML”的额外权限；维护身份进一步确认四类对象均0及固定实例UUID。
+
+cece批准继续初始化和收敛。短暂SSH代理503导致写操作未开始，临时维护认证由cece删除并经恢复后的SSH确认不存在。为避免反复保存维护密码，交付固定生产目标的公开一次性脚本，在交互终端隐藏输入维护密码、不落盘；使用主线110a76c75265e37163eea9fdb8c77eedee223308的schema哈希校验和去库定向处理、锁内空库/账号/授权基线复核，未知状态停止、不删库重跑。首次脚本位于/run导致core导入失败，发生在连接数据库之前；补PYTHONPATH=/app后在禁网容器验证导入/语法通过，未伪称该检查覆盖数据库写操作。
+
+cece执行结果：24表齐全、utf8mb4_unicode_ci，changes_applied=30；生产应用仅USAGE及目标库SELECT/INSERT/UPDATE/DELETE，初始化账号目标库ALL PRIVILEGES保留但locked=Y，TLS为ECDHE-RSA-AES256-GCM-SHA384。Codex随后通过严格SSH指纹、公开CA及应用身份独立只读复核：固定库/账号/UUID正确，24表及chip_project/registration_source/tap_event/view_grant识别通过；project仅fashion/jewelry两行，其余23表行数为0，应用授权与排序规则正确，TLS正常。未读取业务行正文、密码、加密资料或备份内容，未把数据层就绪称为生产服务上线。生产镜像/私有配置、管理员、实际HTTP及公网发布仍待完成；杭州测试未改。
+
 ## 2026-10-30 cece确认香港ECS已释放
 
 cece先确认目标RDS未绑定安全组，随后明确反馈香港ECS已释放，记为用户控制台操作结果，非Codex云API复核。香港后端此前已停止；当前白名单172.23.208.0/20覆盖杭州内网，未发现香港专用授权，未为断连修改RDS。仓库香港Compose配置指向本机Docker MySQL的127.0.0.1:33307，未取得香港后来改连杭州RDS的证据，不能把假设连接写成事实。香港退出不再作为杭州部署前置，不再尝试连接旧实例；未核实随释放处理的磁盘/IP及账单细节，不宣称全部资源费用已结束。杭州继续使用现有RDS，不迁移、清空或重建数据库；代码发布及生产上线仍须独立验证。
