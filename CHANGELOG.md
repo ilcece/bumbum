@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-10-30 Workbench真实连接杭州成功，OSS文件传输未通过
+
+cece提供GetPolicy结果确认默认v3，CreateDate/UpdateDate=2026-10-30T05:07:35Z，IsDefaultVersion=true，完整4动作均绑定acs:ecs:cn-hangzhou:1541265267012164:instance/i-bp1cj6pt88wbxmhlsp1n。相较此前v2，LoginECSInstance资源确已完成instance路径替换，原策略原文待答关闭。以同一STS（剩余1827秒）单次复验，在北京时间2026-10-30 13:08:33（05:08:33Z）Workbench v1.0.4 exec成功，CLI/远程退出码均0、stderr为空；instance_id匹配，root、hostname=iZbp1cj6pt88wbxmhlsp1nZ，/api/ready返回status=ok/data.database=ready。请求r-1793336913191452992，远端命令318ms。这是新环境经Workbench的真实连接证据，不沿用Tailnet结果，不代表整体性能对比。
+
+继续同一固定实例只读核对：nginx/docker/aliyun均active，bumbum-hangzhou-test-backend-1使用bumbum-hangzhou-backend:5f241753b70c992effec279c523935646ae11a4c，Up 13 hours且healthy；/opt/bumbum-hangzhou与test/compose.json均存在。未读取.env、私钥、芯片密钥、数据库备份或认证页面，未改业务/部署/DNS/RDS。现有4动作实例授权已覆盖本轮成功调用，不新增通配或其他权限。
+
+按已批准范围创建43字节公开测试文件，计划上传/下载及三方SHA256核对。第一轮测试脚本误将仅exec支持的--session-id传给upload，CLI退出1，不能记为真实上传网络失败；根据实际帮助移除该参数后第二轮真实upload仍退出1，PutObject报dial tcp 118.178.60.150:443 connect: connection refused，发生在Codex到OSS的上传阶段。未执行下载/哈希比对，不声称文件收发通过；未输出临时签名URL。两轮专属远端目录/tmp/bumbum-workbench-check.J4hAguFC、/tmp/bumbum-workbench-check.7K5ZvnT4及本地公开测试副本均已清理。定向关闭本次会话s-5ydh1i4ql8fo6tv5j成功，停止本次daemon退出0，不关闭他人会话。
+
+补充核对：HTTP_PROXY/HTTPS_PROXY及小写变量均存在，NO_PROXY未含aliyuncs.com或全局星号；通过继承代理且启用TLS验证对https://oss-cn-hangzhou.aliyuncs.com/做无凭据HEAD得到404。这证明该公共服务端点经代理可收到响应，不证明实际CLI对象存储桶端点或PutObject请求可达，也不足以确认CLI忽略代理。实际帮助未提供代理开关，config set仅支持agent/language/log_level，未改配置或安装新版本。静态构建元数据为go1.25.1、模块alibaba-inc.com/ecs-workbench/workbench-cli；环境名为go的可执行程序不支持go version，不将其当Go工具链，不为此安装软件。
+
+用户限额中断后要求继续，补充检查发现STS已不满足提供器剩余4—65分钟要求，停止新远程请求，不为未解决的OSS问题反复要求签发凭据。后续先评估CLI OSS代理兼容与凭据续期，不绕过受管网络，不扩大ECS安全组/RAM或发布环境。仅命令通道已验证，既有Tailnet/OpenSSH保留；文件传输、长期续用、审计覆盖和稳定性仍未验收。
+
+本次同步TODO当前结论、杭州手册的代理/凭据及分层验收边界和本历史；未改应用代码/依赖/表/秘密，README与操作入口继续适用。文档链接/JSON、Bash代码框语法及git diff --check通过；未重复应用回归或部署。
+
 ## 2026-10-30 新发布环境STS实际就绪，Workbench首次真实登录返回授权拒绝
 
 cece发布后明确要求继续核验。等待新环境ready，实际environment_id尾号46c9a3b0、source_config_version尾号6ae4216111b881a18d302251a270a235，HTTP unrestricted/enforced、observations_current=true，BUMBUM_WB_STS_JSON状态ready。实际CLI v1.0.4与提供器校验和匹配原记录；--check通过，首次检查剩余2759秒。保留快照内分支docs/hangzhou-ecs-rds-plan与HEAD eb67baa及无凭据配置，未重新应用旧改动或发布。

@@ -216,7 +216,7 @@ command -v iptables
 
 依据：[Tailscale netfilter模式](https://tailscale.com/docs/reference/netfilter-modes)、[CGNAT互操作说明](https://tailscale.com/docs/reference/cgnat-interoperability)及cece提供的工程师截图。这里的ECS防火墙兼容性与Codex代理拒绝公网IP是两层问题；修改ECS的netfilter模式不会解除代理的vpn_protected_destination限制。
 
-### 3.6 Workbench CLI运维通道（方案已批准，授权待配置）
+### 3.6 Workbench CLI运维通道与验证
 
 按cece提供的[官方技能](https://skills.aliyun.com/skills/alibabacloud-workbench-cli)及其[SKILL.md](https://skills.aliyun.com/raw/skills/alibabacloud-workbench-cli/SKILL.md)接入。它支持不依赖实例公网IP的远程exec和通过OSS中转的文件收发，适合评估为Codex的运维入口；与Windows浏览器访问网站是两条独立路径。
 
@@ -231,17 +231,17 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
 
 官方技能提供AK、STS/角色及凭证提供器模式；实际v1.0.4帮助还列出EcsRamRole和AliyunCLI。按当前环境真实可用身份选择，不读取元数据正文或借用未确认的账号。初始Workbench/Aliyun配置均不存在；现已由独占创建器写入600的无凭据bumbum-hz配置，已有配置不读取或覆盖。不运行可能显示凭据的config get，不索取或输出配置内容。专用用户/角色方案已由cece批准，可按下节配置；当前没有可用于创建身份的阿里云管理凭据，控制台步骤需cece操作。不自动发布环境或修改ECS配置。
 
-云端适配按当前环境证据核对，不能照抄通用默认值：本环境HTTP策略已启用且Workbench已实际下载；runtime变量/secret/云身份当前均未配置。会话内可保存权限受限配置，但不依赖新任务保留文件。setup阶段有凭据不保证agent阶段可继续取用；会话会关闭、STS会过期，缓存不代替后续取凭据或续期能力，也不能据环境变量移除就认定原始凭据没有被持久化。
+云端适配按当前环境证据核对，不能照抄通用默认值：本环境HTTP策略已启用且Workbench已实际下载；运行时BUMBUM_WB_STS_JSON须在发布后的实际环境显示ready，并通过有效期检查，不能据草稿填写或发布提示认定值已进入进程。会话内可保存权限受限配置，但不依赖新任务保留文件。setup阶段有凭据不保证agent阶段可继续取用；会话会关闭、STS会过期，缓存不代替后续取凭据或续期能力，也不能据环境变量移除就认定原始凭据没有被持久化。
 
-标准ALIBABA_CLOUD_*变量是否被当前CLI实际入口直接采用，及凭据是否在所需阶段真实可用，都须验证；不凭变量名、代理占位符或SDK一般能力判定Workbench已登录。先准备限定目标的专用/短期授权，登录路径尚未定稿，不在setup缓存长期AK。remote MCP、第三方STS/OIDC中介及新增审计服务会引入独立部署/授权边界，不自动增加。RAM只限制API和目标资源，不将root执行变为命令级只读；不能用ecs-workbench:*冒充最小动作集。ActionTrail字段/覆盖以实际通道验证为准，不承诺RunCommand或每条Shell原文；auditd与告警本身不是命令阻断。
+标准ALIBABA_CLOUD_*变量是否被当前CLI实际入口直接采用，及凭据是否在所需阶段真实可用，都须验证；不凭变量名、代理占位符或SDK一般能力判定Workbench已登录。本方案使用限定目标的角色、一小时STS和CredentialsCmd，网页登录签发的结果由cece安全填写；不在setup缓存长期AK，不宣称已有自动续期。remote MCP、第三方STS/OIDC中介及新增审计服务会引入独立部署/授权边界，不自动增加。RAM只限制API和目标资源，不将root执行变为命令级只读；不能用ecs-workbench:*冒充最小动作集。ActionTrail字段/覆盖以实际通道验证为准，不承诺RunCommand或每条Shell原文；auditd与告警本身不是命令阻断。
 
 授权就绪后先固定profile和cn-hangzhou，核对实例ID/公开身份，用无秘密的id/hostname/ready只读命令验收；通过后再用归属可核验的新公开文件做上传/下载哈希检查，拒绝覆盖已有文件。文件收发经OSS，不传真实运行配置、私钥、数据库备份或芯片秘密。不把关闭现有Tailscale或切换运维通道作为安装步骤；真实命令、文件传输、网络与凭据续用分别验证。
 
-### 3.6.1 首轮短期授权接入步骤（已批准，尚未授予云权限）
+### 3.6.1 首轮短期授权接入步骤
 
-使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。当前真实运维仍用已有Tailnet SSH；Workbench CLI已完成本地准备，真实连接结果以CHANGELOG证据为准；阿里云识别角色或返回授权拒绝，不等于ECS会话建立。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
+使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。既有Tailnet SSH保留；Workbench远程命令、文件收发与凭据续用分别验收，真实结果见CHANGELOG；仅识别角色或返回授权拒绝不等于ECS会话建立。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
 
-目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；专用RAM用户与角色按下面步骤准备。以下是已批准的操作策略，**批准不代表权限已经生效**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；LoginECSInstance资源按[现行官方安装手册](https://help.aliyun.com/zh/ecs/user-guide/install-and-configure-workbench-cli-credentials)使用instance/实例ID。技能的ecs/示例与该手册冲突，首次真实调用已在LoginECSInstance返回403/ImplicitDeny，不能继续沿用旧路径。修正后仍须实测，拒绝时不自动改为Resource=*。ChatMessages仅供内置AI，本轮移除，不加Resource=*或其他动作。运行身份不包含创建角色、全ECS或全Workbench通配权限。
+目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；专用RAM用户与角色按下面步骤准备。以下是已批准的操作策略，**批准不代表权限已经生效**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；LoginECSInstance资源按[现行官方安装手册](https://help.aliyun.com/zh/ecs/user-guide/install-and-configure-workbench-cli-credentials)使用instance/实例ID。技能的ecs/示例与该手册冲突，首次真实调用已在LoginECSInstance返回403/ImplicitDeny，不能继续沿用旧路径。当前instance限定的4动作策略下，真实exec已通过验证，证据见CHANGELOG；其他动作及文件收发仍须分别验证，拒绝时不自动改为Resource=*。ChatMessages仅供内置AI，本轮移除，不加Resource=*或其他动作。运行身份不包含创建角色、全ECS或全Workbench通配权限。
 
 ```json
 {
@@ -311,7 +311,7 @@ python3 /workspace/work/tools/workbench-cli/sts_provider.py --check
 
 首轮拟使用一小时STS，长期AK拒绝，剩余有效期必须4—65分钟。值由cece在环境设置的运行时变量BUMBUM_WB_STS_JSON安全填写，不发聊天/命令参数/仓库，不使用仅供HTTPS代理替换的secret占位符冒充本地签名凭据。本地配置文件只有profile、提供器命令和地域，不含密钥；实际提供器通过SDK子进程管道供凭据，不在setup保存长期AK。凭据缺失时就绪检查失败是明确未配置，不能写成已连接。
 
-安装/启动复用脚本及该运行时字段要求已保存到云环境草稿，**未发布、未填入值**；原应用脚本、网络和仓库声明保留。工具返回requires_publish=true，未来新环境采用该复用稿需要cece审核保存并发布，本轮按既有要求不发布。当前会话的CLI已装好，云授权仍是独立前提。
+安装/启动复用脚本及该运行时字段要求通过环境配置保存，真实秘密只由cece在安全界面填写；原应用脚本、网络和仓库声明保留。保存草稿时工具返回requires_publish=true，新环境采用复用稿须经cece审核保存并发布；目前已发布版本及后续修改边界按TODO/CHANGELOG核对，不自动再次发布。CLI安装、运行变量实际就绪、云授权和命令成功仍是不同前提。
 
 这只是一小时连接验证方案，不承诺自动续期。更新运行时变量后，旧守护进程不会自动继承新值；仅清理本次会话并核对其进程退出后再取新值，不关闭别人的会话，不依赖setup会话缓存。持续自动续期提供器是后续另行确认的方案，不在本轮新建MCP/凭据服务。
 
@@ -324,9 +324,13 @@ aliyun ram GetPolicy --PolicyType Custom --PolicyName BumbumCodexHzWorkbenchAcce
 
 第一条应包含上述操作策略；第二条读取Policy.DefaultVersion以及DefaultPolicyVersion.IsDefaultVersion/PolicyDocument。应核对默认正文是否真的包含完整instance/目标ID，不能只看版本标签。GetPolicy已经返回默认正文，无须Python解析或猜DefaultVersionId字段；报错先保留现场。将上面的完整JSON替换操作策略并设为默认，不改另一份AssumeRole策略或信任；新的默认正文与计划一致后才单次复验，不反复换路径或改为Resource=*。
 
+远程命令成功后，文件传输仍要单独检查。upload/download由CLI自动管理会话，不传仅exec支持的--session-id；只用显式profile、地域和固定实例。若PutObject在Codex→OSS阶段报TCP连接失败，保留脱敏错误并清理本轮公开临时文件，不改ECS安全组或自动加OSS/RAM权限。先核对受管代理兼容性，公共OSS端点能收到HTTP响应也不等于实际桶上传成功。禁止绕过代理、关闭TLS验证或把有签名的对象URL贴到聊天。
+
+STS即使在environment_status显示ready，也可能已到期；每次新操作前用提供器--check判断。检查不通过则停止新远程调用，先查时间/当前配置，不自行重签或重复发布环境。测试结束只定向关闭本次会话并停止本次专用daemon，不使用session close --all或清理他人进程；长期续期与运维首选通道按后续方案决定。
+
 ### 3.6.2 为什么评估替换现有Tailscale＋SSH
 
-目的是减少云端Codex连接ECS时需要维护的环节。采用Workbench CLI后的预期收益来自官方连接机制；当前仅本地准备通过，真实连接、传输和可用性仍待实测，不能先宣称它更快或更稳定。
+目的是减少云端Codex连接ECS时需要维护的环节。采用Workbench CLI后的预期收益来自官方连接机制；首轮真实命令连接已取证，文件收发、持续可用性及续期仍待验证；不能凭一次命令成功宣称它更快或更稳定。
 
 | 比较项 | 当前Tailscale＋OpenSSH | Workbench CLI的预期收益及条件 |
 |---|---|---|
