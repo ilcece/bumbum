@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-30 Workbench角色及精确信任配置获cece确认
+
+cece回复“角色与信任已配置”。其提供的签发用户认证管理截图显示ARN=acs:ram::1541265267012164:user/bumbum-codex-hz-issuer，与已批准信任主体一致；控制台访问启用、下次登录要求重置密码、MFA不要求且设备未绑定。无需改用户名/ARN，建议首次登录自管绑定MFA，不新增角色MFA条件。截图未显示AccessKey或授权列表，不能据此声称已核验无AK/无权限，也未展示角色信任原文；角色配置采用cece明确反馈。
+
+该角色创建待答关闭，接续给出两份既定自定义策略的创建及分别绑定步骤；尚无绑定完成反馈、STS或真实CLI连接。未修改云资源或发布环境。本次仅更新TODO/CHANGELOG与手册的用户说明，文档链接/JSON与git diff --check通过，未运行应用回归；README、产品/接口/表定义不变。
+
 ## 2026-10-30 Workbench签发用户创建获cece确认
 
 cece回复“签发用户已创建”，对应此前仅控制台访问、无AccessKey/无ECS权限的bumbum-codex-hz-issuer创建指引。记录为cece操作反馈，Codex没有管理凭据，未独立查询RAM或读取密码。该创建待答关闭，接续给出角色bumbum-codex-hz-workbench与精确用户信任配置步骤；角色/策略绑定、STS签发、真实CLI连接尚未通过，不提前关闭。现有Tailnet、ECS、RDS和环境发布状态不变。

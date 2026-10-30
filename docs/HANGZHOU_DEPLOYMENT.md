@@ -241,7 +241,7 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
 
 使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。当前真实运维仍用已有Tailnet SSH；Workbench CLI只完成本地准备，没有真实云会话。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
 
-目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；当前没有专用RAM身份。以下是已批准的操作策略，**批准不代表权限已经生效**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；Workbench动作的资源格式依官方技能给定，最终仍须云端验证，拒绝时不自动改为Resource=*。运行身份不包含创建角色、全ECS或全Workbench通配权限。
+目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；专用RAM用户与角色按下面步骤准备。以下是已批准的操作策略，**批准不代表权限已经生效**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；Workbench动作的资源格式依官方技能给定，最终仍须云端验证，拒绝时不自动改为Resource=*。运行身份不包含创建角色、全ECS或全Workbench通配权限。
 
 ```json
 {
@@ -261,13 +261,13 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
 }
 ```
 
-RAM将API约束到目标实例，不把root命令变成硬性只读；获准连接后仍遵守AGENTS的业务/数据/服务操作授权。本轮仅计划验证固定目标的公开身份、ready及新公开文件收发，云权限创建和实际调用尚未执行。Workbench服务关联角色如首次需要开通，由cece管理员另行处理，不给运行身份附加通用IAM创建权限；既有角色保留。
+RAM将API约束到目标实例，不把root命令变成硬性只读；获准连接后仍遵守AGENTS的业务/数据/服务操作授权。本轮仅计划验证固定目标的公开身份、ready及新公开文件收发，操作策略绑定及实际调用须继续分别核对。Workbench服务关联角色如首次需要开通，由cece管理员另行处理，不给运行身份附加通用IAM创建权限；既有角色保留。
 
 **签发身份已核对：** cece在Cloud Shell执行GetCallerIdentity，返回IdentityType=Account、Arn=acs:ram::1541265267012164:root。[AssumeRole官方说明](https://help.aliyun.com/zh/ram/developer-reference/api-sts-2015-04-01-assumerole)明确主账号不能直接调用。这个身份问题已经查清，不再重复查询，也不把主账号凭据交给Codex。
 
 **以下授权步骤已获cece批准，创建结果须由控制台实际反馈确认。** 新增一个专用RAM用户和一个角色，成功标准是只对上述杭州实例完成真实CLI只读连接。首轮只验证一小时临时通道，不引入MCP、长期AK或自动续期服务。Codex当前没有阿里云管理身份，故由cece完成控制台创建与绑定，Codex继续核对非秘密结果和连接验证，不重复请求同一范围的许可。
 
-1. cece在RAM控制台创建用户bumbum-codex-hz-issuer，仅启用控制台登录，不创建AccessKey，不授管理员或ECS权限。登录密码由cece保管。若该名称已存在，停止核对，不覆盖或重置。
+1. cece在RAM控制台创建用户bumbum-codex-hz-issuer，仅启用控制台登录，不创建AccessKey，不授管理员或ECS权限。登录密码由cece保管，保留首次登录重置密码要求；建议首次登录时自行绑定MFA验证器，当前不额外增加角色MFA条件或改变既定签发流程。认证管理页不能证明AccessKey或权限列表为空，应区分页面证据范围。若该名称已存在，停止核对，不覆盖或重置。
 2. 创建RAM角色bumbum-codex-hz-workbench，角色类型为阿里云账号；在绑定任何操作权限前，把信任策略改为下面的精确用户主体。创建向导若暂用本账号主体，先完成收窄再绑定权限，不能保留全账号信任。若角色名已存在，停止核对。角色最大会话时间设为3600秒。
 
 ```json
