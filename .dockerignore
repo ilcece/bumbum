@@ -1,6 +1,9 @@
 # 不把本机秘密、数据库备份和开发依赖送进构建环境。
 .git
 .venv
+.venv-browser
+.hangzhou
+**/runtime.env
 **/node_modules
 **/dist
 **/__pycache__
