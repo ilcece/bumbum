@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-10-30 按cece决定改为关闭电脑VPN直连，Workbench CLI准备完成
+
+cece明确要求访问杭州时关闭电脑VPN、使用实际直连公网IP。已按决定切换排查路线；此前短时443全来源探测提案取消、从未执行，不再推进VPN分流或同步抓包。关闭VPN后的api.ipify.org HTTP查询返回curl56 Connection reset，未取得直连IP；已停止该命令，请cece用浏览器查看阿里云IP查询的当前公网IPv4。当前待真实IP，未擅自沿用104.243.39.38或香港旧来源，也未修改安全组/Nginx。拿到后按本次明确授权更新既有两网页规则/32与管理白名单，再做实际直连验证；不将“决定采用直连”写成公网已通。
+
+cece提供[alibabacloud-workbench-cli官方技能](https://skills.aliyun.com/skills/alibabacloud-workbench-cli)。门户为客户端渲染，Codex从其公开raw SKILL.md及公开详情接口取得完整技能：版本0.0.1、内容标识e3a178f96f51f11a7a90dcf995d32a6d274b0cea，确认exec、文件传输和云授权方式。已说明使用该技能；此前未确认CLI的状态由本次正式资料替代，没有继续猜命令或使用不相关OpenClaw组件。
+
+先读取官方OSS安装脚本，支持--dir及归档SHA256强制校验；保留受管代理/CA，在当前Codex的/workspace/work/tools/workbench-cli/bootstrap-20261030独立目录安装。安装脚本SHA256=f84181df07db78635e828acc37c027dbf97eb01ca052c2154b6b5e866bc2f0ca，官方归档checksum通过；实际workbench v1.0.4、commit693d621、构建2026-10-13T06:49:24Z，bin/workbench SHA256=adec73b19422566b9cc5d69e2f460c4833a4f8ec8954c7b4f29af43eab68c02a。tar提示忽略macOS来源扩展头，安装成功退出0，未将该元数据警告当作校验失败。
+
+version与根/config/exec/upload帮助检查通过，实际v1.0.4包含7种凭据模式及connect子命令，比技能列出的基础模式更多，以实际帮助核对选项；未执行可能显示凭据的config get。仅检查Workbench/Aliyun配置文件存在状态均false，当前未配置身份或连接ECS，不能报Workbench通道通过；安装仅发生在Codex，不在ECS安装或改服务，也未发布环境。已请cece提供杭州实例ID、主账号UID及是否已有专用RAM/STS身份的非秘密状态，用于准备限定目标授权；不在聊天收发AccessKey、token、密码或私钥，不直接套用全资源权限示例。
+
+cece随后反馈阿里云IP查询页仅显示please enable mb_string extension，未取得直连IPv4。该错误属于站点侧应用报错，不要求用户在电脑安装扩展；已改为保持VPN关闭，在浏览器百度搜索“我的IP”，本轮不再追加命令或循环更换接口。安全组/Nginx仍未改动，待真实地址后按已授权范围同步。
+
+cece同时提供一份通用Codex Cloud的A/B/C接入建议作为背景，未提供实例ID/UID或已有身份状态，不把该回复当作这些问题已解决，也不自动视为批准新RAM/remote MCP/OOMOL/审计部署。复核本任务environment_status仍HTTP unrestricted/enforced、当前变量/secret/云身份均为空，CLI1.0.4版本仍正常；与材料中的“默认断网、仅setup有secret、无法保存任何本地配置”等通用描述分别对待。不能假设ALIBABA_CLOUD_*变量必被CLI实际入口采用，或setup后仅凭缓存会话/STS可持续工作；需验证实际配置与续期。材料的ecs-workbench:*不是本项目最小策略，API权限不等于Shell内容限制；ActionTrail实际API/字段与auditd告警/阻断也需区分，暂不新增这些组件。手册补上述适配边界；未读取凭据或修改环境草稿。
+
+手册3.6补实际CLI准备与后续授权/只读/公开文件验收边界，5.5简化为本轮直连步骤；过去细碎VPN查询/观察操作保留历史，取消的全来源规则不再列为待执行。TODO仅维护当前两条线；业务代码、接口、表结构、依赖、README里程碑与运行秘密未改，不重复应用测试。 文档19份298处链接、29段Bash语法及差异检查通过；Windows直连和Workbench实际云授权/执行仍待验证。
+
 ## 2026-10-30 Windows公网定向请求超时，等待安全组规则只读核对
 
 cece保持电脑VPN执行两条定向curl，用户域名及管理域名均curl28建立连接超时（约10秒），HTTP=000、remote为空；没有HTTP响应，不能认定为管理白名单拒绝、登录错误或证书问题。Codex随后通过既有严格SSH只读确认nginx/ssh/tailscaled/docker均active，Nginx监听0.0.0.0:80/443、后端仅127.0.0.1:15001，本机正常CA/域名验证的用户HTTPS仍200。
