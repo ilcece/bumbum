@@ -216,7 +216,7 @@ command -v iptables
 
 依据：[Tailscale netfilter模式](https://tailscale.com/docs/reference/netfilter-modes)、[CGNAT互操作说明](https://tailscale.com/docs/reference/cgnat-interoperability)及cece提供的工程师截图。这里的ECS防火墙兼容性与Codex代理拒绝公网IP是两层问题；修改ECS的netfilter模式不会解除代理的vpn_protected_destination限制。
 
-### 3.6 Workbench CLI运维通道（准备完成，授权待配置）
+### 3.6 Workbench CLI运维通道（方案已批准，授权待配置）
 
 按cece提供的[官方技能](https://skills.aliyun.com/skills/alibabacloud-workbench-cli)及其[SKILL.md](https://skills.aliyun.com/raw/skills/alibabacloud-workbench-cli/SKILL.md)接入。它支持不依赖实例公网IP的远程exec和通过OSS中转的文件收发，适合评估为Codex的运维入口；与Windows浏览器访问网站是两条独立路径。
 
@@ -229,7 +229,7 @@ command -v iptables
 
 CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主账号UID与现有RAM/STS身份状态，核对每项RAM操作的资源支持范围，再准备只允许目标实例执行/传输的专用身份；Describe等查询操作如需全局范围需单独说明，不能把技能中的Resource=*示例直接当成本项目批准策略。不使用主账号AccessKey；凭据由cece通过安全配置通道填写，不发聊天，不进入仓库、安装日志或命令参数。
 
-官方技能提供AK、STS/角色及凭证提供器模式；实际v1.0.4帮助还列出EcsRamRole和AliyunCLI。按当前环境真实可用身份选择，不读取元数据正文或借用未确认的账号。初始Workbench/Aliyun配置均不存在；现已由独占创建器写入600的无凭据bumbum-hz配置，已有配置不读取或覆盖。不运行可能显示凭据的config get，不索取或输出配置内容。新云权限及凭据接入方案先审核，当前不创建RAM身份、发布环境或改ECS配置。
+官方技能提供AK、STS/角色及凭证提供器模式；实际v1.0.4帮助还列出EcsRamRole和AliyunCLI。按当前环境真实可用身份选择，不读取元数据正文或借用未确认的账号。初始Workbench/Aliyun配置均不存在；现已由独占创建器写入600的无凭据bumbum-hz配置，已有配置不读取或覆盖。不运行可能显示凭据的config get，不索取或输出配置内容。专用用户/角色方案已由cece批准，可按下节配置；当前没有可用于创建身份的阿里云管理凭据，控制台步骤需cece操作。不自动发布环境或修改ECS配置。
 
 云端适配按当前环境证据核对，不能照抄通用默认值：本环境HTTP策略已启用且Workbench已实际下载；runtime变量/secret/云身份当前均未配置。会话内可保存权限受限配置，但不依赖新任务保留文件。setup阶段有凭据不保证agent阶段可继续取用；会话会关闭、STS会过期，缓存不代替后续取凭据或续期能力，也不能据环境变量移除就认定原始凭据没有被持久化。
 
@@ -237,11 +237,11 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
 
 授权就绪后先固定profile和cn-hangzhou，核对实例ID/公开身份，用无秘密的id/hostname/ready只读命令验收；通过后再用归属可核验的新公开文件做上传/下载哈希检查，拒绝覆盖已有文件。文件收发经OSS，不传真实运行配置、私钥、数据库备份或芯片秘密。不把关闭现有Tailscale或切换运维通道作为安装步骤；真实命令、文件传输、网络与凭据续用分别验证。
 
-### 3.6.1 首轮短期授权接入稿（尚未授予云权限）
+### 3.6.1 首轮短期授权接入步骤（已批准，尚未授予云权限）
 
 使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。当前真实运维仍用已有Tailnet SSH；Workbench CLI只完成本地准备，没有真实云会话。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
 
-目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；当前没有专用RAM身份。以下是候选操作策略，**只供审核，不是已经生效的权限**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；Workbench动作的资源格式依官方技能给定，最终仍须云端验证，拒绝时不自动改为Resource=*。运行身份不包含创建角色、全ECS或全Workbench通配权限。
+目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；当前没有专用RAM身份。以下是已批准的操作策略，**批准不代表权限已经生效**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；Workbench动作的资源格式依官方技能给定，最终仍须云端验证，拒绝时不自动改为Resource=*。运行身份不包含创建角色、全ECS或全Workbench通配权限。
 
 ```json
 {
@@ -265,7 +265,7 @@ RAM将API约束到目标实例，不把root命令变成硬性只读；获准连�
 
 **签发身份已核对：** cece在Cloud Shell执行GetCallerIdentity，返回IdentityType=Account、Arn=acs:ram::1541265267012164:root。[AssumeRole官方说明](https://help.aliyun.com/zh/ram/developer-reference/api-sts-2015-04-01-assumerole)明确主账号不能直接调用。这个身份问题已经查清，不再重复查询，也不把主账号凭据交给Codex。
 
-**以下为待cece批准的授权步骤，尚未执行。** 新增一个专用RAM用户和一个角色，成功标准是只对上述杭州实例完成真实CLI只读连接。首轮只验证一小时临时通道，不引入MCP、长期AK或自动续期服务。
+**以下授权步骤已获cece批准，创建结果须由控制台实际反馈确认。** 新增一个专用RAM用户和一个角色，成功标准是只对上述杭州实例完成真实CLI只读连接。首轮只验证一小时临时通道，不引入MCP、长期AK或自动续期服务。Codex当前没有阿里云管理身份，故由cece完成控制台创建与绑定，Codex继续核对非秘密结果和连接验证，不重复请求同一范围的许可。
 
 1. cece在RAM控制台创建用户bumbum-codex-hz-issuer，仅启用控制台登录，不创建AccessKey，不授管理员或ECS权限。登录密码由cece保管。若该名称已存在，停止核对，不覆盖或重置。
 2. 创建RAM角色bumbum-codex-hz-workbench，角色类型为阿里云账号；在绑定任何操作权限前，把信任策略改为下面的精确用户主体。创建向导若暂用本账号主体，先完成收窄再绑定权限，不能保留全账号信任。若角色名已存在，停止核对。角色最大会话时间设为3600秒。
@@ -314,6 +314,21 @@ python3 /workspace/work/tools/workbench-cli/sts_provider.py --check
 安装/启动复用脚本及该运行时字段要求已保存到云环境草稿，**未发布、未填入值**；原应用脚本、网络和仓库声明保留。工具返回requires_publish=true，未来新环境采用该复用稿需要cece审核保存并发布，本轮按既有要求不发布。当前会话的CLI已装好，云授权仍是独立前提。
 
 这只是一小时连接验证方案，不承诺自动续期。更新运行时变量后，旧守护进程不会自动继承新值；仅清理本次会话并核对其进程退出后再取新值，不关闭别人的会话，不依赖setup会话缓存。持续自动续期提供器是后续另行确认的方案，不在本轮新建MCP/凭据服务。
+
+### 3.6.2 为什么评估替换现有Tailscale＋SSH
+
+目的是减少云端Codex连接ECS时需要维护的环节。采用Workbench CLI后的预期收益来自官方连接机制；当前仅本地准备通过，真实连接、传输和可用性仍待实测，不能先宣称它更快或更稳定。
+
+| 比较项 | 当前Tailscale＋OpenSSH | Workbench CLI的预期收益及条件 |
+|---|---|---|
+| Codex环境重建 | 新环境若没有专用私钥，需要重新生成并请cece添加公钥；还要恢复Tailnet路径 | 使用RAM角色和短期STS，不再依赖ECS SSH私钥或authorized_keys更新；仍需安装CLI并取得有效STS，首轮手动签发不等于零配置 |
+| 网络路径 | 依赖Codex的Tailnet授权/代理、两端Tailscale和普通SSH服务；当前通道已经实测可用 | 通过阿里云服务与云助手建立会话，不要求Codex直连公网22或加入Tailnet；仍依赖官方API、WebSocket及ECS云助手，传输另需OSS网络可用 |
+| Tailscale与阿里云内网冲突 | 已按nodivert处理，仍需维护相关参数与路由 | 未来只采用Workbench的新实例可减少安装Tailscale的必要性；当前实例保留原配置，安装CLI不代表可以删除现有VPN或防火墙规则 |
+| 权限与有效期 | 服务器上的专用公钥通常持续有效，撤销需管理authorized_keys；另有Tailnet访问控制 | 可把云API权限集中限定到杭州实例，STS按小时过期；活动会话和已签发Token的撤销需分别核对。root执行能力仍然存在，不是Shell命令级只读 |
+| 管理与排查 | 连接记录分散在Tailnet、SSH及项目证据中 | 可用专用RAM身份区分Codex调用，结合阿里云操作审计核对；ActionTrail具体事件覆盖和命令原文是否保留须实测，不承诺完整命令审计 |
+| 文件收发 | 可经现有SSH受控传输 | CLI提供统一上传/下载入口，经OSS中转；是否需要额外授权及费用须按实际结果核对，不传秘密或备份，不能据安装成功认定传输已通 |
+
+现阶段代价是RAM身份配置、短期凭据填写和到期后重签。它不会解决Windows浏览器的VPN分流、管理白名单或公网DNS问题，也不替代RDS账号、TLS和数据库权限；检查RDS仍从ECS内网进行。新增阿里云服务依赖意味着云助手/API异常时也可能不可用，因此在真实exec、公开文件收发和凭据更新通过前保留现有Tailnet＋SSH作为可用通道。是否将Workbench作为日常首选，待真实验收后决定；生产迁移仍单独批准。
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 

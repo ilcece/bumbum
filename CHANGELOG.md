@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-10-30 Workbench专用身份与授权方案获批准，补录通道选择依据
+
+cece明确“按手册创建这两个身份并配置授权”，并要求说明/记录相比当前方案的优势。该批准授权手册3.6.1中的专用控制台用户、精确用户信任角色及既定5动作策略，不扩展其他实例、长期AK、自动续期或生产部署。实际环境状态observations_current=true，仍无runtime变量/secret/出站身份，未取得阿里云管理凭据；创建/绑定需cece控制台配合，已给第一步签发用户创建指引，尚无成功反馈，不能写成身份已建或云连接成功。
+
+手册3.6.2新增Tailscale/OpenSSH与Workbench CLI比较：减少新Codex环境SSH公钥重新登记、Tailnet路径和潜在网段冲突的维护；用精确目标RAM角色及短期STS管理连接授权，统一文件收发入口。同步说明云助手/API/WebSocket/OSS及临时凭据更新依赖、root仍可执行命令、审计覆盖和传输费用须现场核对；官方机制上的预期优势不代表实测更快/更稳定，不解决Windows网站VPN分流、白名单、DNS或RDS授权。现有通道保持可用，不更改ECS/RDS/网站、环境草稿或发布状态。
+
+本次仅更新杭州手册、TODO与CHANGELOG；README/操作入口继续适用，无产品、接口、配置结构或数据变化，不改业务代码。文档检查通过：19份文档、299个本地链接/标题定位及JSON代码框；git diff --check通过。未运行应用回归或真实云调用，远端文档分支与本地起点一致。
+
 ## 2026-10-30 Workbench CLI本地准备与候选授权稿完成，尚未真实连接
 
 cece提供杭州实例i-bp1cj6pt88wbxmhlsp1n、账号UID1541265267012164，确认没有专用RAM/STS身份，原三项参数待答关闭。根据官方技能和cece后续提供的CLI管理/外部Agent调用文档，明确本次产品为Workbench CLI、命令名workbench v1.0.4；浏览器Workbench和ali-instance-cli未混用，connect内置AI未启用。当前真正运维ECS仍使用已验证的Tailnet/OpenSSH，未报Workbench已连接。
