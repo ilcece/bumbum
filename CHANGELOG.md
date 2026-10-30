@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 GitHub认证恢复，精简交付后杭州生产后端启动并独立就绪
+
+GitHub当前绑定认证再次可用：gh auth status、API user返回ilcece，目标仓库pull/push/admin通过，实际git push成功；未读取/更改认证文件、未索取Token、未创建长期密钥。之前本地文档提交已补推。main实时仍为110a76c75265e37163eea9fdb8c77eedee223308。
+
+本轮排查的是SSH交付而非已知Workbench OSS SDK问题；原生OSS未使用环境代理的历史结论保持，未重开或宣称修复。SSH 1KB/64KB定长与64KB EOF均哈希通过，较大块在20—35秒内未完成；分段回报的256KB成功，1MB探测35秒收到622592字节后停止，证明“能执行命令/传小文件”不代表59MB整镜像能在原180秒上限完成，不归因为确定的EOF或RAM拒绝。停止重复整镜像上传，改为交付固定main本地镜像导出的全部/app内容：43文件、压缩248226字节，归档SHA256=54ca8f5b175311ad1ed7eac3ca803ca7e70651caec6d6fc84296bd7c26180b62，应用清单SHA256=5bd26a00e58915349fa9b49564eba3065c6098964eea4f8cdc47493557a218e7。另9478字节主线部署工具包同样完整接收并校验。只传公开构建产物，不含实际运行配置。
+
+杭州已验运行层内容ID=sha256:1f3cd78b524463d2089715b58a947c7f157e5c0e6c88ed4f22949f9c063f63dc，Python3.12.14；其requirements-deploy.txt与固定main哈希同为0c096be8cef21172887ecd1595babc564d7202aeb18f6b8e85a699da65e650cd。在杭州只做禁网COPY层组装、替换镜像内部/app、保持10001运行用户及日志卷可写，不安装依赖、不编译前端、不进行完整构建/压测。组装镜像ID=sha256:99031945142495044fcb86752f088473432dfdadde2856b4269669159b1f27b4，与外部原始镜像96c54ac不同，明确记录运行层来源，不混称原始镜像；组装后43个应用文件哈希与固定main构建产物完全一致。
+
+公开交付位置为/opt/bumbum-hangzhou/releases/110a76c75265e37163eea9fdb8c77eedee223308-assembled；从其中主线工具生成固定production/compose.json，经镜像内容、清单归属、秘密文件元数据和回环端口保护检查，通过--confirm-production启动生产后端。Codex独立HTTP复核production/test的/api/health及/api/ready均200，数据库ready，两容器healthy；监听分别127.0.0.1:15000及15001，测试保持原5f镜像。生产runtime权限600、临时维护认证文件不存在，内存现场1735MiB、available946MiB、swap64MiB（瞬时数据，不等于长期容量验收）。未启用正式Nginx、切DNS、创建生产管理员或执行公网验收；生产后端启动不等于完整正式上线。香港退出已完结，不再作为排查目标或待办。
+
 ## 2026-10-30 固定main镜像构建与生产独立运行配置准备
 
 实时公开GitHub API确认main仍为110a76c75265e37163eea9fdb8c77eedee223308；gh API认证返回401，不读取认证文件、不修改认证，公开仓库读取不受影响。从该完整提交的公开归档构建，构建上下文不含工作区本地.env/秘密。Docker镜像ID为sha256:96c54ac939d607ec2e39d0f5fd60cf7efc11f20068620b6cea6c80c0edf86803，版本标签固定main提交；前端及依赖构建成功，不以构建代替部署验证。公开镜像归档59132966字节。
