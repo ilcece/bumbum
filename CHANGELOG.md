@@ -6,6 +6,12 @@
 
 ---
 
+## 2026-10-30 Workbench两份策略分别绑定获cece确认
+
+cece明确回到“Workbench专用授权”并回复“两份策略已分别绑定”，对应BumbumCodexHzWorkbenchAccess给角色、BumbumCodexHzAssumeRole给签发用户。该绑定待答关闭，记录为cece操作反馈，不冒称Codex独立查询或真实权限验收。接续按已批准手册用专用RAM用户网页登录态申请3600秒STS，结果只在运行时配置安全填写，不发聊天；若页面要求AK、权限拒绝或必须发布环境则停止反馈，不扩大授权。
+
+当前environment_status为running/connected、HTTP unrestricted/enforced、observations_current=true，runtime变量/secret/出站身份仍为空，尚无STS或Workbench真实会话。仅同步本授权任务TODO及历史，不改变已完成GitHub Ops只读检查的范围或启动其实施；服务器/业务/环境发布均未改。文档链接/JSON及git diff --check通过，未运行应用回归。
+
 ## 2026-10-30 Workbench角色及精确信任配置获cece确认
 
 cece回复“角色与信任已配置”。其提供的签发用户认证管理截图显示ARN=acs:ram::1541265267012164:user/bumbum-codex-hz-issuer，与已批准信任主体一致；控制台访问启用、下次登录要求重置密码、MFA不要求且设备未绑定。无需改用户名/ARN，建议首次登录自管绑定MFA，不新增角色MFA条件。截图未显示AccessKey或授权列表，不能据此声称已核验无AK/无权限，也未展示角色信任原文；角色配置采用cece明确反馈。
