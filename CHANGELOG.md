@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 定位OSS上传未启用代理，按无人值守目标整理FC签发提案
+
+cece要求继续处理OSS代理兼容与STS续期，并明确必须无人值守；按工作日人工签发选项被该决定关闭。当前environment_status仍运行于新发布版本，变量ready只表示已注入，不恢复已过期的STS；未拿失效凭据重试云接口。
+
+只读解析已验证CLI的Go构建元数据确认OSS SDK v1.5.1，解析gopclntab并用objdump定位uploadToOSS：调用oss.LoadDefaultConfig，配置凭据/地域后调用oss.NewClient，未设置ProxyHost/ProxyFromEnvironment。核对同版本官方config.go/client.go/transport/http.go：LoadDefaultConfig只读OSS_SDK_LOG_LEVEL，不启用代理；自建Transport默认Proxy为空，只有显式ProxyFromEnvironment=true或ProxyHost才启用。该代码层证据与此前直连OSS拒绝一致，更新“是否忽略代理尚未确认”的待判断。下载路径虽使用net/http，因未真实测试不能套用上传结论。官方latest/checksums.sha256的linux-amd64归档仍为41ffee737fa6ae9dfea0d8a47ae2b06275b1ff202ad3e0b7efe8eeed8164a2ab，与当前固定release一致；未安装/替换工具、打二进制补丁或绕过代理。
+
+核对官方FC函数角色/Python上下文及STS文档：FC可提供函数执行角色临时身份；Python3.12上下文字段与旧运行时不同。当前平台无阿里云托管出站身份，现有CredentialsCmd只读静态JSON，无申请新凭据的来源；延长会话（官方最大12小时）也不等于无人值守。手册3.6.3给出具体待审核方案：受限公开小文件走既有exec作替代；新增单个FC函数、只可AssumeRole目标Workbench角色的执行角色、精确信任及代理注入的接口令牌，避免长期AK进入Codex；并明确接口令牌仍需保管/撤销、FC计费尚未核验、跨首份STS实际到期验证刷新、撤销与回退边界。无Cloud IAM/FC资源、令牌或新工具实现，未修改/发布环境草稿，不将偏好答复当新增云部署批准。
+
+本次仅同步杭州手册、TODO与历史，README/操作入口和产品/接口/数据库定义仍适用。文档链接/JSON、Bash语法及git diff --check通过，未重复应用回归或部署。
+
 ## 2026-10-30 Workbench真实连接杭州成功，OSS文件传输未通过
 
 cece提供GetPolicy结果确认默认v3，CreateDate/UpdateDate=2026-10-30T05:07:35Z，IsDefaultVersion=true，完整4动作均绑定acs:ecs:cn-hangzhou:1541265267012164:instance/i-bp1cj6pt88wbxmhlsp1n。相较此前v2，LoginECSInstance资源确已完成instance路径替换，原策略原文待答关闭。以同一STS（剩余1827秒）单次复验，在北京时间2026-10-30 13:08:33（05:08:33Z）Workbench v1.0.4 exec成功，CLI/远程退出码均0、stderr为空；instance_id匹配，root、hostname=iZbp1cj6pt88wbxmhlsp1nZ，/api/ready返回status=ok/data.database=ready。请求r-1793336913191452992，远端命令318ms。这是新环境经Workbench的真实连接证据，不沿用Tailnet结果，不代表整体性能对比。

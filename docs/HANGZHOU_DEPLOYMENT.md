@@ -343,6 +343,45 @@ STS即使在environment_status显示ready，也可能已到期；每次新操作
 
 现阶段代价是RAM身份配置、短期凭据填写和到期后重签。它不会解决Windows浏览器的VPN分流、管理白名单或公网DNS问题，也不替代RDS账号、TLS和数据库权限；检查RDS仍从ECS内网进行。新增阿里云服务依赖意味着云助手/API异常时也可能不可用，因此在真实exec、公开文件收发和凭据更新通过前保留现有Tailnet＋SSH作为可用通道。是否将Workbench作为日常首选，待真实验收后决定；生产迁移仍单独批准。
 
+### 3.6.3 OSS代理兼容与无人值守续期提案（待cece确认后构建）
+
+**目标与边界。** cece已明确必须无人值守自动续期。保留已通过的Workbench命令通道及目标实例4动作权限，不要求按小时手动签发、不创建长期AccessKey、不改变网站/ECS/RDS业务部署。以下新增函数计算签发入口、执行角色、信任主体、接口令牌及小文件传输工具，属于新增实施范围；目前仅完成只读核对和本提案，未创建云资源、秘密或工具实现，也不自动发布Codex环境。
+
+**OSS原因已取得代码层证据。** 已安装CLI v1.0.4静态构建信息包含github.com/aliyun/alibabacloud-oss-go-sdk-v2 v1.5.1。只读解析Go函数表及上传函数指令，可见uploadToOSS调用oss.LoadDefaultConfig，再设置凭据/地域后调用oss.NewClient，没有设置ProxyHost或ProxyFromEnvironment。与对应版本的[Config源码](https://github.com/aliyun/alibabacloud-oss-go-sdk-v2/blob/v1.5.1/oss/config.go)、[客户端源码](https://github.com/aliyun/alibabacloud-oss-go-sdk-v2/blob/v1.5.1/oss/client.go)及[HTTP传输源码](https://github.com/aliyun/alibabacloud-oss-go-sdk-v2/blob/v1.5.1/oss/transport/http.go)一致：LoadDefaultConfig不加载代理开关，只有ProxyFromEnvironment=true或显式ProxyHost才给自建Transport配置代理。仅设置HTTP_PROXY/HTTPS_PROXY不能改变这个上传路径。官方latest的Linux归档SHA256仍与现装release相同，因此本轮不盲目升级。未修改二进制、注入动态库、绕过受管网络或关闭TLS。
+
+**文件传输建议分开处理。** 原生upload/download的问题需官方CLI在上传客户端启用WithProxyFromEnvironment(true)或提供受支持代理设置；CLI业务源码模块为alibaba-inc.com/ecs-workbench/workbench-cli，本轮没有取得可构建源码，不能承诺本地编译修复。可先采用受限小文件工具，经已经允许的Workbench exec命令通道传公开文件，作为替代传输，不宣称原生OSS通道已修复。无需新增ECS端口、OSS权限、存储桶或公开入口；大文件继续保留现有SSH路径。
+
+小文件工具的最小实现范围：工具放Codex工具目录，调用固定Workbench路径、bumbum-hz/profile、cn-hangzhou和唯一杭州实例；默认单文件上限256KiB，16KiB分块，通过命令通道传输Base64编码的公开内容。首次只在新建专属临时目录做43字节及接近上限文件的双向测试，以本地/远端/回传SHA256一致作为成功标准。远端用Python标准库处理，拒绝符号链接和覆盖已有文件，使用专属暂存文件校验后提交；中途失败仅清理本轮可核验归属的文件。命令可能被运维审计记录，因此仅允许公开源码/公开构建素材及本轮测试文件，禁止.env、私钥、数据库备份、芯片资料密钥、管理员认证资料或其他秘密。该工具不授权部署代码、读取任意远程文件或把小文件限制扩成批量分发；不安装常驻远端服务。
+
+**自动续期建议使用一个函数计算签发入口。** 当前平台没有阿里云托管出站身份；既有CredentialsCmd仅重复读取一个静态STS，不能自行申请下一份。推荐在cn-hangzhou新增函数bumbum-codex-hz-sts，使用函数计算提供的HTTPS入口及函数RAM执行角色，在每次需要时向STS申请既有目标角色的临时凭据。这样不依赖Codex SSH密钥或Tailnet取凭据，也不把长期AccessKey放入Codex。官方[函数角色说明](https://help.aliyun.com/zh/functioncompute/grant-function-compute-permissions-to-access-other-alibaba-cloud-services)及[Python上下文](https://help.aliyun.com/zh/functioncompute/fc-3-0/user-guide/context-1)确认函数计算为配置的角色提供临时身份；Python3.12使用平台注入的ALIBABA_CLOUD_ACCESS_KEY_ID/SECRET/SECURITY_TOKEN，不能照抄旧运行时context.credentials。函数实现须使用对应运行时的官方身份来源，不跨请求持久缓存函数临时密钥，不输出这些字段。
+
+新增RAM执行角色建议名bumbum-codex-hz-sts-broker，可信实体为阿里云服务“函数计算”，具体信任正文在控制台核对，不手写猜测服务主体。仅给该角色绑定以下策略，不附加OSSFullAccess或管理员策略；平台首次开通FC/日志若另需服务关联角色，由cece管理身份核对，不扩大该运行策略：
+
+```json
+{
+  "Version": "1",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": "sts:AssumeRole",
+    "Resource": "acs:ram::1541265267012164:role/bumbum-codex-hz-workbench"
+  }]
+}
+```
+
+在既有bumbum-codex-hz-workbench角色的信任中，仅追加上述broker执行角色的精确ARN，保留现有签发用户，不改其4动作实例权限。执行角色实际ARN必须从控制台核对，不能用全账号root或通配Principal替代。现有控制台签发用户保留为应急方式，不创建其AccessKey。函数固定目标RoleArn、地域、实例及正式DurationSeconds=3600（仅验收部署配置固定900秒，不接受客户端选时长）；客户端不能提交其他角色/策略/时长，不提供任意云API或远程命令接口。
+
+入口采用HTTPS和应用层随机接口令牌认证。令牌由cece通过安全界面配置在FC侧及Codex受管代理secret中，不发聊天、源码或日志；Codex侧secret只允许实际FC入口的精确域名，不使用通配域名，客户端用占位符发起Authorization请求，由平台代理在该域名注入实际值。**没有长期AccessKey仍不等于没有长期认证资料**：此接口令牌必须可撤销、可轮换，泄露后可能取得目标实例的root运维能力。函数用恒定时间比较令牌，错误令牌返回401；仅接受固定方法和空参数，不跟随重定向，不输出请求头/令牌/STS响应日志，成功响应带Cache-Control:no-store。未核验令牌时不调用STS。
+
+Codex端继续使用CredentialsCmd，但提供器改为向固定HTTPS入口取新STS，校验目标角色元数据、UTC到期时间及结构，只把规范凭据JSON输出到CLI内部管道；--check仅输出可用性/有效期。SDK在需要刷新时重新执行命令，签发入口再取新STS，不再通过发布环境更换每一份小时Token。是否实际能跨过期刷新必须以验收证明；不能只因配置名是CredentialsCmd就宣布成功。失败时停止、不回退到主账号、长期AK或别人的profile，也不把响应正文写到临时文件。
+
+**资源及费用边界。** 一个FC函数、一个HTTP入口、一个运行角色及两侧接口令牌配置；不新增ECS/RDS/OSS桶、VPC/NAT、KMS或MCP服务。建议先按控制台允许的最小可用内存规格、最大并发1、超时10秒、预置实例0配置，短请求按需执行；实例内可缓存已取得的目标STS直到刷新窗口，但不得持久保存或日志输出。并发限制不是费用硬上限，实际计费/免费额度尚未核验，不承诺零成本；开通时核对收费提示并记录，若产生额外固定资源或无法使用按需模式先停下对齐。不先部署新日志/网关产品来掩盖实际成本。审计只记录请求ID、角色会话名、到期时间、结果码及耗时，不包含任何秘密。
+
+**执行顺序与分工。** 批准后Codex先在仓库外构建FC函数包、凭据提供器和受限传输工具，冻结依赖/校验和、完成离线验证；不夹带BUMBUM应用变更。cece用现有控制台/Cloud Shell管理身份创建精确角色和FC函数、绑定信任、配置令牌，Codex不索取其管理密钥。取得真实公开HTTPS地址后，先用受管代理验证缺少认证返回401，再配置该精确域名的proxy-secret及普通URL字段；需要保存/发布Codex环境时单独说明并按当时授权执行，不自动发布。之后才测试签发、真实命令和替代文件通道。若FC入口不能经受管代理访问，停止，不改用公网IP/绕过代理/临时开放ECS端口。
+
+**验收与退出边界。** 离线验证包含错误认证、非法参数、错误角色、过期/损坏响应及无秘密输出；线上先验证无认证401、合法请求仅给既定角色、固定杭州id/hostname/ready通过及公开文件双向哈希/中断清理。自动续期使用测试阶段900秒STS，跨过第一份的真实到期时间后，由同一运行CLI自动取得新STS并再次执行只读命令，期间不让cece重填值、不重启daemon伪装刷新；FC自身身份跨请求更新及冷启动也须验证，再固定为3600秒。测试结束只清理自己的文件/会话；敏感内容与业务库不参与测试。
+
+回退保留现有Workbench与Tailnet工具，停用新provider即可回原已验证路径。取消方案时先禁用FC入口/撤销接口令牌、移除本次新增的目标角色信任，再核对活动STS/会话的撤销机制；仅删除信任不等于已签发Token马上失效。只清理归属本任务的新FC函数和执行角色，不删除既有签发用户、Workbench角色、策略或业务资源。新的执行角色受信配置、费用、实际URL和Token安全配置均在实施记录中补证据，方案文档不放真实秘密。
+
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
 ### 4.1 在 RDS 控制台核对网络与权限
