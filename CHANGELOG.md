@@ -14,6 +14,10 @@ cece发布后明确要求继续核验。等待新环境ready，实际environment
 
 接续只读核对官方技能raw，仍写acs:ecs:<region>:<account-id>:ecs/<instance-id>；从官方CLI管理页找到现行安装凭据手册，后者明确实例资源为acs:ecs:<region>:<account-id>:instance/<instance-id>，且ChatMessages仅供内置AI。本次按现行手册修正同一目标资源并移除无用ChatMessages；不把资源写法不匹配直接等同已排除策略默认版本/绑定等其他可能。已请cece修改既有操作策略并设新版本为默认，待反馈后单次验证；签发策略、角色信任和STS不变，不扩大Resource或加EndSessions/通用IAM权限。记录该资料冲突及本次失败，原历史5动作/ecs格式不再作为当前执行规范。
 
+cece随后确认资源路径已修正、新版本已生效。提供器检查剩余2400秒，按该变化仅单次复验，CLI仍退出4、同一LoginECSInstance/AssumedRoleUser/Forbidden.Unauthorized/ImplicitDeny，未执行ECS命令；不能把这次修正写成授权已解决。cece接续截图显示策略当前v2，摘要中ecs-workbench标无效授权、未定义有效资源，ECS资源有一个或多个资源无匹配操作警告。摘要未给实际JSON和角色绑定，不能直接判定应换另一条路径或使用Resource=*。已请cece在主账号Cloud Shell只读查询ListPoliciesForRole、GetPolicy与默认版本GetPolicyVersion，当前待原文/错误；该查询不输出凭据、不改权限，Codex角色不新增RAM读取授权。停止登录重试、改路径与重签；现行安装手册的通用资源说明不足以证明这项动作实际支持范围，须继续按真实授权证据核对。
+
+cece随后提供三份原生RAM CLI查询，ListPoliciesForRole确认目标角色绑定BumbumCodexHzWorkbenchAccess/Custom，GetPolicy与GetPolicyVersion均确认默认v2、IsDefaultVersion=true；其第一条实际仍为LoginECSInstance + acs:ecs:cn-hangzhou:1541265267012164:ecs/i-bp1cj6pt88wbxmhlsp1n，ChatMessages已删除，第二条三项ECS动作为instance/目标ID。由此更新此前“路径已修正”的口头反馈：当前默认正文未完成计划的instance路径更换，不能把上一轮403当成instance路径已实测失败。接续提供完整4动作/instance资源JSON，待cece替换并设置默认、核对原文后单次复验；仍不扩大范围。此时--check剩余2038秒，无需重签。期间两份Python查询脚本分别因Cloud Shell Python3.6不支持capture_output/text参数，以及误用DefaultVersionId字段失败；前者未发查询、后者已作只读查询但未改权限。实际字段为Policy.DefaultVersion，GetPolicy还直接含DefaultPolicyVersion.PolicyDocument；手册保留原生CLI读取方式，后续不再猜字段。
+
 当前未验证exec、WebSocket、公开文件收发或续用；没有远程业务变更、ECS重启/恢复或发布。本轮仅修订手册/TODO/历史及本地非秘密策略候选，未改业务代码、依赖、数据库或秘密。文档链接/JSON及git diff --check通过，未运行应用回归。
 
 ## 2026-10-30 本次Codex工具环境配置发布获cece明确允许

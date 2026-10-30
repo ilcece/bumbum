@@ -249,12 +249,12 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["ecs-workbench:LoginECSInstance"],
-      "Resource": "acs:ecs:cn-hangzhou:1541265267012164:instance/i-bp1cj6pt88wbxmhlsp1n"
-    },
-    {
-      "Effect": "Allow",
-      "Action": ["ecs:DescribeInstances", "ecs:DescribeCloudAssistantStatus", "ecs:StartTerminalSession"],
+      "Action": [
+        "ecs-workbench:LoginECSInstance",
+        "ecs:DescribeInstances",
+        "ecs:DescribeCloudAssistantStatus",
+        "ecs:StartTerminalSession"
+      ],
       "Resource": "acs:ecs:cn-hangzhou:1541265267012164:instance/i-bp1cj6pt88wbxmhlsp1n"
     }
   ]
@@ -314,6 +314,15 @@ python3 /workspace/work/tools/workbench-cli/sts_provider.py --check
 安装/启动复用脚本及该运行时字段要求已保存到云环境草稿，**未发布、未填入值**；原应用脚本、网络和仓库声明保留。工具返回requires_publish=true，未来新环境采用该复用稿需要cece审核保存并发布，本轮按既有要求不发布。当前会话的CLI已装好，云授权仍是独立前提。
 
 这只是一小时连接验证方案，不承诺自动续期。更新运行时变量后，旧守护进程不会自动继承新值；仅清理本次会话并核对其进程退出后再取新值，不关闭别人的会话，不依赖setup会话缓存。持续自动续期提供器是后续另行确认的方案，不在本轮新建MCP/凭据服务。
+
+授权拒绝时先核对**实际绑定和默认策略正文**，不凭“编辑过”判断新路径已生效。在主账号Cloud Shell执行两条原生只读命令，不需要向Codex提供管理凭据：
+
+```bash
+aliyun ram ListPoliciesForRole --RoleName bumbum-codex-hz-workbench
+aliyun ram GetPolicy --PolicyType Custom --PolicyName BumbumCodexHzWorkbenchAccess
+```
+
+第一条应包含上述操作策略；第二条读取Policy.DefaultVersion以及DefaultPolicyVersion.IsDefaultVersion/PolicyDocument。应核对默认正文是否真的包含完整instance/目标ID，不能只看版本标签。GetPolicy已经返回默认正文，无须Python解析或猜DefaultVersionId字段；报错先保留现场。将上面的完整JSON替换操作策略并设为默认，不改另一份AssumeRole策略或信任；新的默认正文与计划一致后才单次复验，不反复换路径或改为Resource=*。
 
 ### 3.6.2 为什么评估替换现有Tailscale＋SSH
 
