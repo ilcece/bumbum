@@ -6,6 +6,417 @@
 
 ---
 
+## 2026-10-30 Workbench按当前限制接受收尾，授权纯文档整合main
+
+cece明确Workbench专用授权本轮结束、后续遇问题再处理，并授权整理文档审查合并main。原FC/信任扩展/接口令牌与小文件替代工具提案不再待批准，本轮未实施，不把接受现状写成文件收发或自动续期通过。手册将长提案移为历史备查引用，保留实际连接证据、限制、失效凭据处理及现有SSH路径；不新增云组件、不发布环境。
+
+合并前核对实际干净分支8996fd4及远端main=7270aec3e5641fc634afa25f658f9cd1dbc78c6f，main独有10提交、任务分支独有57提交。任务分支还含RDS/杭州部署适配代码及测试，用户本次仅授权文档整合；因此准备从最新main建立纯文档整合分支，不把这些代码一起合入。main新增的长期产品愿景、祈愿H5、五台山试点及其他会话工作保留；适配代码分支保留，不当作已合并无用分支删除。
+
+针对是否可弃用香港，按已记录现场和cece验收证据判断：杭州独立测试可用，生产隔离/容量、数据与必要秘密迁移、正式域名/公网及实卡验收、杭州续期/重启保留、RDS备份/PITR与独立恢复、观察与回退仍有缺口，尚不能立即停香港。手册6.2列接管门槛，本轮不现场更改或迁移；香港计费/退出时点不编造。跨项目实卡仍P2。
+
+纯文档整合从main@7270aec建立docs/hangzhou-ops-closeout，保留其全部产品/业务源码，选入README、TODO、CHANGELOG、管理员操作入口、总手册入口及杭州手册六份Markdown。文档检查通过：22份文档、332个本地链接/标题定位、JSON代码框、31段Bash语法及git diff --check；未运行应用回归、部署或生产操作。PRD/PRODUCT/API_CONTRACT/TECH_SPEC/schema和源码未变，原杭州适配代码/测试仍留源分支。实际PR与合并结果在交付中提供，不以本条审查记录冒充已合入。
+
+## 2026-10-30 定位OSS上传未启用代理，按无人值守目标整理FC签发提案
+
+cece要求继续处理OSS代理兼容与STS续期，并明确必须无人值守；按工作日人工签发选项被该决定关闭。当前environment_status仍运行于新发布版本，变量ready只表示已注入，不恢复已过期的STS；未拿失效凭据重试云接口。
+
+只读解析已验证CLI的Go构建元数据确认OSS SDK v1.5.1，解析gopclntab并用objdump定位uploadToOSS：调用oss.LoadDefaultConfig，配置凭据/地域后调用oss.NewClient，未设置ProxyHost/ProxyFromEnvironment。核对同版本官方config.go/client.go/transport/http.go：LoadDefaultConfig只读OSS_SDK_LOG_LEVEL，不启用代理；自建Transport默认Proxy为空，只有显式ProxyFromEnvironment=true或ProxyHost才启用。该代码层证据与此前直连OSS拒绝一致，更新“是否忽略代理尚未确认”的待判断。下载路径虽使用net/http，因未真实测试不能套用上传结论。官方latest/checksums.sha256的linux-amd64归档仍为41ffee737fa6ae9dfea0d8a47ae2b06275b1ff202ad3e0b7efe8eeed8164a2ab，与当前固定release一致；未安装/替换工具、打二进制补丁或绕过代理。
+
+核对官方FC函数角色/Python上下文及STS文档：FC可提供函数执行角色临时身份；Python3.12上下文字段与旧运行时不同。当前平台无阿里云托管出站身份，现有CredentialsCmd只读静态JSON，无申请新凭据的来源；延长会话（官方最大12小时）也不等于无人值守。手册3.6.3给出具体待审核方案：受限公开小文件走既有exec作替代；新增单个FC函数、只可AssumeRole目标Workbench角色的执行角色、精确信任及代理注入的接口令牌，避免长期AK进入Codex；并明确接口令牌仍需保管/撤销、FC计费尚未核验、跨首份STS实际到期验证刷新、撤销与回退边界。无Cloud IAM/FC资源、令牌或新工具实现，未修改/发布环境草稿，不将偏好答复当新增云部署批准。
+
+本次仅同步杭州手册、TODO与历史，README/操作入口和产品/接口/数据库定义仍适用。文档链接/JSON、Bash语法及git diff --check通过，未重复应用回归或部署。
+
+## 2026-10-30 Workbench真实连接杭州成功，OSS文件传输未通过
+
+cece提供GetPolicy结果确认默认v3，CreateDate/UpdateDate=2026-10-30T05:07:35Z，IsDefaultVersion=true，完整4动作均绑定acs:ecs:cn-hangzhou:1541265267012164:instance/i-bp1cj6pt88wbxmhlsp1n。相较此前v2，LoginECSInstance资源确已完成instance路径替换，原策略原文待答关闭。以同一STS（剩余1827秒）单次复验，在北京时间2026-10-30 13:08:33（05:08:33Z）Workbench v1.0.4 exec成功，CLI/远程退出码均0、stderr为空；instance_id匹配，root、hostname=iZbp1cj6pt88wbxmhlsp1nZ，/api/ready返回status=ok/data.database=ready。请求r-1793336913191452992，远端命令318ms。这是新环境经Workbench的真实连接证据，不沿用Tailnet结果，不代表整体性能对比。
+
+继续同一固定实例只读核对：nginx/docker/aliyun均active，bumbum-hangzhou-test-backend-1使用bumbum-hangzhou-backend:5f241753b70c992effec279c523935646ae11a4c，Up 13 hours且healthy；/opt/bumbum-hangzhou与test/compose.json均存在。未读取.env、私钥、芯片密钥、数据库备份或认证页面，未改业务/部署/DNS/RDS。现有4动作实例授权已覆盖本轮成功调用，不新增通配或其他权限。
+
+按已批准范围创建43字节公开测试文件，计划上传/下载及三方SHA256核对。第一轮测试脚本误将仅exec支持的--session-id传给upload，CLI退出1，不能记为真实上传网络失败；根据实际帮助移除该参数后第二轮真实upload仍退出1，PutObject报dial tcp 118.178.60.150:443 connect: connection refused，发生在Codex到OSS的上传阶段。未执行下载/哈希比对，不声称文件收发通过；未输出临时签名URL。两轮专属远端目录/tmp/bumbum-workbench-check.J4hAguFC、/tmp/bumbum-workbench-check.7K5ZvnT4及本地公开测试副本均已清理。定向关闭本次会话s-5ydh1i4ql8fo6tv5j成功，停止本次daemon退出0，不关闭他人会话。
+
+补充核对：HTTP_PROXY/HTTPS_PROXY及小写变量均存在，NO_PROXY未含aliyuncs.com或全局星号；通过继承代理且启用TLS验证对https://oss-cn-hangzhou.aliyuncs.com/做无凭据HEAD得到404。这证明该公共服务端点经代理可收到响应，不证明实际CLI对象存储桶端点或PutObject请求可达，也不足以确认CLI忽略代理。实际帮助未提供代理开关，config set仅支持agent/language/log_level，未改配置或安装新版本。静态构建元数据为go1.25.1、模块alibaba-inc.com/ecs-workbench/workbench-cli；环境名为go的可执行程序不支持go version，不将其当Go工具链，不为此安装软件。
+
+用户限额中断后要求继续，补充检查发现STS已不满足提供器剩余4—65分钟要求，停止新远程请求，不为未解决的OSS问题反复要求签发凭据。后续先评估CLI OSS代理兼容与凭据续期，不绕过受管网络，不扩大ECS安全组/RAM或发布环境。仅命令通道已验证，既有Tailnet/OpenSSH保留；文件传输、长期续用、审计覆盖和稳定性仍未验收。
+
+本次同步TODO当前结论、杭州手册的代理/凭据及分层验收边界和本历史；未改应用代码/依赖/表/秘密，README与操作入口继续适用。文档链接/JSON、Bash代码框语法及git diff --check通过；未重复应用回归或部署。
+
+## 2026-10-30 新发布环境STS实际就绪，Workbench首次真实登录返回授权拒绝
+
+cece发布后明确要求继续核验。等待新环境ready，实际environment_id尾号46c9a3b0、source_config_version尾号6ae4216111b881a18d302251a270a235，HTTP unrestricted/enforced、observations_current=true，BUMBUM_WB_STS_JSON状态ready。实际CLI v1.0.4与提供器校验和匹配原记录；--check通过，首次检查剩余2759秒。保留快照内分支docs/hangzhou-ecs-rds-plan与HEAD eb67baa及无凭据配置，未重新应用旧改动或发布。
+
+首次使用显式profile、地域、固定杭州实例、auth-type=none/root，计划仅执行id -un、hostname与本机/api/ready。CLI退出4，阿里云ecs-workbench.aliyuncs.com返回403、Forbidden.Unauthorized；AccessDeniedDetail识别AuthAction=ecs-workbench:LoginECSInstance、AuthPrincipalType=AssumedRoleUser、专用角色会话bumbum-codex-hz-workbench:bumbum-codex-hz-check、NoPermissionType=ImplicitDeny。仅输出脱敏错误，未显示STS/认证URL/诊断编码；未执行ECS命令，不是连接成功，也未据此归因安全组/VPN。认证拒绝后未重复登录。
+
+接续只读核对官方技能raw，仍写acs:ecs:<region>:<account-id>:ecs/<instance-id>；从官方CLI管理页找到现行安装凭据手册，后者明确实例资源为acs:ecs:<region>:<account-id>:instance/<instance-id>，且ChatMessages仅供内置AI。本次按现行手册修正同一目标资源并移除无用ChatMessages；不把资源写法不匹配直接等同已排除策略默认版本/绑定等其他可能。已请cece修改既有操作策略并设新版本为默认，待反馈后单次验证；签发策略、角色信任和STS不变，不扩大Resource或加EndSessions/通用IAM权限。记录该资料冲突及本次失败，原历史5动作/ecs格式不再作为当前执行规范。
+
+cece随后确认资源路径已修正、新版本已生效。提供器检查剩余2400秒，按该变化仅单次复验，CLI仍退出4、同一LoginECSInstance/AssumedRoleUser/Forbidden.Unauthorized/ImplicitDeny，未执行ECS命令；不能把这次修正写成授权已解决。cece接续截图显示策略当前v2，摘要中ecs-workbench标无效授权、未定义有效资源，ECS资源有一个或多个资源无匹配操作警告。摘要未给实际JSON和角色绑定，不能直接判定应换另一条路径或使用Resource=*。已请cece在主账号Cloud Shell只读查询ListPoliciesForRole、GetPolicy与默认版本GetPolicyVersion，当前待原文/错误；该查询不输出凭据、不改权限，Codex角色不新增RAM读取授权。停止登录重试、改路径与重签；现行安装手册的通用资源说明不足以证明这项动作实际支持范围，须继续按真实授权证据核对。
+
+cece随后提供三份原生RAM CLI查询，ListPoliciesForRole确认目标角色绑定BumbumCodexHzWorkbenchAccess/Custom，GetPolicy与GetPolicyVersion均确认默认v2、IsDefaultVersion=true；其第一条实际仍为LoginECSInstance + acs:ecs:cn-hangzhou:1541265267012164:ecs/i-bp1cj6pt88wbxmhlsp1n，ChatMessages已删除，第二条三项ECS动作为instance/目标ID。由此更新此前“路径已修正”的口头反馈：当前默认正文未完成计划的instance路径更换，不能把上一轮403当成instance路径已实测失败。接续提供完整4动作/instance资源JSON，待cece替换并设置默认、核对原文后单次复验；仍不扩大范围。此时--check剩余2038秒，无需重签。期间两份Python查询脚本分别因Cloud Shell Python3.6不支持capture_output/text参数，以及误用DefaultVersionId字段失败；前者未发查询、后者已作只读查询但未改权限。实际字段为Policy.DefaultVersion，GetPolicy还直接含DefaultPolicyVersion.PolicyDocument；手册保留原生CLI读取方式，后续不再猜字段。
+
+当前未验证exec、WebSocket、公开文件收发或续用；没有远程业务变更、ECS重启/恢复或发布。本轮仅修订手册/TODO/历史及本地非秘密策略候选，未改业务代码、依赖、数据库或秘密。文档链接/JSON及git diff --check通过，未运行应用回归。
+
+## 2026-10-30 本次Codex工具环境配置发布获cece明确允许
+
+cece明确“允许发布本次Codex环境配置”，替代此前对本次工具环境发布的暂停要求，不授权部署网站、切DNS或修改ECS/RDS。当前可用工具仅支持环境状态、草稿及元数据维护，没有产品发布接口；不调用技能禁止的prototype finalize接口，也不制造发布链接。需cece通过bumbum_ECS产品面板点击发布，成功后Codex检查真实配置版本、运行时变量有效期及只读CLI连接；目前没有发布完成证据，不声称已发布或重连。
+
+仅同步TODO和历史，未重写安装脚本/草稿或触碰STS值。文档链接/JSON与git diff --check通过；记录本地提交，前轮Git认证问题尚未处理，未推送。
+
+## 2026-10-30 Workbench STS签发与保存获确认，当前运行时仍未收到变量
+
+cece两次反馈“STS已签发、变量已保存”，按本人操作反馈关闭原签发待答，未索取/读取其STS响应。接续实际检查：Workbench v1.0.4正常，environment_status为running/connected、observations_current=true、HTTP unrestricted/enforced，但runtime_variables仍为空；单独运行sts_provider.py --check退出4，固定错误为缺少运行时变量BUMBUM_WB_STS_JSON。未执行无--check的提供器、未发起真实Workbench exec，不能判断ECS拒绝或云授权失败。
+
+cece进一步确认在变量弹窗填写并点“完成审阅”。只读取草稿非秘密元数据确认revision=3，该变量仍列pending_runtime_requirements、runtime_requirements为空，当前运行环境仍基于原已发布版本；未检查/输出用户填写的值。接续核验仍缺变量，下一步建议由产品面板发布工具环境配置并重连验证，受用户此前不发布指令约束，须先取得明确允许；不把发布Codex工具环境当部署网站，也不保证发布即可完成云认证。云环境技能明确配置保存可异步请求运行时更新，草稿保存不等于当前机器已应用；现阶段核对保存入口与变量生效，不重复创建IAM、重签STS或自行发布。STS有效期、实际角色身份与调用尚未独立验证。仅同步本任务TODO及历史，不改云环境草稿、ECS/RDS或GitHub Ops实现。文档链接/JSON与git diff --check通过，未运行应用回归。
+
+## 2026-10-30 Workbench两份策略分别绑定获cece确认
+
+cece明确回到“Workbench专用授权”并回复“两份策略已分别绑定”，对应BumbumCodexHzWorkbenchAccess给角色、BumbumCodexHzAssumeRole给签发用户。该绑定待答关闭，记录为cece操作反馈，不冒称Codex独立查询或真实权限验收。接续按已批准手册用专用RAM用户网页登录态申请3600秒STS，结果只在运行时配置安全填写，不发聊天；若页面要求AK、权限拒绝或必须发布环境则停止反馈，不扩大授权。
+
+当前environment_status为running/connected、HTTP unrestricted/enforced、observations_current=true，runtime变量/secret/出站身份仍为空，尚无STS或Workbench真实会话。仅同步本授权任务TODO及历史，不改变已完成GitHub Ops只读检查的范围或启动其实施；服务器/业务/环境发布均未改。文档链接/JSON及git diff --check通过，未运行应用回归。
+
+## 2026-10-30 Workbench角色及精确信任配置获cece确认
+
+cece回复“角色与信任已配置”。其提供的签发用户认证管理截图显示ARN=acs:ram::1541265267012164:user/bumbum-codex-hz-issuer，与已批准信任主体一致；控制台访问启用、下次登录要求重置密码、MFA不要求且设备未绑定。无需改用户名/ARN，建议首次登录自管绑定MFA，不新增角色MFA条件。截图未显示AccessKey或授权列表，不能据此声称已核验无AK/无权限，也未展示角色信任原文；角色配置采用cece明确反馈。
+
+该角色创建待答关闭，接续给出两份既定自定义策略的创建及分别绑定步骤；尚无绑定完成反馈、STS或真实CLI连接。未修改云资源或发布环境。本次仅更新TODO/CHANGELOG与手册的用户说明，文档链接/JSON与git diff --check通过，未运行应用回归；README、产品/接口/表定义不变。
+
+## 2026-10-30 Workbench签发用户创建获cece确认
+
+cece回复“签发用户已创建”，对应此前仅控制台访问、无AccessKey/无ECS权限的bumbum-codex-hz-issuer创建指引。记录为cece操作反馈，Codex没有管理凭据，未独立查询RAM或读取密码。该创建待答关闭，接续给出角色bumbum-codex-hz-workbench与精确用户信任配置步骤；角色/策略绑定、STS签发、真实CLI连接尚未通过，不提前关闭。现有Tailnet、ECS、RDS和环境发布状态不变。
+
+本轮仅同步TODO及本历史证据；操作仍沿用杭州手册3.6.1，README与产品/接口/数据库定义无需修改。文档链接/JSON检查与git diff --check通过，未运行应用回归或云API。
+
+## 2026-10-30 Workbench专用身份与授权方案获批准，补录通道选择依据
+
+cece明确“按手册创建这两个身份并配置授权”，并要求说明/记录相比当前方案的优势。该批准授权手册3.6.1中的专用控制台用户、精确用户信任角色及既定5动作策略，不扩展其他实例、长期AK、自动续期或生产部署。实际环境状态observations_current=true，仍无runtime变量/secret/出站身份，未取得阿里云管理凭据；创建/绑定需cece控制台配合，已给第一步签发用户创建指引，尚无成功反馈，不能写成身份已建或云连接成功。
+
+手册3.6.2新增Tailscale/OpenSSH与Workbench CLI比较：减少新Codex环境SSH公钥重新登记、Tailnet路径和潜在网段冲突的维护；用精确目标RAM角色及短期STS管理连接授权，统一文件收发入口。同步说明云助手/API/WebSocket/OSS及临时凭据更新依赖、root仍可执行命令、审计覆盖和传输费用须现场核对；官方机制上的预期优势不代表实测更快/更稳定，不解决Windows网站VPN分流、白名单、DNS或RDS授权。现有通道保持可用，不更改ECS/RDS/网站、环境草稿或发布状态。
+
+本次仅更新杭州手册、TODO与CHANGELOG；README/操作入口继续适用，无产品、接口、配置结构或数据变化，不改业务代码。文档检查通过：19份文档、299个本地链接/标题定位及JSON代码框；git diff --check通过。未运行应用回归或真实云调用，远端文档分支与本地起点一致。
+
+## 2026-10-30 Workbench CLI本地准备与候选授权稿完成，尚未真实连接
+
+cece提供杭州实例i-bp1cj6pt88wbxmhlsp1n、账号UID1541265267012164，确认没有专用RAM/STS身份，原三项参数待答关闭。根据官方技能和cece后续提供的CLI管理/外部Agent调用文档，明确本次产品为Workbench CLI、命令名workbench v1.0.4；浏览器Workbench和ali-instance-cli未混用，connect内置AI未启用。当前真正运维ECS仍使用已验证的Tailnet/OpenSSH，未报Workbench已连接。
+
+按官方ECS OpenAPI授权表分别确认DescribeInstances、DescribeCloudAssistantStatus、StartTerminalSession支持目标instance资源范围；候选策略仅5项动作，两条资源分别为技能给定的Workbench ecs格式及ECS instance格式，均收窄同一杭州实例。不授ecs-workbench:*、ecs:*、通用IAM或其他实例；Workbench资源格式最终需实测，拒绝时不自动扩大。服务关联角色首次创建留给管理员，不加到运行策略。候选操作/精确用户信任/签发策略、配置和验证摘要在/workspace/work/ecs-access/workbench-hangzhou；ram-policy.candidate.json SHA256=cb6cc818e82a404083328b12968388e26ca8ff77171dc157531f03b220378a1d，没有创建/授权任何云身份。
+
+核对CLI二进制的构建依赖为aliyun/credentials-go v1.4.13，并阅读其公开external提供器实现，确认process_command和规范小写JSON字段；采用规范输出/失败空stdout以避免无效JSON解析路径回显输入。提供器在运行时只接受临时STS及到期元数据，不回显真实值，不把长期AK写文件。四种缺失/损坏/长期AK/过期输入均拒绝且无凭据stdout，有效合成STS的--check仅输出就绪/有效期；实际CLI在禁用网络的独立容器中调用提供器成功，解析/profile无错，配置未缓存合成密钥，随后预期网络失败。共6项本地检查通过，不包含真实鉴权或ECS执行。两次前置失败属于容器映射用户无法读私有候选文件/二进制，改用仅含公开代码的只读测试副本后通过，候选私有权限保留；临时容器与测试副本已清理，验证摘要offline-validation.json保留。
+
+固定release/v1.0.4安装流程另行实测通过官方归档校验，归档SHA256=41ffee737fa6ae9dfea0d8a47ae2b06275b1ff202ad3e0b7efe8eeed8164a2ab；新规范工具路径/workspace/work/tools/workbench-cli/v1.0.4/bin/workbench，二进制哈希仍adec73b19422566b9cc5d69e2f460c4833a4f8ec8954c7b4f29af43eab68c02a。保留初始bootstrap，不覆盖其他工具。sts_provider.py SHA256=7f5aa091b12de9a4b95a0f2b43c7c914375ff5c5f8c01498d0b7a3e052ac4491，init_profile.py SHA256=2b95c40ef992d3479ac9b65ae6ed21f59260d9f64556cca6edaadba771868ef0。实际独占创建/home/agent/.workbench/config.json，权限600，仅含bumbum-hz/地域/读取命令，无密钥；重复初始化保留已有配置，未读取或覆盖。杭州云助手aliyun.service为active/enabled，仅通过既有SSH只读核对，未重装或重启云助手。
+
+结合云环境onboarding技能，读取当前草稿并保留原应用安装/启动内容，只增已实测固定CLI安装、无凭据工具及启动说明，声明运行时BUMBUM_WB_STS_JSON（无值），不使用代理secret注入占位符签名。保存已确认status=saved、requires_publish=true，草稿8b7953a7仍绑定当前环境；未发布、未提供/读取任何真实凭据，当前运行时字段仍缺。新环境采用需cece审核保存并发布，本轮遵守暂不发布要求；未重新执行原应用安装/测试或改变网络/仓库声明。
+
+cece补充Cloud Shell只读身份结果IdentityType=Account、Arn=acs:ram::1541265267012164:root，原公开身份待答关闭。AssumeRole官方约束主账号不能直接调用。手册据此补齐待审核方案：控制台专用RAM签发用户bumbum-codex-hz-issuer不创建AK，仅有指定角色AssumeRole权限；角色bumbum-codex-hz-workbench精确信任该用户、仅有目标实例5动作。优先使用官方OpenAPI Explorer网页登录态签发，链接来自AssumeRole官方文档，实际页面身份调用仍待现场核对；若要求长期AK或报拒绝则停止，不自动改用AK/主账号或扩大授权。候选信任和签发JSON已补齐，但未创建用户/角色、未绑定权限。首轮拟一小时STS验证，不冒称持续自动续期；角色云授权、实际exec/文件收发及后端WebSocket尚未通过。
+
+手册3.6.1提供可审阅操作/信任/签发三份策略、cece控制台步骤、运行时配置和撤销边界；TODO只保留当前缺口。无业务代码/依赖/表/运行秘密变化，README网站里程碑不变，不重复网站验收或应用回归。本轮文档检查通过：19份文档、299个本地链接/标题定位与JSON代码框，30段Bash语法、3份候选策略JSON及git diff --check；实际差异仅TODO、CHANGELOG和杭州手册。已重新读取操作入口与README，入口仍指本手册，无产品/接口/数据库定义变化，故不改PRD/API_CONTRACT/TECH_SPEC/schema。
+
+## 2026-10-30 杭州测试浏览器入口验收通过，hosts已清理
+
+cece对给出的浏览器验收整组回复“验收无误，hosts已清理”：按本机临时hosts将两测试域名定向杭州、确认浏览器远程地址47.98.19.79:443与正常证书后，使用独立杭州ilcece/BUMBUM-test登录，工作台显示、刷新保留会话、退出及用户/tap入口提示均按预期；本次两行hosts已移除并完成清理。以cece明确人工反馈为依据，未索取/读取密码、验证码、Cookie或二维码。此前来源更新、公网定向和浏览器/清理待答项至此关闭，不再反复要求连接验收。
+
+这次通过的是杭州独立测试的基础连接、HTTPS与浏览器入口/会话，代表性触碰业务/异常场景、CSRF专项、真实手机、容量、续期/重启保留、RDS备份/PITR及独立恢复仍按实际证据分别验收；不直接套用香港结论。生产迁移、正式DNS切换与香港退出未执行；当前对外网页仍仅允许已确认的电脑直连来源，不标成全部公网或手机可用。应用版本仍固定5f24175，源码/手册在当前任务分支，未合main或扩大部署。
+
+cece另明确电脑VPN采用规则分流，并提供本地Socks5端口2801的背景说明；记录为用户提供的客户端信息，未独立验证该端口或据此推断TUN/全局网卡状态。按目的地分流时，国外查询服务的出口不等于杭州目标来源；本轮已用关闭VPN后的真实111.192.247.76完成访问验收，不重开旧排查。该补充不替代Workbench所需实例ID/UID/身份状态，相关非秘密参数仍待答，未新增云权限。
+
+本轮只收尾文档：TODO压缩为当前阶段/剩余工作，README补杭州基础入口验收里程碑，历史保留本文件；现有操作入口、手册步骤、接口/技术规则、表结构及依赖仍一致，无程序或服务器改动，不重复已通过的应用测试。 文档19份299处链接及差异检查通过。
+
+## 2026-10-30 Windows关闭VPN后，杭州公网定向HTTPS通过
+
+cece确认现有两条安全组网页规则来源已更新，并按给出的关闭VPN步骤反馈：nfc-test.bumbum.cc/tap为user HTTP=200 remote=47.98.19.79，test.bumbum.cc/为admin HTTP=200 remote=47.98.19.79。命令保留正常TLS验证、通过--resolve仅定向本次请求；这是cece电脑实际公网访问杭州的证据，不再沿用Codex Tailnet/服务器回环结果代替公网。对应当前直连111.192.247.76与匹配的安全组/Nginx白名单方案已可用，之前应更早按实际直连来源推进；不继续切VPN模式、抓包或全来源提案。
+
+公网定向可达不等于浏览器身份/会话、业务、手机或DNS切换已通过。已给cece三组手册内浏览器验收：只在电脑hosts追加两测试域名到杭州（若有旧条目先停），刷新DNS并使用新隐私窗口；输入杭州测试密码前，通过F12页面远程地址47.98.19.79:443及正常证书确认目的地，再用ilcece/BUMBUM-test登录、刷新、退出及查看用户入口提示；无论完成/中止只移除本次两行并刷新DNS，反馈各项与hosts清理。未请求密码、验证码、Cookie或二维码，实际浏览器结果尚待反馈。手册将目的地核对简化为正常TLS与浏览器实际目标IP，必要时用已记录公有证书SHA256辅助；没有降低TLS验证或改认证方案。
+
+仅同步TODO、浏览器步骤及历史，服务器与私有配置、本轮已生效白名单和业务A/AAAA不再改动；README里程碑、接口/表结构、依赖及操作入口仍一致，无新程序代码或应用回归需求。Workbench CLI仍仅安装准备完成，身份授权未配置，原相关非秘密参数待答保持独立。 文档19份298处链接及差异检查通过。
+
+## 2026-10-30 取得真实直连IP，杭州管理白名单已更新
+
+cece在关闭电脑VPN后查询并反馈当前IPv4为111.192.247.76、北京联通；本次作为新取得的实际来源证据，虽与香港历史值相同，未从旧记录直接沿用。已请cece只编辑杭州既有80/443两条允许规则来源为111.192.247.76/32，保留优先级100及其他规则，不新增全来源；规则更新状态及Windows公网结果尚待合并反馈。
+
+Codex先严格SSH核对公开管理稿与已启用站点完全一致、现有allow104.243.39.38/deny all、链接归属正确且nginx -t通过/服务active，再用已核验d8e7589源码分别渲染旧/新IP并逐字核对旧稿，确认用户/代理稿不受影响。仅原子更新/opt/bumbum-hangzhou/test/admin.conf与/etc/nginx/sites-available/bumbum-hangzhou-test-admin.conf，原权限/属主保留。旧两稿及公开change.json存入/opt/bumbum-hangzhou/artifacts/d8e758944924d14ff81ace2873742165127fb2e3/direct-source-20261030-67g7r48g（admin.draft.before.conf、admin.site.before.conf）；新管理稿SHA256=3dc1898684fd3cd19d5562c54ff3008bb6bb1bce2f7f870ab9452e0eb5ca242e。
+
+实际nginx -t及reload成功，nginx仍active；allow为111.192.247.76、deny all保留。正常CA/域名验证的本机用户/tap=200、非允许来源管理/=403、TLS校验0，后端ready为database=ready。未重启服务或后端、未改RDS/私有配置、用户站点、Tailscale或A/AAAA。此结果证明配置生效与本机服务正常，不能代替cece允许来源的公网通过。
+
+已给cece在完成规则来源修改后、保持VPN关闭时的两条原HTTPS定向命令，要求将“两条来源已更新”与状态/目的IP或错误一并反馈，合并重复待答项，不再切VPN或重开观察。工作区仅同步TODO和历史；现有手册5.5.2步骤、README里程碑、接口/表结构及依赖仍一致，不重复应用回归。 文档19份298处链接及差异检查通过。
+
+## 2026-10-30 按cece决定改为关闭电脑VPN直连，Workbench CLI准备完成
+
+cece明确要求访问杭州时关闭电脑VPN、使用实际直连公网IP。已按决定切换排查路线；此前短时443全来源探测提案取消、从未执行，不再推进VPN分流或同步抓包。关闭VPN后的api.ipify.org HTTP查询返回curl56 Connection reset，未取得直连IP；已停止该命令，请cece用浏览器查看阿里云IP查询的当前公网IPv4。当前待真实IP，未擅自沿用104.243.39.38或香港旧来源，也未修改安全组/Nginx。拿到后按本次明确授权更新既有两网页规则/32与管理白名单，再做实际直连验证；不将“决定采用直连”写成公网已通。
+
+cece提供[alibabacloud-workbench-cli官方技能](https://skills.aliyun.com/skills/alibabacloud-workbench-cli)。门户为客户端渲染，Codex从其公开raw SKILL.md及公开详情接口取得完整技能：版本0.0.1、内容标识e3a178f96f51f11a7a90dcf995d32a6d274b0cea，确认exec、文件传输和云授权方式。已说明使用该技能；此前未确认CLI的状态由本次正式资料替代，没有继续猜命令或使用不相关OpenClaw组件。
+
+先读取官方OSS安装脚本，支持--dir及归档SHA256强制校验；保留受管代理/CA，在当前Codex的/workspace/work/tools/workbench-cli/bootstrap-20261030独立目录安装。安装脚本SHA256=f84181df07db78635e828acc37c027dbf97eb01ca052c2154b6b5e866bc2f0ca，官方归档checksum通过；实际workbench v1.0.4、commit693d621、构建2026-10-13T06:49:24Z，bin/workbench SHA256=adec73b19422566b9cc5d69e2f460c4833a4f8ec8954c7b4f29af43eab68c02a。tar提示忽略macOS来源扩展头，安装成功退出0，未将该元数据警告当作校验失败。
+
+version与根/config/exec/upload帮助检查通过，实际v1.0.4包含7种凭据模式及connect子命令，比技能列出的基础模式更多，以实际帮助核对选项；未执行可能显示凭据的config get。仅检查Workbench/Aliyun配置文件存在状态均false，当前未配置身份或连接ECS，不能报Workbench通道通过；安装仅发生在Codex，不在ECS安装或改服务，也未发布环境。已请cece提供杭州实例ID、主账号UID及是否已有专用RAM/STS身份的非秘密状态，用于准备限定目标授权；不在聊天收发AccessKey、token、密码或私钥，不直接套用全资源权限示例。
+
+cece随后反馈阿里云IP查询页仅显示please enable mb_string extension，未取得直连IPv4。该错误属于站点侧应用报错，不要求用户在电脑安装扩展；已改为保持VPN关闭，在浏览器百度搜索“我的IP”，本轮不再追加命令或循环更换接口。安全组/Nginx仍未改动，待真实地址后按已授权范围同步。
+
+cece同时提供一份通用Codex Cloud的A/B/C接入建议作为背景，未提供实例ID/UID或已有身份状态，不把该回复当作这些问题已解决，也不自动视为批准新RAM/remote MCP/OOMOL/审计部署。复核本任务environment_status仍HTTP unrestricted/enforced、当前变量/secret/云身份均为空，CLI1.0.4版本仍正常；与材料中的“默认断网、仅setup有secret、无法保存任何本地配置”等通用描述分别对待。不能假设ALIBABA_CLOUD_*变量必被CLI实际入口采用，或setup后仅凭缓存会话/STS可持续工作；需验证实际配置与续期。材料的ecs-workbench:*不是本项目最小策略，API权限不等于Shell内容限制；ActionTrail实际API/字段与auditd告警/阻断也需区分，暂不新增这些组件。手册补上述适配边界；未读取凭据或修改环境草稿。
+
+手册3.6补实际CLI准备与后续授权/只读/公开文件验收边界，5.5简化为本轮直连步骤；过去细碎VPN查询/观察操作保留历史，取消的全来源规则不再列为待执行。TODO仅维护当前两条线；业务代码、接口、表结构、依赖、README里程碑与运行秘密未改，不重复应用测试。 文档19份298处链接、29段Bash语法及差异检查通过；Windows直连和Workbench实际云授权/执行仍待验证。
+
+## 2026-10-30 Windows公网定向请求超时，等待安全组规则只读核对
+
+cece保持电脑VPN执行两条定向curl，用户域名及管理域名均curl28建立连接超时（约10秒），HTTP=000、remote为空；没有HTTP响应，不能认定为管理白名单拒绝、登录错误或证书问题。Codex随后通过既有严格SSH只读确认nginx/ssh/tailscaled/docker均active，Nginx监听0.0.0.0:80/443、后端仅127.0.0.1:15001，本机正常CA/域名验证的用户HTTPS仍200。
+
+只读主机防火墙：UFW inactive、iptables INPUT ACCEPT，无跳转到ts-input；nft的ts-input/forward链存在但未挂入主机INPUT，Docker FORWARD策略drop与本次本机Nginx入口不同，未据此改规则。未发现主机入站过滤解释本轮超时的证据，不宣称已排除云安全组、云防火墙/ACL或电脑VPN路径。
+
+Codex通过正常HTTP代理做有界公网补充探测，代理返回403 Destination forbidden（envoy），属于平台路径限制，停止该路径，不绕过代理、不改TCP授权；它既不证明杭州公网403，也不能代替cece公网可达验证。已请cece只读查看杭州ECS47.98.19.79所绑定安全组数量，以及入方向TCP80/443的允许/拒绝、授权对象与优先级，未要求新增规则或扩大范围。待规则反馈后再决定最小验证，当前不重启、清空配置或继续登录验收。
+
+cece随后回复没有，并提供选定安全组的入方向截图：仅ICMP-IPv4、TCP3389和22，均允许、优先级100、来源0.0.0.0/0；未见80/443。这与公网建立连接超时相符，但截图未展示全部绑定组，不编造安全组数量或排除电脑VPN。按已批准定向验证范围，已给cece新增两条最小规则的具体字段：先确认该组绑定杭州47.98.19.79，再以此前确认的电脑VPN出口104.243.39.38/32为来源，允许TCP443/443和80/80、优先级100，保留其他规则；若当前出口已变化先反馈。仅限电脑预验证，不开放所有来源/所有端口，不变更数据库、应用端口或SSH；实际添加及复测待cece反馈。
+
+cece随后确认“两条规则已添加”。Codex已请保持当前VPN，按同一两条HTTPS定向命令仅复测一次，反馈状态/目标IP或错误；添加反馈不等于公网已通。Codex添加后复核nginx/ssh/tailscaled/docker均active、80/443监听、后端仍回环15001且3306未监听，本机用户HTTPS=200、ready为database=ready；未重新探测已被平台拒绝的公网代理路径，若仍超时或403先保留结果，不继续盲改安全组。
+
+规则添加后的Windows定向复测仍是两条curl28（约10秒）、HTTP000、remote为空，未取得新的HTTP响应；不能以规则已添加报告判为生效或公网已通。已暂停继续改规则，先请cece保持VPN，在同一PowerShell使用curl.exe对api.ipify.org做一次有界公开出口查询，同时从杭州实例详情核对安全组绑定数量及443实际来源CIDR/允许拒绝/优先级。命令行与浏览器可能走不同代理或分流路径，这是待验证假设；出口查询也只代表该外部服务路径，不凭结果直接认定ECS连接源地址。未要求关闭VPN、扩大来源、抓包或启动新诊断监听。
+
+cece确认只有1个绑定组、共5条规则，443来源104.243.39.38/32、允许/优先级100；后续截图也显示80与443均按该来源、允许100保存，原3条保留。HTTPS出口查询返回Schannel CRYPT_E_REVOCATION_OFFLINE（0x80092013），属于Windows证书吊销检查不可达，与杭州TCP连接超时分开记录。未使用-k或关闭吊销校验；保持VPN后，同一curl.exe仅用HTTP查询该公开出口服务，返回104.243.39.38。该结果与授权值一致，但不能证明到境内杭州IP未被VPN规则分流直连，未将其直接认定为ECS连接源地址。
+
+为选择下一项最小验证，曾请cece提供VPN客户端、模式及本机代理入口，未索取订阅/凭据或配置。cece确认使用toline、“绕过局域网和大陆”；这提供境内地址可能直连、公开出口查询走代理的分流线索，但尚无到杭州目标的实际路径证据，不直接认定根因。
+
+按已授权连接排查范围，已给一次有界客户端模式对照：保持同一节点，只有界面有明确“全局/全部代理”选项才临时切换；在同一PowerShell仅执行一次原用户/tap定向HTTPS（连接10秒、总20秒上限），无论结果立即恢复“绕过局域网和大陆”，反馈输出与恢复状态；若无对应选项停止反馈，不试其他开关。已说明期间电脑其他应用也可能改走代理，请求本身只读、不登录；不修改TLS校验、安全组、服务器或DNS，不安装工具。200仅证明该模式下公网可达；超时或吊销检查错误按各自层次记录。无需继续寻找本机代理端口，实际模式切换/结果/恢复仍待cece反馈。
+
+cece第一次全局对照返回Schannel failed to receive handshake/错误35，HTTP000、remote为空，并确认原模式已恢复。相对原模式curl28，失败表现变化，不能单独证明请求已到ECS或根因已确认。Codex只读提取Nginx近期错误日志中的握手时间/来源/错误摘要，结果为空，未输出请求行/参数、认证头或正文；空结果不作为请求未到证据。两公有证书仍通过CA/域名校验、本机正常HTTPS200，Nginx active。
+
+只读确认目标已有tcpdump/timeout及eth0地址172.23.211.159后，在已授权连接诊断内先说明观察目标/范围/退出条件，使用现有CLI启动一次有界观察：北京时间2026-10-30 03:06:20开始，最长180秒、最多40条，eth0非混杂，仅筛本机443的TCP SYN/FIN/RST头部摘要，不存pcap或输出报文正文，不安装工具/新增脚本/监听/持久配置。已请cece在03:09:20前保持同一节点，短时全局模式执行一次带时间的原请求，立即恢复原模式并反馈；超窗不重跑。观察在03:09:20按180秒上限结束，退出124为timeout预期，捕获0、过滤接收0、内核丢弃0；未保存文件，工具进程随有界命令退出。尚未收到cece第二次请求时间/输出与恢复状态，不能将0条直接当作请求在该窗口未到或云端拦截的证明；已提醒超窗不补跑，先保留实际输出。
+
+2026-10-30上午恢复：environment_status仍为同一f0065b12环境、同一已发布配置6ae18f1e及revision1，current/running/connected，HTTP策略enforced；本机策略仍VPN配置/自动Tailnet可用、使用8088 CONNECT，未据配置单独认定连通。旧杭州专用密钥文件存在，仅核对存在与known_hosts公开指纹；用相同受支持路径严格SSH重新连接成功。09:34:51北京时间，nginx/ssh/tailscaled/docker均active，本机正常TLS用户HTTPS200、校验0，RDS ready，无tcpdump进程。未重开观察、重启或改配置；cece仅说继续，不能替代03:06窗口实际执行/恢复反馈，已重新询问该项，不将0条或继续指令当作通过。
+
+只读获取main新头29755cf3f24aaba09ce081a4b0dcda0bed1068a0，相对已审阅911bd22仅6份产品/路线文档变化，新增WUTAI_WEDDING_PILOT_PLAN，无应用/部署代码变化；AGENTS无新差异。保留main的新产品工作，未自动合并或覆盖。上轮2份未提交文档差异已逐项确认为本任务真实观察证据，继续在同一任务分支整理；手册补同步窗口先确认终端就绪、未执行窗口不作故障结论的边界。
+
+cece随后明确反馈“已错过”。因此03:06窗口没有同步客户端请求，本次0条不构成有效路径对照，不能用于推断云端/安全组拦截，原窗口执行与恢复反馈待答项已关闭。按现有手册改为先等Windows PowerShell和toline界面就绪，再开启同范围有界观察并发出单次请求，当前仅询问就绪状态，未重开观察或更改任何设置。
+
+cece回复Windows终端已就绪后，第二次使用同一现有工具/过滤范围开启09:39:14—09:42:14观察（180秒、40条上限）。cece在窗口内回复同一全局请求仍Schannel35、HTTP000，并确认恢复原模式；未包含Get-Date，客户端秒级执行时间未独立核实，只按问题发出和反馈接收范围对照。窗口结束timeout124，捕获/过滤接收/内核丢弃均0；没有遗留观察进程或报文文件。该范围内未见本机eth0/443连接头部，结合本机TLS通过，后续优先核对客户端/云公网入口；不能据此指定安全组、VPN或Nginx为确定根因。
+
+另对ECS出口做一次同服务公开IP查询，HTTP80与随后HTTPS443均curl7即时连接失败，未取得公网IP；未关闭TLS、修改DNS或改用元数据服务。出口查询失败与入站测试分开记录，不据此猜测公网绑定。
+
+已准备手册5.5.2待审核方案：先由cece核对目标公网IP/绑定；在双方就绪窗口，仅新增一条TCP443/443、允许100、来源0.0.0.0/0、唯一描述bumbum-hz-origin-probe，最多3分钟。保持原VPN模式、既有80/443窄来源及Nginx管理白名单，单次无凭据用户/tap GET，Codex仍仅观察有界TCP头；cece无论结果立即删除本次新规则并反馈删除状态，Codex没有阿里云改规则接口，不能自动撤回。该方案扩大临时HTTPS来源，按AGENTS第0节先审阅确认，不以原定向验证授权直接执行；当前仅成稿，未新增规则或重开测试。若全源仍无连接证据，停止重复改规则，转云入口/客户端路径核查。
+
+cece要求用大白话说明当前卡点，并建议Workbench CLI优化运维通道。已明确区分：Codex经Tailnet SSH→ECS已通、ECS→RDS已通、待解决的是Windows→杭州公网HTTPS；CLI优化不能代替公网浏览器入口验收。当前临时443全源方案仍待原范围确认，未因本次提问执行。
+
+只读核对[阿里云Workbench官方介绍](https://help.aliyun.com/zh/ecs/user-guide/connect-to-an-instance-by-using-workbench)，其明确为浏览器远程工具，支持公网/私网连接及文件管理；尚未据此验证独立CLI的具体产品/安装/授权。当前环境未发现aliyun/acs/wbx命令，公开文档检索尚未确认cece所指CLI；已请提供官方说明/下载页或无凭据命令名，未索取AccessKey、token或私钥，未安装其他Workbench/OpenClaw组件或改云权限、现有SSH通道。只记录候选方向，不写成已批准迁移或连接通过。
+
+同步TODO、手册5.5.1的HTTP000分层判断、最小规则操作与历史；其余文档、业务代码、运行秘密、A/AAAA及香港未改，不重复已经通过的应用检查。 文档19份298处链接及差异检查通过。
+
+## 2026-10-30 两测试证书齐备，杭州Nginx启用及定向技术检查通过
+
+cece反馈第二条TXT已保存。Codex确认同一Certbot会话仍等待，dns21.hichina.com和dns22.hichina.com均aa/NOERROR返回匹配本次值后才继续，nfc-test.bumbum.cc签发成功并退出0。公有证书CN/SAN匹配，Let's Encrypt YE1，SHA256为B5:69:C3:EA:F6:29:C7:F5:D3:81:60:34:98:51:D0:F8:6B:6F:8C:A6:3A:6F:2B:C3:AD:5D:FB:8E:8D:61:65:06，过期时间2027-01-27 17:35:29 UTC（北京时间2027-01-28 01:35:29）。两证书均通过系统CA链及verify_hostname验证；fullchain root/644、私钥仅核对root/600元数据，未读取私钥。仍为手动DNS，无自动续期通过证据。
+
+启用前首次稿件比较因误用test/public/admin.conf路径停止，未修改站点；只读核对源码及目录后确认公开稿实际位于test/admin.conf、user.conf、proxy.conf。三稿均与/etc/nginx目标一致，并与d8e7589源码按固定test域名/出口104.243.39.38渲染结果逐字匹配。仅一个包默认启用链接、conf.d为空、Nginx原屏蔽且inactive，静态index存在、后端ready正常。将包默认链接及其目标公开配置保留于/opt/bumbum-hangzhou/artifacts/d8e758944924d14ff81ace2873742165127fb2e3/nginx-initial-enable-20261030/default.link及default.conf；仅启用两个已核对项目链接、停用该默认链接。实际项目nginx -t通过后解除本次初装屏蔽，Nginx active/enabled，80/443监听，后端仍仅127.0.0.1:15001，3306未监听；没有重启后端、SSH或Tailscale。
+
+真实ECS回环使用正常系统CA及域名SNI验证HTTPS：用户/tap、/tap/items/1及实际JS资源200；管理接口、内部ready、登记回调与未知路径404，GET触碰验证405；管理页/管理接口/ready对非白名单回环均403；两站HTTP跳转301保留合成查询。13个请求断言通过，11个HTTPS请求均核对no-store/no-referrer/nosniff；未用真实触碰参数或读取真实访问日志。health/ready回环仍200，后端healthy、重启0、固定镜像ID不变，快照53.25MiB/256MiB、2进程，不作为容量通过证据。
+
+Codex另经正常CONNECT 8088/Tailscale到杭州443直接进行TLS域名/CA验证，用户/tap=200、管理/=403，收到公有证书指纹与ECS一致；没有新建监听或伪造来源，403为白名单拒绝的预期。公网DNS只读仍为test/nfc指香港47.242.24.84、nfc-test无A；未修改业务解析或香港。以上只证明云端回环及Tailnet路径，公网安全组/cece允许来源和浏览器登录未验证，不能报公网验收完成。
+
+已请cece在Windows保持VPN，执行两条curl.exe --resolve的只读公网定向预检，反馈状态/目标IP或错误；不改hosts、不登录、不关闭TLS验证，失败不自行扩白名单或安全组。手册5.5.1补公网预检、后续浏览器目的地/临时hosts/登录和清理边界，操作入口同步；TODO压缩为当前证据与待反馈，历史保留本文件。未改业务代码、接口、表结构、依赖或运行秘密，README里程碑及技术规则仍一致，不重复应用回归。生产迁移、域名切换、续期及真实业务另行验收。文档19份298处链接、28段Bash语法及差异检查通过，PowerShell命令待Windows真实反馈。
+
+## 2026-10-30 杭州管理测试域名证书签发通过，用户测试证书等待TXT
+
+cece确认更新TXT后，Codex先确认原交互会话仍在等待，直接查询dns21.hichina.com及dns22.hichina.com均aa/NOERROR、ANSWER=1，完整匹配本次值，才向当前Certbot发送继续输入。Certbot成功返回并正常退出0，test.bumbum.cc证书保存在杭州标准live目录。公有证书CN/SAN均为test.bumbum.cc，签发者Let's Encrypt YE1，系统CA链验证OK；notAfter为2027-01-27 17:29:38 UTC，即北京时间2027-01-28 01:29:38，公有证书SHA256指纹为1B:D9:22:0E:25:1B:23:F4:33:F4:C3:BE:73:D0:2E:D7:FA:1F:11:9E:2C:5A:94:C7:E0:B7:52:D7:10:69:95:04。仅查看公有证书及文件元数据，fullchain root/644、私钥root/600，未读取私钥内容。Certbot明确提示manual无认证钩子，因此不自动续期，不以成功签发或定时器当续期通过。
+
+随后新SSH连接在CONNECT层短暂返回503 Service Unavailable，第二域名的首次启动命令未到杭州。环境状态仍显示running/connected、VPN failure=null，此状态不能代替实际连通证据；未据此重启或改网络。再次使用同一受支持CONNECT路径进行有界只读诊断返回200，随后严格SSH及公有证书检查成功，证明连接已恢复，未发现需要cece修改ECS的证据。
+
+第一Certbot已退出后，正常发起nfc-test.bumbum.cc申请并停在其本次公开TXT提示处，未继续验证。已请cece在bumbum.cc下新增TXT主机记录_acme-challenge.nfc-test、默认线路/启用，保留其他记录，待两权威匹配再继续。第一张无需重签；第二张尚未签发，Nginx仍未启用、HTTPS/浏览器及续期待验收，不改A/AAAA或香港。
+
+另只读确认sites-enabled仍只有包默认链接；两项目公开站点稿保留独立域名/证书、管理出口104.243.39.38、仅路径日志及用户域名管理接口隔离，Nginx为masked/inactive、80/443无监听。仅更新TODO与历史，现有手册5.5、README里程碑、接口、表结构与依赖仍一致，不重复应用测试；文档19份297处链接及差异检查通过。
+
+## 2026-10-30 TXT权威生效，申请会话中断后受控重新申请
+
+cece确认新TXT已保存启用。Codex通过既有严格SSH及受支持CONNECT路径，直接查询dns21.hichina.com和dns22.hichina.com，两台均aa/NOERROR、ANSWER=1并返回上一申请的正确公开值，TTL600；记录确已生效，不再归因于控制台保存失败。恢复时原交互执行会话不可用，杭州pgrep未发现Certbot进程，目标fullchain.pem尚不存在；未读取私有日志、账号文件或私钥，也未删除锁或修改服务。
+
+核对中断现场后，使用既有ACME账号重新发起一次相同域名的正常CLI申请，成功停在新的公开TXT提示处，尚未继续CA验证。新值与上一值不同，已请cece只更新本次_acme-challenge.test记录，保存后再核对两权威；不把上一申请记录生效当成本次校验通过，不复用旧提示或并发运行Certbot。第二域名、Nginx启用、HTTPS与续期均未因此完成，业务A/AAAA及香港不变。
+
+同时只读获取main新头911bd22ab98d11465e22140a3d3a1d01da9f013b，相对已审阅c8abbee仅6份文档变化，新增PRODUCT.md及愿景/需求分工，应用及部署代码无变化。已阅读新增AGENTS分工规则，保持本任务分支独立，未合并或覆盖其他会话文档。仅同步TODO与历史，现有手册已覆盖会话中断检查；README里程碑、接口、表结构、依赖不受影响，无需重复应用回归。 文档19份297处链接及差异检查通过。
+
+## 2026-10-30 初次DNS-01因TXT缺失失败，停止并核对权威记录
+
+cece反馈Certbot账号已注册，test.bumbum.cc申请在继续后被CA以_acme-challenge.test.bumbum.cc TXT NXDOMAIN拒绝。Codex没有重跑签证、读取Certbot私有日志或修改DNS，先使用杭州现有resolvectl核对当前仍为该名称不存在；再用已有dig分别直接查询dns21.hichina.com和dns22.hichina.com，两台均带aa返回NXDOMAIN、ANSWER=0，SOA序列2026100918。此结果证明查询时权威记录不存在，不能仅归为本机缓存，也不据此断言cece未操作或控制台具体填错。
+
+已请cece核对云解析bumbum.cc下TXT主机记录_acme-challenge.test的保存/名称/状态；暂不重试或修改A/AAAA。手册补manual不会自动添加TXT、相对主机记录/默认线路、权威查询与失败停止步骤。后续准备好控制台后只安排一次受控重试，以当次新校验值为准，两权威答案匹配后再继续；不复用失败挑战值、不反复申请或关闭验证。旧公开校验值不作为后续执行依据。nfc-test证书尚未签发，Nginx保持原屏蔽状态。
+
+在缺失权威TXT的事实核对后，为避免再次提前继续校验，Codex使用已注册ACME账号，通过正常Certbot CLI的--force-interactive接管一次新申请，成功停在test.bumbum.cc的新公开TXT提示，未发送继续输入。无需读取账号文件或私钥；已给cece默认线路/TXT/相对主机记录及本次新值的控制台操作，明确不用再运行命令或回车。先前询问是否保存旧记录的待答项由新操作替代，当前等待新TXT保存后，两权威答案匹配才继续；值随当前会话，不写成长期执行常量。
+
+仅同步部署手册、TODO与历史，程序、运行秘密、域名业务解析及香港未改；README/技术规则/接口/表结构和依赖不受影响，不重复应用测试。 文档19份297处链接、28段Bash语法及差异检查通过。
+
+## 2026-10-30 杭州测试管理员设置完成，转入DNS校验证书
+
+cece反馈“账号已创建且副本已清理”。Codex通过既有应用身份只读事务，仅查询username/status/totp_enabled，返回ilcece/active/1；仅检查固定ECS导出文件的存在状态为false，未读取认证字段、真实二维码页面或秘密。账号设置完成不代表网页登录/CSRF及公网验收通过；不重复创建管理员或生成新运行秘密。
+
+两测试域名的fullchain.pem存在状态均false，Nginx仍masked/inactive。按已批准的保留香港解析路径，已给cece逐个运行Certbot手动DNS-01的两域名命令：test.bumbum.cc与nfc-test.bumbum.cc，联系资料/条款由cece在终端处理，私钥只在杭州本机生成保留；在DNS控制台只新增本次_acme-challenge.test及_acme-challenge.nfc-test的TXT值，保留既有TXT和A/AAAA，确认TXT生效后继续，成功后只清理本次值。待证书成功/错误或公开TXT协查，不在没有证书前启用Nginx，也不据Certbot定时器存在认定续期通过。
+
+只读预检：杭州到https://acme-v02.api.letsencrypt.org/directory的正常TLS请求返回200、newAccount端点存在，未注册账号或申请证书；域名NS为dns21.hichina.com及dns22.hichina.com。证书命令与TXT操作由cece继续，不把公共目录可达当成签证通过。
+
+本轮只同步TODO及历史，现有操作手册5.3.1/5.5仍一致，README里程碑、TECH_SPEC、接口/表结构、依赖及工具无需修改，不重复应用测试；未改香港、现有解析或main。 文档19份297处链接及差异检查通过。
+
+## 2026-10-30 杭州权限收敛完成，测试后端启动通过
+
+cece执行固定b220946维护工具反馈changes_applied=30，目标仍bumbum_hz_test、8.0.36、d8379dd3-cace-11f1-8fdd-00163e17e38a；应用账号只剩USAGE及目标库SELECT/INSERT/UPDATE/DELETE，初始化身份仅目标库ALL且locked=Y，两账号全局及系统表额外授权已撤回。客户端ECDHE-RSA-AES256-GCM-SHA384，前快照2ed10a14f6d9339bb9e9c53511ac3f63148a7dfccd3b56ba62702bfdca800e80，后快照228a9312138be375325d6ee545ad82ec6feb4c598a524211ec95adf37d630bc1；Codex按公开反馈结构化保存并重新计算一致。没有取得维护密码，不重跑收敛命令或初始化。
+
+Codex用既有应用配置独立只读确认相同目标、应用自身仅四项DML、实际TLS及database_ready=true后，通过固定5f24175源码的受保护start入口启动test。真实回环GET /api/health与/api/ready均200并返回no-store，ready为database=ready；bumbum-hangzhou-test-backend-1运行healthy、重启0、镜像实际ID仍1f3cd78b524463d2089715b58a947c7f157e5c0e6c88ed4f22949f9c063f63dc，归属固定test/compose.json。非root10001:10001、只读根、cap_drop ALL、no-new-privileges、128pids、256MiB内存/无额外交换及0.5核限制均核对。监听仅SSH及127.0.0.1:15001，80/443/15000/3306未监听；SSH/tailscaled/docker active。启动时后端约46.43MiB、2进程，宿主可用986MiB、根盘约30G可用；这是快照，不代表生产+测试并行容量或压测已通过。
+
+为完成独立测试管理员ilcece设置，scripts/hangzhou.py增加仅test的admin-create和export-qr，沿用固定镜像/清单、项目归属及运行检查，密码/验证码由cece在终端隐藏输入，调用已有Flask创建流程，不新增认证方案。受限页面由同一运行容器内存盘直接传到root自持700目录下600文件，固定来源/目标、拒绝覆盖和符号链接、失败不留部分下载文件，不经终端或日志；Codex未执行真实页面导出或查看其内容，实际真实页面操作仍由cece执行。临时无网络Python容器与合成页面验证真实tmpfs导出及链接拒绝，相关部署/原香港导出回归24项通过，6.11秒；源为合成文字，无真实验证器秘密，测试资源已清理。 页面读取进一步限制为2MiB+1字节，变更后8项相关检查通过；统一Docker环境选择器复用，保留代理/证书/注册表设置。杭州/登录手册补具体两终端设置与清理步骤，cece已确认Workbench文件管理可安全下载；管理员尚未创建，公网HTTPS、登录及业务未验收，香港、DNS及生产不变。
+
+仅修改部署工具和相关测试/手册，应用镜像与运行秘密不变；README里程碑、TECH_SPEC/接口/表结构及依赖仍一致，无需修改，不重复不受影响的后端/浏览器回归。 收敛后公开结果已存入b220946产物目录after-public.json并核验文件SHA256=aeed1f861dc3b70689c8443ab8a45e167ad27b7546741fa3cb421b31beb6010e。只读公网DNS现状为test.bumbum.cc和nfc.bumbum.cc仍解析47.242.24.84，nfc-test.bumbum.cc及admin.bumbum.cc未解析；杭州Nginx/Certbot尚未安装，下一步采用受控HTTPS定向验证而不直接切DNS。 文档19份297处链接、杭州手册25段Bash语法及差异检查通过。
+
+管理员工具交付：b66504ff558c0f044942d3b25ef13c24d0bbcc83已推送，源码归档SHA256=63204d458a1dfc72808731253c362ad892a7190ace0bebb02744259ad4103521，scripts/hangzhou.py SHA256=c85c075c987fd17179eb0607dbe5ab14f818ad847912d80b4bb8f38d87009662，严格SSH/SFTP传入并逐项一致，保留于/opt/bumbum-hangzhou/releases/b66504ff558c0f044942d3b25ef13c24d0bbcc83及artifacts同版本目录。最终部署/导出24项在统一Docker选择器后再次通过，3.69秒；目标端--help及部署check通过，secrets目录root/700、当时无已有导出副本，仅核对元数据。cece已确认Workbench文件管理可下载，已给两终端隐藏密码/验证码、受限导出、本地扫码与两端清理的完整步骤；实际创建结果待反馈，Codex未接触真实页面或验证器秘密。
+
+HTTPS依赖准备：先模拟确认仅新增10包、无升级/移除，确认Nginx及其配置原不存在后创建nginx.service屏蔽，安装nginx1.28.3-2ubuntu1.12、certbot4.0.0及依赖，下载1189kB、增加约4412kB。包配置因预期屏蔽而未能preset Nginx并明确跳过启动，dpkg成功完成，Nginx实际masked/inactive，80/443不监听；没有重启现有服务或容器。Certbot定时器由软件包安排，但尚无杭州证书/续期验收，不据此声明自动续期通过。安装后SSH/tailscaled/docker active，后端仍正常，阿里DNS保留；未改域名、白名单、Tailscale、数据库参数或业务秘密。
+
+只读获取远端main发现新头c8abbee99abf5c72a41506614d5a0049a198d3c9，内容为NFC文创祈愿H5 PRD及路线/文档分工；与fc7d740相比仅7份文档变化，应用/core/scripts/deploy/db/frontend及部署依赖无新业务改动。已审阅新增AGENTS分工规则，不将新产品线混入杭州工作；未合并/覆盖该新工作或自动同步分支，未来main整合须保留两边文档及TODO。杭州仍固定5f24175应用镜像，b220946维护工具和b66504f管理员工具分别记录。
+
+预发布模板修正：审阅发现管理HTTPS模板中的HTTP重定向段未显式使用安全日志，可能继承默认含查询参数的格式；在该段加入已有的仅记录时间/方法/路径/状态的日志配置，继续原样保留重定向参数，不改变路由、白名单或后端。真实临时Nginx/TLS/Gunicorn/独立MySQL允许与拒绝来源两组回归通过，21.59秒，合成HTTP查询保留在Location而不出现在访问及容器日志。仅使用合成资料；未访问香港/杭州真实日志或业务链接，未据模板缺口编造香港实际日志内容。此修正用于杭州待启用的公开配置稿，不重启业务镜像、启用Nginx或切域名。文档与差异检查通过，未重跑不受影响的后端/浏览器测试。
+
+HTTPS配置稿交付：提交d8e758944924d14ff81ace2873742165127fb2e3源码归档SHA256=471e67173564fc509acd9a915c3057ee92c204f1e81e099a829c375c92096b2b，管理HTTPS模板SHA256=cfd6d6d346be4cc96038dc6c806bef00380c448e569145aee2fc665345b2835f，严格SSH/SFTP传入后均一致，源码及归档位于同根releases/artifacts该版本目录。目标三个公开稿先精确匹配5f24175生成基线，admin.conf原稿备份到新产物目录admin.conf.before，再原子更新其HTTP安全日志；管理/用户稿仅复制到/etc/nginx/sites-available/bumbum-hangzhou-test-admin.conf及-user.conf，代理稿在/etc/nginx/bumbum-hangzhou-test-proxy.conf，拒绝覆盖已存在目标。没有创建启用链接，Nginx仍masked/inactive、80/443无监听，后端仍仅127.0.0.1:15001。手册5.5补保留A/AAAA的DNS-01初始签证、受控启用和定向验证分工；证书还未签发，未执行签证命令或对真实项目nginx -t，不以默认配置测试代替验收；手动DNS证书续期未通过，未来域名切换后须转webroot并实际dry-run。当前先等管理员创建/清理反馈，不并行要求cece进行证书操作。 文档19份297处链接、杭州手册27段Bash及差异检查通过。
+
+## 2026-10-30 维护身份方案获批，定向权限工具验证通过
+
+cece确认按第5.1.1节方案执行，随后确认bumbum_hz_ops已创建。cece隐藏输入密码的原生客户端VERIFY_IDENTITY只读预检返回bumbum_hz_ops@%、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、MySQL8.0.36；维护账号持实际公开清单中的静态全局权限及GRANT OPTION，未单列XA_RECOVER_ADMIN。应用/初始化授权与此前一致，三账号各仅Host=%且account_locked=N。未读取认证字段、真实配置或系统日志，创建不等于已收敛。
+
+新增core/rds_accounts.py，固定端点、维护身份、两个测试账号及已审阅资源/权限白名单；未知角色、授权选项、其他数据库/系统表及基础权限缺失均拒绝，不自动补权。只读入口返回规范化公开授权/锁定快照和计划；显式执行须确认测试库、固定UUID和已保存快照摘要，同时取得账号维护与初始化锁，使用普通查询协议定向撤回，每项后严格比对预期状态，最后锁定初始化身份。无GRANT、密码变更、删除账号、业务DDL或数据写入入口，失败保留已生效状态并释放锁，不自动重跑/回退；CLI强制验证CA/域名及实际TLS，密码只读操作者TTY隐藏输入，不加载应用秘密或原始异常。
+
+在既有夹具专属临时MySQL8.0.46内构造第二专属库及合成账号，维护权限模拟实际公开清单、不额外授予XA_RECOVER_ADMIN，完整30项定向撤回/锁定成功；应用保留DML可更新合成行、CREATE被拒绝，初始化登录锁定生效，已收敛状态无操作。错误UUID/旧快照、未知授权/角色/授权选项、其他库、基础DML缺失及中途合成1227均覆盖，失败后未补权、未继续下一项、已生效最小变更保留且锁空闲。11项通过，12.38秒；全部容器/合成身份随夹具清理，未在杭州执行权限变更或测试负载。没有为新维护模块重复不受影响的125项应用回归。
+
+cece原生反馈已结构化保存为公开基线，规范化SHA256=2ed10a14f6d9339bb9e9c53511ac3f63148a7dfccd3b56ba62702bfdca800e80；只含两账号授权、锁定状态及维护身份/实例标识，无密码。工具交付时再存杭州产物目录。手册补固定源码模块只读挂入既有5f24175镜像的预检/执行步骤；不改应用镜像、私有运行配置、schema、接口或依赖。维护身份只用于受控维护，不进业务容器。README里程碑、TECH_SPEC及操作入口仍一致，无需修改。实际杭州收敛、应用复核及长期启动仍待后续证据，不合main、不切DNS或香港。 文档19份296处链接、杭州手册22段Bash语法及差异检查通过。
+
+工具交付：源码提交b220946767b2ca4ed411192a21797b40b16759a3已推送同一任务分支，源码归档SHA256=a3c40b0edb03684cb822f54958c2938fded647f5bf4200df90d9a6adb2b6cc80，core/rds_accounts.py模块SHA256=7659c30530fb7b9b268fe7fb057ee98b1411850cbeabbb51a285b9cbc8559612。严格SSH/SFTP传入后逐项一致；源码保留在/opt/bumbum-hangzhou/releases/b220946767b2ca4ed411192a21797b40b16759a3，归档及before-public.json在artifacts同版本目录。公开基线文件SHA256=9828c97bfeaf482ff2096de1373ecc45d4d39bca6be70a7caa6141e02dd8dc34，目标端重新计算规范化快照摘要仍2ed10a14f6d9339bb9e9c53511ac3f63148a7dfccd3b56ba62702bfdca800e80。一次误建的空短提交目录已仅用rmdir移除，完整提交目录未覆盖其他内容。仅把该公开模块只读挂入既有已核验5f24175镜像，在无网络容器执行--help通过，原测试部署check通过；没有重建应用镜像、修改私有配置或启动服务。已给cece包含固定UUID/快照摘要的单次隐藏密码执行命令，实际杭州权限变更仍待JSON或错误，失败保留部分生效状态。文档链接、22段Bash及差异检查通过。
+
+## 2026-10-30 杭州权限收敛维护身份提案
+
+cece反馈杭州RDS当前没有高权限账号。既有两个普通身份不能完成其他账号的精确授权管理；依照官方账号类型和权限说明，将新增专用维护身份bumbum_hz_ops及定向收敛方案整理到部署手册第5.1.1节，提交给cece审阅。维护身份具有全实例管理能力，密码仅由cece自持，不进入应用/容器或交给Codex。拟保留应用账号四项目标库DML，撤回已核对额外库权限及两个普通身份的全局/系统表权限，并在初始化完成后锁定初始化登录；不改密码、表、数据、白名单或RDS参数，不动维护/内部/其他账号。创建及授权变更尚未确认、未执行，失败不自动重建或扩大授权。
+
+杭州现有库24表、四项结构、TLS及一次性进程内health/ready已通过的证据保持，长期后端仍未启动。已完成的镜像交付记录与TODO同步；本轮只补维护身份提案，不编写或执行撤权工具。README里程碑、TECH_SPEC最小权限要求、schema及操作入口仍一致；仅文档检查，不重复代码测试。
+
+## 2026-10-29 杭州RDS测试库初始化完成，修复时间戳元数据兼容
+
+cece运行已确认4faac3a镜像的受保护规则修正及初始化命令，反馈bumbum_hz_test、MySQL8.0.36、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、bumbum_hz_test_init@%、24表完整、其他对象0、utf8mb4/utf8mb4_unicode_ci、collation_changed=true及客户端ECDHE-RSA-AES256-GCM-SHA384。初始化成功，不再等待同一命令或重跑schema；此前1045未复现，但原因未确定。
+
+Codex随后以应用身份执行只读事务确认同一实例/库、24表、fashion/jewelry两个初始项目及初始化锁空闲，实际database_ready=false。分项为chip_project=optional、registration_source=ready、tap_event=unknown、view_grant=ready；只读核对触碰日志列、索引、外键及生效CHECK后，唯一已定位差异为scan_log.created_at非空，默认CURRENT_TIMESTAMP、EXTRA=DEFAULT_GENERATED，RDS explicit_defaults_for_timestamp=0。既有DDL未显式声明该列NULL，在此参数下产生非空元数据，旧识别只接受可空形式。没有读业务行、真实配置或系统日志，没有改表/参数或重新初始化。
+
+core/db.py仅兼容这两种已知时间戳可空形式，同时要求TIMESTAMP、自动当前时间默认且无ON UPDATE；错误默认值、固定时间、自动更新时间及未知类型/精度仍拒绝，其余生成表达式、索引、外键及CHECK保持严格检查。独立MySQL8.0.46中关闭该会话参数，修复前新增用例确实失败并复现unknown；修复后迁移/恢复、触碰、统计、RDS TLS及部署保护专项125通过、1跳过，61.55秒。跳过项是需显式RUN_DB_TESTS的现有本机真实库检查，未连接既有库；7个新增场景覆盖参数开/关、普通更新不改变事件时间和5种未知定义拒绝。使用夹具专属临时库/合成资料并自动清理，不在杭州运行测试负载。
+
+阿里云官方账号权限列表确认“仅DML”预设包含临时表、事件、触发器、PROCESS及复制等额外权限，与现场SHOW GRANTS一致；此前将该预设等同四项DML的手册表述已纠正。官方普通账号权限修改文档支持SQL精细授权及DMS自定义管理；原有账号文档确认高权限维护身份可管理普通账号，普通账号不能自行管理其他账号。手册加入原始来源及边界，已请cece仅反馈是否已有可用、自持密码的高权限账号，不自动创建、重置或撤权，也不将维护身份放入应用配置。
+
+本轮只修正结构识别及测试，同步TODO、部署手册和技术附录；表定义/迁移、接口、业务规则、依赖和秘密方案不变，README里程碑及操作入口仍一致，无需更改。未重复不受影响的完整后端/浏览器回归；新镜像交付及杭州复核结果另记，后端、管理员、Nginx/证书和业务验收仍未完成。香港、DNS与生产未改动。
+
+交付及现场结果：源码修复提交5f241753b70c992effec279c523935646ae11a4c已推送同一任务分支，构建镜像bumbum-hangzhou-backend:5f241753b70c992effec279c523935646ae11a4c；构建配置SHA256=87d36b9b64705b235779a505a4f2573cf4236613677158bb58eefa757f064168，源码归档SHA256=05e712ec89be517ddc3f22807a8dac4d295ec1f148856fcaaf19f873975fc2fb，镜像归档SHA256=4e8c2b52b5be3185058ade3e8fcd553aeb66d0a1425382de6c2bbf3e49dcc4d5。严格SSH/SFTP传输后哈希逐项一致，分别保留于/opt/bumbum-hangzhou/releases/5f241753b70c992effec279c523935646ae11a4c及artifacts同版本目录。杭州存储转换后镜像ID为sha256:1f3cd78b524463d2089715b58a947c7f157e5c0e6c88ed4f22949f9c063f63dc，导出清单引用配置内容SHA256与构建端一致，来源提交匹配；完成证明后才固定目标ID。精确匹配旧4faac3a公开清单并备份到新artifacts目录previous-compose.json，再原子更新固定测试清单的镜像标签/ID；部署check通过，私有配置正文未读取或修改。
+
+新镜像一次性应用进程使用既有配置，只读复核同一实例、bumbum_hz_test@%、24表完整、fashion/jewelry项目及四项结构检查全部通过，database_ready=true，客户端ECDHE-RSA-AES256-GCM-SHA384；RDS时间戳参数仍0，未执行DDL或修改数据。真实Flask处理函数在该一次性进程内health/ready均200、ready返回database=ready；没有监听端口或启动长期服务，不能当作Gunicorn/回环HTTP、公网HTTPS或业务验收。临时容器自动删除。应用权限收敛仍待维护身份状态，管理员/Nginx/证书、DNS和香港迁移未推进；无main合并或环境草稿发布。文档19份296处链接及差异检查通过。
+
+## 2026-10-29 新Codex环境接续与RDS空库排序规则修正
+
+cece已保存600权限独立测试运行配置，新测试管理员名ilcece；该配置不等于管理员账号已创建。只读初始化检查因实际utf8mb4_0900_ai_ci与约定utf8mb4_unicode_ci不同而停止。Codex随后提供的PREPARE包裹ALTER DATABASE写法在该RDS返回1295，报错位于PREPARE且命令以&&连接，排序规则修改和后续建表均未执行；这是所给操作的兼容性问题，不要求cece删库、重建账号或重跑秘密生成。旧环境在文档写入/检查期间offline，未确认完成的文档不作为已提交证据。
+
+cece发布新环境并明确继续后，实际实例改为ccarenv_b64_Y2NhcmVudl9mMDA2NWIxMjQ4Mzg4MTkxYjhkM2VjOWZiODcxZjhiNw，启动完成后current/running/connected；策略仍vpn_configured和automatic_tailscale_access为true，显式TCP列表空。工作区是干净的work@fc7d740，远端杭州分支仍d5ec5b5，因此获取已有分支接续，未重放已完成代码/安装或修改环境草稿。旧杭州私钥不存在，为新实例建立专用身份，仅提供公钥，由cece追加并确认。通过CONNECT/Tailscale再次严格匹配控制台指纹SHA256:h62A/DKvJNUEfg453gUR/d427aSUsPmNVRUQtAhIexQ后公钥登录成功，root及主机名吻合，ssh/tailscaled/docker active，测试runtime.env仍600；不读取私钥/配置正文或沿用旧实例VPN状态。保存公开主机记录前按预期指纹验证，初次KnownHostsCommand因非绝对程序路径拒绝，改用绝对路径后验证及登录成功，未关闭严格主机校验。
+
+使用既有应用认证入口再次执行只读元数据事务：bumbum_hz_test、8.0.36、server_uuid=d8379dd3-cace-11f1-8fdd-00163e17e38a、bumbum_hz_test@%、utf8mb4/utf8mb4_0900_ai_ci；可见表/过程/触发器/事件计数均0、初始化锁无持有者，客户端TLS为ECDHE-RSA-AES256-GCM-SHA384。未读业务行或秘密值、未写数据库，一次性容器自动清理。此时仍未启动业务后端，香港、DNS、私有配置与已安装软件均保留。
+
+修正core/rds_database.py，增加显式--normalize-empty-collation，生产目标在请求密码或连接前拒绝；仅允许已确认空测试库的0900到unicode默认值修正，初始化身份、TLS/版本、实际UUID、空对象及初始化锁检查完整保留。使用普通COM_QUERY执行固定ALTER，未知字符集/规则和已有对象拒绝；可与原--initialize-empty合并，一次隐藏输入密码，建表前再次验证。成功JSON补充实际字符集/规则，MySQL异常仅显示数字编号，不输出秘密或原始SQL。真实临时MySQL专项24项通过，覆盖错误实例、含合成数据的非空库拒绝并保留数据、正确空库修正、重复无改动、生产拒绝、24表及ready；补充生产CLI在密码/连接前拒绝1项通过。手册、TODO及历史同步，本轮不重复不受影响的600项后端/浏览器回归；原API、表定义、依赖及运行秘密未变。文档与差异、Bash示例检查通过，实际RDS修正与初始化仍待修正版交付后的cece终端执行证据。
+
+修正版交付：源码提交4faac3ad48a7b822298f914ed464e48ca6df03e2，镜像标签bumbum-hangzhou-backend:4faac3ad48a7b822298f914ed464e48ca6df03e2。构建配置SHA256=5f675f19c4eaa5a30e64ec81c03ccb1d1baa9d5e239395d652a24d67b7e5838a，源码归档SHA256=81d365f70c3ec667aafaa9ae8812e1339072b8532b9cee311e01ce21917d372f，镜像归档SHA256=b6589df714f357aa9568ff91de41be2867139dbb6b02916365c98d55a7d30474；经严格SSH/SFTP传入后逐项核验。源码及产物分别保留在/opt/bumbum-hangzhou/releases/4faac3ad48a7b822298f914ed464e48ca6df03e2与artifacts同版本目录。杭州容器存储转换后的实际ID为sha256:fb0a87f0ae64144d51f3b7b3039e1a1705cb21787a227b8505b57b8ec07c9568，导出清单所引用配置的内容哈希与构建端完全相同，来源提交一致后才固定该ID；未跳过内容证明。原测试公开清单精确匹配已确认的旧配置后，备份到新artifacts目录previous-compose.json，再原子更新原固定路径的镜像指向；未重建或读取私有配置正文。部署check通过，杭州无网络临时容器实际运行--help确认新选项存在。已给cece仅输入一次初始化身份密码的命令，排序规则修正、24表创建及后端启动仍以之后实际结果为准；环境草稿、香港、DNS、生产库与其他软件均未改动。
+
+修正版执行后，cece反馈MySQL错误1045，工具已停止且未输出秘密或原始SQL。Codex未自动重跑初始化；再次严格校验SSH身份连接杭州，ssh/tailscaled/docker active，运行配置仍为root/600，部署check通过且无运行中的业务容器。应用身份的只读元数据事务返回同一目标UUID、bumbum_hz_test@%、utf8mb4/utf8mb4_0900_ai_ci、可见表0、初始化锁空闲、客户端TLS为ECDHE-RSA-AES256-GCM-SHA384。元数据可见性受该账号权限限制，不能替代初始化身份的完整对象检查，也不能仅由1045认定密码错误。手册新增不指定业务库的原生客户端只读登录及SHOW GRANTS诊断，由cece隐藏输入初始化账号自己的密码；待反馈后再区分账号状态、目标库权限或客户端差异。应用账号、私有配置、香港、DNS及生产库均未修改；24表创建、后端启动和管理员创建仍未完成。 本轮只同步部署手册、TODO及历史；README里程碑、操作入口、TECH_SPEC和接口/表定义仍一致，无需修改。19份文档296处链接、杭州手册20段Bash示例语法及差异检查通过；没有业务代码改动，不重复后端回归。
+
+后续cece反馈原生MySQL客户端authentication_ok=1、bumbum_hz_test_init@%、8.0.36，SHOW GRANTS确认目标库ALL权限；该次登录成功，不再把初始化账号整体不可用或缺少目标库授权当作已确认原因，先前1045原因仍未定位。授权同时包含全局PROCESS/复制/XA及部分mysql系统表SELECT，实际并非仅限目标库。Codex用已准备的应用身份只读对比PyMySQL普通与MULTI_STATEMENTS能力握手，两种均在固定目标UUID通过，TLS套件均ECDHE-RSA-AES256-GCM-SHA384；只执行单条只读查询，没有DDL，不据应用身份的结果替代初始化身份验证。另以应用账号SHOW GRANTS只读核对，实际库级权限除SELECT/INSERT/UPDATE/DELETE外还含CREATE TEMPORARY TABLES、LOCK TABLES、EXECUTE、SHOW VIEW、EVENT、TRIGGER，并有相同类型的全局及系统表额外权限；未读取任何系统日志或业务行，未修改授权或秘密。手册补充按实际授权核对控制台角色、应用启动前核对及必要收敛，不盲目REVOKE或扩大授权；已请cece运行现有镜像只读识别入口，保留1045排查及空库初始化停止边界，待反馈。仅文档变动，README里程碑、TECH_SPEC最小权限要求、操作入口、接口及schema仍一致，无需更改；不重复后端回归。文档19份296处链接及差异检查通过。
+
+cece随后反馈固定4faac3a镜像的无修改选项只读命令返回“目标库字符集/排序规则不符，未自动修改已有库”。结合实际入口执行顺序，确认该次镜像内初始化身份已通过认证、选中目标库并通过身份/版本前置检查；停在规则检查，尚未检查全部空对象，未修改数据库。此前1045本次未复现，但未确定根因，不将其归为已证实的密码误输入。Codex严格SSH复核杭州固定测试清单、镜像、项目归属及私有文件权限check通过，远端分支无新提交；按原批准范围提供同一修正版的受保护规则修正及24表初始化命令，由cece终端隐藏输入一次密码并反馈JSON/错误。全部对象为空、UUID、身份、TLS及锁检查仍由工具在写入前重新执行；失败保留现场，不删对象或自动重跑。应用授权核对/必要收敛未完成，后端暂不启动；香港、DNS及生产保持原状。本轮只同步TODO、手册及历史，README里程碑、TECH_SPEC、接口/表定义和依赖仍一致，不重复代码测试。 文档19份296处链接及差异检查通过。
+
+## 2026-10-29 杭州适配获批，构建单ECS隔离与RDS初始化保护
+
+cece批准杭州手册第5—7节，并决定生产/测试先共用现有杭州ECS、独立隔离，容量验证后再决定升配；香港计划下个月不再使用，但其按量试用到期日未确认、cece说明至少还能使用一个月，不编造具体下线时间。RDS规格由cece提供为mysql.n2.serverless.1c、RCU0.5—2、CPU0.5—2、内存1—4GiB、存储20G，维护窗北京时间02:00—06:00，小版本rds_20260620、自动升级策略未明确，释放保护未开启。备份用量已提供，但PITR/保留/自动暂停及恢复状态尚未取得证据。单ECS/同RDS逻辑隔离不消除宿主机、实例维护和资源争用影响，测试限额且不在生产宿主执行完整测试、构建或恢复负载；香港退出须先完成杭州生产迁移、实卡、容量、续期/重启和独立恢复验证。
+
+以7aa38fe为起始，core/db.py增加LOCAL/VERIFY_IDENTITY与公开CA配置，远端生产连接强制证书/主机名校验；固定PyMySQL1.2.3显式TLS在入口无SSL能力时认证前失败，已用回环假握手实测没有发送认证响应。初轮回归发现显式关闭本机SSL会改变原有协商并触发重启认证失败，改为LOCAL保留原有驱动路径，不改驱动版本或原香港/本机升级保护。core/rds_target.py交叉核对杭州slot、端点、库及应用/初始化身份；core/rds_database.py只读识别实例/对象，只有明确库名、server_uuid、初始化身份及空库同时符合才执行唯一schema的受限定向，已有/部分库拒绝，不删库或自动恢复。
+
+scripts/hangzhou.py生成公开Compose/Nginx配置，两个slot独立项目、目录、回环端口15000/15001、日志卷、运行密码及样品密钥，后端限额生产512MiB/1.25核、测试256MiB/0.5核，测试单worker、生产双worker。无本机MySQL依赖，raw env_file避免密码插值；固定镜像提交标签及内容ID、主机Docker socket、清单路径/已有项目归属、私有文件权限和首次端口保护，生产启停额外显式确认，不自动切DNS或启用Nginx。独立测试配置由cece在杭州终端隐藏输入数据库密码，原子创建600文件，不读取/覆盖已有秘密；生产不允许随机替换旧密钥。模板、TECH_SPEC、手册、入口及TODO同步；API、产品规则、表结构与依赖版本未改变。
+
+本地专项真实MySQL验证错误CA/域名拒绝、24表空库初始化、错误实例/重复执行拒绝及应用ready通过；修复兼容性后非浏览器完整回归600通过、6跳过、36浏览器项未执行，177.91秒；补充两环境Nginx同机配置在无网络临时容器nginx -t通过。文档19份296处链接、18段Bash语法及差异检查通过，真实.env加载已在测试中禁用。普通沙箱不允许socket，按标准审批路径完成本机隔离验证；临时容器/卷与合成凭证均由夹具清理。杭州只读包预检：x86_64、Docker未安装，候选docker.io29.1.3、Compose2.40.3、Nginx1.28.3；SSH/tailscaled active，可用内存约1105MiB、根盘可用31G。此时尚未构建/传输新镜像、安装业务运行环境、创建RDS测试库/账号或初始化，未接收数据库密码、迁移香港资料、切换DNS或合并main。待cece反馈测试域名及RDS测试库/专用账号准备，Codex继续镜像和运行环境准备。
+
+
+后续构建/杭州准备：固定源码提交4afec789473955b257e7b9b115e7edc7e8f4a7ae，构建镜像标签bumbum-hangzhou-backend:4afec789473955b257e7b9b115e7edc7e8f4a7ae，构建端配置ID为sha256:fe2bf854a62cbbab2cb2b7c66e5c17e6cae648e4cab1d2c9458311c013e6bdab（150724242字节）。固定镜像的真实HTTPS/Nginx/Gunicorn/独立MySQL网关回归3项通过，24.53秒；前端构建已有依赖的use client指令警告不影响构建，未为此改依赖。源码归档SHA256=f22ad67d3ebb04eb326f1f197d98102fdd12bc179ea71754a9856f0ff0cc7445，镜像归档SHA256=011c02a13430ad386686b21e69acdf04d39a1fea5af66b6dc6a9c3d9818134dc，公开CA哈希沿用前条；通过严格SSH/SFTP传到杭州后逐项核验一致。实际保留于/opt/bumbum-hangzhou/artifacts/4afec789473955b257e7b9b115e7edc7e8f4a7ae，源码解包到同根releases/4afec789473955b257e7b9b115e7edc7e8f4a7ae，不包含真实配置、私钥或备份。
+
+杭州经模拟确认后安装Docker29.1.3、Compose2.40.3及containerd/runc，共新增4包、下载88.2MB、磁盘约增加346MB，无升级/移除。Docker/containerd/SSH/tailscaled均active，阿里DNS100.100.2.136/138及原eth0路由保留，RPF仍eth0=1/all=0/default=0，RDS解析及TCP3306复测通过；可用内存约1057MiB，未运行业务容器。未声称Docker安装没有新建桥接/防火墙规则，仅记录所需实际协议和路径正常。
+
+Docker28 classic构建端与Docker29 containerd导入端报告镜像ID不同，初次ID比较按保护停止，未直接跳过。随后在杭州导出镜像元数据流，清单引用blobs/sha256/fe2bf854a62cbbab2cb2b7c66e5c17e6cae648e4cab1d2c9458311c013e6bdab，配置内容SHA256与构建端完全相同，13个层，amd64及来源提交匹配；在归档哈希一致的基础上证明配置及其根文件系统引用一致，再固定杭州端实际ID sha256:0a0a89ea5f0f7697d6545d20613b6c0364ccc2be25efb73e9f9b9c52236bc91b供后续启停核对。未修改验证代码或把不明镜像当作同一版本。
+
+cece确认测试库/账号已创建；选择测试test.bumbum.cc/nfc-test.bumbum.cc、生产admin.bumbum.cc/nfc.bumbum.cc，当前管理出口104.243.39.38并保持电脑VPN。按这些输入生成/opt/bumbum-hangzhou/test/compose.json及三个Nginx公开配置稿，CA位于test/public/rds-ca.pem；从已验证镜像提取管理/用户静态页到/var/www/bumbum-hangzhou-test-admin及-user，临时提取容器未启动并已清理。尝试公开Compose安静解析时因私有runtime.env尚不存在而停止，未用假配置绕过；此项待cece安全准备后继续。杭州无网络临时容器中的RDS工具帮助命令运行通过；已提供cece终端隐藏输入和只读实例核对步骤。尚未执行杭州RDS建表、实际应用启动、Nginx安装/启用、证书申请、DNS切换或香港迁移/退出；没有读取或接收数据库密码。README将每个环境的独立后端/库与长期杭州方向讲清，旧香港事实保留为历史，持续操作边界仍见手册。
+
+## 2026-10-29 杭州ECS与RDS安全只读连接验收通过
+
+cece按保留VERIFY_IDENTITY、官方CA及内网域名的客户端检查命令反馈SSL: Cipher in use is ECDHE-RSA-AES128-GCM-SHA256，确认该次账号连接实际使用TLS。结合前轮cece反馈的bumbum_probe认证、SELECT 1=1及MySQL8.0.36，以及Codex直接取得的严格SSH身份校验、杭州到RDS网络、证书链与域名验证证据，接入阶段验收通过。客户端AES128套件与此前Codex未认证TLS探测协商的AES256套件属于不同客户端/连接的结果，分别保留，不相互覆盖。服务端SHOW SESSION STATUS的Ssl_cipher为空仍是已观察差异，原因未确认，不据客户端加密通过就编造RDS内部代理配置或后端链路加密结论。
+
+接入验收不等于应用已部署或Codex已取得可自动认证的数据库凭证。账号密码由cece自持，Codex未读取或接收。TODO关闭客户端SSL证据待反馈，转为待审核手册第5—7节实施范围，实施前还须明确目标库/权限、验证域名、新环境安全配置和网络参数的持久维护方案；不自动初始化、迁移、切域名、修改业务代码或合并main。README只更新已核对的杭州资源信息并链接手册。仅同步文档，链接及差异检查通过，未重复网络/业务测试或修改服务器。
+
+## 2026-10-29 RDS账号与只读SQL通过，服务端Ssl_cipher为空待交叉验证
+
+cece反馈按接入命令得到connection_ok=1、mysql_version=8.0.36，证明该次账号认证及只读查询成功；SHOW SESSION STATUS的Ssl_cipher为空。保留这一实际差异，不将空值直接解释为明文，也不将此前Codex未认证TLS握手通过替代该账号会话的客户端证据。RDS入口代理与数据库后端可能分别处理TLS，但未获得该实例的配置或权威证据确认原因，不记录为已确认归因。
+
+核对MySQL8.4.11官方client/mysql.cc第5274行，status输出的SSL行来自mysql_get_ssl_cipher，而非上述服务端状态查询。手册连接命令增加同一连接的status，与SELECT 1及服务端状态交叉检查：保持VERIFY_IDENTITY、官方CA和内网域名，客户端应显示SSL: Cipher in use is ...；如Not in use或证书/主机名错误则暂停验收，不换为关闭验证或明文重试。待cece补充该客户端结果，TODO保留待反馈。未获取账号密码，未再次认证、访问业务表、修改RDS或部署应用；文档链接、Bash示例语法及差异检查通过。
+
+## 2026-10-29 官方CA验证RDS证书链及域名通过，准备只读SQL入口
+
+cece上传ApsaraDB-CA-Chain.zip。先只列条目，包含PEM、P7B及JKS三种格式；仅选取PEM作证书解析，未打开其他格式或执行附件内容。PEM的81个块均为CA公钥证书，文件157498字节，SHA256为2dc6de20eab8451cc779001466f42b5ed05e554bbf479de6f194c35a1bfbc436；ZIP的SHA256为8ee7f3755ca3c41b89bc19502f9580f2612d8d74ea637be1d122f9c3739c683e。解析器对包内非正序列号证书给出弃用警告，未修改证书或关闭验证，以下结论仅针对实际RDS服务证书链，不声称包内每个历史CA均符合未来解析规则。
+
+北京时间2026-10-29 12:55:09，Codex经严格主机校验SSH进入杭州，从ECS发出MySQL SSLRequest后使用上传CA校验证书链，并按实际内网域名rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com校验主机名，两项通过；未发送用户名、密码或SQL。协商TLSv1.2、ECDHE-RSA-AES256-GCM-SHA384；叶证书SAN包含该内网域名，签发者为ApsaraDB cn-hangzhou region CA，SHA256为2b44626e45c0c00bbbe115a1d63e6afa276e6be12795e350b6d8c909d7eb762c。有效期为北京时间2026-10-29 12:45:21至2027-10-29 12:45:21。没有关闭证书链/主机名校验或明文回退，尚未证明账号认证及SQL通过。
+
+为完成已授权连接检查，先模拟确认安装范围，再在杭州安装mysql-client8.4.11及依赖：新增5包、下载约2.6MB、磁盘增加约49.4MB，无升级、移除或数据库服务安装，未部署业务。将同一公开CA保存于/root/.local/share/bumbum/rds-ca/ApsaraDB-CA-Chain-2dc6de20.pem并复核SHA256一致，不改系统全局CA信任、不传私钥。手册第4.3.1节提供固定目标、VERIFY_IDENTITY和隐藏密码提示的只读查询；禁用客户端默认配置及登录路径，避免载入既有凭证。待cece在杭州终端输入自持密码后反馈查询结果，不索取密码或读取真实配置。未修改香港、业务数据库或DNS；TODO与手册同步，文档链接、Bash示例语法及差异检查通过。
+
+## 2026-10-29 RDS普通检查账号及SSL准备完成，握手复测支持TLS
+
+cece反馈普通检查账号bumbum_probe已创建、SSL已开启、官方CA已下载。Codex重新核对当前云环境、网络策略和文档分支，沿用受支持CONNECT/Tailscale路径及杭州专用身份，严格SSH主机校验后执行只读检查。北京时间2026-10-29 12:51:32，杭州ECS收到目标RDS的MySQL8.0.36初始握手，CLIENT_SSL能力位已设置；与此前未设置的结果相比，确认该入口现在声明支持TLS。未发送密码、认证请求或SQL，未读取秘密或数据库内容；账号创建及SSL控制台状态属于cece反馈，证书链、主机名及账号认证仍待独立验证。
+
+杭州已有OpenSSL3.5.5，未安装mysql客户端；只读APT缓存显示mysql-client候选8.4.11-0ubuntu0.26.04.1，未安装或升级任何软件。下一步由cece提供该实例官方公开CA证书（PEM/CRT，不含私钥），Codex先严格验证证书链及实际内网域名，再按手册4.3安排隐藏密码提示的只读SQL检查；不要求在聊天发送密码、不允许明文或关闭验证回退。TODO同步前置条件已完成与剩余验证，不变更香港、DNS、业务部署或数据库结构。文档链接及差异检查通过；未重复业务测试。
+
+## 2026-10-29 RDS账号与SSL前置条件确认缺失
+
+cece明确反馈目标RDS没有可用账号且SSL未开启，与当前MySQL初始握手未声明TLS能力一致。补充杭州手册第4.1.1节：由cece在控制台核对目标实例，准备普通连接检查账号，不授予业务初始化权限；若账号创建要求尚不存在的库或高权限前置，先反馈而不随意建库。SSL按实际控制台配置内网端点，若有重启/闪断/费用等变更提示先确认影响，开启后取得官方CA。只回报准备状态或公开CA证书，不发送密码或私钥。
+
+Codex未访问或修改RDS控制台、未创建账号、启用SSL、安装客户端或操作数据库。待SSL/CA与服务器端认证入口准备后继续严格校验证书、主机名与只读SQL；当前仍不能将TCP/握手成功记为数据库认证或应用就绪。仅更新手册、TODO与本记录，文档链接及差异检查通过。
+
+## 2026-10-29 杭州SSH专用公钥登录成功及RDS协议检查
+
+cece确认杭州专用公钥已添加后，Codex通过受支持的CONNECT代理和Tailscale100.96.225.127，以杭州专用身份重新登录；StrictHostKeyChecking=yes、固定已核验ED25519主机记录、仅指定公钥，成功执行只读命令，身份root、主机iZbp1cj6pt88wbxmhlsp1nZ与目标一致。远端时间2026-10-29T04:36:25Z（北京时间12:36:25），nproc为2；Tailscale1.104.4，ssh/tailscaled均active。不是仅有CONNECT200、开放端口或用户授权成功的推断。
+
+接入后只读复测：eth0仍使用阿里DNS100.100.2.136/138，tailscale0未接管DNS；100.100.2.136经原网关172.23.223.253、源172.23.211.159及eth0访问。eth0.rp_filter=1，all/default均0，INPUT默认ACCEPT。Tailscale配置在服务器进程内仅筛选必要字段输出：NetfilterMode=1、CorpDNS=false、RouteAll=false、RunSSH=false、WantRunning=true，确认nodivert、无DNS/子网路由接管、未启用Tailscale SSH；未输出完整debug prefs或敏感配置。本次是普通OpenSSH公钥认证通过，未改网络、规则、sysctl或服务。eth0保护仍属临时设置，未宣称重启后保留。
+
+RDS端点继续解析172.23.211.160，5秒有界TCP3306检查通过。另从杭州接收一次未认证MySQL初始握手，只返回协议版本及TLS能力，未输出认证随机数、账号密码或业务内容：服务器声明8.0.36，CLIENT_SSL能力位未设置，当前入口未声明TLS支持。未发送凭证、未尝试明文认证、未执行SELECT/DDL/DML；这不证明RDS账号或证书/主机名验证通过。mysql客户端仍未找到，待cece核对实例SSL开关、官方CA及账号状态后继续；不能用TCP成功代替数据库认证或就绪。仅更新TODO、手册中的处理边界及本记录，未部署业务、迁移数据或变更香港/DNS。
+
+## 2026-10-29 杭州Tailnet SSH可达且指纹匹配，待添加专用公钥
+
+cece提供杭州Tailscale地址100.96.225.127，随后明确杭州专用公钥尚未添加。Codex重新核对当前云环境及策略后，通过支持的CONNECT代理发起SSH；实际收到的ED25519主机指纹SHA256:h62A/DKvJNUEfg453gUR/d427aSUsPmNVRUQtAhIexQ与cece在阿里云控制台取得值完全一致，匹配后保存到本次杭州专用known_hosts。后续公钥认证返回Permission denied (publickey)，符合缺少公钥授权这一已知前置条件；不将其当作网络或主机指纹故障，不反复重试、不关闭校验或改密码登录。
+
+本轮证明Codex到杭州SSH的传输可达及主机身份匹配，未执行远程命令，也未复测接入后DNS/RDS、读取秘密或修改服务器。下一步由cece在杭州控制台追加本次专用公钥，保留已有条目；添加后Codex再使用严格主机校验测试只读登录。仅补录文档，检查通过，不部署应用或改数据库。
+
+## 2026-10-29 杭州DNS、路由及RDS TCP基线通过
+
+cece连续提供杭州控制台只读结果：eth0使用阿里DNS100.100.2.136/138，DNS路由经172.23.223.253、源地址172.23.211.159；RDS端点解析172.23.211.160并在5秒内TCP3306建连成功。仅local/main/default三条策略规则，主路由为单eth0直连172.23.208.0/20和默认网关，两个DNS有明确eth0路由；UFW inactive、INPUT默认ACCEPT，nft list tables无输出；all/default/eth0的rp_filter均0。TCP通过不代表RDS账号、TLS或应用已通过；CPU仍未测，Tailscale尚未安装。
+
+据此更新手册第3.3节为本次杭州可执行步骤：先只对eth0临时设rp_filter=1，复测DNS和RDS TCP，失败恢复原值0；通过后安装Tailscale并用nodivert、accept-dns=false、accept-routes=false接入，不使用--reset。若接入后异常，从保留的阿里云控制台tailscale down并恢复本次eth0临时参数，不改全局/永久sysctl，不清空规则或重启。单网卡基线支持采用此最小可回退方案，不将其推广到其他路由环境；实际路由、防火墙及重启保留仍需后续检查。Codex只更新文档，目标设置和安装待cece执行；未声明已连接杭州或认证RDS成功。19份文档295处本地链接/标题定位、差异及11个Bash示例语法检查通过。
+
+## 2026-10-29 杭州ECS基础只读核对完成
+
+cece明确开始按手册接入，并提供杭州控制台输出：root，主机iZbp1cj6pt88wbxmhlsp1nZ，Ubuntu26.04.1 LTS/resolute；内存总量约1.7GiB、available约1.1GiB，swap4GiB且未使用，根盘40GiB、可用31GiB。监听为IPv4/IPv6的22及本机DNS53，已有/usr/bin/python3，command -v未找到Docker、Nginx或MySQL客户端。不据此推断CPU规格或断定所有工具均已安装/卸载，也不把仅监听SSH说成已登录成功。
+
+本步结果支持继续维护通道预检，尚未完成实际DNS、RDS解析、路由和现有防火墙核对，未确定杭州netfilter模式、安装Tailscale或验证SSH/RDS。下一步由cece在同一控制台执行手册第3.5节只读检查；Codex只补录TODO与本历史，不改目标服务器。文档链接及差异检查通过，不重复业务测试。
+
+## 2026-10-29 香港netfilter模式后续变更补充
+
+cece补充：阿里云工程师以off恢复香港连接之后，自己又手动运行命令将模式改成nodivert。原截图中的off处置记录保持不变，新增后续变更，香港最新模式按cece说明为nodivert；不将旧off记录继续当作当前模式。没有获知后续命令的完整参数或独立现场验证结果，不编造已检查过当前规则及所有协议的结论，也不将此变化自动套用到杭州。
+
+同步杭州手册和TODO：off只保留为有历史依据的候选示例，nodivert记为cece后续实际改用的模式；杭州仍先做兼容性预检，再确认所选模式和对应防火墙维护，不反复随聊天修改服务器。仅文档更新，未访问或改变香港、杭州、RDS；文档链接与差异检查通过。
+
+## 2026-10-29 补录阿里云工程师确认的香港Tailscale故障原因与处置
+
+cece提供阿里云售后工程师回复截图（显示2026-10-28 12:09:20，截图未注明时区），并明确确认香港此前内网失联是Tailscale防火墙与阿里云CGNAT地址兼容性问题。工程师说明没有修改root密码，执行tailscale up --reset --netfilter-mode=off后问题解决，并建议另一台后续安装也可参考处理。将先前“原因未定/需核实”的判断按新证据更新为已确认，不篡改旧记录；截图直接记录的处置模式是off，不是nodivert，不扩展为杭州已经验证或工程师已审查杭州完整防火墙策略。
+
+补充杭州手册第3.5节，暂停原先未指定netfilter模式的直接接入步骤；首次接入候选采用off并保留accept-dns=false、accept-routes=false，但先核对杭州实际DNS、路由、RPF及现有防火墙放行和反欺骗保护。香港历史--reset只留作证据，不加入杭州候选命令，不在任一服务器自动执行。说明off/nodivert均带来自行维护规则责任，off不直接禁用路由功能；针对CGNAT规则的官方节点属性仅作为待评估选项，不改全Tailnet。纠正ping和status不能代替真实协议验证、完整debug prefs可能包含敏感配置等问题，避免将nodivert直接归为特定CVE。只更新手册、TODO和本记录，没有连接或修改香港、杭州、RDS及Codex侧代理配置。19份文档295处本地链接/标题定位、git diff --check及9个Bash示例语法检查通过；未将语法检查当作目标机验证。
+
+## 2026-10-29 杭州ECS＋RDS方案及连接手册准备
+
+cece确认bumbum.cc域名ICP备案通过，要求评估Codex到杭州ECS及RDS的连接，并输出最新代码部署方案和必要操作手册。本轮先检查实际云环境及仓库：运行状态current、VPN已配置且automatic_tailscale_access开启，显式TCP授权列表为空；这不是杭州目标连通证明，也不能仅凭空列表判定必须新增授权。未发现杭州ECS地址、主机指纹、RDS端点或现成数据库绑定，未擅自沿用香港地址/指纹、扫描设备或索取秘密。远端仅main@fc7d740，工作区干净，创建docs/hangzhou-ecs-rds-plan仅整理文档。
+
+基于源码确认现有Compose固定香港本机数据库，三个云迁移入口共用香港配置保护，不能直接用于RDS；core/db.py尚未设置TLS验证，而已安装驱动支持CA、证书和主机名校验，需审核后实施最小适配。新增docs/HANGZHOU_DEPLOYMENT.md，推荐Codex经受支持代理/VPN进入杭州ECS，再从同VPC访问RDS内网；区分CONNECT、SSH、数据库网络、TLS/SQL和应用就绪，提供cece控制台主机指纹、系统资源及RDS只读检查命令，明确未装工具/未接入Tailscale时先核对、不盲目重装或放宽网络。
+
+手册列出待审核的代码/部署适配、空库与已有库保护、镜像固定版本、独立验证与香港迁移两条路径、域名及证书准备、停写/防双写、保留读数计数和加密资料、回退及分工验收。根域名、正式管理域名和现有香港子域名不自动改解析，未批准前不迁移数据或复制秘密。README修正备案资源状态，TECH_SPEC将2026-10-24备案办理描述标为历史背景；OP_GUIDE增加新环境手册入口，TODO保留当前缺失信息及方案待审核状态。没有修改应用、配置模板、依赖、迁移或数据库，也未部署或改动杭州/RDS；不将文档完成当作连通或上线。
+
+cece随后提供杭州公网47.98.19.79、Ubuntu26.04 64位、拟用root及ED25519指纹SHA256:h62A/DKvJNUEfg453gUR/d427aSUsPmNVRUQtAhIexQ；尚未安装Tailscale。RDS为MySQL8.0，端点rm-cn-ofv50a5zs00014.rwlb.rds.aliyuncs.com:3306，与ECS同VPC；cece说明无须保留的数据、账号状态未知，并明确选择杭州独立验证、保留香港与现有域名解析。Codex通过支持的proxy:8088对公网SSH做一次有界CONNECT，收到403 vpn_protected_destination，未绕过或反复尝试，不判定为安全组/密码错误；未获得SSH或数据库认证成功证据。
+
+核验Tailscale官方pkgs.tailscale.com提供Ubuntu26.04 resolute的公钥、软件源及InRelease均200，为杭州生成新的专用ED25519身份，仅提供公钥，未复用香港私钥或输出私钥内容。手册补入经签名APT安装、保留系统DNS且不接受子网路由、不启用Tailscale SSH的接入步骤，以及仅追加带restrict公钥的操作；均待cece在杭州控制台执行。RDS网络/TLS/只读SQL步骤保留，未在目标机执行，不向代理声明原始TCP密码注入。19份文档295处本地链接/标题定位、git diff --check及8个Bash示例语法检查通过；这些检查不等于目标机安装、SSH或RDS认证已通过。
+
 ## 2026-10-30 校正祈愿 H5 评审阶段与基线报告版本标识
 
 cece确认并批准以下祈愿 H5 V1 阶段状态：
