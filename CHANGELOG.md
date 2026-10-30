@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-10-30 新发布环境STS实际就绪，Workbench首次真实登录返回授权拒绝
+
+cece发布后明确要求继续核验。等待新环境ready，实际environment_id尾号46c9a3b0、source_config_version尾号6ae4216111b881a18d302251a270a235，HTTP unrestricted/enforced、observations_current=true，BUMBUM_WB_STS_JSON状态ready。实际CLI v1.0.4与提供器校验和匹配原记录；--check通过，首次检查剩余2759秒。保留快照内分支docs/hangzhou-ecs-rds-plan与HEAD eb67baa及无凭据配置，未重新应用旧改动或发布。
+
+首次使用显式profile、地域、固定杭州实例、auth-type=none/root，计划仅执行id -un、hostname与本机/api/ready。CLI退出4，阿里云ecs-workbench.aliyuncs.com返回403、Forbidden.Unauthorized；AccessDeniedDetail识别AuthAction=ecs-workbench:LoginECSInstance、AuthPrincipalType=AssumedRoleUser、专用角色会话bumbum-codex-hz-workbench:bumbum-codex-hz-check、NoPermissionType=ImplicitDeny。仅输出脱敏错误，未显示STS/认证URL/诊断编码；未执行ECS命令，不是连接成功，也未据此归因安全组/VPN。认证拒绝后未重复登录。
+
+接续只读核对官方技能raw，仍写acs:ecs:<region>:<account-id>:ecs/<instance-id>；从官方CLI管理页找到现行安装凭据手册，后者明确实例资源为acs:ecs:<region>:<account-id>:instance/<instance-id>，且ChatMessages仅供内置AI。本次按现行手册修正同一目标资源并移除无用ChatMessages；不把资源写法不匹配直接等同已排除策略默认版本/绑定等其他可能。已请cece修改既有操作策略并设新版本为默认，待反馈后单次验证；签发策略、角色信任和STS不变，不扩大Resource或加EndSessions/通用IAM权限。记录该资料冲突及本次失败，原历史5动作/ecs格式不再作为当前执行规范。
+
+当前未验证exec、WebSocket、公开文件收发或续用；没有远程业务变更、ECS重启/恢复或发布。本轮仅修订手册/TODO/历史及本地非秘密策略候选，未改业务代码、依赖、数据库或秘密。文档链接/JSON及git diff --check通过，未运行应用回归。
+
 ## 2026-10-30 本次Codex工具环境配置发布获cece明确允许
 
 cece明确“允许发布本次Codex环境配置”，替代此前对本次工具环境发布的暂停要求，不授权部署网站、切DNS或修改ECS/RDS。当前可用工具仅支持环境状态、草稿及元数据维护，没有产品发布接口；不调用技能禁止的prototype finalize接口，也不制造发布链接。需cece通过bumbum_ECS产品面板点击发布，成功后Codex检查真实配置版本、运行时变量有效期及只读CLI连接；目前没有发布完成证据，不声称已发布或重连。

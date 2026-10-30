@@ -239,9 +239,9 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
 
 ### 3.6.1 首轮短期授权接入步骤（已批准，尚未授予云权限）
 
-使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。当前真实运维仍用已有Tailnet SSH；Workbench CLI只完成本地准备，没有真实云会话。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
+使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。当前真实运维仍用已有Tailnet SSH；Workbench CLI已完成本地准备，真实连接结果以CHANGELOG证据为准；阿里云识别角色或返回授权拒绝，不等于ECS会话建立。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
 
-目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；专用RAM用户与角色按下面步骤准备。以下是已批准的操作策略，**批准不代表权限已经生效**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；Workbench动作的资源格式依官方技能给定，最终仍须云端验证，拒绝时不自动改为Resource=*。运行身份不包含创建角色、全ECS或全Workbench通配权限。
+目标已由cece给定：cn-hangzhou的i-bp1cj6pt88wbxmhlsp1n，账号1541265267012164；专用RAM用户与角色按下面步骤准备。以下是已批准的操作策略，**批准不代表权限已经生效**。ECS三项动作的实例级资源范围已按各自OpenAPI授权表核对；LoginECSInstance资源按[现行官方安装手册](https://help.aliyun.com/zh/ecs/user-guide/install-and-configure-workbench-cli-credentials)使用instance/实例ID。技能的ecs/示例与该手册冲突，首次真实调用已在LoginECSInstance返回403/ImplicitDeny，不能继续沿用旧路径。修正后仍须实测，拒绝时不自动改为Resource=*。ChatMessages仅供内置AI，本轮移除，不加Resource=*或其他动作。运行身份不包含创建角色、全ECS或全Workbench通配权限。
 
 ```json
 {
@@ -249,8 +249,8 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
   "Statement": [
     {
       "Effect": "Allow",
-      "Action": ["ecs-workbench:LoginECSInstance", "ecs-workbench:ChatMessages"],
-      "Resource": "acs:ecs:cn-hangzhou:1541265267012164:ecs/i-bp1cj6pt88wbxmhlsp1n"
+      "Action": ["ecs-workbench:LoginECSInstance"],
+      "Resource": "acs:ecs:cn-hangzhou:1541265267012164:instance/i-bp1cj6pt88wbxmhlsp1n"
     },
     {
       "Effect": "Allow",
@@ -281,7 +281,7 @@ RAM将API约束到目标实例，不把root命令变成硬性只读；获准连�
 }
 ```
 
-3. 创建自定义权限策略BumbumCodexHzWorkbenchAccess，内容使用本节上面的5动作策略，只绑定给该角色。再创建BumbumCodexHzAssumeRole，仅绑定给签发用户，内容如下。不要附加系统管理员策略，也不授权签发用户直接操作ECS或再次授权其他身份。
+3. 创建自定义权限策略BumbumCodexHzWorkbenchAccess，内容使用本节上面的4动作策略，只绑定给该角色。再创建BumbumCodexHzAssumeRole，仅绑定给签发用户，内容如下。不要附加系统管理员策略，也不授权签发用户直接操作ECS或再次授权其他身份。
 
 ```json
 {
