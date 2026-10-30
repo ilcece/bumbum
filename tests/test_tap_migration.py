@@ -45,6 +45,55 @@ def test_new_schema_is_ready(auth_app):
                 pytest.fail('\n'.join(str(row) for row in columns + clause))
 
 
+@pytest.mark.parametrize('timestamp_defaults', [0, 1])
+def test_timestamp_server_defaults_preserve_ready_and_event_time(auth_app, timestamp_defaults):
+    """复现RDS的隐式非空时间戳；事件时间不能因普通更新而变化。"""
+    with auth_app.app_context():
+        connection = get_database()
+        with connection.cursor() as cursor:
+            cursor.execute('SELECT @@session.explicit_defaults_for_timestamp')
+            original = cursor.fetchone()[0]
+            try:
+                cursor.execute('DROP TABLE scan_log')
+                cursor.execute('SET SESSION explicit_defaults_for_timestamp=%s', (timestamp_defaults,))
+                cursor.execute(NEW_TABLE)
+                cursor.execute("SELECT IS_NULLABLE,COLUMN_DEFAULT,EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log' AND COLUMN_NAME='created_at'")
+                assert cursor.fetchone() == ('YES' if timestamp_defaults else 'NO', 'CURRENT_TIMESTAMP', 'DEFAULT_GENERATED')
+                assert tap_event_schema(cursor) == 'ready'
+                cursor.execute("INSERT INTO scan_log(verify_result,created_at) VALUES ('decrypt_fail','2020-01-01 00:00:00')")
+                cursor.execute("UPDATE scan_log SET user_agent='synthetic-test'")
+                cursor.execute("SELECT created_at='2020-01-01 00:00:00' FROM scan_log")
+                assert cursor.fetchone() == (1,)
+                assert auth_app.test_client().get('/api/ready').status_code == 200
+            finally:
+                connection.rollback()
+                cursor.execute('DROP TABLE scan_log')
+                cursor.execute('SET SESSION explicit_defaults_for_timestamp=%s', (original,))
+                cursor.execute(NEW_TABLE)
+
+
+@pytest.mark.parametrize('definition', [
+    'TIMESTAMP NULL DEFAULT NULL',
+    "TIMESTAMP NOT NULL DEFAULT '2000-01-01 00:00:00'",
+    'TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    'DATETIME NULL DEFAULT CURRENT_TIMESTAMP',
+    'TIMESTAMP(6) NULL DEFAULT CURRENT_TIMESTAMP(6)',
+])
+def test_unknown_event_timestamp_definition_still_rejected(auth_app, definition):
+    """兼容已知可空形式时，仍拒绝错误默认值、自动更新时间和未知类型。"""
+    with auth_app.app_context():
+        connection = get_database()
+        with connection.cursor() as cursor:
+            try:
+                cursor.execute('ALTER TABLE scan_log MODIFY created_at ' + definition)
+                assert tap_event_schema(cursor) == 'unknown'
+                assert auth_app.test_client().get('/api/ready').status_code == 503
+            finally:
+                connection.rollback()
+                cursor.execute('DROP TABLE scan_log')
+                cursor.execute(NEW_TABLE)
+
+
 @pytest.fixture
 def old_taps(auth_app):
     with auth_app.app_context():

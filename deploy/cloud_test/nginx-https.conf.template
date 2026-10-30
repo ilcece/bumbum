@@ -6,6 +6,7 @@ limit_req_zone $binary_remote_addr zone=bumbum_test_scan:1m rate=5r/s;
 server {
     listen 80;
     server_name test.bumbum.cc;
+    access_log /var/log/nginx/bumbum-cloud-test-access.log bumbum_cloud_test;
     if ($host != test.bumbum.cc) { return 444; }
     location ^~ /.well-known/acme-challenge/ { root /var/lib/letsencrypt; }
     location / { return 301 https://test.bumbum.cc$request_uri; }

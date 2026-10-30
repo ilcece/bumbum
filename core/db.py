@@ -1,8 +1,10 @@
 """读取数据库配置、按请求连接并检查最小初始化结果。"""
 
 import os
+import ipaddress
 from pathlib import Path
 import re
+import ssl
 
 import pymysql
 from dotenv import load_dotenv
@@ -25,15 +27,52 @@ def init_database(app, overrides=None):
     except ValueError:
         raise ValueError("DB_PORT 必须是 1 到 65535 的整数。") from None
     app.config.from_mapping(
+        APP_ENV=os.getenv("APP_ENV", "production"),
         DB_HOST=os.getenv("DB_HOST", "127.0.0.1"),
         DB_PORT=port,
         DB_USER=os.getenv("DB_USER", ""),
         DB_PASSWORD=os.getenv("DB_PASSWORD", ""),
         DB_NAME=os.getenv("DB_NAME", "bumbum_digital"),
+        DB_SSL_MODE=os.getenv("DB_SSL_MODE", "LOCAL"),
+        DB_SSL_CA=os.getenv("DB_SSL_CA", ""),
+        HANGZHOU_SLOT=os.getenv("HANGZHOU_SLOT", ""),
     )
     if overrides:
         app.config.update(overrides)
+    database_tls_options(app.config)
+    if app.config["HANGZHOU_SLOT"]:
+        from core.rds_target import validate_target
+        validate_target(app.config)
     app.teardown_appcontext(close_database)
+
+
+def database_tls_options(config):
+    """远端生产连接只允许验证证书及域名；不使用驱动的可降级默认模式。"""
+    mode = config.get("DB_SSL_MODE", "LOCAL")
+    host = config.get("DB_HOST", "127.0.0.1")
+    local = host == "localhost"
+    try:
+        local = local or ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        pass
+    if mode == "LOCAL":
+        if config.get("APP_ENV", os.getenv("APP_ENV", "production")) == "production" and not local:
+            raise ValueError("远端生产数据库必须使用DB_SSL_MODE=VERIFY_IDENTITY。")
+        if config.get("DB_SSL_CA"):
+            raise ValueError("配置DB_SSL_CA后必须同时启用VERIFY_IDENTITY，未自动忽略CA。")
+        return {}
+    if mode != "VERIFY_IDENTITY":
+        raise ValueError("DB_SSL_MODE只支持LOCAL或VERIFY_IDENTITY，不允许明文回退。")
+    ca = config.get("DB_SSL_CA", "")
+    try:
+        if not ca or not Path(ca).is_absolute() or not Path(ca).is_file():
+            raise ValueError
+        # 仅校验指定的公开CA文件；不添加到系统信任、不修改原证书。
+        ssl.create_default_context(cafile=ca)
+    except (OSError, ValueError, ssl.SSLError):
+        raise ValueError("DB_SSL_CA必须指向可读取且有效的公开CA证书绝对路径。") from None
+    # 固定驱动PyMySQL1.2.3在显式SSL选项下要求TLS，服务器不支持时在认证前失败。
+    return {"ssl_ca": ca, "ssl_verify_cert": True, "ssl_verify_identity": True}
 
 
 def get_database():
@@ -54,6 +93,7 @@ def get_database():
             read_timeout=3,
             write_timeout=3,
             autocommit=False,
+            **database_tls_options(config),
         )
     return g.database
 
@@ -113,16 +153,21 @@ def registration_source_schema(cursor):
 
 def tap_event_schema(cursor):
     """识别完整触碰事件结构；部分升级或约束被改动时不冒充就绪。"""
-    cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,GENERATION_EXPRESSION FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log'")
+    cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,GENERATION_EXPRESSION,COLUMN_DEFAULT,EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log'")
     columns = {row[0]: row[1:] for row in cursor.fetchall()}
     old_names = {'id', 'chip_uid', 'project_id', 'picc_data', 'cmac', 'scan_counter', 'verify_result', 'user_agent', 'ip_hash', 'created_at'}
     old_enum = "enum('pass','cmac_fail','decrypt_fail','unknown_chip','replay_suspect','disabled')"
     base_types = {'id': ('bigint unsigned', 'NO'), 'chip_uid': ('varchar(32)', 'YES'),
                   'project_id': ('tinyint unsigned', 'YES'), 'picc_data': ('varchar(256)', 'YES'),
                   'cmac': ('varchar(64)', 'YES'), 'scan_counter': ('bigint unsigned', 'YES'),
-                  'user_agent': ('varchar(512)', 'YES'), 'ip_hash': ('varchar(64)', 'YES'),
-                  'created_at': ('timestamp', 'YES')}
+                  'user_agent': ('varchar(512)', 'YES'), 'ip_hash': ('varchar(64)', 'YES')}
     if any(name not in columns or columns[name][:2] != expected for name, expected in base_types.items()):
+        return 'unknown'
+    # 同一DDL在时间戳默认参数开/关时分别生成可空/非空列；只接受自动创建且不随更新变化的时间。
+    created_at = columns.get('created_at')
+    if (not created_at or created_at[0] != 'timestamp' or created_at[1] not in {'YES', 'NO'}
+            or str(created_at[3]).upper() not in {'CURRENT_TIMESTAMP', 'CURRENT_TIMESTAMP()'}
+            or created_at[4] != 'DEFAULT_GENERATED'):
         return 'unknown'
     if set(columns) == old_names and columns['verify_result'][:2] == (old_enum, 'NO'):
         return 'missing'
