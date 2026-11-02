@@ -7,9 +7,10 @@
 | 需求文档 | 负责什么 |
 |---|---|
 | [BUMBUM 主产品 PRD](../PRD.md) | 共用基础能力与服装主线的产品规则、阶段及验收标准 |
-| [NFC 文创祈愿 H5 PRD](NFC_PRAYER_H5_PRD.md) | 祈愿文创的核心叙事、每日福卡、信物专属记录、愿力、回向、分享隐私及 V1 验收 |
+| [手串 NFC 数字价值探索](BRACELET_NFC_EXPLORATION.md) | 两版体验复盘、待验证价值及边界；不是新 PRD |
+| [旧 NFC 文创祈愿 H5 PRD](NFC_PRAYER_H5_PRD.md) | 已废弃，仅供历史追溯，不用于设计、开发或验收 |
 
-两份 PRD 按业务线分工；共用芯片认证、安全、接口和数据规则仍以 TECH_SPEC、API_CONTRACT、schema 及技术附录为准。
+主 PRD 继续维护共用能力与服装主线；手串新 PRD 尚未形成；共用芯片认证、安全、接口和数据规则仍以 TECH_SPEC、API_CONTRACT、schema 及技术附录为准。
 
 ## 操作手册：按顺序使用
 
