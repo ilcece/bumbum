@@ -49,41 +49,40 @@ def test_chip_batch_duplicate_and_query(desktop):
 
 
 def test_item_profile_status_and_failure(desktop):
-    desktop.login(); desktop.navigate('物品管理')
-    page = desktop.page
-    page.get_by_role('button', name='创建物品', exact=True).click()
-    create = page.get_by_role('dialog', name='创建物品草稿', exact=True)
-    create.get_by_label('所属项目', exact=True).select_option('fashion')
-    create.get_by_label('物品编号', exact=True).fill('FASH-2026-770001')
-    create.get_by_role('button', name='创建草稿', exact=True).click()
-    row = page.get_by_role('row').filter(has_text='FASH-2026-770001')
-    row.get_by_role('button', name='编辑资料', exact=True).click()
-    editor = page.get_by_role('dialog', name='服装基础资料', exact=True)
-    name = editor.get_by_label('名称（必填，最多128字符）', exact=True)
-    name.fill('浏览器回归服装')
-    editor.get_by_role('button', name='保存资料', exact=True).click()
-    editor.get_by_role('status').filter(has_text='资料已保存').wait_for()
-    editor.get_by_role('button', name='启用物品', exact=True).click()
-    editor.get_by_role('status').filter(has_text='物品已启用').wait_for()
-    editor.get_by_role('button', name='停用物品', exact=True).click()
-    editor.get_by_role('status').filter(has_text='物品已停用').wait_for()
+    desktop.login(); desktop.navigate('物品管理'); page=desktop.page
+    page.get_by_role('button',name='创建物品',exact=True).click()
+    create=page.get_by_role('dialog',name='创建物品草稿',exact=True)
+    create.get_by_label('物品编号',exact=True).fill('FASH-2026-770001')
+    create.get_by_role('button',name='创建并继续',exact=True).click()
+    create.get_by_role('button',name='完善该物品',exact=True).click()
+    name=page.get_by_label('名称',exact=True);name.fill('浏览器回归服装')
+    page.get_by_role('button',name='保存修改',exact=True).click()
+    page.get_by_role('heading',name='物品详情',exact=True).wait_for()
+    for operation,confirm,notice in [('启用物品','确认启用','物品已启用。'),('停用物品','确认停用','物品已停用')]:
+        page.get_by_role('button',name=operation,exact=True).click()
+        page.get_by_role('dialog').get_by_role('button',name=confirm,exact=True).click()
+        page.get_by_role('status').filter(has_text=notice).wait_for()
+    page.get_by_role('button',name='编辑物品',exact=True).click()
     name.fill('尚未保存')
-    page.once('dialog', lambda dialog: dialog.dismiss())
-    editor.get_by_role('button', name='关闭', exact=True).click()
-    assert name.input_value() == '尚未保存'
-    page.once('dialog', lambda dialog: dialog.accept())
-    editor.get_by_role('button', name='重新读取资料', exact=True).click()
-    page.wait_for_function("document.querySelector('.profile-editor input')?.value === '浏览器回归服装'")
-    writes = []
+    page.get_by_role('button',name='返回来源',exact=True).click()
+    guard=page.get_by_role('dialog',name='有未保存修改',exact=True)
+    guard.get_by_role('button',name=re.compile(r'^取\s*消$')).click()
+    assert name.input_value()=='尚未保存'
+    page.get_by_role('button',name='重新读取资料',exact=True).click()
+    guard.get_by_role('button',name='放弃继续',exact=True).click()
+    from playwright.sync_api import expect
+    expect(name).to_have_value('浏览器回归服装')
+    writes=[]
     def failure(route):
+        if route.request.method!='PATCH':route.continue_();return
         writes.append(1)
-        route.fulfill(status=503, content_type='application/json', body=json.dumps({'status':'error','code':'service_unavailable','message':'合成保存失败'}))
-    page.route('**/api/admin/items/*/profile', failure)
+        route.fulfill(status=503,content_type='application/json',body=json.dumps({'status':'error','code':'service_unavailable','message':'合成保存失败'}))
+    page.route('**/api/admin/items/*',failure)
     name.fill('失败后保留')
-    editor.get_by_role('button', name='保存资料', exact=True).click()
-    editor.get_by_role('alert').filter(has_text='合成保存失败').wait_for()
-    assert name.input_value() == '失败后保留' and len(writes) == 1
-    page.unroute('**/api/admin/items/*/profile')
+    page.get_by_role('button',name='保存修改',exact=True).click()
+    page.get_by_role('alert').filter(has_text='保存结果尚未确认').wait_for()
+    assert name.input_value()=='失败后保留' and len(writes)==1
+    page.unroute('**/api/admin/items/*')
 
 
 # 以下样例只写入desktop夹具创建的专属临时数据库。

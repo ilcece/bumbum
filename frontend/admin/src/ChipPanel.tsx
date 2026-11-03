@@ -11,7 +11,7 @@ import { safeReturn, sourcePoint } from "./adminNavigation";
 import { useNavigationGuard } from "./NavigationGuard";
 import { BindItemDialog } from "./BindItemDialog";
 import { ChipKeysDialog } from "./ChipKeysDialog";
-import { beijingTime } from "./ItemDetailPage";
+import { beijingTime } from "./itemFields";
 import { CreateChip } from "./CreateChip";
 
 export const PROJECTS = { fashion: "服装", jewelry: "饰品", unassigned: "未分配" };

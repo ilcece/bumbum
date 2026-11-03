@@ -4,24 +4,26 @@
 
 ## 当前页面放在哪里
 
-后续管理端设计与实现遵守[A提案的官方复用及迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)，本文件不复制第二套组件/主题/定制规则。A业务规则已审核通过；[已有原型](proposals/admin-management-update.md#32-原型审核入口与交互取舍)仅供参考，不再调整，也不要求复刻。列表筛选查询、详情只读与编辑态等样式和交互优先采用Ant Design与ProComponents官方规范；PRD只定义业务要求。依赖替换、接口及上传存储的拟实施范围见[附条件批准的技术方案](proposals/admin-management-implementation.md)，具体产品规则按A业务提案执行，现行界面按[后台规范](product/admin-management.md)。
+后续管理端设计与实现遵守[A提案的官方复用及迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)，本文件不复制第二套组件/主题/定制规则。A业务规则已审核通过；[已有原型](proposals/admin-management-update.md#32-原型审核入口与交互取舍)仅供参考，不再调整，也不要求复刻。列表筛选查询、详情只读与编辑态等样式和交互优先采用Ant Design与ProComponents官方规范；PRD只定义业务要求。依赖、接口及上传存储的批准范围见[附条件批准的技术方案](proposals/admin-management-implementation.md)，已纳入的产品规则及现行界面按[后台规范](product/admin-management.md)。
 
-下表是当前工程位置，不代表Ant Design改版已经完成；验证分支已锁定Ant Design候选依赖并提供独立组件冒烟，正式界面仍使用现有Radix/Tailwind，尚未迁移，用户H5独立维护。
+下表是当前任务分支的真实分工；Ant Design与ProComponents已接入，人工验收、合并和部署状态仍见TODO，用户H5独立维护。旧Radix、Tailwind、lucide及无引用的封装已移除，不同时维护两套控件。
 
 | 文件 | 负责什么 |
 |---|---|
 | `frontend/admin/src/main.tsx` | 管理端入口，加载桌面样式和登录门禁 |
 | `frontend/admin/src/LoginPanel.tsx` | 密码/验证码登录、会话恢复与退出，复用既有认证 |
-| `frontend/admin/src/AdminLayout.tsx` | Make桌面框架、工作台全局库存/快捷操作、统计组件入口、所有权页占位、导航和统一未实现提示 |
+| `frontend/admin/src/AdminLayout.tsx` | ProLayout桌面框架、真实库存/快捷操作、统计入口及已交付菜单，不列所有权占位 |
 | `frontend/admin/src/TapStatisticsPanel.tsx`、`TapDailyChart.tsx` | 全项目有效触碰查询、卡片/明细、SVG日柱图及加载/失败状态；不写业务记录 |
 | `frontend/admin/src/RuntimeChecks.tsx` | 真实后端/数据库检查，供登录页、顶栏和系统状态复用 |
 | `frontend/admin/src/ChipPanel.tsx`、`CreateChip.tsx` | 官方查询表格、独立详情/批次编辑、登记并继续和精确关联返回；保留受控绑定与密钥规则 |
-| `frontend/admin/src/ItemPanel.tsx` | 创建弹窗、真实物品列表、筛选分页与资料入口 |
-| `frontend/admin/src/ItemProfileEditor.tsx` | 服装资料弹窗、保存/启停、图片与未保存提醒，不含尺码表 |
-| `frontend/admin/src/AdminUI.tsx`、`components/ui/` | 复用Make的弹窗/按钮及反馈组件，不提前扩展设计系统 |
-| `frontend/admin/src/style.css`、`design.css` | Tailwind入口、Make桌面变量和样式，body禁止滚动、区域内部滚动 |
+| `frontend/admin/src/ItemPanel.tsx` | ProTable物品列表、完整筛选分页、详情/编辑路由 |
+| `frontend/admin/src/ItemDetailPage.tsx`、`itemFields.tsx` | 同字段详情/编辑、普通资料原子保存及独立启停；尺码只读保留 |
+| `frontend/admin/src/CreateItem.tsx`、`ItemImages.tsx` | 连续创建及确切ID定位、受控Upload暂存/取消/未知结果，不重写上传列表 |
+| `frontend/admin/src/NavigationGuard.tsx`、`adminNavigation.ts` | 官方路由阻断及安全返回位置，普通离开三选项 |
+| `frontend/admin/src/AdminUI.tsx` | 统计反馈使用官方Alert，不保留旧弹窗/按钮封装 |
+| `frontend/admin/src/style.css`、`design.css` | 统计图表与保留原生控件的局部样式；管理界面使用官方reset与主题、页面正常滚动 |
 | `frontend/admin/src/api.ts` | 唯一接口调用层，保留Cookie、内存CSRF及失败处理 |
-| `frontend/admin/vite.config.ts` | 保留本机地址和/api代理，仅增加Tailwind构建插件 |
+| `frontend/admin/vite.config.ts` | 仅保留本机地址和/api代理，不保留无引用Tailwind插件 |
 
 当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；现有用户工程位于frontend/user，后续按其实际任务修改，不再创建重复工程。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
 

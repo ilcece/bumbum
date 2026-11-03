@@ -8,7 +8,6 @@ const EMPTY: Guard = { dirty: false, busy: false };
 type Controls = {
   update: (value: Guard) => void;
   attempt: (action: () => void) => void;
-  legacy: (check: (() => boolean) | null) => void;
 };
 const Context = createContext<Controls | null>(null);
 
@@ -20,12 +19,10 @@ export function useNavigationGuard() {
 
 export function NavigationGuard({ children }: { children: ReactNode }) {
   const guard = useRef<Guard>(EMPTY);
-  const legacy = useRef<(() => boolean) | null>(null);
   const [view, setView] = useState({ dirty: false, busy: false, canSave: false });
   const [action, setAction] = useState<(() => void) | null>(null);
   const [saving, setSaving] = useState(false);
   const blocker = useBlocker(useCallback(() => {
-    if (legacy.current && !legacy.current()) return true;
     return guard.current.dirty || guard.current.busy;
   }, []));
   const update = useCallback((value: Guard) => {
@@ -34,11 +31,9 @@ export function NavigationGuard({ children }: { children: ReactNode }) {
       ? current : { dirty: value.dirty, busy: value.busy, canSave: !!value.save });
   }, []);
   const attempt = useCallback((next: () => void) => {
-    if (legacy.current && !legacy.current()) return;
     if (guard.current.dirty || guard.current.busy) setAction(() => next);
     else next();
   }, []);
-  const setLegacy = useCallback((check: (() => boolean) | null) => { legacy.current = check; }, []);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (guard.current.dirty || guard.current.busy) {
@@ -49,10 +44,6 @@ export function NavigationGuard({ children }: { children: ReactNode }) {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, []);
-  // 旧物品流程暂沿用其已有确认；取消后直接撤销本次导航。
-  useEffect(() => {
-    if (blocker.state === "blocked" && !guard.current.dirty && !guard.current.busy) blocker.reset();
-  }, [blocker]);
   function cancel() {
     if (saving) return;
     if (blocker.state === "blocked") blocker.reset();
@@ -71,7 +62,7 @@ export function NavigationGuard({ children }: { children: ReactNode }) {
     else action?.();
     setAction(null);
   }
-  return <Context.Provider value={{ update, attempt, legacy: setLegacy }}>
+  return <Context.Provider value={{ update, attempt }}>
     {children}
     <Modal open={!!action || (blocker.state === "blocked" && (view.dirty || view.busy))}
       title={view.busy ? "操作尚未结束" : "有未保存修改"} onCancel={cancel} closable={!saving}

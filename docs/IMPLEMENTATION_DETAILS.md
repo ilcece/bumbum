@@ -268,7 +268,7 @@ NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/develo
 
 ## 9. 服装资料与启停实现
 
-产品规则见[后台规范](product/admin-management.md#3-服装基础资料编辑与启停)，字段、限制和错误只维护在[API第4节](../API_CONTRACT.md#4-管理物品)；任务/证据见TODO/CHANGELOG。物品扩展查询、款式与服装五项资料的原子保存和私有图片后端已接入，物品管理端完整迁移仍按批准A方案推进，不以接口实现替代页面验收。
+产品规则见[后台规范](product/admin-management.md#3-服装基础资料编辑与启停)，字段、限制和错误只维护在[API第4节](../API_CONTRACT.md#4-管理物品)；任务/证据见TODO/CHANGELOG。物品扩展查询、款式与服装五项资料的原子保存和私有图片后端已接入，物品管理端完整迁移已接入，前端分工见第10节，仍不以自动检查代替人工验收。
 
 读取复用admin_queries的一致性快照和北京时间日期过滤；列表以真实唯一关系关联芯片/配置，profile批量读取，自管图片再批量映射，避免逐行请求。写依次锁管理员→会话→item→按asset_id排序的媒体记录，先检查项目/归档/来源状态再写。普通PATCH仅更新款式和明确五项profile，既有size_chart保留；实际修改、updated_at、媒体关联状态和最小审计一起commit，失败rollback，无变化不写时间/审计。旧PUT及单独status分支复用同一函数并保留返回形状；最后成功保存的整份可编辑资料为准，不新增版本冲突系统。
 
@@ -288,9 +288,9 @@ Pillow完整解码、缩小后修正方向并重编码去元数据；WebP使用�
 
 管理端保留React、TypeScript、Vite和npm，锁定依赖以package.json/lock为准。共享入口加载官方React 19补丁，ConfigProvider/App统一中文和主题；AdminLayout采用ProLayout及React Router的数据路由，LoginPanel仍持有会话。工作台保留原统计聚合及SVG图表，RuntimeChecks复用health/ready；不将连接检查视为业务或部署验收。
 
-ChipPanel使用官方ProTable查询、ProDescriptions详情及ProForm批次编辑；详情/编辑共用业务字段定义，CreateChip使用ModalForm登记并继续。已提交查询及页码在URL，安全返回位置与滚动在站内路由state；未提交草稿、密钥及凭证不进入URL或浏览器持久存储。表单只在URL条件变化时初始化，不能用外部同步覆盖未提交输入；列表、详情与关联通过真实ID/API读取。物品旧流程暂沿用原组件，完整迁移按批准A方案交付。
+ChipPanel使用官方ProTable查询、ProDescriptions详情及ProForm批次编辑；详情/编辑共用业务字段定义，CreateChip使用ModalForm登记并继续。已提交查询及页码在URL，安全返回位置与滚动在站内路由state；未提交草稿、密钥及凭证不进入URL或浏览器持久存储。表单只在URL条件变化时初始化，不能用外部同步覆盖未提交输入；列表、详情与关联通过真实ID/API读取。ItemPanel以ProTable承接URL条件，CreateItem以ModalForm连续创建并定位确切ID，ItemDetailPage与itemFields共用详情/编辑字段；ItemImages负责受控Upload适配，不维护第二套表单/文件列表。新普通保存一次PATCH，只提交变化的款式和profile，无变化不发写请求；只读尺码与饰品资料不写回。
 
-NavigationGuard结合useBlocker及beforeunload保护普通编辑；保存后继续/放弃继续/取消分别处理，提交中拒绝离开；绑定/密钥保留专用确认及未知结果核对。记录切换重置表单，卸载/新请求后旧响应不可回填；401隐藏全部管理资料，CSRF更新不自动重放写请求。采用官方布局的页面滚动、侧栏及弹窗滚动，不依赖旧body禁止滚动规则；旧物品/图表样式中的原生控件规则限定在legacy-ui范围，避免覆盖官方组件。人工步骤见[桌面管理端](ADMIN_DESKTOP.md)及[芯片手册](CHIP_REGISTRATION.md)。代码回退到本步之前的已提交版本并按对应锁文件安装，不能撤销已保存批次/关联或代替数据库恢复。
+NavigationGuard结合useBlocker及beforeunload保护普通编辑；保存后继续/放弃继续/取消分别处理，提交中拒绝离开；绑定/密钥保留专用确认及未知结果核对。记录切换重置表单，卸载/新请求后旧响应不可回填；401隐藏全部管理资料，CSRF更新不自动重放写请求。采用官方布局的页面滚动、侧栏及弹窗滚动，不依赖旧body禁止滚动规则；旧物品编辑器、Radix控件及无引用依赖已移除，管理端使用官方reset；保留的统计原生控件样式限定在legacy-ui，避免覆盖官方组件。人工步骤见[桌面管理端](ADMIN_DESKTOP.md)、[物品手册](ITEM_DRAFTS.md)及[芯片手册](CHIP_REGISTRATION.md)。代码回退到本步之前的已提交版本并按对应锁文件安装，不能撤销已保存批次/关联或代替数据库恢复。
 
 
 ## 11. 最小脱敏诊断

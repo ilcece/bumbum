@@ -6,7 +6,7 @@
 
 管理后台组件库已确定为Ant Design，优先复用ProComponents及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前后台尚未完成迁移。版本、React兼容性及依赖调整在技术方案中核对，方案通过后按确认范围实施；现有React/Vite/TypeScript工程与认证保留，用户H5独立设计。
 
-组件版本和A完整范围见[批准技术方案](docs/proposals/admin-management-implementation.md)，两项生效门槛的证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品完整迁移仍构建中，进度见TODO。
+组件版本和A完整范围见[批准技术方案](docs/proposals/admin-management-implementation.md)，两项生效门槛的证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品列表、同字段详情/编辑、连续创建及Upload已接入；人工验收、合并与部署进度见TODO。
 
 独立组件与配套恢复门槛保留；媒体后端使用005及[离线备份模块](core/media_backup.py)，实现边界见[附录第9节](docs/IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)，字段/图片契约见[API第4节](API_CONTRACT.md#4-管理物品)。原生SQL还原与文件还原分开，不依赖上传服务在线。生产上传默认关闭，隔离检查不等于真实目标备份或生产启用前提已满足。
 

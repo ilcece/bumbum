@@ -1,4 +1,5 @@
 import "@ant-design/v5-patch-for-react-19";
+import "antd/dist/reset.css";
 import { createRoot } from "react-dom/client";
 import { App, ConfigProvider } from "antd";
 import zhCN from "antd/es/locale/zh_CN";

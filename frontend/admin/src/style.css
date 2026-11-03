@@ -1,30 +1,10 @@
-@import "tailwindcss";
 @import "./design.css";
 
-/* 保留Make桌面布局；body不滚动，内容区和弹窗分别承担滚动。 */
-:root {
-  font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
-}
-html,
-body,
-#root {
-  height: 100%;
-}
-body {
-}
-.admin-shell {
-  min-width: 1024px;
-  height: 100dvh;
-}
-.sidebar {
-  overflow-y: auto;
-}
-.topbar {
-  flex-shrink: 0;
-}
-.page {
-  overflow: auto;
-}
+:root { font-family: Inter, "Microsoft YaHei", system-ui, sans-serif; }
+html, body, #root { min-height: 100%; }
+body { margin: 0; background: #f9fafb; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+/* 统计保留原生控件；限定作用域，避免覆盖官方表单与弹层。 */
 :where(.legacy-ui) h1,
 :where(.legacy-ui) h2,
 :where(.legacy-ui) h3,
@@ -73,100 +53,6 @@ body {
   outline: 2px solid var(--color-accent-soft);
   border-color: var(--color-accent);
 }
-:is(.item-panel, .profile-editor, .login-card, .dialog-content)
-  button:not(.dialog-close) {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 38px;
-  padding: 8px 14px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 8px;
-  background: white;
-  color: var(--color-ink);
-  font-size: 13px;
-}
-:is(.item-panel, .profile-editor, .login-card)
-  button[type="submit"],
-.dialog-content .action-primary {
-  background: var(--color-accent);
-  color: white;
-  border-color: var(--color-accent);
-}
-.dialog-content {
-  max-height: calc(100dvh - 32px);
-  overflow-y: auto;
-}
-.dialog-content form {
-  margin-top: 20px;
-}
-.profile-dialog {
-  overflow: hidden;
-}
-.profile-editor {
-  overflow-y: auto;
-  min-height: 0;
-}
-.profile-editor .profile-layout {
-  overflow: visible;
-  margin-top: 0;
-}
-.profile-editor fieldset {
-  display: grid;
-  gap: 16px;
-}
-.profile-editor .actions {
-  display: flex;
-  gap: 10px;
-  margin: 16px 0;
-}
-.profile-editor .dialog-footer {
-  position: sticky;
-  bottom: 0;
-  background: white;
-  margin-bottom: 0;
-}
-.profile-editor .preview-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-content: start;
-  margin-top: 20px;
-}
-.preview-grid figure {
-  min-width: 0;
-}
-.preview-grid figcaption {
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.item-panel > p {
-  color: var(--color-ink-soft);
-  margin: -12px 0 20px;
-}
-.item-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: end;
-  padding: 16px;
-  background: white;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  margin: 20px 0;
-}
-:is(.chip-filters, .item-filters) label:first-child {
-  flex: 1;
-  min-width: 240px;
-}
-:is(.chip-filters, .item-filters) label {
-  min-width: 130px;
-}
-.table-scroll {
-  max-width: 100%;
-  max-height: 58vh;
-  overflow: auto;
-}
 :where(.legacy-ui) table {
   width: 100%;
   border-collapse: collapse;
@@ -197,124 +83,9 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.table-panel > p,
-.table-panel > .notice {
-  margin: 16px 24px;
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 20px;
-}
-.success-notice {
-  margin: 16px 0;
-  color: #15803d;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  border-radius: 8px;
-  padding: 14px;
-}
-.notice {
-  margin: 16px 0;
-  color: #b91c1c;
-  padding: 12px;
-  background: #fef2f2;
-  border-radius: 8px;
-}
-.quick-actions {
-  display: grid;
-  gap: 16px;
-  padding: 24px;
-}
-.placeholder-chart {
-  min-height: 200px;
-  display: grid;
-  place-items: center;
-  color: var(--color-ink-faint);
-  padding: 32px;
-}
-.checks-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin: 20px 0;
-}
-.check-card {
-  padding: 20px;
-}
-.check-result {
-  margin: 12px 0;
-  font-size: 20px;
-}
-.check-result.ok {
-  color: #15803d;
-}
-.check-result.failed {
-  color: #b91c1c;
-}
-.login-page {
-  height: 100dvh;
-  overflow-y: auto;
-  padding: 56px 24px;
-  display: grid;
-  justify-items: center;
-  align-items: start;
-  background: radial-gradient(ellipse at top, #eff6ff, #f9fafb 65%);
-}
-.login-card {
-  width: 460px;
-  max-width: 100%;
-  padding: 36px;
-  border: 1px solid var(--color-border);
-  border-radius: 16px;
-  background: white;
-  box-shadow: var(--shadow-float);
-}
-.login-card h1 {
-  font-size: 26px;
-  font-weight: 650;
-  margin: 8px 0;
-}
-.login-card > p {
-  color: var(--color-ink-soft);
-  font-size: 13px;
-}
-.login-card form {
-  margin-top: 24px;
-}
-.login-checks {
-  margin-top: 24px;
-  border-top: 1px solid var(--color-border);
-  padding-top: 16px;
-}
-.login-checks summary {
-  cursor: pointer;
-  color: var(--color-accent);
-}
-.login-checks .checks-grid {
-  grid-template-columns: 1fr;
-}
-.login-note {
-  margin-top: 24px;
-}
 
-/* 原生业务表单复用Make按钮颜色，避免通用按钮样式覆盖主操作。 */
-.item-panel button.action-primary,
-.dialog-content button[type="submit"] {
-  color: white;
-  background: var(--color-accent);
-  border-color: var(--color-accent);
-}
-.sidebar-footer button { display: flex; align-items: center; gap: 8px; min-height: 36px; }
-
+.notice { margin: 16px 0; color: #b91c1c; padding: 12px; background: #fef2f2; border-radius: 8px; }
 .diagnostic-id { overflow-wrap: anywhere; font-size: 12px; margin-top: 8px; }
-
-/* 统计区域保留图表和业务控件，页面滚动交给官方管理布局。 */
-.overview-inventory-title { font-size: 16px; margin: 0 0 12px; }
-.overview-inventory.metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.overview-actions { margin: 20px 0; }
 .tap-statistics { padding: 24px; margin: 20px 0; min-width: 0; overflow: visible; }
 .tap-statistics .panel-head { padding: 0 0 16px; }
 .tap-statistics h3 { font-size: 15px; margin: 24px 0 12px; }
@@ -348,5 +119,3 @@ body {
 .tap-statistics .muted-text { color: var(--color-ink-soft, #4b5563); font-size: 12px; line-height: 1.6; }
 .tap-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; font-size: 13px; }
 .tap-initial { padding: 24px 0; color: var(--color-ink-soft, #4b5563); }
-.overview-actions .quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 16px 24px; }
-.overview-inventory .muted-text { color: var(--color-ink-soft, #4b5563); }

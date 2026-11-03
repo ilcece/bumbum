@@ -24,15 +24,19 @@ async function request<T>(path: string, body?: Record<string, unknown>, method?:
     headers,
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+  return responseData<T>(response);
+}
+
+async function responseData<T>(response: Response): Promise<T> {
   let result;
   try {
     result = await response.json();
   } catch {
     throw new ApiError(response.status, "unexpected_response", "无法读取服务结果，请确认后端正在运行。");
   }
-  if (!response.ok || result.status !== "ok" || !result.data) {
-    const errorId = typeof result.error_id === "string" && /^[a-f0-9]{24}$/.test(result.error_id) ? result.error_id : undefined;
-    throw new ApiError(response.status, result.code || "unexpected_response", result.message || "请求未完成，请重试。", errorId);
+  if (!result || !response.ok || result.status !== "ok" || !result.data) {
+    const errorId = typeof result?.error_id === "string" && /^[a-f0-9]{24}$/.test(result.error_id) ? result.error_id : undefined;
+    throw new ApiError(response.status, result?.code || "unexpected_response", result?.message || "请求未完成，请重试。", errorId);
   }
   return result.data as T;
 }
@@ -130,13 +134,18 @@ export type ItemView = {
   status: "draft" | "active" | "disabled" | "archived";
   created_at: string | null; updated_at: string | null; profile: Record<string, unknown> | null;
 };
-export type ItemQuery = { page: number; project: string; status: string; keyword: string; unbound_only?: boolean };
-export type ItemList = { items: ItemView[]; total: number; page: number; page_size: number };
+export type ItemSummary = ItemView & {
+  linked_chip: Pick<ChipView, "id" | "chip_uid" | "chip_status" | "keys_generated" | "provisioned_at"> | null;
+  keyword_matches: string[];
+};
+export const ITEM_FILTERS = ["project", "status", "keyword", "has_chip", "created_from", "created_to", "updated_from", "updated_to"] as const;
+export type ItemQuery = { page: number; page_size?: number; unbound_only?: boolean } & Partial<Record<typeof ITEM_FILTERS[number], string>>;
+export type ItemList = { items: ItemSummary[]; total: number; page: number; page_size: number; total_pages: number; page_adjusted: boolean };
 
 export async function listItems(query: ItemQuery): Promise<ItemList> {
-  const parameters = new URLSearchParams({ page: String(query.page), page_size: "20" });
+  const parameters = new URLSearchParams({ page: String(query.page), page_size: String(query.page_size || 20) });
   if (query.unbound_only !== undefined) parameters.set("unbound_only", String(query.unbound_only));
-  for (const name of ["project", "status", "keyword"] as const) {
+  for (const name of ITEM_FILTERS) {
     if (query[name]) parameters.set(name, query[name]);
   }
   return request(`/admin/items?${parameters}`);
@@ -151,8 +160,14 @@ export type FashionProfile = {
   care_instructions: string | null; image_urls: string[];
 };
 
-export function readItem(id: number): Promise<ItemView> {
+export function readItem(id: number): Promise<ItemSummary> {
+  if (!safeRecordId(id)) throw new Error("物品记录编号超出页面可处理范围。");
   return request(`/admin/items/${id}`);
+}
+
+export function saveItemDetails(id: number, body: { sku_code?: string | null; profile?: FashionProfile }): Promise<ItemSummary> {
+  if (!safeRecordId(id)) throw new Error("物品记录编号超出页面可处理范围，未提交。");
+  return request(`/admin/items/${id}`, body, "PATCH");
 }
 
 export function saveFashionProfile(id: number, profile: FashionProfile): Promise<FashionProfile> {
@@ -160,7 +175,39 @@ export function saveFashionProfile(id: number, profile: FashionProfile): Promise
 }
 
 export function changeItemStatus(id: number, status: "active" | "disabled"): Promise<ItemView> {
+  if (!safeRecordId(id)) throw new Error("物品记录编号超出页面可处理范围，未提交。");
   return request(`/admin/items/${id}`, { status }, "PATCH");
+}
+
+export type MediaAsset = {
+  asset_id: string; state: "uploading" | "pending" | "attached" | "retired" | "deleting";
+  expired: boolean; url: string; preview_url: string | null; expires_at: string | null;
+};
+function validMedia(value: MediaAsset, itemId: number, assetId: string) {
+  const expected = `/items/${itemId}/images/${assetId}`;
+  if (!value || value.asset_id !== assetId || !["uploading", "pending", "attached", "retired", "deleting"].includes(value.state)
+    || typeof value.expired !== "boolean" || !(value.expires_at === null || typeof value.expires_at === "string" && Number.isFinite(Date.parse(value.expires_at)))) throw new Error("上传返回状态不符合约定。");
+  const reference = new URL(value.url);
+  if (!["https:", "http:"].includes(reference.protocol) || reference.username || reference.password || reference.search || reference.hash || reference.pathname !== "/api/tap" + expected) throw new Error("上传引用与目标不符。");
+  if (value.preview_url !== null) {
+    const preview = new URL(value.preview_url);
+    if (preview.origin !== window.location.origin || preview.username || preview.password || preview.pathname !== "/api/admin" + expected || preview.search || preview.hash) throw new Error("图片预览与目标不符。");
+  }
+  return value;
+}
+export async function uploadItemImage(itemId: number, assetId: string, file: File, signal: AbortSignal): Promise<MediaAsset> {
+  if (!safeRecordId(itemId) || !/^[a-f0-9]{32}$/.test(assetId)) throw new Error("上传目标无效，未提交。");
+  const body = new FormData(); body.append("client_upload_id", assetId); body.append("file", file);
+  const response = await fetch(`${API_BASE}/admin/items/${itemId}/images`, {
+    method: "POST", credentials: "include", cache: "no-store", body,
+    headers: { Accept: "application/json", ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}) },
+    signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+  });
+  return validMedia(await responseData<MediaAsset>(response), itemId, assetId);
+}
+export async function readImageStatus(itemId: number, assetId: string): Promise<MediaAsset> {
+  if (!safeRecordId(itemId) || !/^[a-f0-9]{32}$/.test(assetId)) throw new Error("上传目标无效。");
+  return validMedia(await request<MediaAsset>(`/admin/items/${itemId}/images/${assetId}/status`), itemId, assetId);
 }
 
 // 统计接口只读；条件与结果一起校验，不能用缺字段或精度丢失的数字充当零。

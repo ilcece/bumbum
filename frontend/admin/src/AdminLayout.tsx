@@ -1,16 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
-import { Alert, App, Button, Card, Col, Row, Space, Statistic, Typography } from "antd";
+import { useEffect, useState } from "react";
+import { Alert, Button, Card, Col, Row, Space, Statistic, Typography } from "antd";
 import { DashboardOutlined, DatabaseOutlined, LinkOutlined, ShoppingOutlined, LogoutOutlined } from "@ant-design/icons";
 import { PageContainer, ProLayout } from "@ant-design/pro-components";
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, listChips, listItems } from "./api";
 import { ChipPanel } from "./ChipPanel";
 import { ItemPanel } from "./ItemPanel";
-import { ItemDetailPage } from "./ItemDetailPage";
 import { RuntimeChecks } from "./RuntimeChecks";
 import { TapStatisticsPanel } from "./TapStatisticsPanel";
 import { NavigationGuard, useNavigationGuard } from "./NavigationGuard";
-import { UnavailableContext } from "./AdminUI";
 
 function Overview({ onSessionExpired }: { onSessionExpired: () => void }) {
   const navigate = useNavigate();
@@ -58,19 +56,11 @@ function Overview({ onSessionExpired }: { onSessionExpired: () => void }) {
   </PageContainer>;
 }
 
-function LegacyItems({ onSessionExpired }: { onSessionExpired: () => void }) {
-  const { legacy } = useNavigationGuard();
-  const register = useCallback((check: () => boolean) => legacy(check), [legacy]);
-  useEffect(() => () => legacy(null), [legacy]);
-  return <div className="legacy-ui"><ItemPanel onSessionExpired={onSessionExpired} registerLeave={register} /></div>;
-}
-
 type Props = { expiry: string; busy: boolean; onLogout: () => void; onSessionExpired: () => void; message: string };
 function Workspace({ expiry, busy, onLogout, onSessionExpired, message }: Props) {
   const location = useLocation();
   const { attempt } = useNavigationGuard();
-  const { modal } = App.useApp();
-  return <UnavailableContext.Provider value={() => { modal.info({ title: "功能暂未开放", content: "当前版本暂未实现。" }); }}>
+  return (
     <ProLayout title="BUMBUM" logo={false} layout="side" fixedHeader fixSiderbar siderWidth={224}
       location={{ pathname: location.pathname }} menuProps={{ selectedKeys: [location.pathname.startsWith("/chips") ? "/chips" : location.pathname.startsWith("/items") ? "/items" : location.pathname === "/checks" ? "/checks" : "/"] }} contentStyle={{ minHeight: "100vh" }}
       route={{ routes: [
@@ -86,13 +76,12 @@ function Workspace({ expiry, busy, onLogout, onSessionExpired, message }: Props)
       <Routes>
         <Route path="/" element={<Overview onSessionExpired={onSessionExpired} />} />
         <Route path="/chips/*" element={<ChipPanel onSessionExpired={onSessionExpired} />} />
-        <Route path="/items" element={<LegacyItems onSessionExpired={onSessionExpired} />} />
-        <Route path="/items/:id" element={<ItemDetailPage onSessionExpired={onSessionExpired} />} />
+        <Route path="/items/*" element={<ItemPanel onSessionExpired={onSessionExpired} />} />
         <Route path="/checks" element={<PageContainer title={<Typography.Title level={2} style={{ margin: 0 }}>系统状态</Typography.Title>} subTitle="检查当前服务连接；业务功能须分别验收。"><RuntimeChecks /></PageContainer>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ProLayout>
-  </UnavailableContext.Provider>;
+  );
 }
 
 export function AdminLayout(props: Props) {
