@@ -77,6 +77,18 @@ A/B/C/D分别审核、技术设计、测试和验收，不捆成一次发布，�
 
 官方参考：[Ant Design组件总览](https://ant.design/components/overview/)、[Table](https://ant.design/components/table/)、[Form](https://ant.design/components/form/)、[主题配置](https://ant.design/docs/react/customize-theme/)、[ProComponents](https://procomponents.ant.design/components/)、[Ant Design Pro](https://github.com/ant-design/ant-design-pro)。版本锁定、具体导出及React兼容以实施时技术核对为准，以上是复用方向，不表示依赖已经安装。
 
+### 3.2 原型审核入口与交互取舍
+
+[打开交互预览](https://www.figma.com/proto/u2GIN4ixqIgmpto776QryH?node-id=179455-5573&page-id=179450%3A411&starting-point-node-id=179455%3A5573)，或查看[可编辑原型页](https://www.figma.com/design/u2GIN4ixqIgmpto776QryH?node-id=179450-411)。原型放在cece提供的Ant Design Open Source副本新增的“BUMBUM · A方案交互原型”页，原组件与模板保留；副本未发布为可跨文件导入的库，因此直接复用同文件的真实组件实例及样式。社区设计组件不决定后续React依赖版本，版本和兼容性仍在技术方案核对。
+
+原型以统一右侧抽屉承载详情、普通编辑与创建，保留列表上下文；基础查询与展开条件分层呈现，宽表格与长内容在内容区滚动。该容器形态供cece判断，不因产品规则已通过就视为原型已确认；50条分页和列偏好未作为本轮必备交互。
+
+- 芯片及物品分别覆盖查询、首条样例详情、编辑保存、返回更新后列表、创建成功后查看确切新记录及继续创建。继续创建保留项目，清空已提交身份及款式；新记录和原记录使用不同样例编号。
+- 展示只读身份解释、关联对象跳转、未保存离开的三种选择、保存失败保留输入、空列表、无结果、读取失败，以及保存后不符合原筛选的说明。B清理、C纠错和D换新仍只解释边界，不开放未交付动作。
+- 这是固定模拟数据与预设跳转的Figma交互原型，列表仅首条样例演示编辑；不连接后台或持久保存，不提供真实输入、权限、接口、键盘或浏览器历史验证。新建后空表单只用于核对清空行为，不能把预览当业务功能或生产验收。
+
+交互确认后整理技术方案，再按批准范围构建、验证及人工验收；合并与生产部署仍需对应授权。当前状态和下一步负责人只维护在[TODO](../../TODO.md)。
+
 ## 4 列表、创建、详情与编辑的连续流程
 
 | 位置 | 内容与动作 | 完成后去向 |

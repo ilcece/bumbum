@@ -5,8 +5,8 @@
 ## 2026-11-03 A后台维护与查询规则审核通过，开始Figma原型
 
 - **变化与影响：** cece审核通过A的普通字段编辑、查询覆盖及创建／详情／编辑／返回行为，授权拉分支提交并直接使用Ant Design的Figma组件制作芯片与物品管理原型。同步A提案审批范围、产品导航、前端协作入口及TODO；窗口形态、筛选控件、50条分页和列偏好留待原型判断，B/C/D具体方案仍独立待审。
-- **验证：** 文档结构、链接与差异检查通过；仅确认产品规则，未新增业务、数据库、浏览器、实卡或生产验收。
-- **交付：** 文档在docs/admin-a-approved-prototype分支提交推送。按cece选择在cc团队建立[Figma原型文件](https://www.figma.com/design/sk77OqyNAc6utQSiR7UiFD)；连接器可用库及定向搜索未找到Ant Design，已请求可访问的组件库链接或library key，尚未生成界面或完成原型验证。技术方案尚未审核，不合并main、不部署。
+- **验证：** 文档结构、链接与差异检查通过；原型核对可编辑层级、真实组件来源、字体及代表页面截图，并读取核心路径的跳转配置、继续创建清空和原组件保留结果。Figma固定样例不验证真实输入、接口、键盘或浏览器历史，未新增业务、数据库、浏览器、实卡或生产验收。
+- **交付：** 文档在docs/admin-a-approved-prototype分支提交推送。最初组件库访问缺口已由cece提供副本解决；副本未发布为跨文件组件库，最终在同文件新增[可编辑原型页](https://www.figma.com/design/u2GIN4ixqIgmpto776QryH?node-id=179450-411)并提供[交互预览](https://www.figma.com/proto/u2GIN4ixqIgmpto776QryH?node-id=179455-5573&page-id=179450%3A411&starting-point-node-id=179455%3A5573)，保留原组件和模板。原型待cece确认，技术方案未审核；未安装CLI、antd或其他依赖，不合并main、不部署。
 
 ## 2026-11-03 文档整理审核通过并批准合并main
 
