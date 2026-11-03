@@ -30,7 +30,7 @@
 | 文件 | 负责什么 |
 |---|---|
 | [技术附录](IMPLEMENTATION_DETAILS.md) | 固定参数、保存规则、加密和网站入口示例；配合 TECH_SPEC 阅读 |
-| [项目优先级与过度工程化复盘](PROJECT_PRIORITY_AND_OVERENGINEERING_REVIEW.md) | 新AI会话先读；了解本次偏离、纠正决定及创业资源保护原则，长期规则仍以AGENTS为准 |
+| [项目优先级与过度工程化复盘](PROJECT_PRIORITY_AND_OVERENGINEERING_REVIEW.md) | 优先级、范围扩张或必要性判断时按需追溯相关事实与纠正依据；不是纯执行任务的固定前置阅读，条件统一见AGENTS第0.5节 |
 | [Figma 协作](FRONTEND_COLLABORATION.md) | 逐页接设计，保留真实接口、登录和错误处理 |
 
 产品、接口和表结构的定义文件见 [项目入口](../README.md#每个文件管什么)。当前任务与优先级只在 [TODO](../TODO.md) 维护，历史决定与检查结果只在 [CHANGELOG](../CHANGELOG.md) 记录。
