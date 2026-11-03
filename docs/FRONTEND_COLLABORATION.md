@@ -4,9 +4,9 @@
 
 ## 当前页面放在哪里
 
-已确认的[官方复用与迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)适用于后续管理端设计/实现：原型先选Ant Design/ProComponents现成能力与Pro官方页面模式，再做配置、组合和最小业务补充；技术提案说明必要定制缺口，不重建表格、分页、表单校验或通知系统。布局可按任务选择容器，同类行为及主题集中统一；每条完整流程交付时退出重复旧控件/样式，清理前核对共用依赖。Figma或代码生成不得增加范围外按钮/演示成功，不把Upload、Steps等组件当现成业务服务。
+后续管理端设计与实现遵守[A提案的官方复用及迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)，本文件不复制第二套组件/主题/定制规则。先审核关键原型，再审核技术依赖替换和接口方案；只读字段与返回行为按同一提案评审，现行界面按[后台规范](product/admin-management.md)。
 
-cece已于2026-11-03确定管理后台采用Ant Design，统一芯片/物品列表、创建、详情、编辑的布局规范、字段分组及交互反馈；[PRD第10节](../PRD.md#10-管理后台优化与功能补全审核稿)区分已确认方向与待审方案。窗口用抽屉还是页面经原型验证，不预先指定登记与编辑用不同窗口；只读字段展示原因及纠错路径。下表是当前实现，不是改版完成清单。先审核关键页面原型，再审核整条流程的依赖替换及接口方案；不整包接入Ant Design Pro、不长期混搭、不覆盖认证逻辑、不修改用户H5。本轮只整理文档，现有Radix/Tailwind及锁定依赖保持原样。
+下表是当前工程位置，不代表Ant Design改版已经完成；现有Radix/Tailwind及锁文件不因本次文档整理改变，用户H5独立维护。
 
 | 文件 | 负责什么 |
 |---|---|
@@ -23,7 +23,7 @@ cece已于2026-11-03确定管理后台采用Ant Design，统一芯片/物品列�
 | `frontend/admin/src/api.ts` | 唯一接口调用层，保留Cookie、内存CSRF及失败处理 |
 | `frontend/admin/vite.config.ts` | 保留本机地址和/api代理，仅增加Tailwind构建插件 |
 
-当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；用户侧页面按实际任务再建立，不先堆空目录。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
+当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；现有用户工程位于frontend/user，后续按其实际任务修改，不再创建重复工程。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
 
 ## cece 提供什么，AI 怎样接入
 
@@ -41,4 +41,4 @@ cece已于2026-11-03确定管理后台采用Ant Design，统一芯片/物品列�
 
 浏览器回归入口为tests/test_admin_browser.py，安装/运行只维护在[本地运行第9节](LOCAL_DEVELOPMENT.md#9-可重复的桌面浏览器回归)。CI在PR/main推送运行基础和隔离数据库/浏览器层；镜像/TLS层为手动开关。截图不含密码/验证码，不保留认证网络记录；配置存在不代表GitHub运行已通过，须看PR Checks。
 
-用户手机工程为frontend/user，独立package-lock、Vite及自然页面滚动，不继承管理端的body限制。main.tsx维护触碰入口/资料页/状态与自动查询，ImageGallery.tsx维护图片切换与大图，api.ts集中请求、超时和响应校验；固定版本与admin一致，不引入新的UI或轮询依赖。持续查看、Cookie及公开入口见[技术附录第17节](IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)，本机及公网验收分别取证；代码存在不代表香港已部署。
+用户手机工程为frontend/user，独立package-lock、Vite及自然页面滚动，不继承管理端的body限制。main.tsx维护触碰入口/资料页/状态与自动查询，ImageGallery.tsx维护图片切换与大图，api.ts集中请求、超时和响应校验；固定版本与admin一致，不引入新的UI或轮询依赖。持续查看、Cookie及公开入口见[技术附录第17节](IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)，本机及公网验收分别取证；代码存在不代表当前杭州服务器已更新；香港部署仅作历史证据。

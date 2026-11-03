@@ -1,8 +1,8 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-管理后台新增维护/业务查询、生产验证清理、纠错及挂失换新需求见[PRD第10节审核稿](PRD.md#10-管理后台优化与功能补全审核稿)。需求方向已确认，精确接口、授权/撤销、当前/历史关联及数据升级尚待独立技术方案；本文现有实现概览及接口边界不因产品稿自动扩大，预留所有权接口也不视为已经交付。本轮不新增路由，不将现有首次绑定接口当作换新接口。
+管理后台新增维护/业务查询、生产验证清理、纠错及挂失换新需求见[后台改动提案](PRD.md#6-独立改动提案)。需求方向已确认，精确接口、授权/撤销、当前/历史关联及数据升级尚待独立技术方案；本文现有实现概览及接口边界不因产品稿自动扩大，预留所有权接口也不视为已经交付。本轮不新增路由，不将现有首次绑定接口当作换新接口。
 
-更新日期：2026-10-26。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义地址、字段和返回；已实现与预留设计统一看第0.4节。业务看[PRD](PRD.md)，流程看[TECH_SPEC](TECH_SPEC.md)，精确安全参数看[技术附录](docs/IMPLEMENTATION_DETAILS.md)，任务和历史分别见[TODO](TODO.md)、[CHANGELOG](CHANGELOG.md)。
+文档整理：2026-11-03；未改变已实现接口行为。**接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义地址、字段和返回；已实现与预留设计统一看第0.4节。业务看[PRD](PRD.md)，流程看[TECH_SPEC](TECH_SPEC.md)，精确安全参数看[技术附录](docs/IMPLEMENTATION_DETAILS.md)，任务和历史分别见[TODO](TODO.md)、[CHANGELOG](CHANGELOG.md)。
 
 阅读方式：先找想做的事，再看要提供的字段和返回结果。字段名保留原样供 AI 写代码；示例密码、token 都是占位内容，不是真实凭证。GET 表示读取，POST 表示提交操作，PATCH 改指定字段，PUT 整份替换。
 
@@ -15,7 +15,7 @@
 | 环境 | 基础地址 | 补上的部分 | 最终请求 |
 |---|---|---|---|
 | 本机开发 | /api | /health | http://localhost:5174/api/health（Vite 转给5000端口） |
-| 香港测试管理端 | /api | /admin/chips | https://test.bumbum.cc/api/admin/chips（部署后） |
+| 杭州测试管理端（域名可用性另验收） | /api | /admin/chips | https://test.bumbum.cc/api/admin/chips（部署后） |
 | 生产管理端 | /api | /admin/chips | https://admin.bumbum.cc/api/admin/chips |
 | 生产用户端 | /api | /tap/verify | https://nfc.bumbum.cc/api/tap/verify |
 
@@ -46,17 +46,33 @@
 | 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 兼容详情接口 | 请求头 X-Tap-Token 放触碰后的临时凭证，沿用原五分钟规则 |
 | 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
-| 用户发短信/绑定 | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
+| 用户发短信/绑定（预留未实现） | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
 所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的 Origin 和 JSON；除 login 外，还必须有有效 Cookie 和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
 
 ### 0.4 当前能做到哪一步
 
-当前已实现：GET /api/admin/stats/taps、POST /api/tap/verify（含可选browser_view模式）、GET /api/tap/items/{id}/view与GET /api/fashion/items/{id}/detail、两个运行检查接口，管理员login/session/logout，GET/POST /api/admin/chips、POST /api/admin/chips/{id}/bind-item及generate-keys、keys、confirm-provisioning三个POST入口，扫描回调，GET/POST /api/admin/items，GET/PATCH /api/admin/items/{id}及PUT /api/admin/items/{id}/profile。密钥配置入口不连接实卡，配置缺失或密文无法核对返回503；验收和合并状态看TODO。物品资料与启停只开放服装，具体限制见第4节。其余未注册地址返回404；已注册地址使用不支持的方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，应使用物品详情接口。扫描配置缺失或不合法时返回503，不允许空密码访问。后续已接入路由但未开放的业务使用501，不伪造成功。本文其余预留接口不表示已实现；任务进度与验收证据分别在TODO和CHANGELOG维护。
+本节是逐接口实现范围的唯一索引；代码已实现不等于人工验收、合入main或当前线上部署，证据分别看TODO、CHANGELOG及环境手册。以下路由已有实现：
+
+| 用途 | 当前已实现入口 | 详细契约 |
+|---|---|---|
+| 运行检查 | GET /api/health、GET /api/ready | 第0.5节；公开用户域名不因此开放内部检查 |
+| 管理认证 | POST /api/admin/auth/login、GET /api/admin/auth/session、POST /api/admin/auth/logout | 第2节 |
+| 芯片登记/列表 | GET/POST /api/admin/chips、POST /api/webhook/admin/scan | 第1.1、3节；回调与网页认证不同 |
+| 首次绑定 | POST /api/admin/chips/{id}/bind-item | 第3.1节；不含解绑或换新 |
+| 密钥及配置核验 | POST /api/admin/chips/{id}/generate-keys、keys、confirm-provisioning | 第3节；不连接或改写实卡 |
+| 物品 | GET/POST /api/admin/items、GET/PATCH /api/admin/items/{id}、PUT /api/admin/items/{id}/profile | 第4节；状态修改及资料保存仅服装 |
+| 动态验证与短许可 | POST /api/tap/verify、GET /api/fashion/items/{id}/detail | 第1.2、6节；不证明所有权 |
+| 持续查看 | POST /api/tap/verify可选browser_view模式、GET /api/tap/items/{id}/view | 第9节 |
+| 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
+
+第10节集中保留短信/认领、所有权、芯片详情/状态/解绑、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用路由。新增后台查询/清理/纠错/接续尚待独立技术方案。
+
+未注册地址返回404；已有地址的不支持方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，当前使用物品详情。未来若注册但未开放的业务可按明确契约返回501，不能据旧预留文字声称当前已返回501。扫描配置缺失/非法或密钥配置/密文无法核对时503，不以空密码、默认秘密或假成功凑通过。
 
 ### 0.5 当前已实现的运行检查
 
-用于本机或受管理IP限制的云测试运行检查，不要求登录，不读取或返回密钥、账号资料；香港Nginx不向陌生IP开放。无查询参数，多传返回400 invalid_param，返回禁止缓存。
+用于本机或受管理IP限制的云环境运行检查，不要求登录，不读取或返回密钥、账号资料；用户公开域名不因此开放管理/内部检查。现行网关看杭州手册，香港仅是历史环境。无查询参数，多传返回400 invalid_param，返回禁止缓存。
 
 | 接口 | 检查什么 | 成功结果 |
 |---|---|---|
@@ -72,7 +88,9 @@
 ```
 不返回数据库地址、密码、SQL 或异常详情。ready检查表清单、初始项目、芯片项目可空所需的字段与约束版本，以及登记来源列的类型、默认值和不可空定义；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
 
-## 1. 登记芯片、验证触碰和绑定手机号
+<a name="1-登记芯片验证触碰和绑定手机号"></a>
+
+## 1. 登记芯片与动态验证（已实现）
 
 ### 1.1 POST /api/webhook/admin/scan：登记芯片（第一阶段）
 
@@ -114,31 +132,11 @@
 
 reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法解析）、unknown_chip（未登记）、replay_suspect（旧读数）、disabled（芯片停用/丢失，或物品停用/归档）、not_ready（未绑定、物品草稿或未配置好）。格式错误仍为 400。
 
-### 1.3 POST /api/public/sms/send：发绑定短信（第二阶段）
+短信与首次认领接口尚未实现，见[预留设计](#101-短信与首次认领预留)。
 
-必填 phone（中国大陆 11 位手机号）、tap_token；仅未用掉的 bind 凭证可用，read 不能绑定：
-```json
-{"phone":"13800138000","tap_token":"t_example"}
-```
-先确认凭证与物品仍允许绑定，再保存短信验证记录和发送次数；发送失败不能报成功。提供商及失败重试办法待选。发送不消耗凭证；expires_in 不超过短信和凭证剩余有效期，最大 300 秒：
-```json
-{"status":"ok","data":{"sent":true,"expires_in":240}}
-```
-同手机号 60 秒一次，同 IP 每小时最多 10 次，短信码最多错 5 次；发新码让同凭证同手机号旧码失效。错误：400 invalid_param、403 invalid_tap_token、409 already_bound、429 sms_rate_limited、501 feature_not_ready、503 service_unavailable。
+<a name="2-管理员登录第一阶段"></a>
 
-### 1.4 POST /api/public/bind：绑定所有者（第二阶段）
-
-必填 phone、sms_code（6 位数字文字）、tap_token；物品从凭证中确定，不能由客户端替换：
-```json
-{"phone":"13800138000","sms_code":"123456","tap_token":"t_example"}
-```
-校验凭证、状态和匹配的短信码；一起完成创建/复用用户、保存 ownership(bind_source=user_self) 和 history(action=bind)、用掉短信码与 bind 凭证。有主人不覆盖，失败不消耗凭证，错码次数仍要保存：
-```json
-{"status":"ok","data":{"item_id":12,"user_id":5,"bound":true}}
-```
-错误：400 invalid_param/invalid_sms_code、403 invalid_tap_token、409 already_bound、429 rate_limited、503 service_unavailable。
-
-## 2. 管理员登录（第一阶段）
+## 2. 管理员登录（已实现）
 
 使用一个表单提交账号、密码和手机 Authenticator 的验证码。TOTP 是这类通常每 30 秒更新的 6 位验证码。账号创建和验证器设置由受控服务器命令完成，不开放网页注册、设置或恢复接口。
 
@@ -172,7 +170,9 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 原先的验证码单独验证、备份码验证和网页设置验证器接口不再属于当前方案。验证器丢失且无法迁移时，通过有权限的服务器操作重置，不能从网页跳过验证码。
 
-## 3. 管理芯片（第一阶段）
+<a name="3-管理芯片第一阶段"></a>
+
+## 3. 管理芯片（已实现）
 
 均须完整登录，写请求加防冒用口令。ChipView 是芯片摘要：id、chip_uid、project（fashion/jewelry或null，null显示“未分配”）、chip_status、item_id/item_uid（可空）、batch_no（可空）、registration_source（manual网页手工／nfc_cool手机扫描／unknown历史未知）、provisioned_at（可空）、keys_generated（是否有密钥）、created_at、updated_at；不展示密钥、密文或读数。
 
@@ -180,15 +180,12 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 |---|---|---|
 | 手动登记：POST /api/admin/chips | chip_uid必填；project、batch_no可选，空时省略或传null | chip：ChipView、is_new：是否新登记 |
 | 查列表：GET /api/admin/chips | page/page_size、project、status、keyword 可选，keyword 查 UID | 分页 ChipView |
-| 查详情：GET /api/admin/chips/{id} | 芯片 id | ChipView，加 ownership：null 或 item_id/user_id/phone_masked/bound_at |
 | 生成密钥：POST /api/admin/chips/{id}/generate-keys | `{}`，不接受 force | chip_id、generated=true、key_version |
 | 查看密钥：POST /api/admin/chips/{id}/keys | confirm=true | chip_uid、keys、sun_url_template |
 | 确认配置：POST /api/admin/chips/{id}/confirm-provisioning | readings：恰好两项的数组，各含picc_data/cmac；management_confirmed=true | 更新后的ChipView；不返回密钥或用户凭证 |
-| 改状态：PATCH /api/admin/chips/{id}/status | chip_status | 更新后 ChipView |
 | 绑定物品：POST /api/admin/chips/{id}/bind-item | item_id | 更新后 ChipView |
-| 解除绑定：POST /api/admin/chips/{id}/unbind-item | `{}` | 更新后 ChipView |
 
-当前手动登记、列表、首次绑定及三个密钥配置POST可用，表中详情、状态及解绑仍待实现。
+上表仅列当前已实现入口；芯片详情、状态及解绑的旧预留定义见第10.2节，不能据其定义直接调用。
 
 绑定物品的页面与业务规则见[绑定PRD](docs/product/chip-lifecycle.md#2-首次绑定物品)，具体实现见[技术附录](docs/IMPLEMENTATION_DETAILS.md#13-芯片绑定物品实现)。人工验收和合并状态分别看TODO与CHANGELOG；本节不因按钮出现就宣称所有管理能力已开放。
 
@@ -257,13 +254,12 @@ ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）�
 | 创建：POST /api/admin/items | project、item_uid 必填，sku_code 可空；status 省略或仅 draft | 新 ItemView，profile=null |
 | 查详情：GET /api/admin/items/{id} | 物品 id | ItemView |
 | 改部分字段：PATCH /api/admin/items/{id} | 当前仅status必填：active/disabled；仅服装，不允许sku_code或其他字段 | 更新后 ItemView |
-| 查资料：GET /api/admin/items/{id}/profile（预留未实现，当前使用详情） | 物品 id | profile 或 null |
 | 整份存资料：PUT /api/admin/items/{id}/profile | 当前仅服装的name/description/material/care_instructions/image_urls | 保存后的 profile |
 
 | 项目 | 资料字段 |
 |---|---|
 | fashion（服装） | name（名称）必填，1–128字符；description最多4000、material最多256、care_instructions最多2000，可空；image_urls为URL数组，省略为[]；size_chart仅保留既有返回，本次不展示、不接收、不更新 |
-| jewelry（饰品） | name（名称）必填，1–128 字符；description（介绍）、material（材质）、meaning（寓意）可空；image_urls（图片地址）同上 |
+| jewelry（饰品，只读返回结构；PUT未开放） | name（名称）必填，1–128 字符；description（介绍）、material（材质）、meaning（寓意）可空；image_urls（图片地址）同上 |
 
 PUT只整份替换本次五个可编辑字段，省略可选字段清为null/[]；空白文字归一为null。size_chart不接收，不清空已有值；JSON返回仍沿用既有ItemView结构。长度按去首尾空白后的Unicode字符数计算。图片只用完整http/https，不含账号密码、空白、控制字符或反斜杠，最多20项，每项2048字符；保留顺序，后端不下载。项目/物品编号不可改，款式修改、归档、饰品资料保存均未开放。启用要求有效服装名称，draft/disabled→active，active→disabled；相同状态幂等，不重复状态审计；归档写入409 invalid_state。
 
@@ -271,45 +267,23 @@ GET/POST /api/admin/items已由cece验收并合入main。当前GET详情支持�
 
 列表只接受page/page_size/project/status/keyword/unbound_only，不接受重复参数；page为1–2147483647，page_size为1–100，默认20。project仅fashion/jewelry，status为draft/active/disabled/archived，省略表示全部。unbound_only仅接受小写文字true/false，其他值或重复400 invalid_param；省略/false保持普通列表，true排除关联任何芯片的物品，包含其芯片为disabled/lost的情况。先过滤后计算total及分页，不改变既有物品状态筛选或ItemView。绑定弹窗固定传true，普通管理列表不传；查询不预占，最终绑定事务仍重查占用。keyword原始长度最多128字符，去首尾空白后对编号或sku_code作包含式模糊查询，按数据库既有排序规则匹配，%和_按普通文字处理；按id倒序，空页保留真实total。ItemView的profile从对应项目资料表组装，没有记录为null，不是item表字段；已有资料不能伪报为null。失败统一status=error/code/message，适用第7节错误码，不伪造空列表。
 
-第三阶段的下列接口仅服装物品可用，否则 409 project_mismatch；未细化开放前 501 feature_not_ready。完整登录，写请求加防冒用口令；PUT 整份替换，数组最多 100 项：
+服装扩展资料维护尚未开放，旧契约见[预留设计](#104-服装扩展资料预留)。
 
-| 接口 | PUT 要给什么 | GET/PUT 返回 |
-|---|---|---|
-| 溯源记录：GET/PUT /api/admin/items/{id}/trace | 数组：stage 必填，event_time/location/operator/detail 可空，sort_order 默认 0 | trace 数组，空时 [] |
-| 品牌故事：GET/PUT /api/admin/items/{id}/story | 对象：title/content/media_urls 可空，sort_order 默认 0 | story 对象，空时 null |
-| 购买渠道：GET/PUT /api/admin/items/{id}/channel | 数组：channel_type 必填，channel_name/order_no/purchased_at 可空 | channel 数组，空时 [] |
+<a name="6-用户看详情和饰品养成"></a>
 
-stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字段，不重复 item_id。购买渠道 channel 始终为数组；用户端去掉订单号和个人交易信息。
+## 6. 兼容服装详情（已实现）
 
-## 5. 管理所有权（第一阶段）
-
-完整登录，写请求加防冒用口令。OwnershipView 是绑定记录：id、item_id、item_uid、user_id、phone_masked（隐藏部分数字的手机号）、bound_at、unbound_at、is_active、bind_source。列表不展示完整手机号；输入手机号按 1.3 节，note 可空且最长 256。
-
-| 要做什么及接口 | 要给什么 | 成功返回的 data |
-|---|---|---|
-| 查列表：GET /api/admin/ownerships | page/page_size、item_id、user_phone（手机号前缀）、is_active=0/1 可选 | 分页 OwnershipView |
-| 绑定：POST /api/admin/ownerships | item_id、phone 必填，note 可选 | 新 OwnershipView |
-| 解绑：POST /api/admin/ownerships/{id}/unbind | note 可选 | 关闭后的旧 OwnershipView |
-| 转赠：POST /api/admin/ownerships/{id}/transfer | to_phone 必填，note 可选 | 新 OwnershipView |
-
-只给非归档物品绑定；已有主人 409 already_bound。管理员绑定写 ownership.bind_source=admin 和 history(action=bind, from_user_id=null, to_user_id=用户)，history 没有 bind_source。
-
-解绑/转赠只操作当前有效记录，否则 409 invalid_state；转给原主人为 409 already_bound，不造新历史。转赠关闭旧绑定、创建新绑定（来源 admin），只写一条 transfer 历史，保存 from/to 用户；绑定、历史、操作记录一起成功。日志和操作记录不保存完整手机号。
-
-## 6. 用户看详情和饰品养成
-
-服装详情GET已接入；饰品详情GET仍预留。下列GET要带X-Tap-Token，核对其对应物品和当前状态，读取不消耗凭证；跨项目 409 project_mismatch，凭证无效/过期/已用掉或不匹配 403 invalid_tap_token：
+GET要带X-Tap-Token，核对对应物品和当前状态；读取不消耗凭证。跨项目409 project_mismatch；凭证无效/过期/已使用或不匹配403 invalid_tap_token。此处是短凭证兼容接口；手机持续查看使用第9节，不混用两种资格。
 
 | 接口 | 返回的 data |
 |---|---|
 | 服装详情：GET /api/fashion/items/{item_id}/detail | item_uid、profile 对象、trace 数组、story 对象或 null、channel 数组、owner_bound |
-| 饰品详情：GET /api/jewelry/items/{item_id}/detail | item_uid、profile 对象、owner_bound |
 
-不返回芯片 UID、读取序号、手机号或订单号；第二阶段也不返回进度。第三阶段 GET /api/jewelry/items/{item_id}/progress 和 POST /api/jewelry/items/{item_id}/touch 还需确认谁可操作、怎样认人、转赠后进度及冷却规则，当前不开放，返回 501 feature_not_ready；不能把登记所有者当作访问者替他加经验。
+不返回芯片UID、读取序号、手机号或订单号。饰品详情和旧成长接口见[预留与历史边界](#105-饰品详情预留及旧成长接口候选)，不表示已开放。
 
 ## 7. 失败时怎样理解
 
-HTTP 状态码是这次请求的大类结果，code 是具体原因，message 是给人看的解释。创建/普通成功仍是 200；不能把故障统一改成 200。
+本表包含已实现和预留业务的错误码集合；短信等预留错误码不证明对应接口已开放。HTTP 状态码是这次请求的大类结果，code 是具体原因，message 是给人看的解释。创建/普通成功仍是 200；不能把故障统一改成 200。
 
 | HTTP | code | 含义 |
 |---|---|---|
@@ -425,3 +399,92 @@ view为连续24小时无成功查询失效，成功查询滑动续期24小时；
 | 500 internal_error | 意外异常，附可用error_id；无资料假成功 |
 
 所有资料响应no-store。GET失败不发清除Cookie指令，避免旧失败响应覆盖新资格；浏览器依据响应停止或退避，Cookie保留不代表后端仍授权。错误文案按“读取资料”场景，不能把可重试查询故障统一提示为重新触碰。未注册/未开放接口仍按当前实现返回404，不把文档中后续需求伪装为已接入。
+
+## 10. 预留设计与未开放能力
+
+本区不是可调用接口清单。下述地址、字段及返回仅保存尚未实施的契约设计；当前未注册仍按第0.4节返回404。旧文中的“501”属于拟开放后的约定，不能当作当前运行证据。产品规则、授权及技术方案须先审核；不凭预留ownership表、状态枚举或组件按钮开始开发。
+
+### 10.1 短信与首次认领（预留）
+
+<a name="13-post-apipublicsmssend发绑定短信第二阶段"></a>
+
+#### 发送短信：POST /api/public/sms/send（预留）
+
+必填 phone（中国大陆 11 位手机号）、tap_token；仅未用掉的 bind 凭证可用，read 不能绑定：
+```json
+{"phone":"13800138000","tap_token":"t_example"}
+```
+先确认凭证与物品仍允许绑定，再保存短信验证记录和发送次数；发送失败不能报成功。提供商及失败重试办法待选。发送不消耗凭证；expires_in 不超过短信和凭证剩余有效期，最大 300 秒：
+```json
+{"status":"ok","data":{"sent":true,"expires_in":240}}
+```
+同手机号 60 秒一次，同 IP 每小时最多 10 次，短信码最多错 5 次；发新码让同凭证同手机号旧码失效。错误：400 invalid_param、403 invalid_tap_token、409 already_bound、429 sms_rate_limited、501 feature_not_ready、503 service_unavailable。
+
+<a name="14-post-apipublicbind绑定所有者第二阶段"></a>
+
+#### 首次认领：POST /api/public/bind（预留）
+
+必填 phone、sms_code（6 位数字文字）、tap_token；物品从凭证中确定，不能由客户端替换：
+```json
+{"phone":"13800138000","sms_code":"123456","tap_token":"t_example"}
+```
+校验凭证、状态和匹配的短信码；一起完成创建/复用用户、保存 ownership(bind_source=user_self) 和 history(action=bind)、用掉短信码与 bind 凭证。有主人不覆盖，失败不消耗凭证，错码次数仍要保存：
+```json
+{"status":"ok","data":{"item_id":12,"user_id":5,"bound":true}}
+```
+错误：400 invalid_param/invalid_sms_code、403 invalid_tap_token、409 already_bound、429 rate_limited、503 service_unavailable。
+
+### 10.2 管理基础入口（预留）
+
+芯片详情、状态和解绑：
+
+| 要做什么及接口 | 要给什么 | 拟返回的 data |
+|---|---|---|
+| 查详情：GET /api/admin/chips/{id} | 芯片 id | ChipView，加 ownership：null 或 item_id/user_id/phone_masked/bound_at |
+| 改状态：PATCH /api/admin/chips/{id}/status | chip_status | 更新后 ChipView |
+| 解除绑定：POST /api/admin/chips/{id}/unbind-item | `{}` | 更新后 ChipView |
+
+物品独立资料读取：
+
+| 要做什么及接口 | 要给什么 | 拟返回的 data |
+|---|---|---|
+| 查资料：GET /api/admin/items/{id}/profile（预留未实现，当前使用详情） | 物品 id | profile 或 null |
+
+状态与解绑必须按独立产品/技术方案确认；现行首次绑定不因此允许解除或改绑，挂失换新也不能借这些旧入口实现。
+
+<a name="5-管理所有权第一阶段"></a>
+
+### 10.3 管理所有权（预留）
+
+完整登录，写请求加防冒用口令。OwnershipView 是绑定记录：id、item_id、item_uid、user_id、phone_masked（隐藏部分数字的手机号）、bound_at、unbound_at、is_active、bind_source。列表不展示完整手机号；输入手机号按第10.1节预留定义，note 可空且最长 256。
+
+| 要做什么及接口 | 要给什么 | 成功返回的 data |
+|---|---|---|
+| 查列表：GET /api/admin/ownerships | page/page_size、item_id、user_phone（手机号前缀）、is_active=0/1 可选 | 分页 OwnershipView |
+| 绑定：POST /api/admin/ownerships | item_id、phone 必填，note 可选 | 新 OwnershipView |
+| 解绑：POST /api/admin/ownerships/{id}/unbind | note 可选 | 关闭后的旧 OwnershipView |
+| 转赠：POST /api/admin/ownerships/{id}/transfer | to_phone 必填，note 可选 | 新 OwnershipView |
+
+只给非归档物品绑定；已有主人 409 already_bound。管理员绑定写 ownership.bind_source=admin 和 history(action=bind, from_user_id=null, to_user_id=用户)，history 没有 bind_source。
+
+解绑/转赠只操作当前有效记录，否则 409 invalid_state；转给原主人为 409 already_bound，不造新历史。转赠关闭旧绑定、创建新绑定（来源 admin），只写一条 transfer 历史，保存 from/to 用户；绑定、历史、操作记录一起成功。日志和操作记录不保存完整手机号。
+
+### 10.4 服装扩展资料（预留）
+
+第三阶段的下列接口仅服装物品可用，否则 409 project_mismatch；未细化开放前 501 feature_not_ready。完整登录，写请求加防冒用口令；PUT 整份替换，数组最多 100 项：
+
+| 接口 | PUT 要给什么 | GET/PUT 返回 |
+|---|---|---|
+| 溯源记录：GET/PUT /api/admin/items/{id}/trace | 数组：stage 必填，event_time/location/operator/detail 可空，sort_order 默认 0 | trace 数组，空时 [] |
+| 品牌故事：GET/PUT /api/admin/items/{id}/story | 对象：title/content/media_urls 可空，sort_order 默认 0 | story 对象，空时 null |
+| 购买渠道：GET/PUT /api/admin/items/{id}/channel | 数组：channel_type 必填，channel_name/order_no/purchased_at 可空 | channel 数组，空时 [] |
+
+stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字段，不重复 item_id。购买渠道 channel 始终为数组；用户端去掉订单号和个人交易信息。
+
+### 10.5 饰品详情预留及旧成长接口候选
+
+| 接口 | 拟返回的 data |
+|---|---|
+| 饰品详情：GET /api/jewelry/items/{item_id}/detail | item_uid、profile 对象、owner_bound |
+
+饰品详情预留白名单不包含芯片UID、读取序号、手机号、订单号或成长进度。旧progress/touch接口候选及权限风险已移入[历史归档](docs/archive/legacy-growth-candidate.md#旧接口候选与权限风险)，当前未注册，不作为获批需求或可用接口。新体验须从探索重新评审，不能从旧契约恢复开发。
