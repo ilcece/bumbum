@@ -6,6 +6,8 @@
 
 管理后台组件库已确定为Ant Design，优先复用ProComponents及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前后台尚未完成迁移。版本、React兼容性及依赖调整在技术方案中核对，方案通过后按确认范围实施；现有React/Vite/TypeScript工程与认证保留，用户H5独立设计。
 
+后台本轮拟采用的组件版本、扩展查询/普通维护、关联读取及图片上传存储见[A技术方案](docs/proposals/admin-management-implementation.md)，该稿尚待审核；本文及附录的现行接口、存储和部署规则未因提案改变。
+
 现有chip.item_id唯一、停用/丢失仍占关联，支持首次绑定；历史载体与当前授权、资格永久撤销是[D提案](docs/proposals/replacement-resale.md)待设计的技术缺口。生产验证清理及纠错分别看[B](docs/proposals/production-validation-cleanup.md)、[C](docs/proposals/chip-correction.md)，本文件不另复制待审业务细则，也不解除现有约束。
 
 | 部分 | 使用的工具 | 大白话解释 |

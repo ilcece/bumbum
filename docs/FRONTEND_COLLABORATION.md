@@ -4,7 +4,7 @@
 
 ## 当前页面放在哪里
 
-后续管理端设计与实现遵守[A提案的官方复用及迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)，本文件不复制第二套组件/主题/定制规则。A业务规则已审核通过；[已有原型](proposals/admin-management-update.md#32-原型审核入口与交互取舍)仅供参考，不再调整，也不要求复刻。列表筛选查询、详情只读与编辑态等样式和交互优先采用Ant Design与ProComponents官方规范；PRD只定义业务要求。下一步审核技术依赖替换、接口及上传存储方案，具体产品规则按同一提案执行，现行界面按[后台规范](product/admin-management.md)。
+后续管理端设计与实现遵守[A提案的官方复用及迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)，本文件不复制第二套组件/主题/定制规则。A业务规则已审核通过；[已有原型](proposals/admin-management-update.md#32-原型审核入口与交互取舍)仅供参考，不再调整，也不要求复刻。列表筛选查询、详情只读与编辑态等样式和交互优先采用Ant Design与ProComponents官方规范；PRD只定义业务要求。依赖替换、接口及上传存储的拟实施范围见[待审技术方案](proposals/admin-management-implementation.md)，具体产品规则按A业务提案执行，现行界面按[后台规范](product/admin-management.md)。
 
 下表是当前工程位置，不代表Ant Design改版已经完成；现有Radix/Tailwind及锁文件不因本次文档整理改变，用户H5独立维护。
 
