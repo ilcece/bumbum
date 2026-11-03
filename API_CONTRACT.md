@@ -92,7 +92,7 @@
 
 ### 1.2 POST /api/tap/verify：核验这次触碰
 
-本小步产品及交互规则见[PRD第4.2.1节](PRD.md#421-本小步触碰验证后端)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](PRD.md#422-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立详情、短信与认领接口仍未接入。
+本小步产品及交互规则见[PRD第4.2.1节](docs/product/fashion-touch.md#1-动态验证与短时许可)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](docs/product/admin-management.md#4-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立详情、短信与认领接口仍未接入。
 
 只提交picc_data（加密芯片信息，32位十六进制）、cmac（防伪码，16位十六进制）；不增加项目、UID、版本、查找码或item_uid。现有测试卡与配置确认已核对该编码，用户验证入口按附录第15节实现，后台配置核验不替代用户验证、真实卡或公网验收：
 ```json
@@ -190,7 +190,7 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 当前手动登记、列表、首次绑定及三个密钥配置POST可用，表中详情、状态及解绑仍待实现。
 
-绑定物品的页面与业务规则见[绑定PRD](PRD.md#414-本小步芯片绑定物品)，具体实现见[技术附录](docs/IMPLEMENTATION_DETAILS.md#13-芯片绑定物品实现)。人工验收和合并状态分别看TODO与CHANGELOG；本节不因按钮出现就宣称所有管理能力已开放。
+绑定物品的页面与业务规则见[绑定PRD](docs/product/chip-lifecycle.md#2-首次绑定物品)，具体实现见[技术附录](docs/IMPLEMENTATION_DETAILS.md#13-芯片绑定物品实现)。人工验收和合并状态分别看TODO与CHANGELOG；本节不因按钮出现就宣称所有管理能力已开放。
 
 手动登记仅接受上述三个JSON字段，请求体最多8192字节，不接收查询参数。UID接受14位连续十六进制或7组冒号格式，去首尾空白并统一为大写冒号格式；project为fashion/jewelry或null，省略同null，空字符串或unassigned不接受。批次去首尾空白后为1–64字符，空字符串不接受。新记录registration_source=manual，由后台设置，不接受请求指定；状态为pending，item_id、provisioned_at为空，keys_generated=false。
 ```json
@@ -267,7 +267,7 @@ ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）�
 
 PUT只整份替换本次五个可编辑字段，省略可选字段清为null/[]；空白文字归一为null。size_chart不接收，不清空已有值；JSON返回仍沿用既有ItemView结构。长度按去首尾空白后的Unicode字符数计算。图片只用完整http/https，不含账号密码、空白、控制字符或反斜杠，最多20项，每项2048字符；保留顺序，后端不下载。项目/物品编号不可改，款式修改、归档、饰品资料保存均未开放。启用要求有效服装名称，draft/disabled→active，active→disabled；相同状态幂等，不重复状态审计；归档写入409 invalid_state。
 
-GET/POST /api/admin/items已由cece验收并合入main。当前GET详情支持两项目、无资料返回profile=null；PATCH状态与PUT资料仅服装，饰品409 project_mismatch，物品不存在404 not_found。PUT最多262144字节；其余入口仍8192字节，未知字段/查询参数及超限400 invalid_param。PUT与PATCH返回HTTP200，复用登录/Origin/CSRF；写事务先重查管理员/会话，再锁物品，保存业务、item.updated_at及审计一起提交。动作item.profile.save或item.status.change，目标为item ID，detail仅项目及状态前后值，不复制正文；DB/审计失败503并回滚。创建的详细编号格式以[PRD物品草稿规则](PRD.md#411-本小步物品草稿创建与列表)为准：去首尾空白后匹配ASCII `FASH-[0-9]{4}-[0-9]{6}` 或 `JEW-[0-9]{4}-[0-9]{6}`，前缀匹配项目；不接受小写或Unicode数字，允许0000/000000，不自动编号。sku_code省略/null/空字符串及纯空白均存NULL，否则须为去首尾空白后最多64字符的文字；这是本字段的明确空字符串例外。status省略或仅draft，拒绝未知字段及网址参数，请求体最多8192字节。创建返回HTTP200的ItemView，profile=null；重复409 already_exists，原记录不变。
+GET/POST /api/admin/items已由cece验收并合入main。当前GET详情支持两项目、无资料返回profile=null；PATCH状态与PUT资料仅服装，饰品409 project_mismatch，物品不存在404 not_found。PUT最多262144字节；其余入口仍8192字节，未知字段/查询参数及超限400 invalid_param。PUT与PATCH返回HTTP200，复用登录/Origin/CSRF；写事务先重查管理员/会话，再锁物品，保存业务、item.updated_at及审计一起提交。动作item.profile.save或item.status.change，目标为item ID，detail仅项目及状态前后值，不复制正文；DB/审计失败503并回滚。创建的详细编号格式以[PRD物品草稿规则](docs/product/admin-management.md#2-物品草稿创建与列表)为准：去首尾空白后匹配ASCII `FASH-[0-9]{4}-[0-9]{6}` 或 `JEW-[0-9]{4}-[0-9]{6}`，前缀匹配项目；不接受小写或Unicode数字，允许0000/000000，不自动编号。sku_code省略/null/空字符串及纯空白均存NULL，否则须为去首尾空白后最多64字符的文字；这是本字段的明确空字符串例外。status省略或仅draft，拒绝未知字段及网址参数，请求体最多8192字节。创建返回HTTP200的ItemView，profile=null；重复409 already_exists，原记录不变。
 
 列表只接受page/page_size/project/status/keyword/unbound_only，不接受重复参数；page为1–2147483647，page_size为1–100，默认20。project仅fashion/jewelry，status为draft/active/disabled/archived，省略表示全部。unbound_only仅接受小写文字true/false，其他值或重复400 invalid_param；省略/false保持普通列表，true排除关联任何芯片的物品，包含其芯片为disabled/lost的情况。先过滤后计算total及分页，不改变既有物品状态筛选或ItemView。绑定弹窗固定传true，普通管理列表不传；查询不预占，最终绑定事务仍重查占用。keyword原始长度最多128字符，去首尾空白后对编号或sku_code作包含式模糊查询，按数据库既有排序规则匹配，%和_按普通文字处理；按id倒序，空页保留真实total。ItemView的profile从对应项目资料表组装，没有记录为null，不是item表字段；已有资料不能伪报为null。失败统一status=error/code/message，适用第7节错误码，不伪造空列表。
 
@@ -340,7 +340,7 @@ HTTP 状态码是这次请求的大类结果，code 是具体原因，message �
 
 ## 8. 工作台有效触碰统计
 
-本节定义已接入的查询契约，人工验收及分支状态以TODO为准；页面行为见[PRD第4.2.2节](PRD.md#422-工作台有效触碰统计)，统计与实现细节见[技术附录第16节](docs/IMPLEMENTATION_DETAILS.md#16-工作台有效触碰统计技术方案待审核)。
+本节定义已接入的查询契约，人工验收及分支状态以TODO为准；页面行为见[PRD第4.2.2节](docs/product/admin-management.md#4-工作台有效触碰统计)，统计与实现细节见[技术附录第16节](docs/IMPLEMENTATION_DETAILS.md#16-工作台有效触碰统计技术方案待审核)。
 
 ### 8.1 GET /api/admin/stats/taps
 
@@ -391,7 +391,7 @@ HTTP200 data的结构如下。示例为虚构的同一天累计数据，不是�
 
 ## 9. 手机页持续查看
 
-本节定义已接入的持续查看契约；实现细节见[技术附录第17节](docs/IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)，软件检查、人工验收与部署状态分别见TODO。产品范围及自动更新见[PRD第4.2.4节](PRD.md#424-本小步手机触碰验证与服装资料页)。旧调用不发view资格，原五分钟read/bind行为保留。
+本节定义已接入的持续查看契约；实现细节见[技术附录第17节](docs/IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)，软件检查、人工验收与部署状态分别见TODO。产品范围及自动更新见[PRD第4.2.4节](docs/product/fashion-touch.md#2-手机资料页与持续查看)。旧调用不发view资格，原五分钟read/bind行为保留。
 
 ### 9.1 POST /api/tap/verify的可选浏览器模式
 

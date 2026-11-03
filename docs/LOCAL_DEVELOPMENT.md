@@ -258,7 +258,7 @@ docker compose stop
 | 检查，不改数据 | `.venv/bin/python scripts/migrate_local.py` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py` |
 | 先备份，再升级 | `.venv/bin/python scripts/migrate_local.py --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --apply` |
 
-3. 正常时先显示完整备份的文件路径，再显示“升级完成，原有账号和芯片资料保留”。默认备份位置见[第8.1节](#81-windows备份目录无权限时)，以脚本显示的完整路径为准；备份包含账号及加密资料，留在本机，不发聊天。脚本不会显示密码，不覆盖 `.env`；备份失败就停止，表结构不改。重复执行已完成的升级只提示无需执行。
+3. 正常时先显示完整备份的文件路径，再显示“升级完成，原有账号和芯片资料保留”。默认备份位置见[第8.1节](LOCAL_DEVELOPMENT.md#81-windows备份目录无权限时)，以脚本显示的完整路径为准；备份包含账号及加密资料，留在本机，不发聊天。脚本不会显示密码，不覆盖 `.env`；备份失败就停止，表结构不改。重复执行已完成的升级只提示无需执行。
 4. 双击启动项目，或按第3节手动重启后端和网页。两项运行检查通过后，用原账号登录，核对原芯片还在，再按[芯片登记手册](CHIP_REGISTRATION.md)补测“暂不分配”、重复提示和筛选。
 
 脚本只接受本机33306、bumbum_dev、bumbum_digital及开发模式；还会核对Docker数据库属于当前目录，且备份和升级指向同一数据库。若仍在旧ZIP目录或换过克隆目录，先让AI核对配置和数据位置，不通过删除卷解决。
@@ -281,7 +281,7 @@ docker compose stop
 | 只检查来源字段 | `.venv/bin/python scripts/migrate_local.py --registration-source` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --registration-source` |
 | 先完整备份，再升级/补齐 | `.venv/bin/python scripts/migrate_local.py --registration-source --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --registration-source --apply` |
 
-成功应显示升级完成或已是目标版本；没有可补齐记录时不重复改数据。备份位置见[第8.1节](#81-windows备份目录无权限时)，含账号秘密，不上传或分享。随后按第3节启动前后端，登录查看新增“登记来源”：网页手工、手机扫描、历史未知；首次来源在重复登记时不变。
+成功应显示升级完成或已是目标版本；没有可补齐记录时不重复改数据。备份位置见[第8.1节](LOCAL_DEVELOPMENT.md#81-windows备份目录无权限时)，含账号秘密，不上传或分享。随后按第3节启动前后端，登录查看新增“登记来源”：网页手工、手机扫描、历史未知；首次来源在重复登记时不变。
 
 补齐只依据唯一、合法的首次登记操作记录；历史没有证据时保留未知。来源已存在但历史补齐中断，可以排查后重跑。失败时保留报错和备份，不清空库、不自动恢复备份覆盖后来数据；新增列可保留供旧版代码运行，不需删列回退。此命令只允许默认本机测试库，不连接香港或生产环境。
 
@@ -355,7 +355,7 @@ Linux缺浏览器系统库时由开发者按Playwright提示安装；CI使用ins
 | 只检查 | `.venv/bin/python scripts/migrate_local.py --tap-events` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --tap-events` |
 | 显示需要升级后，先完整备份再升级 | `.venv/bin/python scripts/migrate_local.py --tap-events --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --tap-events --apply` |
 
-成功显示触碰日志就绪或升级完成；需要升级时先显示完整备份路径，再执行单条ALTER。默认位置及目录无法访问时的处理见[第8.1节](#81-windows备份目录无权限时)，需要时将--backup-dir加到本项命令。不清空backups或修改原密码。未知结构或旧日志已有无法定位当时物品的成功记录时停止，反馈固定错误，不猜测回填、删记录或直接导入旧备份。完整备份含秘密，不分享。
+成功显示触碰日志就绪或升级完成；需要升级时先显示完整备份路径，再执行单条ALTER。默认位置及目录无法访问时的处理见[第8.1节](LOCAL_DEVELOPMENT.md#81-windows备份目录无权限时)，需要时将--backup-dir加到本项命令。不清空backups或修改原密码。未知结构或旧日志已有无法定位当时物品的成功记录时停止，反馈固定错误，不猜测回填、删记录或直接导入旧备份。完整备份含秘密，不分享。
 
 再按原方式启动项目，两项运行检查应通过，用原账号核对原芯片、物品和密钥/已核验标记仍在。/api/ready返回503时先检查本节，不连续等待或重建数据库。该升级不修改真实卡，不需重新配卡。
 
@@ -417,7 +417,7 @@ macOS/Linux使用相同API契约；本轮自动测试负责接口、并发和故
 | 只检查004 | `.venv/bin/python scripts/migrate_local.py --view-grants` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --view-grants` |
 | 提示需要升级后，先备份再升级 | `.venv/bin/python scripts/migrate_local.py --view-grants --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --view-grants --apply` |
 
-成功应先显示完整备份路径，再显示升级完成；重新只读检查应显示“持续查看资格已就绪”。备份位置及目录问题统一见[第8.1节](#81-windows备份目录无权限时)，Windows默认用户私有目录，显式--backup-dir仍优先。任何失败停在当前步骤、保留备份，不通过恢复整库或删除凭证解决。原read/bind、账号、资料及触碰记录保留，新view类型不能用于认领。
+成功应先显示完整备份路径，再显示升级完成；重新只读检查应显示“持续查看资格已就绪”。备份位置及目录问题统一见[第8.1节](LOCAL_DEVELOPMENT.md#81-windows备份目录无权限时)，Windows默认用户私有目录，显式--backup-dir仍优先。任何失败停在当前步骤、保留备份，不通过恢复整库或删除凭证解决。原read/bind、账号、资料及触碰记录保留，新view类型不能用于认领。
 
 ### 12.2 启动及本机页面
 
