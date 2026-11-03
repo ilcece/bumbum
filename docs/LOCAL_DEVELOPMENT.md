@@ -457,3 +457,42 @@ Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction Si
 应自动验证并显示服装资料，地址变为/tap/items/数字ID，无密钥或凭证。刷新无需再次碰卡，只查最新资料；超过五分钟仍可继续查询。页面前台每60秒自动更新、返回前台立即更新、后台暂停；失败标明上次内容，不能假装最新；仅新有效验证计数。通过原后台修改名称或停用该物品后，用户页下一次查询应显示修改或不可查看，测试后恢复状态使用原已验收入口，不直接改库。
 
 持续查看以最后一次成功查询计算24小时，成功查询续期；Cookie被浏览器清理可更早失效，不承诺跨设备或持有人身份。测试24小时边界由AI可控时钟覆盖，不要求cece等一天。图片及五组验收见[真实卡手册第6节](NFC_CARD_VERIFICATION.md#6-手机服装资料页与自动更新验收)，软件通过不等于手机公网通过。
+
+## 13. A方案生效门槛：组件冒烟与图片离线恢复
+
+本节复现[A技术方案](proposals/admin-management-implementation.md)要求的隔离证据，不代表芯片/物品改版或真实上传接口已交付。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。无需安装全局Ant Design CLI，也不访问Figma。
+
+在项目根目录、使用上述测试依赖所在的Python执行：
+
+```bash
+python -m pytest tests/test_antd_compatibility.py --auth-db --browser -q
+python -m pytest tests/test_media_backup.py --auth-db -q
+```
+
+第一条使用真实浏览器和独立Vite测试页，覆盖Modal/Notification静态、App、Hook调用，以及Upload合成HTTP成功/失败/取消和Form校验、只读、切换、重置、提交。页面明确标记合成数据，不进入正式管理端包；共享--browser参数要求同时给--auth-db，该组件测试不实例化数据库fixture。第二条由既有fixture创建专属MySQL 8.0.46容器、两个合成WebP及新的恢复库，原生转储/恢复后逐项核对引用、元数据、摘要、字节和图片可读性；缺图、篡改、错对象/时间点、转储错配及已有目录覆盖均必须拒绝。只清理自己创建的临时资源，不连接现有测试或生产库。
+
+两条命令都应真实执行且无失败；跳过不是门槛通过。静态弹层不能继承动态主题上下文是官方既有限制，冒烟只识别这一准确警告，不屏蔽其他运行异常；实际业务优先App上下文。临时依赖副本复现时可用BUMBUM_ANTD_PROJECT指定已严格安装同一锁定组合的副本；默认检查frontend/admin。构建通过不能替代这些运行结果。
+
+### 13.1 离线工具怎样分工
+
+[配套备份工具](../scripts/media_backup.py)只初始化数据库连接/TLS配置，不启动create_app或上传服务。数据库仍由原生备份/恢复工具处理；本工具不会自动导入SQL、停止服务、修改数据库或覆盖已有文件目录。下面的路径都须替换成获准环境的私有绝对路径，恢复连接必须指向已用该备份database.sql还原的全新隔离目标，不能拿现有业务库试恢复。
+
+```bash
+python scripts/media_backup.py inspect --bundle /私有绝对路径/配套备份
+python scripts/media_backup.py restore-files --bundle /私有绝对路径/配套备份 --media-root /私有绝对路径/不存在的新图片目录
+python scripts/media_backup.py verify --bundle /私有绝对路径/配套备份 --media-root /私有绝对路径/新图片目录
+```
+
+inspect仅证明包内清单、SQL摘要及完整图片自洽；restore-files先比对目标数据库实际元数据/引用与清单，匹配才新建目录并还原文件；verify再次逐项核对目标。成功信息不会启用上传。失败时保留源图、原备份及已有目标，不因“文件数量一样”忽略错配；未通过不宣告恢复成功。
+
+制作备份须先停止上传、图片关联写入和清理、等待在途写入结束，在同一冻结窗口取得原生SQL转储，再使用snapshot动作：
+
+```bash
+python scripts/media_backup.py snapshot --dump /私有绝对路径/冻结窗口转储.sql --media-root /私有绝对路径/原图片目录 --bundle /私有绝对路径/不存在的新备份目录 --writes-frozen
+```
+
+--writes-frozen是操作者对前提的明确声明，不能自动证明已停写。工具前后重读数据库清单并核对文件摘要；备份目录700、文件600，不写凭证或业务正文到日志，不提交备份到Git。完整pending/attached/retired文件须保留；未发布uploading/deleting的半文件不冒充已保存图片，旧外部URL不下载或改写，未知孤立文件不自动清理。
+
+离线恢复演练中，上传服务须停止，恢复过程不得调用上传API、重新上传或在线补元数据；先完成离线校验，再按需启动只读入口。当前分支仅交付门槛验证、005媒体表定义及离线工具，正式上传/读取、升级入口完整识别和持久目录挂载仍随后实现；勿将本验证分支直接用于现有环境日常运行或部署。schema的表清单已包含media_asset，旧库缺005时ready会拒绝，不自动升级。
+
+上述新库/目录演练不证明生产已有异盘备份、PITR或完整灾难恢复。生产仍须另行核实实际备份去向和恢复前提，并获得部署授权；不得以隔离门槛通过直接生产启用上传。

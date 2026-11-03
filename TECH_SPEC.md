@@ -8,6 +8,8 @@
 
 后台本轮拟采用的组件版本、扩展查询/普通维护、关联读取及图片上传存储见[A技术方案](docs/proposals/admin-management-implementation.md)，该稿已附条件批准，生效须先取得组件显式冒烟及图片配套备份恢复证据；本文及附录的现行接口、存储和部署规则未因提案改变。
 
+门槛验证增加独立组件测试、005媒体元数据定义及[离线备份模块](core/media_backup.py)，操作只在[本地运行第13节](docs/LOCAL_DEVELOPMENT.md#13-a方案生效门槛组件冒烟与图片离线恢复)维护；未接入正式上传/读取或修改杭州持久挂载，不能把该阶段当作后台改版已交付。配套恢复只读数据库，原生SQL还原与文件还原分开，不依赖上传服务在线。
+
 现有chip.item_id唯一、停用/丢失仍占关联，支持首次绑定；历史载体与当前授权、资格永久撤销是[D提案](docs/proposals/replacement-resale.md)待设计的技术缺口。生产验证清理及纠错分别看[B](docs/proposals/production-validation-cleanup.md)、[C](docs/proposals/chip-correction.md)，本文件不另复制待审业务细则，也不解除现有约束。
 
 | 部分 | 使用的工具 | 大白话解释 |

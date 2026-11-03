@@ -34,12 +34,12 @@ status: approved
 
 | 位置 | 当前实际能力／需补内容 |
 |---|---|
-| [管理端依赖](../../frontend/admin/package.json) | React/react-dom 19.3.1、TypeScript 7.0.2、Vite 8.3.5；当前Radix、Tailwind、lucide，尚无antd或ProComponents |
+| [管理端依赖](../../frontend/admin/package.json) | React/react-dom 19.3.1、TypeScript 7.0.2、Vite 8.3.5保留；main核对时为Radix/Tailwind/lucide，门槛验证分支已锁定第2.1节依赖，正式界面尚未迁移 |
 | [管理请求层](../../frontend/admin/src/api.ts) | Cookie随请求、CSRF仅内存、JSON请求6秒超时；尚无文件上传适配和芯片独立详情读取 |
 | [芯片接口](../../core/admin_chips.py)、[摘要](../../core/chip_registry.py) | 登记、UID/项目/状态查询、首次绑定、密钥及配置动作已有；批次不能编辑，无独立GET详情，无目标扩展查询 |
 | [物品接口](../../core/admin_items.py) | 草稿创建、详情、五项服装资料、启停已有；款式不能改，列表没有完整关联芯片摘要，关键词不查名称 |
 | [管理认证](../../core/admin_auth.py) | 所有已注册管理写请求当前只接受JSON；新增multipart入口必须精确适配，不能全局放开 |
-| [数据库](../../db/schema.sql)、[迁移](../../db/migrations/) | 批次、款式、时间、profile及唯一绑定已有；最新迁移为004，没有图片文件元数据表 |
+| [数据库](../../db/schema.sql)、[迁移](../../db/migrations/) | 批次、款式、时间、profile及唯一绑定已有；main核对时最新迁移004，门槛验证增加005媒体表与对应schema，文件业务接口尚未接入 |
 | [杭州部署生成器](../../scripts/hangzhou.py) | 非root、只读容器根目录，生产512MiB/两个worker、测试256MiB/一个worker；现有日志卷和CA挂载不提供图片持久存储 |
 | [用户查看](../../core/tap_grants.py)、[图片展示](../../frontend/user/src/ImageGallery.tsx) | 现有服装查看Cookie限定到具体物品路径，图片使用URL；新增自管图片需接入相同资格检查，不重做用户UI |
 
@@ -73,6 +73,8 @@ status: approved
 | Form | Form.useForm配合setFieldsValue、validateFields、resetFields、提交与错误滚动定位 | 必填拒绝、合法提交、切换记录/重置不带旧值，readonly展示和可编辑字段行为正确；不因无异常就推定校验通过 |
 
 自动记录各场景结果和浏览器pageerror/console error，识别官方静态方法不继承上下文的既有限制，不将限制误报为主题继承已通过；业务界面优先App上下文方式。缺依赖、无法启动浏览器或任一场景失败时保留未通过结论并暂停依赖该组合的迁移。
+
+可重复执行的[组件冒烟](../../tests/test_antd_compatibility.py)使用独立测试页面，不加入正式入口；操作与依赖准备见[本地运行第13节](../LOCAL_DEVELOPMENT.md#13-a方案生效门槛组件冒烟与图片离线恢复)。通过证据不外推为业务上传、权限或整条后台流程验收。
 
 ## 3 前端复用与连续流程
 
@@ -205,6 +207,8 @@ status: approved
 2. **恢复不依赖上传服务在线：** 备份完成后停止源上传HTTP服务，在目标侧关闭上传入口并使其不可访问；仅使用数据库恢复工具、文件备份和独立校验命令完成恢复。不调用上传API、不经上传重新生成图片、不依赖源服务查询补齐元数据。先完成离线一致性校验，再按需启动只读服务核对图片可读；整个恢复期间上传入口保持关闭。
 
 两维度都须有实际通过证据，并包含至少一组缺失/篡改文件的拒绝对照；只有操作说明、单独数据库备份、重新上传成功或构建通过都不满足门槛。验证操作与结果分别纳入现有运行手册和CHANGELOG，未通过/跳过时在TODO保持阻塞，默认关闭上传，不得声称方案已生效。
+
+离线核对由[媒体备份模块](../../core/media_backup.py)和[独立命令](../../scripts/media_backup.py)实现，数据库原生转储/恢复与文件还原分开；[隔离恢复测试](../../tests/test_media_backup.py)验证新库、上传服务停止及错误拒绝。工具不启动业务/上传服务，只在数据库元数据与备份匹配后向新目录还原文件；冻结写入仍须操作者实际落实。具体命令只维护在[本地运行第13节](../LOCAL_DEVELOPMENT.md#13-a方案生效门槛组件冒烟与图片离线恢复)。
 
 生产侧还必须有可用的配套备份与恢复前提，备份去向不能只在同一故障磁盘；保留范围、去向和实际费用在生产启用前核实。隔离演练不能代替真实目标的资源准备，缺少这些前提仍不得生产启用上传。该验证只覆盖本功能，不将其写成杭州整库PITR专项已通过。
 
