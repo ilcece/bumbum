@@ -2,6 +2,7 @@
 # 与管理模板一起使用；日志格式不记录触碰查询参数、Cookie或正文。
 log_format bumbum_user '$time_iso8601 $request_method $uri $status';
 limit_req_zone $binary_remote_addr zone=bumbum_user_view:1m rate=5r/s;
+limit_req_zone $binary_remote_addr zone=bumbum_user_image:1m rate=20r/s;
 server {
     listen 80;
     server_name nfc.bumbum.cc;
@@ -42,6 +43,15 @@ server {
     location ~ ^/api/tap/items/[1-9][0-9]*/view$ {
         if ($request_method != GET) { return 405; }
         limit_req zone=bumbum_user_view burst=10 nodelay;
+        limit_req_status 429;
+        error_page 429 = @user_limited;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    # 20张首屏图片使用独立限流，不续期查看资格；不开放目录或其他媒体路径。
+    location ~ "^/api/tap/items/[1-9][0-9]*/images/[a-f0-9]{32}$" {
+        if ($request_method != GET) { return 405; }
+        limit_req zone=bumbum_user_image burst=40 nodelay;
         limit_req_status 429;
         error_page 429 = @user_limited;
         proxy_pass http://127.0.0.1:15000;

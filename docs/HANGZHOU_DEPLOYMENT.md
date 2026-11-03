@@ -885,3 +885,35 @@ Workbench自动续期和原生OSS传输的既有限制保持，不重开专项�
 ## 9. 本轮操作边界
 
 已批准的适配、部署与接管范围及证据保留在TODO、CHANGELOG，第6.2节说明完成边界；本文记录证据与操作边界，不构成下一次服务器或控制台变更授权。继续使用现有杭州RDS，不重复创建或初始化已有库；后续启停、配置、DNS或恢复须按具体授权及窗口执行。香港ECS退出已完结，不再次安排连接或释放，不连带删除RDS。不输出现有秘密，不把技术检查、ICP备案或生成配置当作应用上线证据。
+
+
+## 10. 私有图片的升级与持久目录准备
+
+本节为A后端图片能力的部署准备，**没有执行真实RDS升级、创建服务器目录或启用上传**。仅在已获准的环境/窗口由操作者执行；生产实际配套异盘备份、恢复前提未落实时保持MEDIA_ENABLED=false。本地及容器合成验证不能代替杭州PITR、Windows或生产验收。
+
+1. 核对目标test/production、当前库结构和固定镜像，停止该环境所有写入并等待在途请求结束，保留上一代码版本和对应备份；不要让两个环境共用目录或账号。运行用户仍为10001、根目录只读；新清单多一个固定媒体bind，create_host_path=false，不自动新建空目录冒充已准备。旧清单不会自动接管为新清单，按第5节在新版本目录准备并核对生成差异。
+2. 在杭州受控终端，从获准代码目录只读检查已有库，CA为第4节已核验的公开CA。该命令隐藏输入对应库_init账号密码，固定RDS端点/库/身份和VERIFY_IDENTITY；账号保持受控管理，若仍锁定由原数据库负责人按批准窗口处理，脚本不自动解锁或扩大应用权限：
+
+```bash
+python -m core.rds_media_migration --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem
+```
+
+3. 仅在显示missing、实际server_uuid已核对、写入确实停止且已获准升级时，按同一目标执行：
+
+```bash
+python -m core.rds_media_migration --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem --apply --confirm-database bumbum_hz_test --confirm-server-uuid 核对所得实例UUID --writes-stopped --backup-dir /私有绝对路径/升级备份
+```
+
+需要MySQL 8.0 mysqldump客户端，密码仅进入本次子进程环境，不进入命令参数/日志；先完整原生转储到700目录/600文件、检查结束标记并重新TLS连接核实例，再执行005单独建表。表完整时幂等；未知结构、备份/身份/TLS失败停止，保留partial与现场，不自动删表、恢复整库或重跑。MySQL DDL不当作可整笔回滚。生产改用production、对应CA/库/UUID及私有备份路径，不能只替换一个库名或复制测试秘密。
+
+4. 由获准的杭州操作者显式准备对应环境的新目录：
+
+```bash
+sudo python scripts/hangzhou.py prepare-media --slot test
+```
+
+固定目录/opt/bumbum-hangzhou/test/media，属主10001、700。已有目录必须恰好符合；符号链接、错误属主或权限拒绝，不自动改未知内容。生产用production固定到其独立目录。check/start要求该目录及原CA就绪，容器重建保留bind文件，不运行down -v或删目录。
+5. runtime.env新增非秘密开关MEDIA_ENABLED=false；新测试配置默认写false，已有秘密文件不由工具读出或覆盖。清单固定MEDIA_ROOT=/app/media和2GiB容量，不把开关强制为true。启用前再核实际磁盘、异盘配套备份去向/费用及可恢复性，第13节本地手册中的冻结窗口与离线命令同样适用；获准后才在对应私有配置设置true，按原启停流程生效。准备/升级成功不等于已启用。关闭上传仍保留受控读取能力。
+6. 网关继续继承管理IP/来源限制：仅精确图片上传入口9MiB、合并PATCH及原profile入口256KiB，其余JSON沿用原限制；应用status请求仍8KiB。用户站仅增加精确tap图片GET，独立20次/秒和burst40，支持20张首屏图；仍拒绝管理接口、旧fashion入口和目录列表。启用Nginx前按原步骤nginx -t，不直接复制生产模板覆盖在用配置。
+
+回退先关闭上传并保留本版本受控读取；已经保存新图时，不切换到不认识媒体的旧后端。必要时先回退管理UI或准备含读取能力的兼容版本，保留表和文件。真正整库/文件恢复、窗口内后来写入的处理另行确认；不因有备份直接覆盖业务库。媒体到期技术资源命令见[本地手册第14节](LOCAL_DEVELOPMENT.md#14-物品与私有图片后端升级)，生产执行须明确范围，不能替代B清理审批。

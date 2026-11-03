@@ -493,6 +493,39 @@ python scripts/media_backup.py snapshot --dump /私有绝对路径/冻结窗口�
 
 --writes-frozen是操作者对前提的明确声明，不能自动证明已停写。工具前后重读数据库清单并核对文件摘要；备份目录700、文件600，不写凭证或业务正文到日志，不提交备份到Git。完整pending/attached/retired文件须保留；未发布uploading/deleting的半文件不冒充已保存图片，旧外部URL不下载或改写，未知孤立文件不自动清理。
 
-离线恢复演练中，上传服务须停止，恢复过程不得调用上传API、重新上传或在线补元数据；先完成离线校验，再按需启动只读入口。当前分支仅交付门槛验证、005媒体表定义及离线工具，正式上传/读取、升级入口完整识别和持久目录挂载仍随后实现；勿将本验证分支直接用于现有环境日常运行或部署。schema的表清单已包含media_asset，旧库缺005时ready会拒绝，不自动升级。
+离线恢复演练中，上传服务须停止，恢复过程不得调用上传API、重新上传或在线补元数据；先完成离线校验，再按需启动只读入口。门槛工具与正式图片后端相互独立；已有库先按第14节检查005，旧库缺表或结构不符时ready拒绝，不自动升级。完整管理页面进度见TODO，不能把后端/恢复通过写成页面或生产验收。
 
 上述新库/目录演练不证明生产已有异盘备份、PITR或完整灾难恢复。生产仍须另行核实实际备份去向和恢复前提，并获得部署授权；不得以隔离门槛通过直接生产启用上传。
+
+
+## 14. 物品与私有图片后端升级
+
+目的：保留原账号、物品及图片，升级005后运行新后端。本节不授权部署或操作真实数据库；当前管理端物品完整迁移与Upload入口仍构建中，只由AI在专属合成目标验证后端。准备前停止旧前后端，核对交付分支和本机目标，不删除卷或重新初始化。
+
+| 操作 | macOS/Linux（仓库目录） | Windows PowerShell（仓库目录） |
+|---|---|---|
+| 只读检查 | `.venv/bin/python scripts/migrate_local.py --media-assets` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --media-assets` |
+| 显示缺表后，先完整备份再升级 | `.venv/bin/python scripts/migrate_local.py --media-assets --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --media-assets --apply` |
+
+成功显示媒体005结构已就绪或已完成；重复执行不新建备份、不改原记录。备份路径/权限按第8.1节，支持同一--backup-dir。入口仍只允许默认本机库、专属容器和实际server_uuid匹配；表已存在但列、索引、外键或CHECK不符时拒绝，不自动删除/重建。失败保留备份和现场，停止在本步，不直接恢复整库覆盖后来数据。
+
+本机图片需要单独的私有绝对目录。macOS/Linux可由当前运行用户在仓库运行`python -c "from pathlib import Path; Path('media').mkdir(mode=0o700)"`，只创建不存在的新目录，700权限；已有目录不通过该命令修复，交AI核对。默认位置为仓库media，已被Git/Docker忽略。Windows使用本人LOCALAPPDATA下独立目录，先核对只有本人可访问的ACL，再将绝对路径填入MEDIA_ROOT；POSIX权限检查不能证明Windows ACL安全，该系统实测仍待cece环境验证。不放在网页静态目录或备份包内，不移动未知已有目录。
+
+MEDIA_ENABLED默认false；已有图读取仍要求原私有目录和正确元数据。在获准开发目标显式改为true前，先核005、目录、磁盘与第13节配套恢复；容量默认2GiB，文件/像素限制见API第4.1节。目录缺失、可写权限不符或容量不足时拒绝，不写镜像层或随意临时目录。生产目录准备与已有RDS升级只按杭州手册第10节，不能用本机脚本连接RDS。
+
+后端定向复现使用已按第13节准备的开发依赖和专属临时MySQL：
+
+```bash
+python -m pytest tests/test_admin_items.py tests/test_admin_item_maintenance.py tests/test_media_assets.py tests/test_media_migration.py tests/test_media_cleanup.py tests/test_media_backup.py tests/test_rds_media_migration.py --auth-db -q
+```
+
+真实Gunicorn资源/持久化检查另用AI独立构建的临时镜像，加`--cloud-image 临时镜像标签`运行tests/test_media_resources.py；不接受服务器或日常容器代替临时目标。测试按256MiB/单worker及512MiB/双worker限制实测JPEG/PNG/WebP、超限提前拒绝、跨worker忙、重启和重建文件保留。无镜像参数的跳过不算通过，不推断生产容量或Windows上传可用。
+
+到期技术资源维护由AI在获准目标操作，默认只预览：
+
+```bash
+python scripts/media_cleanup.py --media-root /私有绝对路径/图片目录
+python scripts/media_cleanup.py --media-root /私有绝对路径/图片目录 --apply --backup-bundle /私有绝对路径/已核对配套备份
+```
+
+第二条只在明确获准清理、按第13节冻结窗口取得并核对配套备份后执行。先预览对象和到期状态；apply重新检查所有资料引用及文件归属，仅删到期本功能技术资源，未知文件保留。完整图须有包含实际文件的备份，不能用deleting阶段不带文件的新包代替；中断保留deleting，核对后可用原有效备份重试。符号链接、未知硬链接、摘要变化或引用不明时停止，不据报错手工删物品/图片或直接恢复数据库；不设置定时清理，不执行B生产验证数据清理。

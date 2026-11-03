@@ -30,7 +30,7 @@ status: approved
 
 ## 2 实际基线与依赖核对
 
-2026-11-03只读核对当前main代码、当前文档分支及公开发布元数据。代码位置与缺口如下，不将接口预留当作已有能力。
+下表保留2026-11-03整理方案时的main基线与实施缺口，不能作为当前任务分支状态；已纳入的接口/存储定义由第4–6节指向权威正文，当前进度只看TODO。
 
 | 位置 | 当前实际能力／需补内容 |
 |---|---|
@@ -104,94 +104,33 @@ status: approved
 
 ## 4 查询、详情与普通保存接口
 
-芯片查询、详情及批次契约已由[API第3节](../../API_CONTRACT.md#3-管理芯片已实现)承接；下表物品扩展仍为**拟新增/扩展契约**，实际可用范围以[API实现清单](../../API_CONTRACT.md#04-当前能做到哪一步)为准；其余部分实施时再同步正式API_CONTRACT。沿用`status/data`成功封套、现有错误结构、管理员认证及禁止缓存。内部ID继续沿用当前整数接口；前端统一校验正安全整数，超出可处理范围时拒绝操作，不截断或取整。
+本节已实施的后端约定随代码转入权威接口和实现正文；管理端物品完整迁移仍按第3节构建，不维护第二份当前契约。
 
 ### 4.1 读接口与完整查询
 
-| 接口 | 拟改内容 |
-|---|---|
-| GET /api/admin/chips | 保留page/page_size/project/status/keyword，增加batch_no、registration_source、has_item、keys_generated、provisioned及created/updated/provisioned日期范围；关键词覆盖UID及关联物品编号/名称 |
-| GET /api/admin/chips/{id} | 新增按确切ID读取与列表同源的完整业务摘要；无记录404，不读出秘密 |
-| GET /api/admin/items | 保留当前参数，增加has_chip及created/updated日期范围，关键词增加名称及关联芯片UID；保留sku_code原查询能力 |
-| GET /api/admin/items/{id} | 保留资料读取，补同源关联芯片摘要、图片展示信息；详情与编辑使用同一返回对象 |
-
-约定：
-
-- 新布尔条件仅接受文字`true/false`，省略表示不限。`has_item/has_chip`指真实关联，不等于可绑定资格；停用/丢失芯片仍占关联。`provisioned`按provisioned_at是否为空判断，`keys_generated`按chip_key是否存在判断。首次来源只接受manual/nfc_cool/unknown，不接受客户端伪造新来源。
-- 日期参数分别为`created_from/created_to`、`updated_from/updated_to`及芯片的`provisioned_from/provisioned_to`，格式YYYY-MM-DD，允许单边范围；后端按Asia/Shanghai的起日00:00至末日次日00:00的半开区间转换到UTC，使界面包含起止日。不存在日期、逆序、末日转换溢出或未核验与核验日期条件冲突返回400。
-- 批次采用独立batch_no包含查询，去首尾空白、最多64字符；keyword最多128字符，UID比较单独去冒号并统一大小写，物品编号/名称/款式保留各自比较语义。所有LIKE转义`!/%/_`，参数化传值，不把关键词当SQL通配指令；重复、未知参数或非法枚举仍拒绝。只允许固定排序`id DESC`，不直接接收列名拼SQL。
-- 芯片摘要保留现有字段，新增item_name；物品摘要新增`linked_chip`，含id、chip_uid、chip_status、keys_generated和provisioned_at，未关联为null。名称从所属项目已有profile读取，不造新饰品模板。结果增加keyword_matches字段名数组，无关键词时为空，供页面区分UID与关联物品匹配；不返回密钥、原始计数或认证资料。
-- 查询、总数及分页使用同一组条件和同一只读一致性快照。关联按唯一关系JOIN或EXISTS，先完整过滤再计数/分页；profile按批量读取，避免每行补请求。页大小默认20，继续支持服务端现有1–100界限；超范围页回最后有效页，空结果为第1页，返回实际page并增加total_pages/page_adjusted。
-- `unbound_only=true`继续排除所有已有芯片关联的物品，用于原绑定候选。与`has_chip=true`同时出现时400；`unbound_only=false`只是不施加候选限制。首次绑定事务仍独立重查，不因列表可见就授予绑定权限。
-
-按[A查询覆盖表](admin-management-update.md#5-查询覆盖与可编辑字段)逐项实现已有数据来源的目标条件。B生产验证标识和D新状态不预先加字段或枚举。先用既有唯一键、项目/状态索引及小规模参数查询；对UID/名称包含查询用EXPLAIN和隔离样例测量，不谎称前导模糊查询能命中普通索引。当前不加全文检索或搜索服务；如实测必须新增索引，补充具体迁移、收益与代价后再确认，不直接扩表凑性能。
+芯片查询、摘要、ID详情见[API第3节](../../API_CONTRACT.md#3-管理芯片已实现)及[芯片规范](../product/chip-lifecycle.md#1-芯片登记与首次来源)。物品扩展过滤、关键词命中、真实关联摘要、同快照计数/分页及按ID详情见[API第4节](../../API_CONTRACT.md#4-管理物品)。只查询已有数据，不预建B标识或D新状态；包含式查询仍基于当前规模验证，不新增搜索服务。
 
 ### 4.2 写接口与事务
 
-| 接口 | 输入及结果 |
-|---|---|
-| PATCH /api/admin/chips/{id} | 仅接受`batch_no`；省略字段/多字段拒绝，null或去空白后空串清空，最多64字符；返回最新芯片摘要 |
-| PATCH /api/admin/items/{id} | 保留仅含status的原启停请求；新增普通资料分支接受sku_code、profile中的至少一项，与status互斥。sku_code可空、最多64字符、允许重复；profile仅服装五项资料。一次请求原子保存款式及资料，返回最新完整物品 |
-| PUT /api/admin/items/{id}/profile | 保留旧调用及返回形状，复用同一资料校验、图片归属和保存函数；不维护第二套保存逻辑 |
-
-服务端拒绝未知字段，不能通过提交UID、项目、关联、来源、状态混合或配置字段绕过只读。服装资料沿用名称必填128、介绍4000、材质256、养护2000字符，以及最多20张图片/旧URL校验；只更新明确可编辑字段，size_chart等原资料不写回覆盖。profile未提交表示不改；没有profile时允许只维护款式，不为保存款式强迫创建服装名称。饰品可维护款式但拒绝写服装profile；归档物品延续现有不可维护保护，若要开放另议。
-
-新普通资料PATCH和原profile PUT的应用请求上限均为256KiB，Nginx同步覆盖这两个准确入口；不能只提高原`/profile`的限制，使合并保存仍被现有8KiB网关拦下。其他JSON接口保留各自限制。
-
-事务中先按既有顺序锁管理员账号、会话并重查，再锁物品；涉及图片时锁该物品下相关元数据行并复核状态，固定ID顺序。批次只锁目标芯片，不改项目/绑定，也不逆向加锁物品；绑定、密钥和配置动作继续使用原事务及实卡边界。实际变更、updated_at、图片关联及审计一起提交，失败回滚；相同值不重复修改时间或新增变更审计。审计新增chip.batch.update、item.details.update等明确动作，只记必要对象、变更字段及批次/款式前后值，不记录长正文、文件正文、认证材料或真实秘密。
-
-错误沿用400 invalid_param、401 unauthorized、403 forbidden/csrf_failed、404 not_found、409 invalid_state/project_mismatch和503 service_unavailable。数据库故障不能返回成功。事务锁保证单次一致性，不宣称解决多标签旧表单覆盖；本轮不新增通用版本冲突系统。
+芯片批次和物品普通维护分别按API第3、4节白名单；款式及服装资料一次原子保存，状态/绑定/密钥仍独立。锁顺序、无变化不审计、既有尺码保留和兼容PUT见[附录第9节](../IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)。前端字段/未知结果及离开行为继续按第3节完成，不以后端通过代替界面验收。
 
 ## 5 图片上传、读取与持久化
 
 ### 5.1 存储与文件限制
 
-图片目录按环境隔离，例如杭州`/opt/bumbum-hangzhou/{slot}/media`单独挂载到容器`/app/media`，仅此目录可写，继续保持容器根只读及10001用户；不复用日志卷、代码目录、镜像层、/tmp或真实生产目录作测试。增加非秘密配置`MEDIA_ENABLED`（默认false）、`MEDIA_ROOT`及`MEDIA_MAX_TOTAL_BYTES`（建议初始2GiB，生产先核实磁盘再启用）。目录未准备或不可写时上传503，不悄悄写临时层；普通已有URL资料仍可使用。
-
-建议初始限制为每文件8MiB、JPEG/PNG/WebP静态图、最多1600万像素；拒绝SVG、GIF动图、HEIC及其他格式。前端accept/大小检查只是提示，后端Pillow必须完整解码校验、限制像素和多帧，处理正确方向后缩至最长边2048像素并重编码WebP，保留透明度、去元数据，不保留原文件。生成图仍不得超过8MiB，不信任后缀或客户端MIME。需要保留原图、其他格式或更高分辨率时另评估；上述为本次待批准技术限制，不冒充已有产品规则。
-
-上传组件逐文件处理，前端并发限制为1。服务端以元数据预留空间和MySQL短时命名锁串行核对全环境容量及上传处理占用，不用单进程变量作为两个worker间的限额；处理忙时429并给Retry-After，不排后台队列。容量含暂存、已关联及待清理文件，不因从表单移除就提前释放配额；磁盘余量不足时拒绝新文件，保留原图。实施时在256/512MiB对应容器约束下测峰值内存、耗时及并发拒绝，不能据像素上限推定一定安全；达不到既有资源限制时修订限制并说明，不自动扩容。
+图片后端已按[API第4.1节](../../API_CONTRACT.md#41-私有图片上传暂存与读取)和[附录第9节](../IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)纳入当前定义，不在提案重复维护限制。实测发现16MP透明WebP超出256MiB配额，已依据本方案“测量后修订、不自动扩容”的约定收紧为8MP；JPEG/PNG保持16MP。对应上限必须在容器中实测正常处理、超限提前拒绝及无OOM，不能只凭构建或像素估算。生产仍须落实第6节实际备份前提。
 
 ### 5.2 元数据与保存关系
 
-拟新增`media_asset`表，只管理本系统新上传的图片，不搬迁旧外部URL：
-
-| 字段组 | 拟定义 |
-|---|---|
-| 身份与归属 | asset_id CHAR(32) ASCII主键，随机上传标识；item_id与created_by分别关联既有item/admin_user，禁止级联删除业务记录 |
-| 文件 | storage_key唯一，只由标识构造；reference_url记录稳定引用，mime_type、byte_size、width、height、原始上传source_sha256及生成文件sha256；不保存用户原文件名或绝对主机路径 |
-| 生命周期 | state为uploading/pending/attached/retired/deleting；created_at、updated_at、expires_at；预留容量reserved_bytes |
-| 索引与约束 | item_id/state、state/expires_at、created_by/state；合法状态、尺寸/字节/预留非负及有效时间CHECK，沿用MySQL8生效检查 |
-
-正常流程为：创建物品草稿 → Upload暂存图片 → 资料保存关联 → 详情预览。没有真实item_id时先完成草稿创建，不为表单虚构物品或自动保存半份资料。
-
-1. 精确上传入口验证登录、Origin、CSRF、物品项目及可编辑状态；预留阶段先获取短时命名锁，再按账号→会话→物品顺序加行锁、重查并创建uploading行，提交后释放命名锁，避免反向等待。上传标识绑定当前管理员和物品，仅允许一个未到期的uploading处理名额，处理租期建议10分钟，空间预留按8MiB计；随后在私有目录处理文件，不长时间持有业务行锁或命名锁。
-2. 文件写入专用临时文件，完整校验并flush/fsync后原子改名、同步所在目录，再开启短事务重查会话及物品状态，将元数据置pending；还须确认原uploading状态和租期有效，过期任务不得重新发布。失败不改变已保存profile。中途断进程保留uploading/未完成文件供受控核对，不能暴露半文件。超时重试用相同上传标识查状态，已完成时复用结果，不重复分配文件；同标识不同source_sha256/归属拒绝。
-3. pending仅上传者可预览，建议24小时有效；每管理员最多20个未完成/暂存文件。完成时记录实际byte_size并释放reserved_bytes，总容量按每行实际字节与预留值的较大者累加，deleting也保留计数至文件实际删除。上传成功只表示暂存成功，**尚未修改物品图片**。编辑取消保持已保存关联不变，未保存暂存文件到期后可清理。
-4. 资料保存时校验合计最多20项、managed图片属于本物品且为有效pending或attached；pending还须属于当前管理员。profile、pending→attached、被移除图片attached→retired及审计在同一事务完成。retired建议保留7天再可清理；普通表单不能重新引用已retired或其他物品图片。
-5. 文件与数据库不宣称可跨介质一起回滚。先有完整私有文件才允许关联提交；DB失败文件保持未发布状态，读取必须检查元数据和实际引用。取消或移除不立即物理删除；正在进行/未知结果先查状态，避免删除已提交文件。
-
-增加受控维护命令，默认只预览，显式执行才清理过期uploading/pending/retired及可核验的本功能临时文件；执行前重新检查所有profile引用及状态，和保存争用相同物品/元数据锁，先标deleting使其不可再关联，再删文件/行，失败可重试。不下载、不删除旧外部URL，也不清理用户、物品或触碰历史；B的数据清理政策不因此获批。无法确认归属、数据库不可用、引用或备份恢复状态不明时停止删除，不新增定时清理服务。
+005元数据结构、uploading/pending/attached/retired/deleting生命周期、文件先完成再关联和短事务锁规则已转入上述API/附录。默认预览的到期技术维护见[本地第14节](../LOCAL_DEVELOPMENT.md#14-物品与私有图片后端升级)，不执行B数据清理、不新增定时服务。完整Upload页面仍须按第3节区分暂存/保存、失败/取消/未知结果，不自动重放写请求。
 
 ### 5.3 接口与访问资格
 
-| 拟新增入口 | 规则 |
-|---|---|
-| POST /api/admin/items/{id}/images | multipart/form-data，仅file及32位随机client_upload_id；返回asset_id、暂存状态、可保存的url及管理员preview_url；重复标识先核对归属和已有状态，不覆盖原文件 |
-| GET /api/admin/items/{id}/images/{asset_id}/status | 当前管理员查询自己上传结果，或查询本物品已关联图片；用于上传结果未知时核对，不返回路径/原文件名 |
-| GET /api/admin/items/{id}/images/{asset_id} | 管理会话验证后读取当前已关联图，或上传者自己的有效pending；不因知道标识就获得访问权 |
-| GET /api/tap/items/{id}/images/{asset_id} | 沿用该物品的查看Cookie和当前绑定/配置/启用检查，只读当前已关联图片；不增加触碰次数，不延长查看资格 |
-| GET /api/fashion/items/{id}/images/{asset_id} | 仅为既有短时X-Tap-Token调用方式保留对应读取；核对原read/bind许可与同一物品/状态，不在公网网关新增开放旧详情路径 |
-
-管理员multipart上传是现有JSON类型限制的**单一路由例外**：按已解析endpoint和POST精确识别，只允许multipart，仍执行原Origin、Cookie、会话及X-CSRF-Token检查，再读取正文。应用及该Nginx location限制总请求体9MiB、文件8MiB、表单非文件字段64KiB上限及最多2部分；JSON接口按第4节和原有契约限制。前端通过api.ts新增FormData适配，不手填Content-Type边界，上传超时独立设为30秒；取消请求不代表服务端已撤销，随后按上传标识核对。该上传入口超体积返回413 payload_too_large，非法图片400 invalid_param，标识或关联状态冲突409 asset_conflict，容量超限409 media_quota_exceeded，处理忙429 rate_limited，目录/磁盘故障503 service_unavailable；网关错误也返回JSON，不改变原JSON入口的大小错误约定。
-
-读取标识须匹配固定格式，元数据和文件路径均由服务端生成并校验归属；拒绝目录穿越、符号链接和随意主机路径。图片响应固定image/webp、nosniff、inline和no-store，错误不返回文件路径；完成资格检查后结束数据库事务再传文件，不在传输期间长持有物品锁。已发送给浏览器的图片无法追回，不声称停用可以撤回既有下载。
+管理上传和状态/预览、用户tap Cookie或兼容令牌读取均见API第4.1节。只对精确multipart入口放行，原JSON认证及正文限制保留；用户读图不续期/计数/消费资格。没有匿名图片目录、任意路径读取或服务端远程抓图。
 
 ### 5.4 兼容现有URL与用户页
 
-保持profile.image_urls数组及现有HTTP/HTTPS旧URL校验，不批量改写或下载历史图片。新上传记录保存服务端生成的稳定受控图片URL，并在元数据保留reference_url，不存base64、临时blob或有时效的签名地址。API按引用与元数据的精确匹配将自管图片映射为当前读取方的入口：管理员为admin路由，browser_view为tap Cookie路由，旧短时调用为fashion令牌路由；旧外部URL原样保留。保存时将本物品合法的管理预览URL归一化为该稳定引用，拒绝伪造、跨物品或未完成引用；使用配置来源生成读取URL，不信任请求Host，不向任意URL发服务端抓取。域名变化或隔离恢复时通过元数据识别原引用并生成目标环境读取入口，不仅靠当前域名前缀猜图片归属，也不因此批量改写旧外部URL。
-
-服装用户页现有ImageGallery可消费新URL，不引入antd或重做H5；新增读取复用现有资格核对函数，并明确不续期、不消费认领凭证、不产生有效触碰。公网Nginx只增加tap图片GET的精确路径，仍拒绝/api/admin、目录列表和其他未开放路径；控制并发/速率以支持一件物品最多20张图，不能复用过低的资料刷新限流导致首屏图片批量失败。现有外部图片可公开访问的性质不由本次迁移改变，新上传图不另设匿名永久地址。
+稳定引用按元数据精确识别，读取按配置映射当前管理或用户入口；不批量改写旧外部URL，也不将用户H5迁入Ant Design。部署准备见[杭州第10节](../HANGZHOU_DEPLOYMENT.md#10-私有图片的升级与持久目录准备)，实际升级/部署/启用仍独立授权，不因模板已改就宣称服务器已变更。
 
 ## 6 数据库升级、文件备份与回退
 

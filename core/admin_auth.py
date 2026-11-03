@@ -214,8 +214,9 @@ def init_auth(app):
             return "", 204
         if request.args and (request.blueprint == "admin_auth" or request.method not in {"GET", "HEAD"}):
             raise AuthRequestError(400, "invalid_param", "此接口不接收查询参数。")
-        if request.method not in {"GET", "HEAD"} and request.mimetype != "application/json":
-            raise AuthRequestError(400, "invalid_param", "请使用JSON提交。")
+        upload = request.endpoint == 'admin_media.upload_image' and request.method == 'POST'
+        if request.method not in {"GET", "HEAD"} and request.mimetype != ('multipart/form-data' if upload else 'application/json'):
+            raise AuthRequestError(400, "invalid_param", "上传图片请使用multipart/form-data。" if upload else "请使用JSON提交。")
         if request.endpoint == "admin_auth.login":
             return None
         row = current_session()

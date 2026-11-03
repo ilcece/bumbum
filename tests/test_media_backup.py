@@ -18,12 +18,13 @@ import pymysql
 import pytest
 
 from core.media_backup import MediaBackupError, create_bundle, digest, inspect_bundle, restore_files, snapshot, verify_files
+from tests.test_admin_items import drafts
 
 pytestmark = pytest.mark.auth_database
 
 
 @pytest.fixture
-def media_recovery(auth_database, auth_app, admin_account, tmp_path):
+def media_recovery(auth_database, auth_app, admin_account, drafts, tmp_path):
     config = auth_database
     source = pymysql.connect(host=config['DB_HOST'], port=config['DB_PORT'], user=config['DB_USER'], password=config['DB_PASSWORD'], database=config['DB_NAME'], autocommit=True, init_command="SET time_zone='+00:00'")
     root = tmp_path / 'original-media'

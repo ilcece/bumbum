@@ -59,8 +59,19 @@ server {
         default_type application/json;
         return 400 '{"status":"error","code":"invalid_param","message":"提交内容过大"}';
     }
-    # 服装资料含多张图片地址和长介绍；仅此入口提高大小限制，管理IP限制继续继承。
-    location ~ ^/api/admin/items/[0-9]+/profile$ {
+    location @upload_payload_too_large {
+        default_type application/json;
+        return 413 '{"status":"error","code":"payload_too_large","message":"上传正文超过9MiB"}';
+    }
+    # 仅上传入口接受大正文；仍继承管理IP限制，并由应用先核验会话及CSRF。
+    location ~ ^/api/admin/items/[1-9][0-9]*/images$ {
+        client_max_body_size 9m;
+        error_page 413 = @upload_payload_too_large;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    # 普通资料合并保存及原资料入口允许256KiB；同路径状态操作由应用继续限制8KiB。
+    location ~ ^/api/admin/items/[1-9][0-9]*(/profile)?$ {
         client_max_body_size 256k;
         proxy_pass http://127.0.0.1:15000;
         include /etc/nginx/bumbum-cloud-test-proxy.conf;

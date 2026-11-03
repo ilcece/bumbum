@@ -23,6 +23,7 @@ RUN --mount=type=secret,id=proxy_ca,required=true PIP_CERT=/run/secrets/proxy_ca
 COPY app.py ./
 COPY core/ ./core/
 COPY db/ ./db/
+COPY scripts/media_backup.py scripts/media_cleanup.py ./scripts/
 COPY --from=frontend /src/dist/ ./frontend-dist/
 COPY --from=user_frontend /user-src/dist/ ./frontend-user-dist/
 RUN chmod -R a+rX /app && groupadd --gid 10001 bumbum && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin bumbum && mkdir /app/logs && chown 10001:10001 /app/logs

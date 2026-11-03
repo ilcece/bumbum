@@ -69,7 +69,7 @@ def invalid_token(view=False):
     raise AuthRequestError(403, 'invalid_view_session' if view else 'invalid_tap_token', '查看资格已失效，请重新触碰实物。')
 
 
-def read_detail(item_id, *, view=False):
+def read_detail(item_id, *, view=False, image_id=None):
     if view:
         public_settings()
         require_view_schema()
@@ -111,6 +111,13 @@ def read_detail(item_id, *, view=False):
                     raise AuthRequestError(409, 'view_unavailable', '该物品当前暂不可查看。')
                 invalid_token(view)
             profile, owner_bound = detail
+            if image_id is not None:
+                from core.media_assets import asset_for_read
+                data = asset_for_read(cursor, item_id, image_id)
+                connection.commit()
+                return data
+            from core.media_assets import map_profile_images
+            map_profile_images(cursor, {item_id: profile}, context='tap' if view else 'fashion')
             data = {'item_uid': item['item_uid'], 'profile': {name: value for name, value in profile.items() if name not in {'trace', 'story', 'channel'}},
                     'trace': profile['trace'], 'story': profile['story'], 'channel': profile['channel'], 'owner_bound': owner_bound}
             if view:
@@ -138,6 +145,23 @@ def item_view(item_id):
     if not valid_id(item_id):
         raise AuthRequestError(400, 'invalid_param', '物品ID须为有效正整数。')
     return jsonify(status='ok', data=read_detail(item_id, view=True))
+
+
+@blueprint.get('/api/tap/items/<int:item_id>/images/<asset_id>')
+def item_image(item_id, asset_id):
+    return read_image(item_id, asset_id, view=True)
+
+
+@blueprint.get('/api/fashion/items/<int:item_id>/images/<asset_id>')
+def fashion_image(item_id, asset_id):
+    return read_image(item_id, asset_id, view=False)
+
+
+def read_image(item_id, asset_id, *, view):
+    if not valid_id(item_id) or request.content_length:
+        raise AuthRequestError(400, 'invalid_param', '图片读取只接收有效物品ID，不接受正文。')
+    from core.admin_media import image_response
+    return image_response(read_detail(item_id, view=view, image_id=asset_id))
 
 
 def public_settings(*, require_origin=False):

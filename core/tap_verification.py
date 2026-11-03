@@ -178,6 +178,8 @@ def verify_in_transaction(cursor, reading, *, browser_view=False):
     if detail is None:
         return reject(cursor, 'not_ready', chip, counter)
     profile, owner_bound = detail
+    from core.media_assets import map_profile_images
+    map_profile_images(cursor, {item['id']: profile}, context='tap' if browser_view and chip['project'] == 'fashion' else 'fashion')
     token = issue_grant(cursor, item, chip, owner_bound)
     cursor.execute('UPDATE chip SET last_verified_counter=%s WHERE id=%s', (counter, chip['id']))
     log_event(cursor, 'pass', chip, counter)

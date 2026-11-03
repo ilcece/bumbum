@@ -47,7 +47,8 @@ def test_unbound_filter_counts_before_pagination_and_preserves_other_filters(aut
     assert first['items'][0]['item_uid']=='FASH-2026-000022'
     assert client.get('/api/admin/items?unbound_only=true&status=draft').json['data']['total']==21
     assert client.get('/api/admin/items?unbound_only=true&status=archived').json['data']['total']==1
-    assert client.get('/api/admin/items?unbound_only=true&page=3').json['data']['items']==[]
+    last=client.get('/api/admin/items?unbound_only=true&page=3').json['data']
+    assert last['page']==2 and last['page_adjusted'] and len(last['items'])==2
     assert client.get('/api/admin/items').json['data']['total']==25
 
 
@@ -88,7 +89,7 @@ def test_create_real_draft_and_audit_without_profile(auth_app, drafts, admin_acc
     assert audit["action"] == "item.create" and audit["target_type"] == "item"
     assert audit["target_id"] == str(item["id"]) and audit["admin_id"] == admin_account["id"]
     assert json.loads(audit["detail"]) == {"project": project} and len(audit["ip_hash"]) == 64
-    assert drafts[0].get("/api/admin/items").json["data"]["items"] == [item]
+    assert drafts[0].get("/api/admin/items").json["data"]["items"] == [{**item, "linked_chip": None, "keyword_matches": []}]
 
 
 @pytest.mark.parametrize("sku", [None, "", "   ", "a" * 64])
@@ -134,7 +135,7 @@ def test_list_filters_pagination_sort_empty_and_literal_wildcards(auth_app, draf
     assert [r["id"] for r in result["items"]] == sorted([r["id"] for r in result["items"]], reverse=True)
     assert len(client.get("/api/admin/items?page=2").json["data"]["items"]) == 4
     empty = client.get("/api/admin/items?page=10").json["data"]
-    assert empty["items"] == [] and empty["total"] == 24
+    assert empty["page"] == 2 and empty["page_adjusted"] and len(empty["items"]) == 4 and empty["total"] == 24
     assert client.get("/api/admin/items?project=jewelry&status=draft").json["data"]["total"] == 1
     assert client.get("/api/admin/items?status=archived").json["data"]["total"] == 0
     assert client.get("/api/admin/items", query_string={"keyword": "%_!"}).json["data"]["total"] == 1

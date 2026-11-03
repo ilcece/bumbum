@@ -19,7 +19,7 @@
 | 生产管理端 | /api | /admin/chips | https://admin.bumbum.cc/api/admin/chips |
 | 生产用户端 | /api | /tap/verify | https://nfc.bumbum.cc/api/tap/verify |
 
-提交内容默认用 JSON，即按字段名组织的数据，标明 Content-Type:application/json。只接受声明过的字段；多传、漏传必填或格式不对，返回 400 invalid_param。id 是正整数，项目只用 fashion/jewelry；时间为 ISO 8601 UTC。可空字段用 null，不拿空字符串代替；长度不超过 [schema](db/schema.sql)，必填文本不能只有空格。
+提交内容默认用JSON，标明Content-Type:application/json；唯一例外为第4.1节精确图片上传入口的multipart/form-data。只接受声明过的字段；多传、漏传必填或格式不对，返回 400 invalid_param。id 是正整数，项目只用 fashion/jewelry；时间为 ISO 8601 UTC。可空字段用 null，不拿空字符串代替；长度不超过 [schema](db/schema.sql)，必填文本不能只有空格。
 
 列表每页默认 20 条：page 从 1 开始，page_size 最多 100，keyword 最长 128 字符。开发管理网页只能用 ADMIN_ORIGIN，浏览器须允许携带登录 Cookie（credentials）；生产同域调用。不把用户网页加入管理端允许来源，详见技术规格第 4、6 节。
 
@@ -32,7 +32,7 @@
 ```json
 {"status":"error","code":"invalid_param","message":"参数不合法"}
 ```
-列表 data 固定为 items、total、page、page_size；空列表 items=[]。创建成功也返回 HTTP 200，保留已有约定。仅芯片验证的业务失败允许 200 加 verified=false；参数错误、系统故障、功能没开放使用对应错误状态，不能假装正常。
+列表data包含items、total、page、page_size；芯片/物品扩展查询另返回total_pages/page_adjusted，具体见对应节。空列表items=[]。创建成功也返回 HTTP 200，保留已有约定。仅芯片验证的业务失败允许 200 加 verified=false；参数错误、系统故障、功能没开放使用对应错误状态，不能假装正常。
 
 对非预期500及数据库异常503增加可选error_id：服务端生成24位小写十六进制错误编号，页面附在原通俗提示后供反馈。正常校验、重复、登录失败及未注册地址等不增加程序故障日志；不要求每个503都有编号。日志仅包含编号、UTC时间、方法、路由模板、异常类型及项目代码文件/行号，不包含请求/查询正文、认证信息、异常原文、SQL/参数、源代码或局部变量；数据库失败仍回滚。任务与部署状态见[TODO](TODO.md)。
 
@@ -48,7 +48,7 @@
 | 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
 | 用户发短信/绑定（预留未实现） | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
-所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的 Origin 和 JSON；除 login 外，还必须有有效 Cookie 和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
+所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第4.1节的精确上传入口仅接受multipart/form-data。除login外，还必须有有效Cookie和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
 
 ### 0.4 当前能做到哪一步
 
@@ -61,12 +61,13 @@
 | 芯片登记/查询/批次 | GET/POST /api/admin/chips、GET/PATCH /api/admin/chips/{id}、POST /api/webhook/admin/scan | 第1.1、3节；PATCH仅批次，回调与网页认证不同 |
 | 首次绑定 | POST /api/admin/chips/{id}/bind-item | 第3.1节；不含解绑或换新 |
 | 密钥及配置核验 | POST /api/admin/chips/{id}/generate-keys、keys、confirm-provisioning | 第3节；不连接或改写实卡 |
-| 物品 | GET/POST /api/admin/items、GET/PATCH /api/admin/items/{id}、PUT /api/admin/items/{id}/profile | 第4节；状态修改及资料保存仅服装 |
+| 物品 | GET/POST /api/admin/items、GET/PATCH /api/admin/items/{id}、PUT /api/admin/items/{id}/profile | 第4节；普通保存支持款式，状态及profile仍仅服装 |
 | 动态验证与短许可 | POST /api/tap/verify、GET /api/fashion/items/{id}/detail | 第1.2、6节；不证明所有权 |
 | 持续查看 | POST /api/tap/verify可选browser_view模式、GET /api/tap/items/{id}/view | 第9节 |
+| 私有图片 | POST /api/admin/items/{id}/images、GET同路径/{asset_id}及/{asset_id}/status；GET /api/tap/items/{id}/images/{asset_id}、GET /api/fashion/items/{id}/images/{asset_id} | 第4.1节；状态仅管理端，用户读取复用对应资格 |
 | 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
 
-第10节集中保留短信/认领、所有权、芯片状态/解绑、详情所有权扩展、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用能力。A的物品扩展查询/普通保存及图片业务尚待交付；清理/纠错/接续仍独立待审。
+第10节集中保留短信/认领、所有权、芯片状态/解绑、详情所有权扩展、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用能力。A的物品扩展查询、普通保存及图片后端已接入，管理端Upload和同字段物品编辑页面尚待交付；B数据清理、C纠错、D接续仍独立待审，媒体到期技术资源维护不替代B。
 
 未注册地址返回404；已有地址的不支持方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，当前使用物品详情。未来若注册但未开放的业务可按明确契约返回501，不能据旧预留文字声称当前已返回501。扫描配置缺失/非法或密钥配置/密文无法核对时503，不以空密码、默认秘密或假成功凑通过。
 
@@ -88,7 +89,7 @@
 ```
 不返回数据库地址、密码、SQL 或异常详情。ready检查表清单、初始项目、芯片项目可空所需的字段与约束版本，以及登记来源列的类型、默认值和不可空定义；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
 
-A门槛验证分支的目标schema另包含media_asset，旧库缺005时表清单检查会拒绝；该分支尚未接入图片业务路由、完整升级识别与部署准备，不能直接作为日常运行版本。隔离复现和离线工具见[本地运行第13节](docs/LOCAL_DEVELOPMENT.md#13-a方案生效门槛组件冒烟与图片离线恢复)，不将表存在或恢复演练写成上传接口已开放。
+媒体005纳入完整识别：列类型/默认值/字符集、InnoDB、主键/索引/外键及生效CHECK不符合已知定义时ready拒绝，MEDIA_ENABLED=false也不跳过。旧库先按[本地升级说明](docs/LOCAL_DEVELOPMENT.md#14-物品与私有图片后端升级)或[杭州媒体准备](docs/HANGZHOU_DEPLOYMENT.md#10-私有图片的升级与持久目录准备)处理；ready不证明目录、配套备份或生产启用前提已满足。
 
 <a name="1-登记芯片验证触碰和绑定手机号"></a>
 
@@ -256,30 +257,55 @@ id与item_id范围1至18446744073709551615；item_id严格为JSON整数，字符
 
 ## 4. 管理物品
 
-ItemView 是物品摘要：id、project、item_uid、sku_code（款式编号）、status、created_at、updated_at、profile（对应项目的资料，没有为 null）；不额外返回 profile 内部 id/item_id。
+ItemView保留id、project、item_uid、sku_code、status、created_at、updated_at、profile；没有对应项目资料为null，不返回profile内部id/item_id。扩展ItemSummary另含linked_chip和keyword_matches：关联为真实芯片的id、chip_uid、chip_status、keys_generated、provisioned_at，无关联为null；关键词匹配字段为item_uid/sku_code/name/chip_uid数组，没有关键词或独立详情读取时为[]，不返回秘密。
 
-第一阶段均须完整登录，写请求加防冒用口令：
-
-| 要做什么及接口 | 要给什么 | 成功返回的 data |
-|---|---|---|
-| 查列表：GET /api/admin/items | page/page_size、project、status、keyword、unbound_only 可选，keyword 查编号/sku_code | 分页 ItemView |
-| 创建：POST /api/admin/items | project、item_uid 必填，sku_code 可空；status 省略或仅 draft | 新 ItemView，profile=null |
-| 查详情：GET /api/admin/items/{id} | 物品 id | ItemView |
-| 改部分字段：PATCH /api/admin/items/{id} | 当前仅status必填：active/disabled；仅服装，不允许sku_code或其他字段 | 更新后 ItemView |
-| 整份存资料：PUT /api/admin/items/{id}/profile | 当前仅服装的name/description/material/care_instructions/image_urls | 保存后的 profile |
-
-| 项目 | 资料字段 |
+| 接口 | 输入及成功data |
 |---|---|
-| fashion（服装） | name（名称）必填，1–128字符；description最多4000、material最多256、care_instructions最多2000，可空；image_urls为URL数组，省略为[]；size_chart仅保留既有返回，本次不展示、不接收、不更新 |
-| jewelry（饰品，只读返回结构；PUT未开放） | name（名称）必填，1–128 字符；description（介绍）、material（材质）、meaning（寓意）可空；image_urls（图片地址）同上 |
+| GET /api/admin/items | 下列条件过滤后的分页ItemSummary，含total_pages/page_adjusted |
+| POST /api/admin/items | project/item_uid必填，sku_code可空，status省略或仅draft；返回原ItemView，profile=null |
+| GET /api/admin/items/{id} | 按确切正整数ID读取ItemSummary，无记录404 |
+| PATCH /api/admin/items/{id} | 普通分支接受sku_code/profile中至少一项，返回ItemSummary；status单独提交时保留原服装启停和ItemView返回，不能混合 |
+| PUT /api/admin/items/{id}/profile | 保留原服装五项资料整份替换，返回profile；与普通PATCH复用同一校验和写事务 |
 
-PUT只整份替换本次五个可编辑字段，省略可选字段清为null/[]；空白文字归一为null。size_chart不接收，不清空已有值；JSON返回仍沿用既有ItemView结构。长度按去首尾空白后的Unicode字符数计算。图片只用完整http/https，不含账号密码、空白、控制字符或反斜杠，最多20项，每项2048字符；保留顺序，后端不下载。项目/物品编号不可改，款式修改、归档、饰品资料保存均未开放。启用要求有效服装名称，draft/disabled→active，active→disabled；相同状态幂等，不重复状态审计；归档写入409 invalid_state。
+创建编号去首尾空白后严格匹配ASCII FASH-YYYY-NNNNNN或JEW-YYYY-NNNNNN并对应项目，不自动编号，不接受小写/Unicode数字；允许0000/000000。编号重复409 already_exists且不覆盖。sku_code创建和普通保存均最多64字符，可重复，省略创建为空，null/空串/纯空白表示清空；普通PATCH省略表示不改。项目、物品编号、关联、时间及其他只读字段不能写入。饰品可单独改款式，不接受服装profile或启停；归档物品不可维护。
 
-GET/POST /api/admin/items已由cece验收并合入main。当前GET详情支持两项目、无资料返回profile=null；PATCH状态与PUT资料仅服装，饰品409 project_mismatch，物品不存在404 not_found。PUT最多262144字节；其余入口仍8192字节，未知字段/查询参数及超限400 invalid_param。PUT与PATCH返回HTTP200，复用登录/Origin/CSRF；写事务先重查管理员/会话，再锁物品，保存业务、item.updated_at及审计一起提交。动作item.profile.save或item.status.change，目标为item ID，detail仅项目及状态前后值，不复制正文；DB/审计失败503并回滚。创建的详细编号格式以[PRD物品草稿规则](docs/product/admin-management.md#2-物品草稿创建与列表)为准：去首尾空白后匹配ASCII `FASH-[0-9]{4}-[0-9]{6}` 或 `JEW-[0-9]{4}-[0-9]{6}`，前缀匹配项目；不接受小写或Unicode数字，允许0000/000000，不自动编号。sku_code省略/null/空字符串及纯空白均存NULL，否则须为去首尾空白后最多64字符的文字；这是本字段的明确空字符串例外。status省略或仅draft，拒绝未知字段及网址参数，请求体最多8192字节。创建返回HTTP200的ItemView，profile=null；重复409 already_exists，原记录不变。
+列表只接受page/page_size/project/status/keyword/unbound_only/has_chip，以及created_from/created_to/updated_from/updated_to；未知和重复参数400。分页默认20、上限100，page为1–2147483647；project仅fashion/jewelry，status为draft/active/disabled/archived。布尔仅小写true/false；has_chip判断实际关联，disabled/lost芯片仍占用。unbound_only=true用于绑定候选并排除所有占用，与has_chip=true同时使用400；候选不预占目标，最终绑定仍独立重查。
 
-列表只接受page/page_size/project/status/keyword/unbound_only，不接受重复参数；page为1–2147483647，page_size为1–100，默认20。project仅fashion/jewelry，status为draft/active/disabled/archived，省略表示全部。unbound_only仅接受小写文字true/false，其他值或重复400 invalid_param；省略/false保持普通列表，true排除关联任何芯片的物品，包含其芯片为disabled/lost的情况。先过滤后计算total及分页，不改变既有物品状态筛选或ItemView。绑定弹窗固定传true，普通管理列表不传；查询不预占，最终绑定事务仍重查占用。keyword原始长度最多128字符，去首尾空白后对编号或sku_code作包含式模糊查询，按数据库既有排序规则匹配，%和_按普通文字处理；按id倒序，空页保留真实total。ItemView的profile从对应项目资料表组装，没有记录为null，不是item表字段；已有资料不能伪报为null。失败统一status=error/code/message，适用第7节错误码，不伪造空列表。
+关键词原文最多128字符，去首尾空白后查物品编号、款式、所属项目资料名称和关联芯片UID；UID比较去冒号并大写，!/%/_按普通文字处理，固定id倒序。日期与第3节相同：YYYY-MM-DD、北京时间包含起止日，允许单边，非法日期/逆序/换算溢出拒绝。查询、总数及profile批量读取位于同一只读一致性快照；超页调整到末页，空结果page=1、total_pages=0，page_adjusted说明是否调整，不返回伪空页。
 
-服装扩展资料维护尚未开放，旧契约见[预留设计](#104-服装扩展资料预留)。
+| profile字段 | 规则 |
+|---|---|
+| fashion | name必填1–128字符；description最多4000、material256、care_instructions2000，可空；image_urls最多20项，每项2048字符 |
+| jewelry | 只读返回已有name/description/material/meaning/image_urls，不新增编辑模板 |
+| size_chart | 只读保留既有返回；普通PATCH和兼容PUT均不接收、不更新或清空 |
+
+profile提交时整份替换五个可编辑字段，省略可选项清为null/[]；不提交profile则不改资料，允许无资料时只改款式。文字去首尾空白，按Unicode字符数校验，保留内部换行；介绍等按普通文字展示。旧图片地址仍接受完整HTTP/HTTPS，不含账号密码、空白、控制字符或反斜杠，保留顺序且不下载；新图片引用按第4.1节校验归属。管理读取将自管图片转换成当前管理预览URL，保存归一为原稳定引用，旧外部URL保持原样。
+
+普通PATCH与兼容PUT上限256KiB，status单独请求及创建仍8KiB，超限400 invalid_param；Nginx同步放行两个准确资料入口。所有写入复用Origin/Cookie/CSRF，锁顺序管理员→会话→物品→相关媒体，实际资料/款式、updated_at、图片状态及审计一起提交；失败回滚，相同值不重复更新时间或审计。普通动作item.details.update仅记项目、变更字段及款式前后值；原item.profile.save/item.status.change返回和最小审计保持，不复制长正文/URL。500/503/超时可能为成功回执丢失，先按确切IDGET核对，不自动重发。
+
+启用仍须先保存有效服装名称；draft/disabled可启用，active可停用，相同状态幂等，不开放回到draft、归档或恢复归档。不改变绑定/写卡/用户验证条件。服装扩展资料维护仍未开放，见[预留设计](#104-服装扩展资料预留)。管理端完整字段和Upload交互的交付状态见TODO。
+
+### 4.1 私有图片上传、暂存与读取
+
+默认MEDIA_ENABLED=false；配置、005升级、私有目录及生产备份前提见运行手册。关闭只禁止新上传，已有图仍按原资格读取，不是公开静态资源。
+
+| 接口 | 约定 |
+|---|---|
+| POST /api/admin/items/{id}/images | 唯一multipart入口，恰好一个file和一个client_upload_id；先核对Origin/会话/CSRF，再解析正文，仅可编辑服装物品 |
+| GET /api/admin/items/{id}/images/{asset_id}/status | 查询真实处理状态；上传者可查本次记录，其他管理员仅可查当前已关联图，不接受网址参数 |
+| GET /api/admin/items/{id}/images/{asset_id} | 已登录管理员读当前attached图，或上传者读自己未过期pending图；其他状态拒绝 |
+| GET /api/tap/items/{id}/images/{asset_id} | 同物品的有效view Cookie、当前绑定/配置/启用状态及attached引用均须成立；来源与第9节相同 |
+| GET /api/fashion/items/{id}/images/{asset_id} | 同物品的原短时X-Tap-Token，沿用旧详情当前状态检查，只读attached图 |
+
+asset_id/client_upload_id为32位小写随机十六进制；服务器文件名固定由标识生成，不使用原文件名。上传正文最多9MiB，单文件1字节至8MiB，表单文字64KiB、最多2部分。按真实内容接收静态JPEG/PNG（最多1600万像素）或WebP（最多800万像素）；拒绝其他格式、多帧和损坏图。WebP上限依据256MiB实测收紧，头部先检查，随后仍完整解码。去方向信息和其他元数据、最长边缩至2048、重编码WebP并保留透明度；生成文件也最多8MiB。不保留原图，不抓取任意URL。
+
+成功HTTP200的data含asset_id、state、expired、url（稳定引用）、preview_url（当前可读管理预览入口，否则null）、expires_at（UTC或null）。上传只建立pending，不修改物品profile。同标识/相同原文件摘要、归属和有效已完成状态复用结果，不重复写文件；不同文件/对象409。未知回执先GET status，不凭超时自动重新上传或保存。
+
+全环境最多一个未过期uploading，通过MySQL预留跨worker限制；忙429 rate_limited并给Retry-After:2，不排队。处理预留10分钟、按8MiB计；每管理员最多20个uploading/pending，总容量默认2GiB并计算实际/预留较大值，磁盘不足拒绝。pending保留24小时且仅上传者可关联；资料保存中pending→attached、移除attached→retired（7天）与profile和审计原子提交。晚到处理须匹配原租约，取消/移除不立即删除已保存图片。
+
+读取先检查精确物品、元数据及实际profile引用，再结束数据库事务传文件；固定image/webp、inline、nosniff、no-store，不接受查询参数/正文，不暴露路径。用户图片读取不续期view、不产生触碰事件、不推进计数或消费凭证；原资料查询及验证响应按读取方映射URL，域名恢复后仍按元数据精确识别旧稳定引用。停用不能追回已发送给浏览器的图。
+
+非法图400 invalid_param；上传大小超限413 payload_too_large；状态/归属/标识冲突409 asset_conflict；容量或暂存数量超限409 media_quota_exceeded；目录/文件/数据库故障503 service_unavailable。认证/资格错误沿用原契约，未知文件/符号链接拒绝。过期技术资源仅通过默认预览的独立命令处理，执行前校验配套备份并重查所有引用，不开放业务删除API、不执行B清理。
 
 <a name="6-用户看详情和饰品养成"></a>
 
