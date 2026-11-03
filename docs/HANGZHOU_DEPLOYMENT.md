@@ -6,6 +6,19 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 
 **发布与数据边界：**部署使用审核合入main的完整提交及对应镜像内容ID，不能只凭分支名/latest接管服务器。杭州ECS继续连接同一台、同VPC的杭州RDS；换ECS上的代码不等于数据库迁移。现有数据库、表和账号先只读核对，不导出导入、不删除或重建；已有运行配置和必要加密资料不重新生成替换。首次生产启停、配置和域名变化按当次具体范围及窗口执行，实际状态只看TODO/CHANGELOG。
 
+## 先选对阅读路径
+
+| 现在要做什么 | 从哪里进入 | 如何判断内容性质 |
+|---|---|---|
+| 看已完成范围与仍待验证事项 | [第6.2节](#62-杭州基础接管完成范围与后续运维验证) | 历史验收证据，不是本轮健康检查 |
+| 维护当前杭州生产/测试 | [隔离约定](#51-杭州两个环境的固定隔离约定)、[构建与后端](#53-构建准备公开部署配置与后端启停)、[当前发布边界](#6-当前路径main部署到杭州ecs复用现有杭州rds) | 执行前核对目标、版本、现状及当次授权 |
+| 建立或续用命令通道 | [Workbench](#36-workbench-cli运维通道与验证) | 沿用已验证能力；续期/文件传输限制保留，不自动扩大专项 |
+| 核对数据库连接、TLS与账号 | [第4节](#4-cece-操作手册检查-ecs-到-rds) | 先只读；初始化/权限调整不是日常必做步骤 |
+| 正式证书续期 | [第5.5.3节](#553-正式域名接管后的自动http续期) | 维护前核对DNS/证书现状，不能照抄旧定向验证替代 |
+| 追查接管前做过什么 | 下方标为“历史”的折叠区及CHANGELOG | 不重复安装、导入公钥、初始化、定向浏览或切DNS |
+
+下面继续保留原章节以兼容旧链接。历史命令与暂缓方案不作为默认执行步骤；本次仅整理文档，未连接服务器、执行命令或重新验收。
+
 ## 1. 推荐架构及连接判定
 
 ```mermaid
@@ -60,6 +73,9 @@ cece于2026-10-29提供的本次输入参数如下；这些是资源与身份核
 若还没有可用维护身份，先由 Codex 在本任务内准备杭州专用公钥，再由 cece 加入服务器；不要求 cece 交出已有私钥。采用普通 OpenSSH 时可使用带 restrict 的专用公钥，只执行命令，不要求 PTY 或端口转发。若实际启用了 Tailscale SSH，按其已有策略完成验证，不擅自切换认证模式。
 
 ## 3. cece 操作手册：先核对杭州 ECS
+
+<details>
+<summary>历史：首次SSH/Tailscale接入（不默认重做安装与公钥导入）</summary>
 
 ### 3.1 在阿里云控制台进入杭州实例终端
 
@@ -220,6 +236,8 @@ command -v iptables
 
 依据：[Tailscale netfilter模式](https://tailscale.com/docs/reference/netfilter-modes)、[CGNAT互操作说明](https://tailscale.com/docs/reference/cgnat-interoperability)及cece提供的工程师截图。这里的ECS防火墙兼容性与Codex代理拒绝公网IP是两层问题；修改ECS的netfilter模式不会解除代理的vpn_protected_destination限制。
 
+</details>
+
 ### 3.6 Workbench CLI运维通道与验证
 
 按cece提供的[官方技能](https://skills.aliyun.com/skills/alibabacloud-workbench-cli)及其[SKILL.md](https://skills.aliyun.com/raw/skills/alibabacloud-workbench-cli/SKILL.md)接入。它支持不依赖实例公网IP的远程exec和通过OSS中转的文件收发，适合评估为Codex的运维入口；与Windows浏览器访问网站是两条独立路径。
@@ -332,6 +350,9 @@ aliyun ram GetPolicy --PolicyType Custom --PolicyName BumbumCodexHzWorkbenchAcce
 
 STS即使在environment_status显示ready，也可能已到期；每次新操作前用提供器--check判断。检查不通过则停止新远程调用，先查时间/当前配置，不自行重签或重复发布环境。测试结束只定向关闭本次会话并停止本次专用daemon，不使用session close --all或清理他人进程；长期续期与运维首选通道按后续方案决定。
 
+<details>
+<summary>历史与暂缓方案：连接方式比较（非执行步骤）</summary>
+
 ### 3.6.2 为什么评估替换现有Tailscale＋SSH
 
 目的是减少云端Codex连接ECS时需要维护的环节。采用Workbench CLI后的预期收益来自官方连接机制；首轮真实命令连接已取证，文件收发、持续可用性及续期仍待验证；不能凭一次命令成功宣称它更快或更稳定。
@@ -352,6 +373,8 @@ STS即使在environment_status显示ready，也可能已到期；每次新操作
 cece接受本轮Workbench命令连接已验证、原生OSS文件收发未通过且STS仍需人工更新的现状，本轮结束。暂不建设受限小文件替代工具、FC签发入口、执行角色、接口令牌或自动续期；无需等待该方案批准，不把“暂缓”写成相关功能已通过。后续遇到具体问题再重新说明目标、影响和成本，按授权处理。现有Tailnet/OpenSSH保留；凭据失效时停止新调用，不为此自动发布环境。
 
 已定位的OSS代理原因、既有真实连接及文件失败/清理证据见CHANGELOG。此前完整技术提案仅作[历史备查](https://github.com/ilcece/bumbum/blob/8996fd4eb6e8cfef22e91b041136d736ab8692e6/docs/HANGZHOU_DEPLOYMENT.md#363-oss代理兼容与无人值守续期提案待cece确认后构建)，不作为当前实施清单。
+
+</details>
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
@@ -690,6 +713,9 @@ mysql --no-defaults --no-login-paths \
 
 RDS的explicit_defaults_for_timestamp=0时，现有schema中scan_log.created_at的TIMESTAMP DEFAULT CURRENT_TIMESTAMP会生成非空列；参数为1时生成可空列。结构识别兼容这两种已知形式，同时要求TIMESTAMP类型、默认CURRENT_TIMESTAMP且不带ON UPDATE，继续拒绝缺省/固定时间、自动更新时间及未知精度/类型，保留其余索引和约束检查。只交付兼容识别修复，不修改RDS参数、现有表、数据或唯一schema。先在独立临时MySQL覆盖参数开/关、普通更新不改事件时间及异常定义拒绝，再按第5.3节交付固定新镜像并用应用身份只读复核。数据库检查通过后，实际HTTP ready、权限与业务仍分别验收。
 
+<details>
+<summary>历史：正式接管前的定向HTTPS与电脑网络验证</summary>
+
 ### 5.5 保留香港解析时的HTTPS定向验证
 
 本节保留测试阶段的预验证流程，不描述正式入口当前状态；正式域名接管及续期见第5.5.3、6.2节，不将测试阶段的来源限制套用到已公开的正式入口。
@@ -780,6 +806,8 @@ cece已明确选择访问杭州时关闭电脑VPN，使用电脑实际直连IPv4
 3. 保持电脑VPN关闭，执行第5.5.1节两条定向HTTPS检查，反馈HTTP状态、目的IP或错误。允许来源的预期均200；403按真实client核对，TLS失败保留错误不关闭校验，不将IP查询成功当成网站通过。
 4. 公网预检通过后再按第5.5.1节做浏览器定向及管理员登录。以后直连公网IP变化需重新核对；测试完可恢复电脑日常VPN设置，但再访问杭州时按本轮直连约定操作。手机实卡和正式DNS切换仍分别验收。
 
+</details>
+
 ### 5.5.3 正式域名接管后的自动HTTP续期
 
 管理域名admin.bumbum.cc和用户域名nfc.bumbum.cc解析到杭州后，确认ECS公网80/443可供用户及证书机构访问，管理HTTPS仍由Nginx单IP白名单保护。DNS传播须结合公开解析器、真实HTTPS及实际证书机构验证，不因单个解析器负缓存就反复更改记录。手动DNS-01签发的证书需转换认证方式，不能只启用timer就认为可自动续期。
@@ -816,7 +844,9 @@ cece明确当前杭州ECS与杭州RDS同VPC，继续使用同一RDS，不安排�
 
 ### 6.2 杭州基础接管完成范围与后续运维验证
 
-**结论：香港ECS已释放，杭州正式入口基础接管及人工公网验收已完成；后续运维专项不等于已经通过。** 本节不再是接管前待办表。以下依据[CHANGELOG](../CHANGELOG.md)中2026-10-30的正式接管、续期及香港释放记录，展示已完成边界和仍待独立验证的事项；不是本轮重新连接服务器、查询DNS或核对控制台的结果。部署版本及当前安排只看[TODO](../TODO.md)，维护前仍须核对实际目标。
+最后已知发布基线：代码main=110a76c75265e37163eea9fdb8c77eedee223308；生产镜像sha256:99031945142495044fcb86752f088473432dfdadde2856b4269669159b1f27b4。该记录从原TODO的已验收接管证据移入本节，不是本轮服务器查询；后续实际发布有新证据时更新此处，并在CHANGELOG保留历史，TODO只维护任务。
+
+**结论：香港ECS已释放，杭州正式入口基础接管及人工公网验收已完成；后续运维专项不等于已经通过。** 本节不再是接管前待办表。以下依据[CHANGELOG](../CHANGELOG.md)中2026-10-30的正式接管、续期及香港释放记录，展示已完成边界和仍待独立验证的事项；不是本轮重新连接服务器、查询DNS或核对控制台的结果。最后已知发布版本见本节，当前任务安排只看[TODO](../TODO.md)；维护前仍须核对实际目标。
 
 | 事项 | 已记录的接管证据与边界 | 后续维护或待验证事项 |
 |---|---|---|
