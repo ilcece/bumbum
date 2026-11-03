@@ -8,14 +8,14 @@ import pymysql
 from core.admin_auth import AuthRequestError
 from core.auth_settings import client_ip, fingerprint, iso_time
 
-CHIP_VIEW = """
-SELECT c.id,c.chip_uid,p.code AS project,c.chip_status,c.item_id,i.item_uid,
+CHIP_COLUMNS = """c.id,c.chip_uid,p.code AS project,c.chip_status,c.item_id,i.item_uid,
        c.batch_no,c.provisioned_at,(k.chip_id IS NOT NULL) AS keys_generated,
-       c.registration_source,c.created_at,c.updated_at
-FROM chip c LEFT JOIN project p ON p.id=c.project_id
+       c.registration_source,c.created_at,c.updated_at"""
+CHIP_JOINS = """FROM chip c LEFT JOIN project p ON p.id=c.project_id
 LEFT JOIN item i ON i.id=c.item_id
 LEFT JOIN chip_key k ON k.chip_id=c.id
 """
+CHIP_VIEW = "SELECT " + CHIP_COLUMNS + " " + CHIP_JOINS
 
 
 def normalize_uid(value):

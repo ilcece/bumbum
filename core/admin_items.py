@@ -8,7 +8,7 @@ from flask import Blueprint, g, jsonify, request
 import pymysql
 
 from core.admin_auth import AuthRequestError, lock_admin_session, request_json
-from core.admin_chips import positive_integer
+from core.admin_queries import positive_integer
 from core.auth_settings import client_ip, fingerprint, iso_time
 from core.db import get_database
 

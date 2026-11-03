@@ -48,7 +48,7 @@ def test_register_then_list_uses_real_data_and_atomic_audit(auth_app, logged_in)
     client, _headers = logged_in
     listed = client.get("/api/admin/chips")
     assert listed.status_code == 200
-    assert listed.json["data"] == {"items": [chip], "total": 1, "page": 1, "page_size": 20}
+    assert listed.json["data"] == {"items": [{**chip, "item_name": None, "keyword_matches": []}], "total": 1, "page": 1, "page_size": 20, "total_pages": 1, "page_adjusted": False}
     assert listed.headers["Cache-Control"] == "no-store"
     events = query(auth_app, "SELECT action,target_type,target_id,detail,ip_hash FROM admin_audit")
     assert len(events) == 1 and events[0]["action"] == "chip.register"
@@ -90,7 +90,7 @@ def test_project_can_be_omitted_or_null(auth_app, logged_in, include_project):
     assert chip["item_id"] is None and chip["keys_generated"] is False
     assert query(auth_app, "SELECT project_id FROM chip")[0]["project_id"] is None
     assert json.loads(query(auth_app, "SELECT detail FROM admin_audit")[0]["detail"])["project"] is None
-    assert client.get("/api/admin/chips").json["data"]["items"] == [chip]
+    assert client.get("/api/admin/chips").json["data"]["items"] == [{**chip, "item_name": None, "keyword_matches": []}]
 
 
 @pytest.mark.parametrize("initial,next_project", [(None, None), (None, "fashion"), (None, "jewelry"), ("fashion", None)])
@@ -127,7 +127,8 @@ def test_pagination_filters_and_uid_search(logged_in, auth_app):
     assert filtered["total"] == 1 and filtered["items"][0]["project"] == "jewelry"
     assert client.get("/api/admin/chips?keyword=%25").json["data"]["total"] == 0
     assert client.get("/api/admin/chips?keyword='OR1=1").json["data"]["total"] == 0
-    assert client.get("/api/admin/chips?page=99").json["data"]["items"] == []
+    last = client.get("/api/admin/chips?page=99").json["data"]
+    assert last["page"] == 1 and last["page_adjusted"] is True and len(last["items"]) == 3
 
 
 @pytest.mark.parametrize("changes", [

@@ -45,11 +45,15 @@ class BrowserSession:
         page.get_by_label('密码', exact=True).fill(self._account['password'])
         clock = self.app.test_clock[0].replace(tzinfo=timezone.utc).timestamp()
         page.get_by_label('Authenticator 验证码', exact=True).fill(pyotp.TOTP(self._account['secret']).at(clock))
-        page.get_by_role('button', name='登录', exact=True).click()
+        page.get_by_role('button', name=re.compile(r'^登\s*录$')).click()
         page.get_by_role('heading', name='你好，cece', exact=True).wait_for()
 
     def navigate(self, name):
-        self.page.get_by_role('navigation', name='基础功能').get_by_role('button', name=name, exact=True).click()
+        self.page.get_by_role('link', name=name, exact=True).click()
+        # 数据路由异步提交后再继续，避免连续点击实际没有离开旧页面。
+        target = self.page.get_by_role('heading', name='你好，cece' if name == '工作台' else name, exact=True)
+        blocked = self.page.get_by_role('dialog', name=re.compile(r'^(有未保存修改|操作尚未结束)$'))
+        target.or_(blocked).first.wait_for()
 
 
 def assert_ports_available(ports=(5000, 5174)):

@@ -1,6 +1,7 @@
 """核心桌面与芯片绑定回归，必须显式启用，使用独立临时MySQL。"""
 
 import json
+import re
 
 import pytest
 
@@ -25,13 +26,9 @@ def test_login_restore_logout(desktop):
     page = desktop.page
     page.reload(wait_until='networkidle')
     page.get_by_role('heading', name='你好，cece', exact=True).wait_for()
-    desktop.navigate('所有权')
-    page.get_by_role('button', name='绑定所有权', exact=True).click()
-    popup = page.get_by_role('dialog', name='功能暂未开放')
-    popup.get_by_text('当前版本暂未实现', exact=True).wait_for()
-    popup.get_by_role('button', name='知道了', exact=True).click()
+    assert page.get_by_role('link', name='所有权', exact=True).count() == 0
     page.get_by_role('button', name='退出登录', exact=True).click()
-    page.get_by_role('button', name='登录', exact=True).wait_for()
+    page.get_by_role('button', name=re.compile(r'^登\s*录$')).wait_for()
     assert page.locator('.admin-shell').count() == 0
 
 
@@ -40,15 +37,15 @@ def test_chip_batch_duplicate_and_query(desktop):
     page = desktop.page
     for batch in ('BROWSER-BATCH', 'SHOULD-NOT-REPLACE'):
         page.get_by_role('button', name='登记芯片', exact=True).click()
-        dialog = page.get_by_role('dialog', name='登记新芯片')
+        dialog = page.get_by_role('dialog', name='登记芯片')
         dialog.get_by_label('芯片UID', exact=True).fill('04a27f1b5e8000')
-        dialog.get_by_label('批次（可选）', exact=True).fill(batch)
-        dialog.get_by_role('button', name='登记芯片', exact=True).click()
-        page.get_by_role('status').filter(has_text='登记成功' if batch == 'BROWSER-BATCH' else '无需重复登记').wait_for()
+        dialog.get_by_label('批次', exact=True).fill(batch)
+        dialog.get_by_role('button', name='登记并继续', exact=True).click()
+        dialog.get_by_text('登记成功，可以继续登记下一枚芯片。' if batch == 'BROWSER-BATCH' else '该UID已有记录，请查看原资料。', exact=True).wait_for()
+        assert dialog.get_by_label('芯片UID', exact=True).input_value() == ''
+        dialog.get_by_role('button', name=re.compile(r'^取\s*消$')).click()
         page.get_by_role('cell', name='BROWSER-BATCH', exact=True).wait_for()
     assert page.get_by_role('cell', name='SHOULD-NOT-REPLACE', exact=True).count() == 0
-    page.get_by_role('button', name='查看全部', exact=True).click()
-    page.get_by_role('cell', name='04:A2:7F:1B:5E:80:00', exact=True).wait_for()
 
 
 def test_item_profile_status_and_failure(desktop):
@@ -96,6 +93,7 @@ def binding_samples(desktop, count=2):
         query(desktop.app,"INSERT INTO item(project_id,item_uid) SELECT id,%s FROM project WHERE code='fashion'",(f'FASH-2026-{880000+number:06d}',))
     query(desktop.app,"INSERT INTO chip(chip_uid) VALUES ('04:00:00:00:00:00:51')")
     desktop.login(); desktop.navigate('芯片管理')
+    desktop.page.get_by_role('button',name='查看详情',exact=True).click()
     desktop.page.get_by_role('button',name='绑定物品',exact=True).click()
     return desktop.page.get_by_role('dialog',name='绑定物品',exact=True)
 
@@ -139,7 +137,7 @@ def test_keys_generate_view_confirm_and_clear(desktop):
     dialog.get_by_role('status').filter(has_text='配置核验通过').wait_for()
     assert query(desktop.app,'SELECT last_verified_counter FROM chip')[0]['last_verified_counter'] == 14
     assert dialog.get_by_label('第1条触碰链接',exact=True).input_value() == ''
-    dialog.get_by_role('button',name='关闭',exact=True).click()
+    dialog.get_by_role('button',name=re.compile(r'^关\s*闭$')).click()
     desktop.page.get_by_role('button',name='密钥与配置',exact=True).click()
     assert dialog.get_by_label('K1',exact=True).count() == 0
     assert dialog.get_by_text('密钥已生成；配置已核验',exact=True).count() == 1
@@ -172,7 +170,7 @@ def test_keys_expiry_does_not_retry(desktop,status,code):
     desktop.page.route('**/generate-keys',reject)
     dialog.get_by_role('button',name='生成密钥',exact=True).click()
     if status == 401:
-        desktop.page.get_by_role('button',name='登录',exact=True).wait_for()
+        desktop.page.get_by_role('button',name=re.compile(r'^登\s*录$')).wait_for()
         assert desktop.page.locator('.chip-keys-dialog').count()==0
     else:
         dialog.get_by_role('alert').filter(has_text='操作口令已失效').wait_for()
@@ -197,13 +195,13 @@ def test_binding_filters_occupied_before_pagination_without_hiding_main_list(des
     dialog.get_by_text('共 22 件未被芯片占用的物品；最终能否绑定以提交时检查为准。',exact=True).wait_for()
     assert dialog.get_by_role('radio').count()==20
     assert dialog.get_by_role('cell',name='FASH-2026-880025',exact=True).count()==0
-    dialog.get_by_role('button',name='下一页',exact=True).click()
+    dialog.locator('.ant-pagination-next button').click()
     dialog.get_by_role('cell',name='FASH-2026-880001',exact=True).wait_for()
     assert dialog.get_by_role('radio').count()==2
     dialog.get_by_label('物品关键词',exact=True).fill('FASH-2026-880025')
     dialog.get_by_role('button',name='查询物品',exact=True).click()
     dialog.get_by_text('没有符合条件的可绑定物品。',exact=True).wait_for()
-    dialog.get_by_role('button',name='关闭',exact=True).click()
+    dialog.get_by_role('button',name='取消绑定',exact=True).click()
     desktop.navigate('物品管理')
     desktop.page.get_by_role('cell',name='FASH-2026-880025',exact=True).wait_for()
 
@@ -214,20 +212,19 @@ def test_binding_selection_and_real_save(desktop):
     page=desktop.page
     assert dialog.get_by_role('button',name='确认绑定',exact=True).is_disabled()
     select_binding(dialog)
-    page.once('dialog',lambda d:d.dismiss())
-    dialog.get_by_role('button',name='关闭',exact=True).click()
+    dialog.get_by_role('button',name='取消绑定',exact=True).click()
+    page.get_by_role('dialog',name='放弃本次绑定选择？').get_by_role('button',name='继续核对').click()
     assert dialog.is_visible()
     dialog.get_by_label('物品关键词',exact=True).fill('FASH-2026-880002')
     assert dialog.get_by_role('button',name='确认绑定',exact=True).is_disabled()
-    dialog.get_by_role('status').filter(has_text='条件已改变').wait_for()
+    dialog.get_by_role('alert').filter(has_text='条件已改变').wait_for()
     select_binding(dialog,2)
     writes=[]
     page.on('request',lambda request:writes.append(1) if '/bind-item' in request.url and request.method=='POST' else None)
     dialog.get_by_role('button',name='确认绑定',exact=True).evaluate('(button)=>{button.click();button.click()}')
     page.get_by_role('status').filter(has_text='绑定成功').wait_for()
-    row=page.get_by_role('row').filter(has_text='04:00:00:00:00:00:51')
-    row.get_by_role('cell',name='FASH-2026-880002',exact=True).wait_for()
-    assert len(writes)==1 and row.get_by_role('button',name='绑定物品',exact=True).count()==0
+    page.get_by_role('link',name='FASH-2026-880002',exact=True).wait_for()
+    assert len(writes)==1 and page.get_by_role('button',name='绑定物品',exact=True).is_disabled()
     assert query(desktop.app,"SELECT status FROM item WHERE item_uid='FASH-2026-880002'")[0]['status']=='draft'
     page.reload(wait_until='networkidle')
     desktop.navigate('芯片管理')
@@ -249,16 +246,15 @@ def test_binding_saved_but_response_lost_and_list_failure(desktop):
     dialog.get_by_role('alert').filter(has_text='结果尚未确认').wait_for()
     assert dialog.get_by_role('button',name='重试原目标绑定',exact=True).is_disabled()
     assert dialog.get_by_label('物品关键词',exact=True).is_disabled()
-    assert 'd'*24 in dialog.get_by_role('alert').inner_text()
+    assert 'd'*24 in dialog.get_by_role('alert').filter(has_text='结果尚未确认').inner_text()
     reads=[]
     def list_failure(route):
         reads.append(1)
-        if len(reads)==1:route.continue_()
-        else:route.fulfill(status=503,content_type='application/json',body=json.dumps({'status':'error','code':'service_unavailable','message':'合成绑定后列表失败'}))
-    page.route('**/api/admin/chips?*',list_failure)
+        route.fulfill(status=503,content_type='application/json',body=json.dumps({'status':'error','code':'service_unavailable','message':'合成绑定后列表失败'}))
+    page.route('**/api/admin/chips/*',list_failure)
     dialog.get_by_role('button',name='查询此芯片',exact=True).click()
     page.get_by_role('status').filter(has_text='已查询确认绑定结果').wait_for()
-    page.get_by_role('alert').filter(has_text='合成绑定后列表失败').wait_for()
+    page.get_by_text('合成绑定后列表失败',exact=True).wait_for()
     assert len(writes)==1
 
 
@@ -310,7 +306,7 @@ def test_binding_pagination_stale_queries_and_archived(desktop):
     assert dialog.get_by_role('radio',name='选择物品 FASH-2026-880022',exact=True).is_disabled()
     dialog.get_by_role('radio',name='选择物品 FASH-2026-880021',exact=True).check()
     dialog.get_by_role('checkbox').check()
-    dialog.get_by_role('button',name='下一页',exact=True).click()
+    dialog.locator('.ant-pagination-next button').click()
     dialog.get_by_role('radio',name='选择物品 FASH-2026-880001',exact=True).wait_for()
     assert dialog.get_by_role('checkbox').count()==0
     held=[]
@@ -367,11 +363,13 @@ def test_binding_busy_blocks_close_and_navigation(desktop, tmp_path):
     with page.expect_request('**/api/admin/chips/*/bind-item'):
         dialog.get_by_role('button',name='确认绑定',exact=True).click()
     try:
-        dialog.get_by_role('button',name='关闭',exact=True).click()
+        assert dialog.get_by_role('button',name='取消绑定',exact=True).is_disabled()
         page.keyboard.press('Escape')
-        # 模态弹窗会从无障碍树隐藏背景，使用DOM定位检查父页面的离开保护。
-        page.locator('nav[aria-label="基础功能"] button').filter(has_text='物品管理').evaluate('(button)=>button.click()')
-        assert dialog.is_visible() and dialog.get_by_role('button',name='正在绑定…',exact=True).is_disabled()
+        # 只触发已有站内链接，检查忙碌保护；不绕过业务提交。
+        page.locator('a[href="/items"]').first.evaluate('(link)=>link.click()')
+        popup=page.get_by_role('dialog',name='操作尚未结束')
+        popup.get_by_role('button',name=re.compile(r'^取\s*消$')).click()
+        assert dialog.is_visible() and dialog.get_by_role('button',name='确认绑定',exact=True).is_disabled()
         assert len(held)==1
         page.screenshot(path=str(tmp_path/'binding-dialog.png'))
     finally:
@@ -387,7 +385,7 @@ def test_binding_query_401_hides_management_data(desktop):
     page=desktop.page
     page.route('**/api/admin/items?*',lambda route:route.fulfill(status=401,content_type='application/json',body=json.dumps({'status':'error','code':'unauthorized','message':'合成会话失效'})))
     dialog.get_by_role('button',name='查询物品',exact=True).click()
-    page.get_by_role('button',name='登录',exact=True).wait_for()
+    page.get_by_role('button',name=re.compile(r'^登\s*录$')).wait_for()
     assert page.locator('.admin-shell').count()==0
     assert page.get_by_role('dialog',name='绑定物品',exact=True).count()==0
 
@@ -405,10 +403,12 @@ def test_binding_refuses_imprecise_browser_ids_with_explanation(desktop,unsafe):
     if unsafe=='chip':
         dialog.get_by_role('button',name='取消绑定',exact=True).click()
         page.route('**/api/admin/chips?*',imprecise)
-        page.reload(wait_until='networkidle');desktop.navigate('芯片管理')
-        page.get_by_role('button',name='绑定物品',exact=True).click()
-        dialog=page.get_by_role('dialog',name='绑定物品',exact=True)
-    else:page.route('**/api/admin/items?*',imprecise)
+        desktop.navigate('芯片管理')
+        button=page.get_by_role('button',name='查看详情',exact=True)
+        button.wait_for()
+        assert button.is_disabled() and not writes
+        return
+    page.route('**/api/admin/items?*',imprecise)
     dialog.get_by_role('button',name='查询物品',exact=True).click()
     dialog.get_by_role('alert').filter(has_text='编号超出当前页面可处理范围').wait_for()
     assert dialog.get_by_role('radio',name='选择物品 FASH-2026-880002',exact=True).is_disabled()

@@ -58,7 +58,7 @@
 |---|---|---|
 | 运行检查 | GET /api/health、GET /api/ready | 第0.5节；公开用户域名不因此开放内部检查 |
 | 管理认证 | POST /api/admin/auth/login、GET /api/admin/auth/session、POST /api/admin/auth/logout | 第2节 |
-| 芯片登记/列表 | GET/POST /api/admin/chips、POST /api/webhook/admin/scan | 第1.1、3节；回调与网页认证不同 |
+| 芯片登记/查询/批次 | GET/POST /api/admin/chips、GET/PATCH /api/admin/chips/{id}、POST /api/webhook/admin/scan | 第1.1、3节；PATCH仅批次，回调与网页认证不同 |
 | 首次绑定 | POST /api/admin/chips/{id}/bind-item | 第3.1节；不含解绑或换新 |
 | 密钥及配置核验 | POST /api/admin/chips/{id}/generate-keys、keys、confirm-provisioning | 第3节；不连接或改写实卡 |
 | 物品 | GET/POST /api/admin/items、GET/PATCH /api/admin/items/{id}、PUT /api/admin/items/{id}/profile | 第4节；状态修改及资料保存仅服装 |
@@ -66,7 +66,7 @@
 | 持续查看 | POST /api/tap/verify可选browser_view模式、GET /api/tap/items/{id}/view | 第9节 |
 | 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
 
-第10节集中保留短信/认领、所有权、芯片详情/状态/解绑、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用路由。新增后台查询/清理/纠错/接续尚待独立技术方案。
+第10节集中保留短信/认领、所有权、芯片状态/解绑、详情所有权扩展、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用能力。A的物品扩展查询/普通保存及图片业务尚待交付；清理/纠错/接续仍独立待审。
 
 未注册地址返回404；已有地址的不支持方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，当前使用物品详情。未来若注册但未开放的业务可按明确契约返回501，不能据旧预留文字声称当前已返回501。扫描配置缺失/非法或密钥配置/密文无法核对时503，不以空密码、默认秘密或假成功凑通过。
 
@@ -181,13 +181,15 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 | 要做什么及接口 | 要给什么 | 成功返回的 data |
 |---|---|---|
 | 手动登记：POST /api/admin/chips | chip_uid必填；project、batch_no可选，空时省略或传null | chip：ChipView、is_new：是否新登记 |
-| 查列表：GET /api/admin/chips | page/page_size、project、status、keyword 可选，keyword 查 UID | 分页 ChipView |
+| 查列表：GET /api/admin/chips | 下文完整查询条件 | 分页 ChipSummary，含total_pages/page_adjusted |
+| 查详情：GET /api/admin/chips/{id} | 有效芯片ID，无查询参数 | ChipSummary，无记录404 |
+| 修改批次：PATCH /api/admin/chips/{id} | 仅batch_no，文字或null | 最新ChipSummary |
 | 生成密钥：POST /api/admin/chips/{id}/generate-keys | `{}`，不接受 force | chip_id、generated=true、key_version |
 | 查看密钥：POST /api/admin/chips/{id}/keys | confirm=true | chip_uid、keys、sun_url_template |
 | 确认配置：POST /api/admin/chips/{id}/confirm-provisioning | readings：恰好两项的数组，各含picc_data/cmac；management_confirmed=true | 更新后的ChipView；不返回密钥或用户凭证 |
 | 绑定物品：POST /api/admin/chips/{id}/bind-item | item_id | 更新后 ChipView |
 
-上表仅列当前已实现入口；芯片详情、状态及解绑的旧预留定义见第10.2节，不能据其定义直接调用。
+ChipSummary保留ChipView全部字段，另有item_name（所属项目已有资料名称，无资料为null）及keyword_matches（chip_uid/item_uid/item_name字段名数组，无关键词为空）。列表、详情和批次保存返回同源摘要；原登记、绑定及密钥写接口的ChipView返回形状保持。第10.2节的状态/解绑及详情所有权扩展仍预留，不能据其定义调用。
 
 绑定物品的页面与业务规则见[绑定PRD](docs/product/chip-lifecycle.md#2-首次绑定物品)，具体实现见[技术附录](docs/IMPLEMENTATION_DETAILS.md#13-芯片绑定物品实现)。人工验收和合并状态分别看TODO与CHANGELOG；本节不因按钮出现就宣称所有管理能力已开放。
 
@@ -196,9 +198,17 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 {"chip_uid":"04a27f1b5e8010","project":null,"batch_no":"DEMO-01"}
 ```
 
-返回HTTP200，data固定为chip和is_new。重复UID时is_new=false，返回原记录，项目、批次、状态、首次登记来源、绑定和原更新时间都不覆盖，也不新增变更审计；原项目为空时，本次即使传入项目也不分配，后续走物品绑定。原项目非空且本次明确选择另一个项目才返回409 project_mismatch，message为“该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。”。其余重复在页面提示“该 UID 已登记，已显示原记录，无需重复登记。”。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
+返回HTTP200，data固定为chip和is_new。重复UID时is_new=false，返回原记录，项目、批次、状态、首次登记来源、绑定和原更新时间都不覆盖，也不新增变更审计；原项目为空时，本次即使传入项目也不分配，后续走物品绑定。原项目非空且本次明确选择另一个项目才返回409 project_mismatch，message为“该 UID 已登记，所属项目与本次选择不同。原记录未修改，请按 UID 查询。”。其余重复在页面说明该UID已有记录，提供查看确切原记录的入口。首次登记与admin_audit一起保存；输入错误400、会话无效401、来源/口令不符403、数据库或审计失败503。登记不代表写卡完成或真伪验证通过。
 
-列表只接受表中5项查询参数，不接受重复键。page为1–2147483647，page_size为1–100；project可为fashion/jewelry/unassigned，unassigned只作筛选值，表示project_id为空，省略表示全部；status沿用既定枚举。keyword最长128字符，匹配UID片段，忽略大小写及冒号，百分号和下划线按普通文字查找。按id倒序；空页仍返回items=[]及真实total，未分配芯片也计入全部列表。摘要不增加密钥密文、读取序号、手机号或订单信息。
+列表拒绝未知或重复参数，仅接受以下条件，全部先过滤/计数再分页：
+
+- page为1–2147483647，page_size默认20、范围1–100；固定id倒序。总数与页面在同一只读一致性快照读取。超范围页回最后有效页，空结果为第1页；data为items、total、page、page_size、total_pages（至少1）、page_adjusted（是否修正请求页）。
+- project为fashion/jewelry/unassigned，unassigned表示project_id为空；status为pending/bound/disabled/lost；registration_source为manual/nfc_cool/unknown。省略表示不限。
+- keyword最多128字符，去首尾空白，覆盖芯片UID及关联物品编号/名称；UID比较单独忽略冒号和大小写，其他字段保留既有排序规则。batch_no去首尾空白后最多64字符，独立包含查询；所有LIKE转义!/%/_，不作为通配指令，不搜索秘密或长正文。
+- has_item、keys_generated、provisioned仅接受文字true/false，分别按真实关联、密钥记录存在和provisioned_at非空判断。停用/丢失芯片仍保留关联。
+- created_from/to、updated_from/to、provisioned_from/to为YYYY-MM-DD，可单边指定；按北京时间起日00:00至末日次日00:00转换到UTC半开区间。非法日期、逆序、转换溢出或provisioned=false混用核验日期返回400。
+
+详情不接收查询参数，不包含ownership、密钥、计数或认证材料。批次PATCH要求唯一字段batch_no：null或去空白后空串清空，文字最多64字符；拒绝UID、项目、关联、状态或其他字段，沿用8192字节JSON限制。事务先锁管理员/会话重查，再锁目标芯片；批次、updated_at及chip.batch.update审计（仅批次from/to）一起提交，相同值不改时间/不新增审计，失败回滚。普通编辑不改变实卡或关联。错误沿用400/401/403/404/503。
 
 密钥生成只接受空对象，要求项目已确定、芯片已绑定且状态bound、物品非归档；不符合409 invalid_state。已有密钥、配置完成或读数记录不能覆盖，409 already_exists；传force是400 invalid_param。keys只接受confirm=true（不能用1代替），返回K0–K4的32位大写十六进制值；K1是对应版本全局密钥的加密副本，不逐卡生成。查看前保存操作记录，返回no-store禁止缓存；芯片或密钥不存在404 not_found。页面须提醒K1涉及该版本所有芯片的秘密。配置/密文与当前目标密钥不符503 service_unavailable，不返回秘密，不自动重算或覆盖。URL模板见技术规格第5.1节。
 
@@ -242,7 +252,7 @@ id与item_id范围1至18446744073709551615；item_id严格为JSON整数，字符
 
 确认记录均存在后，业务检查依次为芯片状态/已有绑定、物品归档、项目匹配、目标占用；只允许pending且未关联的芯片。物品draft/active/disabled均可绑定，不要求资料完整，不自动启用。先锁物品后锁芯片，两个记录均不存在时先报告目标物品不存在；不要从多个业务错误中随机挑提示。
 
-参数和业务拒绝不保存变更。提交阶段的故障可能导致已保存但未收到回执，500/503/超时不能统一解释为未保存。页面复用GET /api/admin/chips按完整UID查询，核对id、item_id及chip_status；不另开放GET芯片详情，不返回成功后自动调用写卡、所有权或其他业务。
+参数和业务拒绝不保存变更。提交阶段的故障可能导致已保存但未收到回执，500/503/超时不能统一解释为未保存。页面复用GET /api/admin/chips按完整UID查询，核对id、item_id及chip_status；使用第3节GET芯片详情可按确切ID核对；不返回成功后自动调用写卡、所有权或其他业务。
 
 ## 4. 管理物品
 
@@ -438,11 +448,11 @@ view为连续24小时无成功查询失效，成功查询滑动续期24小时；
 
 ### 10.2 管理基础入口（预留）
 
-芯片详情、状态和解绑：
+芯片状态、解绑及详情的所有权扩展（基础详情已见第3节）：
 
 | 要做什么及接口 | 要给什么 | 拟返回的 data |
 |---|---|---|
-| 查详情：GET /api/admin/chips/{id} | 芯片 id | ChipView，加 ownership：null 或 item_id/user_id/phone_masked/bound_at |
+| 详情扩展（尚未实现） | 复用第3节详情 | 基础摘要外增加ownership；当前不返回该字段 |
 | 改状态：PATCH /api/admin/chips/{id}/status | chip_status | 更新后 ChipView |
 | 解除绑定：POST /api/admin/chips/{id}/unbind-item | `{}` | 更新后 ChipView |
 

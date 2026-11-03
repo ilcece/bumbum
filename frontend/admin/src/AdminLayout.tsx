@@ -1,347 +1,100 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  Bell,
-  Box,
-  Database,
-  Home,
-  Link2,
-  LogOut,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-  Users,
-} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, App, Button, Card, Col, Row, Space, Statistic, Typography } from "antd";
+import { DashboardOutlined, DatabaseOutlined, LinkOutlined, ShoppingOutlined, LogoutOutlined } from "@ant-design/icons";
+import { PageContainer, ProLayout } from "@ant-design/pro-components";
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { ApiError, listChips, listItems } from "./api";
 import { ChipPanel } from "./ChipPanel";
 import { ItemPanel } from "./ItemPanel";
-import {
-  PageHeading,
-  UnavailableButton,
-  UnavailableContext,
-  Notice,
-} from "./AdminUI";
+import { ItemDetailPage } from "./ItemDetailPage";
 import { RuntimeChecks } from "./RuntimeChecks";
 import { TapStatisticsPanel } from "./TapStatisticsPanel";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "./components/ui/dialog";
+import { NavigationGuard, useNavigationGuard } from "./NavigationGuard";
+import { UnavailableContext } from "./AdminUI";
 
-type Page = "overview" | "chips" | "items" | "owners" | "checks";
-const NAV = [
-  { id: "overview", label: "工作台", icon: Home },
-  { id: "chips", label: "芯片管理", icon: Link2 },
-  { id: "items", label: "物品管理", icon: Box },
-  { id: "owners", label: "所有权", icon: Users },
-] as const;
-function Overview({
-  onSessionExpired,
-  navigate,
-}: {
-  onSessionExpired: () => void;
-  navigate: (page: Page) => void;
-}) {
-  const [values, setValues] = useState<(number | null | "failed")[]>([
-    null,
-    null,
-    null,
-  ]);
+function Overview({ onSessionExpired }: { onSessionExpired: () => void }) {
+  const navigate = useNavigate();
+  const [values, setValues] = useState<(number | null | "failed")[]>([null, null, null]);
   const [revision, setRevision] = useState(0);
-  const [errorIds, setErrorIds] = useState<(string | undefined)[]>([]);
+  const [errors, setErrors] = useState<string[]>([]);
   useEffect(() => {
     let cancelled = false;
     setValues([null, null, null]);
-    setErrorIds([]);
+    setErrors([]);
     const base = { page: 1, project: "", status: "", keyword: "" };
-    [
-      listChips(base),
-      listChips({ ...base, status: "pending" }),
-      listItems(base),
-    ].forEach((promise, index) => {
-      promise
-        .then((result) => {
-          if (!cancelled)
-            setValues((current) =>
-              current.map((value, i) => (i === index ? result.total : value)),
-            );
-        })
-        .catch((error: unknown) => {
-          if (cancelled) return;
-          if (error instanceof ApiError && error.status === 401)
-            onSessionExpired();
-          else {
-            if (error instanceof ApiError && error.errorId)
-              setErrorIds((current) => {
-                const next = [...current];
-                next[index] = error.errorId;
-                return next;
-              });
-            setValues((current) =>
-              current.map((value, i) => (i === index ? "failed" : value)),
-            );
-          }
-        });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [onSessionExpired, revision]);
-  const metrics = [
-    { label: "芯片总数", icon: Link2 },
-    { label: "待绑定芯片", icon: ShieldCheck },
-    { label: "数字物品", icon: Box },
-  ];
-  return (
-    <>
-      <PageHeading
-        title="你好，cece"
-        subtitle="查看全局库存和有效触碰情况，继续处理芯片与物品。"
-        action={
-          <button className="action" onClick={() => setRevision((v) => v + 1)}>
-            刷新概况
-          </button>
+    [listChips(base), listChips({ ...base, status: "pending" }), listItems(base)].forEach((promise, index) => {
+      promise.then(result => {
+        if (!cancelled) setValues(current => current.map((value, i) => i === index ? result.total : value));
+      }).catch((error: unknown) => {
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 401) onSessionExpired();
+        else {
+          setValues(current => current.map((value, i) => i === index ? "failed" : value));
+          setErrors(current => [...current, error instanceof ApiError ? error.message : "库存概况读取失败，请重试。"]);
         }
-      />
-      <h2 className="overview-inventory-title">全局库存概况</h2>
-      <section className="metrics overview-inventory">
-        {metrics.map(({ label, icon: Icon }, i) => (
-          <article key={label} className="metric-card">
-            <div className="metric-top">
-              <span>{label}</span>
-              <span className="metric-icon">
-                <Icon size={18} />
-              </span>
-            </div>
-            <div className="metric-bottom">
-              <strong>
-                {values[i] === null
-                  ? "…"
-                  : values[i] === "failed"
-                    ? "读取失败"
-                    : values[i]}
-              </strong>
-              <span className="muted-text">全局库存，不受触碰筛选影响</span>
-            </div>
-            {errorIds[i] && (
-              <p className="diagnostic-id">错误编号：{errorIds[i]}</p>
-            )}
-          </article>
-        ))}
-      </section>
-      <section className="overview-actions">
-        <div className="panel">
-          <div className="panel-head">
-            <h2>快捷操作</h2>
-          </div>
-          <div className="quick-actions">
-            <button className="action" onClick={() => navigate("chips")}>
-              <Link2 size={18} />
-              登记与查询芯片
-            </button>
-            <button className="action" onClick={() => navigate("items")}>
-              <Box size={18} />
-              维护物品资料
-            </button>
-            <button className="action" onClick={() => navigate("checks")}>
-              <Database size={18} />
-              检查运行环境
-            </button>
-          </div>
-        </div>
-      </section>
-      <TapStatisticsPanel onSessionExpired={onSessionExpired} />
-      <Notice>
-        物品启用、芯片绑定、写卡完成与真实防伪通过是不同结果，须分别验证。
-      </Notice>
-    </>
-  );
+      });
+    });
+    return () => { cancelled = true; };
+  }, [revision, onSessionExpired]);
+  return <PageContainer title={<Typography.Title level={2} style={{ margin: 0 }}>你好，cece</Typography.Title>} subTitle="查看库存和有效触碰情况，继续处理芯片与物品。"
+    extra={<Button onClick={() => setRevision(value => value + 1)}>刷新概况</Button>}>
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      {errors.map((error, index) => <Alert key={index} type="error" showIcon message={error} />)}
+      <Row gutter={16}>
+        {["芯片总数", "待绑定芯片", "数字物品"].map((title, index) => <Col span={8} key={title}>
+          <Card><Statistic title={title} value={values[index] === null ? "…" : values[index] === "failed" ? "读取失败" : values[index]!}
+            valueRender={node => <output aria-label={title}>{node}</output>} />
+            <Typography.Text type="secondary">全局库存，不受触碰筛选影响</Typography.Text></Card>
+        </Col>)}
+      </Row>
+      <Card title="快捷操作"><Space>
+        <Button onClick={() => navigate("/chips")}>登记与查询芯片</Button>
+        <Button onClick={() => navigate("/items")}>维护物品资料</Button>
+        <Button onClick={() => navigate("/checks")}>检查运行环境</Button>
+      </Space></Card>
+      <div className="legacy-ui"><TapStatisticsPanel onSessionExpired={onSessionExpired} /></div>
+      <Alert type="info" showIcon message="物品启用、芯片绑定、写卡完成与真实防伪通过须分别验证。" />
+    </Space>
+  </PageContainer>;
 }
-export function AdminLayout({
-  expiry,
-  busy,
-  onLogout,
-  onSessionExpired,
-  message,
-}: {
-  expiry: string;
-  busy: boolean;
-  onLogout: () => void;
-  onSessionExpired: () => void;
-  message: string;
-}) {
-  const [page, setPage] = useState<Page>("overview");
-  const [unavailable, setUnavailable] = useState(false);
-  const [checks, setChecks] = useState(false);
-  const leave = useRef<() => boolean>(() => true);
-  const registerLeave = useCallback((guard: () => boolean) => {
-    leave.current = guard;
-  }, []);
-  function navigate(next: Page) {
-    if (next === page || !leave.current()) return;
-    leave.current = () => true;
-    setPage(next);
-  }
-  return (
-    <UnavailableContext.Provider value={() => setUnavailable(true)}>
-      <div className="admin-shell">
-        <aside className="sidebar">
-          <div className="brand">
-            <div className="brand-symbol">
-              <Sparkles />
-            </div>
-            <div>
-              <strong>BUMBUM</strong>
-              <span>管理后台</span>
-            </div>
-          </div>
-          <nav aria-label="基础功能">
-            <span className="nav-label">基础</span>
-            {NAV.map(({ id, label, icon: Icon }) => (
-              <button
-                key={id}
-                className={`nav-item ${page === id ? "active" : ""}`}
-                aria-current={page === id ? "page" : undefined}
-                onClick={() => navigate(id)}
-              >
-                <Icon />
-                <span>{label}</span>
-              </button>
-            ))}
-            <span className="nav-label nav-label-spaced">系统</span>
-            <button
-              className={`nav-item ${page === "checks" ? "active" : ""}`}
-              onClick={() => navigate("checks")}
-            >
-              <Database />
-              <span>系统状态</span>
-            </button>
-            <UnavailableButton className="nav-item">
-              <Settings />
-              <span>设置</span>
-            </UnavailableButton>
-          </nav>
-          <div className="sidebar-footer">
-            <p>
-              会话到期：
-              {new Date(expiry).toLocaleString("zh-CN", { hour12: false })}
-            </p>
-            <button
-              disabled={busy}
-              onClick={() => {
-                if (leave.current()) onLogout();
-              }}
-            >
-              <LogOut size={18} />
-              退出登录
-            </button>
-          </div>
-        </aside>
-        <main className="workspace-main">
-          <header className="topbar">
-            <div className="topbar-status">BUMBUM · 管理工作空间</div>
-            <div className="topbar-actions">
-              <button className="action" onClick={() => setChecks(true)}>
-                <Database size={16} />
-                运行检查
-              </button>
-              <UnavailableButton className="icon-action">
-                <span className="sr-only">通知</span>
-                <Bell size={18} />
-              </UnavailableButton>
-              <div className="avatar">CC</div>
-            </div>
-          </header>
-          <div className="page">
-            {message && <Notice error>{message}</Notice>}
-            {page === "overview" && (
-              <Overview
-                onSessionExpired={onSessionExpired}
-                navigate={navigate}
-              />
-            )}
-            {page === "chips" && (
-              <ChipPanel
-                onSessionExpired={onSessionExpired}
-                registerLeave={registerLeave}
-              />
-            )}
-            {page === "items" && (
-              <ItemPanel
-                onSessionExpired={onSessionExpired}
-                registerLeave={registerLeave}
-              />
-            )}
-            {page === "owners" && (
-              <>
-                <PageHeading
-                  title="所有权管理"
-                  subtitle="所有权绑定和流转功能尚未开放。"
-                  action={
-                    <UnavailableButton>
-                      <Users size={18} />
-                      绑定所有权
-                    </UnavailableButton>
-                  }
-                />
-                <div className="filter-bar">
-                  <input
-                    aria-label="所有权搜索"
-                    placeholder="物品编号或手机号"
-                  />
-                  <UnavailableButton>查询</UnavailableButton>
-                  <UnavailableButton>导出</UnavailableButton>
-                </div>
-                <div className="panel">
-                  <div className="panel-head">
-                    <h2>有效所有权</h2>
-                    <UnavailableButton>查看流转</UnavailableButton>
-                  </div>
-                  <div className="placeholder-chart">
-                    当前版本暂未实现，尚未读取所有权记录。
-                  </div>
-                </div>
-              </>
-            )}
-            {page === "checks" && (
-              <>
-                <PageHeading
-                  title="系统状态"
-                  subtitle="真实检查后端与数据库，不代表全部业务功能已通过验收。"
-                />
-                <RuntimeChecks />
-              </>
-            )}
-          </div>
-        </main>
-      </div>
-      <Dialog open={unavailable} onOpenChange={setUnavailable}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>功能暂未开放</DialogTitle>
-            <DialogDescription>当前版本暂未实现</DialogDescription>
-          </DialogHeader>
-          <button
-            className="action action-primary"
-            onClick={() => setUnavailable(false)}
-          >
-            知道了
-          </button>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={checks} onOpenChange={setChecks}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>运行检查</DialogTitle>
-            <DialogDescription>
-              检查当前后端程序与数据库连接。
-            </DialogDescription>
-          </DialogHeader>
-          <RuntimeChecks />
-        </DialogContent>
-      </Dialog>
-    </UnavailableContext.Provider>
-  );
+
+function LegacyItems({ onSessionExpired }: { onSessionExpired: () => void }) {
+  const { legacy } = useNavigationGuard();
+  const register = useCallback((check: () => boolean) => legacy(check), [legacy]);
+  useEffect(() => () => legacy(null), [legacy]);
+  return <div className="legacy-ui"><ItemPanel onSessionExpired={onSessionExpired} registerLeave={register} /></div>;
+}
+
+type Props = { expiry: string; busy: boolean; onLogout: () => void; onSessionExpired: () => void; message: string };
+function Workspace({ expiry, busy, onLogout, onSessionExpired, message }: Props) {
+  const location = useLocation();
+  const { attempt } = useNavigationGuard();
+  const { modal } = App.useApp();
+  return <UnavailableContext.Provider value={() => { modal.info({ title: "功能暂未开放", content: "当前版本暂未实现。" }); }}>
+    <ProLayout title="BUMBUM" logo={false} layout="side" fixedHeader fixSiderbar siderWidth={224}
+      location={{ pathname: location.pathname }} menuProps={{ selectedKeys: [location.pathname.startsWith("/chips") ? "/chips" : location.pathname.startsWith("/items") ? "/items" : location.pathname === "/checks" ? "/checks" : "/"] }} contentStyle={{ minHeight: "100vh" }}
+      route={{ routes: [
+        { path: "/", name: "工作台", icon: <DashboardOutlined aria-hidden /> },
+        { path: "/chips", name: "芯片管理", icon: <LinkOutlined aria-hidden /> },
+        { path: "/items", name: "物品管理", icon: <ShoppingOutlined aria-hidden /> },
+        { path: "/checks", name: "系统状态", icon: <DatabaseOutlined aria-hidden /> },
+      ] }}
+      menuItemRender={(item, dom) => <Link to={item.path || "/"}>{dom}</Link>}
+      actionsRender={() => [<Button key="logout" icon={<LogoutOutlined aria-hidden />} disabled={busy} onClick={() => attempt(onLogout)}>退出登录</Button>]}
+      menuFooterRender={() => <Typography.Text type="secondary">会话到期：{new Date(expiry).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", hour12: false })}</Typography.Text>}>
+      {message && <Alert type="error" showIcon message={message} style={{ marginBottom: 16 }} />}
+      <Routes>
+        <Route path="/" element={<Overview onSessionExpired={onSessionExpired} />} />
+        <Route path="/chips/*" element={<ChipPanel onSessionExpired={onSessionExpired} />} />
+        <Route path="/items" element={<LegacyItems onSessionExpired={onSessionExpired} />} />
+        <Route path="/items/:id" element={<ItemDetailPage onSessionExpired={onSessionExpired} />} />
+        <Route path="/checks" element={<PageContainer title={<Typography.Title level={2} style={{ margin: 0 }}>系统状态</Typography.Title>} subTitle="检查当前服务连接；业务功能须分别验收。"><RuntimeChecks /></PageContainer>} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ProLayout>
+  </UnavailableContext.Provider>;
+}
+
+export function AdminLayout(props: Props) {
+  return <NavigationGuard><Workspace {...props} /></NavigationGuard>;
 }

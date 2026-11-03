@@ -1,480 +1,261 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
-import { EntryDialog, PageHeading, UnavailableButton } from "./AdminUI";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { Alert, App, Button, Card, Form, Result, Space, Spin, Tag, Typography } from "antd";
+import { PlusOutlined } from "@ant-design/icons";
+import { PageContainer, ProDescriptions, ProForm, ProFormText, ProTable } from "@ant-design/pro-components";
+import type { ActionType, ProColumns } from "@ant-design/pro-components";
+import { Link, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ApiError, CHIP_FILTERS, listChips, readChip, readSession, safeRecordId, saveChipBatch } from "./api";
+import type { ChipDetail, ChipQuery, ChipView } from "./api";
+import { safeReturn, sourcePoint } from "./adminNavigation";
+import { useNavigationGuard } from "./NavigationGuard";
 import { BindItemDialog } from "./BindItemDialog";
 import { ChipKeysDialog } from "./ChipKeysDialog";
-import { ApiError, listChips, readSession, registerChip } from "./api";
-import type { ChipList, ChipQuery, ChipView } from "./api";
+import { beijingTime } from "./ItemDetailPage";
+import { CreateChip } from "./CreateChip";
 
-const INITIAL_QUERY: ChipQuery = {
-  page: 1,
-  project: "",
-  status: "",
-  keyword: "",
-};
-const PROJECTS = { fashion: "服装", jewelry: "饰品" };
-const SOURCES = {
-  unknown: "历史未知",
-  manual: "网页手工",
-  nfc_cool: "手机扫描",
-};
-const STATUSES = {
-  pending: "待绑定",
-  bound: "已绑定",
-  disabled: "已停用",
-  lost: "已丢失",
-};
+export const PROJECTS = { fashion: "服装", jewelry: "饰品", unassigned: "未分配" };
+const STATUSES = { pending: "待绑定", bound: "已绑定", disabled: "停用", lost: "丢失" };
+const SOURCES = { manual: "网页手工", nfc_cool: "手机扫描", unknown: "历史未知" };
+const MATCHES: Record<string, string> = { chip_uid: "芯片UID", item_uid: "关联物品编号", item_name: "关联物品名称" };
+export const failureText = (error: unknown, fallback: string) => error instanceof ApiError ? error.message : fallback;
 
-export function ChipPanel({
-  onSessionExpired,
-  registerLeave,
-}: {
-  onSessionExpired: () => void;
-  registerLeave: (guard: () => boolean) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [query, setQuery] = useState<ChipQuery>(INITIAL_QUERY);
-  const [filters, setFilters] = useState(INITIAL_QUERY);
-  const [list, setList] = useState<ChipList | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
-  const [registerError, setRegisterError] = useState("");
-  const [bindingChip, setBindingChip] = useState<ChipView | null>(null);
-  const [keyChip, setKeyChip] = useState<ChipView | null>(null);
-  const [bindingState, setBindingState] = useState({
-    dirty: false,
-    busy: false,
-  });
-  const bindingRef = useRef(bindingState);
-  const reportBinding = useCallback(
-    (state: { dirty: boolean; busy: boolean }) => {
-      bindingRef.current = state;
-      setBindingState(state);
-    },
-    [],
-  );
-  function openBinding(chip: ChipView) {
-    if (saving || bindingRef.current.busy || bindingChip || keyChip) return;
-    if (dirty && !window.confirm("有未保存的芯片登记输入，是否放弃？")) return;
-    setOpen(false);
-    setDirty(false);
-    setBindingChip(chip);
-  }
-  function bound(chip: ChipView, recovered: boolean) {
-    reportBinding({ dirty: false, busy: false });
-    setBindingChip(null);
-    setNotice(
-      `${recovered ? "已查询确认绑定结果" : "绑定成功"}：${chip.chip_uid} → ${chip.item_uid}。绑定不代表写卡完成。`,
-    );
-    const next = { ...INITIAL_QUERY, keyword: chip.chip_uid };
-    setFilters(next);
-    setQuery(next);
-  }
+type Field = { key: keyof ChipDetail; label: string; render: (chip: ChipDetail) => ReactNode };
+function useChipFields(): Field[] {
+  const location = useLocation();
+  return [
+    { key: "chip_uid", label: "芯片UID", render: chip => <Typography.Text copyable>{chip.chip_uid}</Typography.Text> },
+    { key: "project", label: "项目", render: chip => PROJECTS[chip.project || "unassigned"] },
+    { key: "chip_status", label: "状态", render: chip => <Tag>{STATUSES[chip.chip_status]}</Tag> },
+    { key: "batch_no", label: "批次", render: chip => chip.batch_no || "未填写" },
+    { key: "registration_source", label: "首次登记来源", render: chip => SOURCES[chip.registration_source] },
+    { key: "item_uid", label: "关联物品", render: chip => chip.item_id === null ? "未关联" : safeRecordId(chip.item_id)
+      ? <Link to={`/items/${chip.item_id}`} state={{ returnTo: sourcePoint(location) }}>{chip.item_uid || "查看关联物品"}</Link> : "关联编号无法处理，请反馈" },
+    { key: "item_name", label: "关联物品名称", render: chip => chip.item_name || (chip.item_id === null ? "未关联" : "未填写") },
+    { key: "keys_generated", label: "密钥生成", render: chip => chip.keys_generated ? "已生成" : "未生成" },
+    { key: "provisioned_at", label: "配置核验时间（北京时间）", render: chip => chip.provisioned_at ? beijingTime(chip.provisioned_at) : "未核验" },
+    { key: "created_at", label: "登记时间（北京时间）", render: chip => beijingTime(chip.created_at) },
+    { key: "updated_at", label: "更新时间（北京时间）", render: chip => beijingTime(chip.updated_at) },
+  ];
+}
 
-  function closeEntry(next: boolean) {
-    if (!next && saving) return;
-    if (!next && dirty && !window.confirm("有未保存的芯片登记输入，是否放弃？"))
-      return;
-    setOpen(next);
-    if (!next) setDirty(false);
-  }
-  useEffect(() => {
-    registerLeave(
-      () =>
-        !saving &&
-        !bindingRef.current.busy &&
-        (!dirty || window.confirm("有未保存的芯片登记输入，是否放弃？")) &&
-        (!bindingRef.current.dirty ||
-          window.confirm(
-            "有未完成的绑定选择或待确认结果，是否离开并稍后按UID查询？",
-          )),
-    );
-  }, [saving, dirty, registerLeave]);
-  useEffect(() => {
-    if (!dirty && !saving && !bindingState.dirty && !bindingState.busy) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty, saving, bindingState]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError("");
-    listChips(query)
-      .then((result) => {
-        if (!cancelled) setList(result);
-      })
-      .catch((failure: unknown) => {
-        if (cancelled) return;
-        if (failure instanceof ApiError && failure.status === 401)
-          onSessionExpired();
-        else
-          setError(
-            failure instanceof ApiError
-              ? failure.message
-              : "芯片列表暂时无法读取，请重新查询。",
-          );
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [query, onSessionExpired]);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const values = new FormData(form);
-    const batch = String(values.get("batch_no")).trim();
-    setSaving(true);
-    setNotice("");
-    setRegisterError("");
-    try {
-      const result = await registerChip(
-        String(values.get("chip_uid")),
-        String(values.get("project")) || null,
-        batch || null,
-      );
-      setNotice(
-        result.is_new
-          ? `登记成功：${result.chip.chip_uid}，状态为待绑定${result.chip.project === null ? "，项目未分配" : ""}。`
-          : "该 UID 已登记，已显示原记录，无需重复登记。项目、批次和状态保持不变。",
-      );
-      const next = { ...INITIAL_QUERY, keyword: result.chip.chip_uid };
-      setFilters(next);
-      setQuery(next);
-      (form.elements.namedItem("chip_uid") as HTMLInputElement).value = "";
-      (form.elements.namedItem("batch_no") as HTMLInputElement).value = "";
-      setDirty(false);
-      setOpen(false);
-    } catch (failure) {
-      if (failure instanceof ApiError && failure.status === 401)
-        onSessionExpired();
-      else if (failure instanceof ApiError && failure.code === "csrf_failed") {
-        try {
-          await readSession();
-          setRegisterError("操作口令已更新，请再点一次登记。");
-        } catch (refreshFailure) {
-          if (
-            refreshFailure instanceof ApiError &&
-            refreshFailure.status === 401
-          )
-            onSessionExpired();
-          else setRegisterError("登录状态暂时无法更新，请稍后重试。");
-        }
-      } else
-        setRegisterError(
-          failure instanceof ApiError
-            ? failure.message
-            : "登记结果暂时无法确认，可先按UID查询，再决定是否重试。",
-        );
-    } finally {
-      setSaving(false);
+function queryFrom(search: URLSearchParams): ChipQuery {
+  const integer = (name: string, fallback: number) => /^[1-9][0-9]*$/.test(search.get(name) || "") ? Number(search.get(name)) : fallback;
+  const query: ChipQuery = { page: integer("page", 1), page_size: integer("page_size", 20) };
+  for (const key of CHIP_FILTERS) if (search.has(key)) query[key] = search.get(key)!;
+  return query;
+}
+function queryString(query: ChipQuery) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) if (value !== "" && value !== undefined && value !== null) search.set(key, String(value));
+  return search;
+}
+function submittedQuery(values: Record<string, unknown>, pageSize: number): ChipQuery {
+  const query: ChipQuery = { page: 1, page_size: pageSize };
+  for (const key of CHIP_FILTERS) if (!/_(from|to)$/.test(key) && typeof values[key] === "string" && values[key]) query[key] = values[key] as string;
+  for (const name of ["created", "updated", "provisioned"] as const) {
+    const range = values[`${name}_range`];
+    if (Array.isArray(range) && range.length === 2) {
+      if (range[0]) query[`${name}_from`] = String(range[0]);
+      if (range[1]) query[`${name}_to`] = String(range[1]);
     }
   }
+  return query;
+}
+function validateChip(value: ChipDetail, id: number) {
+  if (value.id !== id || typeof value.chip_uid !== "string" || typeof value.keys_generated !== "boolean" || !(value.chip_status in STATUSES)
+    || !(value.registration_source in SOURCES) || !(value.project === null || value.project === "fashion" || value.project === "jewelry")
+    || !(value.batch_no === null || typeof value.batch_no === "string")) throw new Error("芯片返回资料不符合约定。");
+  return value;
+}
 
-  return (
-    <section className="chip-panel" aria-labelledby="chips-title">
-      <PageHeading
-        title="芯片管理"
-        subtitle="登记、查询芯片并绑定物品，保留首次登记来源。"
-        action={
-          <button
-            className="action action-primary"
-            disabled={bindingChip !== null || keyChip !== null || saving}
-            onClick={() => {
-              setRegisterError("");
-              setOpen(true);
-            }}
-          >
-            登记芯片
-          </button>
-        }
-      />
-      <h2 id="chips-title" className="sr-only">
-        芯片登记与列表
-      </h2>
-      <p>
-        先登记UID，项目和批次可留空。未分配项目的芯片，绑定物品时确定项目；登记不会生成密钥或写卡。
-      </p>
-      <EntryDialog
-        open={open}
-        title="登记新芯片"
-        description="登记不会写卡，项目和批次可以留空。"
-        onChange={closeEntry}
-      >
-        <form
-          onChange={() => setDirty(true)}
-          onSubmit={(event) => void submit(event)}
-          aria-label="芯片登记表单"
-        >
-          <fieldset disabled={saving}>
-            <label>
-              芯片UID
-              <input
-                name="chip_uid"
-                placeholder="04:A2:7F:1B:5E:80:00"
-                maxLength={64}
-                required
-              />
-            </label>
-            <label>
-              所属项目（可选）
-              <select name="project" aria-label="所属项目">
-                <option value="">暂不分配</option>
-                <option value="fashion">服装</option>
-                <option value="jewelry">饰品</option>
-              </select>
-            </label>
-            <label>
-              批次（可选）
-              <input name="batch_no" maxLength={64} />
-            </label>
-            <button type="submit">{saving ? "正在登记…" : "登记芯片"}</button>
-          </fieldset>
-        </form>
-        {registerError && (
-          <p className="notice" role="alert">
-            {registerError}
-          </p>
-        )}
-      </EntryDialog>
-      {bindingChip && (
-        <BindItemDialog
-          key={bindingChip.id}
-          chip={bindingChip}
-          onClose={() => setBindingChip(null)}
-          onBound={bound}
-          onSessionExpired={onSessionExpired}
-          onInteraction={reportBinding}
-        />
-      )}
-      {keyChip && (
-        <ChipKeysDialog
-          key={keyChip.id}
-          chip={keyChip}
-          onClose={() => setKeyChip(null)}
-          onSessionExpired={onSessionExpired}
-          onInteraction={reportBinding}
-          onUpdated={(chip) => {
-            setFilters({ ...INITIAL_QUERY, keyword: chip.chip_uid });
-            setQuery({ ...INITIAL_QUERY, keyword: chip.chip_uid });
+function ChipListPage({ onSessionExpired }: { onSessionExpired: () => void }) {
+  const location = useLocation(), navigate = useNavigate();
+  const [search, setSearch] = useSearchParams();
+  const query = useMemo(() => queryFrom(new URLSearchParams(search)), [search]);
+  const [error, setError] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const fields = useChipFields();
+  const sequence = useRef(0);
+  const action = useRef<ActionType | undefined>(undefined);
+  const initial = useMemo(() => ({ ...Object.fromEntries(CHIP_FILTERS.filter(key => !/_(from|to)$/.test(key)).map(key => [key, query[key]])),
+    ...Object.fromEntries(["created", "updated", "provisioned"].map(name => [`${name}_range`, query[`${name}_from` as keyof ChipQuery] || query[`${name}_to` as keyof ChipQuery]
+      ? [query[`${name}_from` as keyof ChipQuery], query[`${name}_to` as keyof ChipQuery]] : undefined])),
+  }), [query]);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (loaded && typeof location.state?.restoreScroll === "number") window.scrollTo({ top: location.state.restoreScroll });
+  }, [loaded, location.key]);
+  const common: ProColumns<ChipDetail>[] = fields.map(field => ({ title: field.label, dataIndex: field.key, key: `view_${field.key}`, hideInSearch: true,
+    render: (_, row) => field.render(row), width: field.key === "chip_uid" ? 220 : 180 }));
+  const columns: ProColumns<ChipDetail>[] = [
+    { title: "关键词", dataIndex: "keyword", hideInTable: true, fieldProps: { maxLength: 128, placeholder: "UID、关联物品编号或名称" } },
+    { title: "项目", dataIndex: "project", valueEnum: PROJECTS, hideInTable: true },
+    { title: "状态", dataIndex: "status", valueEnum: STATUSES, hideInTable: true },
+    { title: "批次", dataIndex: "batch_no", hideInTable: true, fieldProps: { maxLength: 64 } },
+    { title: "首次登记来源", dataIndex: "registration_source", valueEnum: SOURCES, hideInTable: true },
+    { title: "关联物品", dataIndex: "has_item", valueEnum: { true: "已关联", false: "未关联" }, hideInTable: true },
+    { title: "密钥生成", dataIndex: "keys_generated", valueEnum: { true: "已生成", false: "未生成" }, hideInTable: true },
+    { title: "配置核验", dataIndex: "provisioned", valueEnum: { true: "已核验", false: "未核验" }, hideInTable: true },
+    ...["created", "updated", "provisioned"].map((key, index): ProColumns<ChipDetail> => ({ title: ["登记日期（北京时间）", "更新日期（北京时间）", "核验日期（北京时间）"][index], dataIndex: `${key}_range`, valueType: "dateRange", colSize: 2, fieldProps: { allowEmpty: [true, true] }, hideInTable: true })),
+    ...common,
+    { title: "关键词匹配", dataIndex: "keyword_matches", hideInSearch: true, width: 180, render: (_, row) => row.keyword_matches.map(key => MATCHES[key] || key).join("、") || "—" },
+    { title: "操作", valueType: "option", key: "actions", width: 100, fixed: "right", render: (_, row) => <Button type="link" disabled={!safeRecordId(row.id)}
+      onClick={() => navigate(`/chips/${row.id}`, { state: { returnTo: sourcePoint(location) } })}>查看详情</Button> },
+  ];
+  return <PageContainer title={<Typography.Title level={2} style={{ margin: 0 }}>芯片管理</Typography.Title>} subTitle="查询芯片身份、关联与配置摘要；列表不显示密钥。">
+    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+      {error && <Alert type="error" showIcon message={error} />}
+      <ProTable<ChipDetail> key={location.search} rowKey="id" columns={columns} params={query} actionRef={action}
+        form={{ name: "chip-query", initialValues: initial }} search={{ defaultCollapsed: true, labelWidth: "auto", span: 6 }}
+        headerTitle="芯片列表" dateFormatter="string" scroll={{ x: 2200 }} options={{ density: true, fullScreen: false, reload: true, setting: true }}
+        toolBarRender={() => [<Button key="create" type="primary" icon={<PlusOutlined aria-hidden />} onClick={() => setCreateOpen(true)}>登记芯片</Button>]}
+        onSubmit={values => { setLoaded(false); setSearch(queryString(submittedQuery(values, query.page_size || 20))); }}
+        onReset={() => { setLoaded(false); setSearch(new URLSearchParams()); }}
+        pagination={{ current: query.page, pageSize: query.page_size, showSizeChanger: true, pageSizeOptions: [20, 50, 100],
           }}
-        />
-      )}
-      {notice && (
-        <p className="success-notice" role="status">
-          {notice}
-        </p>
-      )}
-      <form
-        className="chip-filters"
-        aria-label="芯片筛选"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setQuery({ ...filters, page: 1 });
-        }}
-      >
-        <label>
-          UID关键词
-          <input
-            value={filters.keyword}
-            maxLength={128}
-            onChange={(event) =>
-              setFilters({ ...filters, keyword: event.target.value })
+        onChange={(paging, _filters, _sorter, extra) => { if (extra.action === "paginate") { setLoaded(false); setSearch(queryString({ ...query, page: paging.current || 1, page_size: paging.pageSize || 20 })); } }}
+        locale={{ emptyText: error ? "读取失败，请重试查询。" : search.toString() ? "没有符合条件的芯片，可重置查询。" : "尚无芯片，可登记真实UID。" }}
+        request={async () => {
+          const ticket = ++sequence.current;
+          setError(""); setLoaded(false);
+          try {
+            const result = await listChips(query);
+            if (!Array.isArray(result.items) || !Number.isSafeInteger(result.total) || result.total < 0) throw new Error("列表返回异常");
+            result.items.forEach(row => validateChip(row, row.id));
+            if (ticket === sequence.current) {
+              if (result.page_adjusted) setSearch(queryString({ ...query, page: result.page }), { replace: true });
+              setLoaded(true);
             }
-          />
-        </label>
-        <label>
-          筛选项目
-          <select
-            aria-label="筛选项目"
-            value={filters.project}
-            onChange={(event) =>
-              setFilters({ ...filters, project: event.target.value })
+            return { data: result.items, total: result.total, success: true };
+          } catch (failure) {
+            if (ticket === sequence.current) {
+              if (failure instanceof ApiError && failure.status === 401) onSessionExpired();
+              else setError(failureText(failure, "芯片列表读取失败，请重试查询。"));
             }
-          >
-            <option value="">全部项目</option>
-            <option value="unassigned">未分配</option>
-            <option value="fashion">服装</option>
-            <option value="jewelry">饰品</option>
-          </select>
-        </label>
-        <label>
-          筛选状态
-          <select
-            aria-label="筛选状态"
-            value={filters.status}
-            onChange={(event) =>
-              setFilters({ ...filters, status: event.target.value })
-            }
-          >
-            <option value="">全部状态</option>
-            {Object.entries(STATUSES).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" disabled={loading}>
-          查询
-        </button>
-        <button
-          type="button"
-          disabled={loading}
-          onClick={() => {
-            setFilters(INITIAL_QUERY);
-            setQuery({ ...INITIAL_QUERY });
-          }}
-        >
-          查看全部
-        </button>
-      </form>
-      {error && (
-        <p className="notice" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="panel table-panel">
-        <div className="panel-head">
-          <h2>全部芯片</h2>
-          <UnavailableButton>导出</UnavailableButton>
-        </div>
-        {loading ? (
-          <p>正在读取芯片列表…</p>
-        ) : (
-          !error &&
-          list && (
-            <>
-              <p>共 {list.total} 枚芯片，按登记时间从新到旧排列。</p>
-              {list.items.length === 0 ? (
-                <p>没有符合条件的芯片。</p>
-              ) : (
-                <div className="table-scroll">
-                  <table>
-                    <caption>芯片列表</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">芯片UID</th>
-                        <th scope="col">项目</th>
-                        <th scope="col">状态</th>
-                        <th scope="col">关联物品</th>
-                        <th scope="col">批次</th>
-                        <th scope="col">登记来源</th>
-                        <th scope="col">密钥／配置</th>
-                        <th scope="col">登记时间</th>
-                        <th scope="col">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {list.items.map((chip) => (
-                        <tr key={chip.id}>
-                          <td>{chip.chip_uid}</td>
-                          <td>
-                            {chip.project === null
-                              ? "未分配"
-                              : PROJECTS[chip.project]}
-                          </td>
-                          <td>{STATUSES[chip.chip_status]}</td>
-                          <td>{chip.item_uid || "未关联"}</td>
-                          <td>{chip.batch_no || "—"}</td>
-                          <td>{SOURCES[chip.registration_source]}</td>
-                          <td>
-                            {chip.keys_generated ? "已生成" : "未生成"}／
-                            {chip.provisioned_at ? "已核验" : "未核验"}
-                          </td>
-                          <td>
-                            {new Date(chip.created_at).toLocaleString("zh-CN", {
-                              hour12: false,
-                            })}
-                          </td>
-                          <td>
-                            {chip.chip_status === "pending" &&
-                            chip.item_id === null ? (
-                              <button
-                                type="button"
-                                className="action"
-                                disabled={
-                                  saving ||
-                                  bindingChip !== null ||
-                                  keyChip !== null
-                                }
-                                onClick={() => openBinding(chip)}
-                              >
-                                绑定物品
-                              </button>
-                            ) : (
-                              <span className="muted-text">
-                                {chip.item_id !== null
-                                  ? "已有绑定"
-                                  : "当前状态不可绑定"}
-                              </span>
-                            )}
-                            {chip.chip_status === "bound" &&
-                              chip.item_id !== null && (
-                                <button
-                                  type="button"
-                                  className="action"
-                                  disabled={
-                                    saving ||
-                                    bindingChip !== null ||
-                                    keyChip !== null
-                                  }
-                                  onClick={() => {
-                                    if (
-                                      dirty &&
-                                      !window.confirm(
-                                        "有未保存的登记输入，是否放弃？",
-                                      )
-                                    )
-                                      return;
-                                    setOpen(false);
-                                    setDirty(false);
-                                    setKeyChip(chip);
-                                  }}
-                                >
-                                  密钥与配置
-                                </button>
-                              )}
-                            <UnavailableButton>更多</UnavailableButton>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              <div className="actions" aria-label="芯片分页">
-                <button
-                  type="button"
-                  disabled={query.page === 1}
-                  onClick={() => setQuery({ ...query, page: query.page - 1 })}
-                >
-                  上一页
-                </button>
-                <span>第 {query.page} 页</span>
-                <button
-                  type="button"
-                  disabled={query.page * list.page_size >= list.total}
-                  onClick={() => setQuery({ ...query, page: query.page + 1 })}
-                >
-                  下一页
-                </button>
-              </div>
-            </>
-          )
-        )}
-      </div>
-    </section>
-  );
+            return { data: [], total: 0, success: false };
+          }
+        }} />
+    </Space>
+    {createOpen && <CreateChip onClose={() => { setCreateOpen(false); void action.current?.reload(); }} onSessionExpired={onSessionExpired} />}
+  </PageContainer>;
+}
+
+function ChipRecord({ edit, onSessionExpired }: { edit?: boolean; onSessionExpired: () => void }) {
+  const { id } = useParams();
+  const navigate = useNavigate(), location = useLocation();
+  const [chip, setChip] = useState<ChipDetail | null>(null);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [outcome, setOutcome] = useState("");
+  const [dirty, setDirty] = useState(false), [busy, setBusy] = useState(false), [unknown, setUnknown] = useState(false);
+  const [special, setSpecial] = useState<"bind" | "keys" | null>(null);
+  const [interaction, setInteraction] = useState({ dirty: false, busy: false });
+  const [form] = Form.useForm();
+  const { update } = useNavigationGuard();
+  const { message } = App.useApp();
+  const fields = useChipFields();
+  const inFlight = useRef(false), mounted = useRef(true);
+  const originalBatch = useRef<string | null>(null), baseline = useRef<string | null>(null);
+  const updateInteraction = useCallback((value: { dirty: boolean; busy: boolean }) => setInteraction(value), []);
+  const updateFromKeys = useCallback((value: ChipView) => setChip(current => current ? { ...current, ...value } : current), []);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    let cancelled = false;
+    setChip(null); setError(""); setDirty(false); setBusy(false); setUnknown(false); setSpecial(null);
+    if (!id || !/^[1-9][0-9]*$/.test(id) || !safeRecordId(Number(id))) { setError("芯片记录编号无效，未读取其他记录。"); return; }
+    readChip(Number(id)).then(value => {
+      validateChip(value, Number(id));
+      if (!cancelled) { setChip(value); baseline.current = value.batch_no; if (edit) form.setFieldsValue({ batch_no: value.batch_no || "" }); }
+    }).catch(failure => {
+      if (cancelled) return;
+      if (failure instanceof ApiError && failure.status === 401) onSessionExpired();
+      else setError(failureText(failure, "芯片读取失败，请重试或返回。"));
+    });
+    return () => { cancelled = true; };
+  }, [id, edit, revision, form, onSessionExpired]);
+  useEffect(() => () => update({ dirty: false, busy: false }), [update]);
+  async function save() {
+    if (!chip || inFlight.current || unknown) return false;
+    let values;
+    try { values = await form.validateFields(); } catch { return false; }
+    if (inFlight.current) return false;
+    const batch = values.batch_no?.trim() || null;
+    originalBatch.current = batch; inFlight.current = true; setBusy(true); setError(""); update({ dirty: true, busy: true });
+    try {
+      const result = validateChip(await saveChipBatch(chip.id, batch), chip.id);
+      if (result.batch_no !== batch) throw new Error("保存回执与提交值不符");
+      if (!mounted.current) return false;
+      setChip(result); baseline.current = result.batch_no; setDirty(false); setUnknown(false); update({ dirty: false, busy: false });
+      void message.success("批次已保存。返回列表会按原条件重新查询；若不再匹配，可调整查询。");
+      return true;
+    } catch (failure) {
+      if (!mounted.current) return false;
+      if (failure instanceof ApiError && failure.status === 401) onSessionExpired();
+      else if (failure instanceof ApiError && failure.code === "csrf_failed") {
+        try { await readSession(); setError("登录状态已更新，输入已保留，请再次明确提交；未自动重发。"); }
+        catch (refreshFailure) { if (refreshFailure instanceof ApiError && refreshFailure.status === 401) onSessionExpired(); else setError("登录状态更新失败，输入已保留，请重试。"); }
+      } else if (failure instanceof ApiError && failure.status < 500 && failure.code !== "unexpected_response") setError(failure.message);
+      else { setUnknown(true); setError("保存结果尚未确认，请先按记录ID核对；不会自动重发。"); }
+      return false;
+    } finally { inFlight.current = false; if (mounted.current) setBusy(false); }
+  }
+  useEffect(() => { update({ dirty: dirty || unknown || interaction.dirty, busy: busy || interaction.busy, save: edit && !unknown ? save : undefined }); }, [dirty, busy, unknown, interaction, chip, edit]);
+  async function verify() {
+    if (!chip || inFlight.current) return;
+    inFlight.current = true; setBusy(true);
+    try {
+      const found = validateChip(await readChip(chip.id), chip.id);
+      if (!mounted.current) return;
+      setChip(found); baseline.current = found.batch_no; setUnknown(false);
+      const matches = found.batch_no === originalBatch.current;
+      setDirty(!matches); setError(matches ? "已确认服务器当前批次与本次提交一致。" : "服务器当前批次与本次提交不同，输入已保留。原请求仍可能处理中，请核对后决定是否手动保存。");
+      if (matches) form.setFieldsValue({ batch_no: found.batch_no || "" });
+    } catch (failure) {
+      if (failure instanceof ApiError && failure.status === 401) onSessionExpired();
+      else setError(failureText(failure, "读取失败，保存结果仍未确认。"));
+    } finally { inFlight.current = false; if (mounted.current) setBusy(false); }
+  }
+  function back() {
+    const point = safeReturn(location.state?.returnTo);
+    navigate(point?.path || "/chips", { state: { returnTo: point?.parent, restoreScroll: point?.scroll } });
+  }
+  function refreshAfterAction(_chip: ChipView, recovered: boolean) {
+    setOutcome(recovered ? "已查询确认绑定结果。" : "绑定成功。");
+    setSpecial(null); setInteraction({ dirty: false, busy: false }); setRevision(value => value + 1);
+  }
+  const title = edit ? "编辑芯片" : "芯片详情";
+  return <PageContainer title={<Typography.Title level={2} style={{ margin: 0 }}>{title}</Typography.Title>} subTitle={chip?.chip_uid} onBack={back}
+    extra={<Space><Button onClick={back}>返回来源</Button>{chip && !edit && <Button type="primary" onClick={() => navigate(`/chips/${chip.id}/edit`, { state: location.state })}>编辑批次</Button>}</Space>}>
+    {outcome && <div role="status" style={{ marginBottom: 16 }}><Alert type="success" showIcon message={outcome} /></div>}
+    {!chip ? error ? <Result status="warning" title="无法读取芯片" subTitle={error} extra={<Button onClick={() => setRevision(value => value + 1)}>重试读取</Button>} />
+      : <Spin tip="正在读取芯片"><div style={{ height: 160 }} /></Spin>
+      : <Space direction="vertical" size="large" style={{ width: "100%" }}>
+        {error && <Alert type="warning" showIcon message={error} action={unknown && <Button loading={busy} onClick={() => void verify()}>核对保存结果</Button>} />}
+        <Card>{edit ? <ProForm name="chip-edit" form={form} layout="vertical" initialValues={{ batch_no: chip.batch_no || "" }}
+          onFinish={async () => { if (await save()) navigate(`/chips/${chip.id}`, { replace: true, state: location.state }); }}
+          onValuesChange={values => setDirty((values.batch_no?.trim() || null) !== baseline.current)}
+          submitter={{ searchConfig: { submitText: "保存批次", resetText: "恢复已保存值" }, submitButtonProps: { "aria-label": "保存批次", loading: busy, disabled: busy || unknown },
+            resetButtonProps: { disabled: busy || unknown, onClick: () => { form.setFieldsValue({ batch_no: baseline.current || "" }); setDirty(false); } } }}>
+          <Alert type="info" showIcon message="本次仅维护批次。UID是真实芯片身份；项目和关联按首次绑定规则确定。身份或绑定错误走专用纠错；密钥和配置须使用受控操作。" style={{ marginBottom: 24 }} />
+          {fields.map(field => field.key === "batch_no" ? <ProFormText key={field.key} name="batch_no" label={field.label} fieldProps={{ maxLength: 64, disabled: busy || unknown }} rules={[{ max: 64, message: "批次最多64个字符。" }]} extra="可以补录、修改或清空，首尾空白会去除。" />
+            : <Form.Item key={field.key} label={field.label}>{field.render(chip)}</Form.Item>)}
+        </ProForm> : <ProDescriptions column={2} dataSource={chip} columns={fields.map(field => ({ title: field.label, key: field.key, render: () => field.render(chip) }))} />}</Card>
+        {!edit && <Card title="受控操作"><Space>
+          <Button disabled={chip.chip_status !== "pending" || chip.item_id !== null || !safeRecordId(chip.id)} onClick={() => setSpecial("bind")}>绑定物品</Button>
+          <Button disabled={chip.chip_status !== "bound" || chip.item_id === null || !safeRecordId(chip.id)} onClick={() => setSpecial("keys")}>密钥与配置</Button>
+        </Space></Card>}
+      </Space>}
+    {chip && special === "bind" && <BindItemDialog chip={chip} onClose={() => setSpecial(null)} onBound={refreshAfterAction} onSessionExpired={onSessionExpired} onInteraction={updateInteraction} />}
+    {chip && special === "keys" && <ChipKeysDialog chip={chip} onClose={() => { setSpecial(null); setRevision(value => value + 1); }} onUpdated={updateFromKeys} onSessionExpired={onSessionExpired} onInteraction={updateInteraction} />}
+  </PageContainer>;
+}
+
+export function ChipPanel({ onSessionExpired }: { onSessionExpired: () => void }) {
+  return <Routes>
+    <Route index element={<ChipListPage onSessionExpired={onSessionExpired} />} />
+    <Route path=":id" element={<ChipRecord onSessionExpired={onSessionExpired} />} />
+    <Route path=":id/edit" element={<ChipRecord edit onSessionExpired={onSessionExpired} />} />
+    <Route path="*" element={<Result status="404" title="芯片页面不存在" extra={<Link to="/chips">返回芯片列表</Link>} />} />
+  </Routes>;
 }

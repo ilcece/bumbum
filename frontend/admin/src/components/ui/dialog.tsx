@@ -16,7 +16,7 @@ function DialogContent({
     <DialogPrimitive.Portal>
       <DialogPrimitive.Overlay className="dialog-overlay" />
       <DialogPrimitive.Content
-        className={cn("dialog-content", className)}
+        className={cn("legacy-ui dialog-content", className)}
         {...props}
       >
         {children}

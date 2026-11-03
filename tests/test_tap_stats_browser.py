@@ -1,6 +1,7 @@
 """桌面统计浏览器回归只使用专属临时库和明确的故障注入。"""
 
 from datetime import datetime, timedelta
+import re
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -74,7 +75,7 @@ def test_real_default_filters_keyword_scope_pagination_and_clear(desktop):
     area.get_by_role('button',name='清空',exact=True).click()
     expect(area.get_by_role('cell',name='平安扣',exact=True)).to_be_visible()
     # 库存始终是全局，不跟着饰品筛选缩小。
-    expect(desktop.page.locator('.overview-inventory .metric-card').nth(2).locator('strong')).to_have_text('23')
+    expect(desktop.page.get_by_label('数字物品',exact=True)).to_have_text('23')
     expect(desktop.page.get_by_text('入库趋势',exact=True)).to_have_count(0)
 
 
@@ -146,7 +147,7 @@ def test_chart_keyboard_tooltip_and_short_desktop_scroll(desktop, tmp_path):
     expect(area.get_by_role('tooltip')).to_contain_text('3次（今日未结束）')
     chart.press('Home')
     expect(area.get_by_role('tooltip')).to_contain_text('0次')
-    page.locator('.page').evaluate('(node)=>node.scrollTop=0')
+    page.evaluate('window.scrollTo(0,0)')
     page.screenshot(path=str(tmp_path/'stats-workbench.png'))
     area.get_by_label('统计项目',exact=True).scroll_into_view_if_needed()
     page.screenshot(path=str(tmp_path/'stats-panel.png'))
@@ -155,16 +156,17 @@ def test_chart_keyboard_tooltip_and_short_desktop_scroll(desktop, tmp_path):
     page.set_viewport_size({'width':1280,'height':500})
     area.get_by_role('button',name='下一页',exact=True).scroll_into_view_if_needed()
     expect(area.get_by_role('button',name='下一页',exact=True)).to_be_visible()
-    assert page.locator('body').evaluate('(node)=>getComputedStyle(node).overflow') == 'hidden'
-    assert page.locator('.page').evaluate('(node)=>node.scrollHeight>node.clientHeight')
+    assert page.evaluate('document.documentElement.scrollHeight > window.innerHeight')
 
 
 def test_late_response_cannot_replace_new_page_result(desktop):
     target,source = seed(desktop.app,name='外套')
-    pending = []
+    pending, requests = [], []
     def hold_first(route):
+        first = not requests
+        requests.append(1)
         payload = route.fetch().json()
-        if not pending: pending.append((route,payload))
+        if first: pending.append((route,payload))
         else: route.fulfill(status=200,json=payload)
     page = desktop.page
     page.route('**/api/admin/stats/taps?*',hold_first)
@@ -185,7 +187,7 @@ def test_expired_session_clears_whole_dashboard(desktop):
     expect(area.get_by_label('有效触碰次数',exact=True)).to_have_text('0')
     query(desktop.app,'UPDATE admin_session SET revoked_at=%s',(desktop.app.test_clock[0],))
     area.get_by_role('button',name='刷新统计',exact=True).click()
-    expect(desktop.page.get_by_role('button',name='登录',exact=True)).to_be_visible()
+    expect(desktop.page.get_by_role('button',name=re.compile(r'^登\s*录$'))).to_be_visible()
     expect(desktop.page.locator('.admin-shell')).to_have_count(0)
 
 

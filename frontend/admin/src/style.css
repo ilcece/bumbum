@@ -11,7 +11,6 @@ body,
   height: 100%;
 }
 body {
-  overflow: hidden;
 }
 .admin-shell {
   min-width: 1024px;
@@ -26,35 +25,35 @@ body {
 .page {
   overflow: auto;
 }
-h1,
-h2,
-h3,
-p {
+:where(.legacy-ui) h1,
+:where(.legacy-ui) h2,
+:where(.legacy-ui) h3,
+:where(.legacy-ui) p {
   margin: 0;
 }
-h2 {
+:where(.legacy-ui) h2 {
   font-size: 15px;
   font-weight: 650;
 }
-button:disabled {
+:where(.legacy-ui) button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
-fieldset {
+:where(.legacy-ui) fieldset {
   min-width: 0;
   border: 0;
   padding: 0;
   display: grid;
   gap: 16px;
 }
-label {
+:where(.legacy-ui) label {
   display: block;
   font-size: 13px;
   font-weight: 500;
 }
-input,
-select,
-textarea {
+:where(.legacy-ui) input,
+:where(.legacy-ui) select,
+:where(.legacy-ui) textarea {
   display: block;
   width: 100%;
   margin-top: 6px;
@@ -65,16 +64,16 @@ textarea {
   background: white;
   font: inherit;
 }
-textarea {
+:where(.legacy-ui) textarea {
   resize: vertical;
 }
-input:focus,
-select:focus,
-textarea:focus {
+:where(.legacy-ui) input:focus,
+:where(.legacy-ui) select:focus,
+:where(.legacy-ui) textarea:focus {
   outline: 2px solid var(--color-accent-soft);
   border-color: var(--color-accent);
 }
-:is(.chip-panel, .item-panel, .profile-editor, .login-card, .dialog-content)
+:is(.item-panel, .profile-editor, .login-card, .dialog-content)
   button:not(.dialog-close) {
   display: inline-flex;
   align-items: center;
@@ -88,7 +87,7 @@ textarea:focus {
   color: var(--color-ink);
   font-size: 13px;
 }
-:is(.chip-panel, .item-panel, .profile-editor, .login-card)
+:is(.item-panel, .profile-editor, .login-card)
   button[type="submit"],
 .dialog-content .action-primary {
   background: var(--color-accent);
@@ -141,12 +140,10 @@ textarea:focus {
   white-space: normal;
   overflow-wrap: anywhere;
 }
-.chip-panel > p,
 .item-panel > p {
   color: var(--color-ink-soft);
   margin: -12px 0 20px;
 }
-.chip-filters,
 .item-filters {
   display: flex;
   flex-wrap: wrap;
@@ -170,24 +167,24 @@ textarea:focus {
   max-height: 58vh;
   overflow: auto;
 }
-table {
+:where(.legacy-ui) table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
-caption {
+:where(.legacy-ui) caption {
   text-align: left;
   padding: 12px 24px;
   color: var(--color-ink-soft);
 }
-th,
-td {
+:where(.legacy-ui) th,
+:where(.legacy-ui) td {
   padding: 16px 20px;
   text-align: left;
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
-th {
+:where(.legacy-ui) th {
   background: #f9fafb;
   color: var(--color-ink-soft);
   font-weight: 500;
@@ -195,7 +192,7 @@ th {
   top: 0;
   z-index: 1;
 }
-td {
+:where(.legacy-ui) td {
   max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -305,7 +302,6 @@ td {
 
 /* 原生业务表单复用Make按钮颜色，避免通用按钮样式覆盖主操作。 */
 .item-panel button.action-primary,
-.chip-panel button.action-primary,
 .dialog-content button[type="submit"] {
   color: white;
   background: var(--color-accent);
@@ -315,22 +311,7 @@ td {
 
 .diagnostic-id { overflow-wrap: anywhere; font-size: 12px; margin-top: 8px; }
 
-.binding-dialog { display: grid; gap: 12px; }
-.binding-dialog fieldset { display: grid; gap: 10px; }
-.binding-dialog input[type="radio"], .binding-dialog input[type="checkbox"] { width: auto; margin-right: 8px; }
-.binding-dialog label { display: block; }
-.binding-candidates { max-height: 260px; }
-.binding-candidates td { max-width: 220px; }
-.binding-confirmation { border: 1px solid var(--color-border, #e5e7eb); border-radius: 10px; padding: 12px; overflow-wrap: anywhere; }
-.dialog-content:has(.binding-dialog) { width: min(860px, calc(100vw - 48px)); max-width: 860px; }
-.chip-keys-dialog { display: grid; gap: 16px; }
-.chip-keys-dialog fieldset { display: grid; gap: 12px; }
-.chip-keys-dialog input[type="checkbox"] { width: auto; margin-right: 8px; }
-.chip-keys-dialog section { display: grid; gap: 10px; }
-.dialog-content:has(.chip-keys-dialog) { width: min(760px, calc(100vw - 48px)); max-width: 760px; }
-
-
-/* 工作台统计只改本区域，保留原有body禁止滚动和页面内部滚动。 */
+/* 统计区域保留图表和业务控件，页面滚动交给官方管理布局。 */
 .overview-inventory-title { font-size: 16px; margin: 0 0 12px; }
 .overview-inventory.metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .overview-actions { margin: 20px 0; }

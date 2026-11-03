@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import type { FormEvent } from "react";
+import { Alert, Button, Card, Collapse, Form, Input, Space, Spin, Typography } from "antd";
 import { ApiError, readSession, signIn, signOut } from "./api";
 import { AdminLayout } from "./AdminLayout";
 import { RuntimeChecks } from "./RuntimeChecks";
-import { Sparkles } from "lucide-react";
 
 type Phase = "loading" | "out" | "in" | "unavailable";
 
@@ -14,6 +13,7 @@ function explain(error: unknown): string {
 }
 
 export function LoginPanel() {
+  const [form] = Form.useForm();
   const [phase, setPhase] = useState<Phase>("loading");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -49,17 +49,14 @@ export function LoginPanel() {
     void refresh();
   }, []);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const fields = new FormData(form);
+  async function submit(fields: { username: string; password: string; code: string }) {
     setBusy(true);
     setMessage("");
     try {
       await signIn(
-        String(fields.get("username")),
-        String(fields.get("password")),
-        String(fields.get("code")),
+        fields.username,
+        fields.password,
+        fields.code,
       );
       await refresh();
     } catch (error) {
@@ -67,10 +64,7 @@ export function LoginPanel() {
       if (!(error instanceof ApiError)) setPhase("unavailable");
     } finally {
       // 密码和验证码不进入浏览器存储，提交后清空输入框。
-      for (const name of ["password", "code"]) {
-        const field = form.elements.namedItem(name);
-        if (field instanceof HTMLInputElement) field.value = "";
-      }
+      form.setFieldsValue({ password: "", code: "" });
       setBusy(false);
     }
   }
@@ -106,91 +100,25 @@ export function LoginPanel() {
         message={message}
       />
     );
-  return (
-    <main className="login-page">
-      <section
-        className="login-card"
-        aria-labelledby="login-title"
-        aria-busy={busy}
-      >
-        <div className="brand">
-          <div className="brand-symbol">
-            <Sparkles />
-          </div>
-          <div>
-            <strong>BUMBUM</strong>
-            <span>管理后台</span>
-          </div>
-        </div>
-        <div className="eyebrow">BUMBUM OPERATIONS</div>
-        <h1 id="login-title">管理员登录</h1>
-        <p>使用账号、密码与手机 Authenticator 验证码登录。</p>
-        {phase === "loading" && <p role="status">正在读取登录状态…</p>}
-        {phase === "out" && (
-          <form
-            onSubmit={(event) => void submit(event)}
-            aria-label="管理员登录表单"
-          >
-            <fieldset disabled={busy}>
-              <label>
-                账号
-                <input
-                  name="username"
-                  autoComplete="username"
-                  maxLength={64}
-                  required
-                />
-              </label>
-              <label>
-                密码
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  maxLength={128}
-                  required
-                />
-              </label>
-              <label>
-                Authenticator 验证码
-                <input
-                  name="code"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  pattern="[0-9]{6}"
-                  minLength={6}
-                  maxLength={6}
-                  required
-                />
-              </label>
-              <button className="action action-primary" type="submit">
-                {busy ? "正在登录…" : "登录"}
-              </button>
-            </fieldset>
-          </form>
-        )}
-        {message && (
-          <p className="feedback feedback-danger" role="alert">
-            {message}
-          </p>
-        )}
-        {phase === "unavailable" && (
-          <button
-            className="action"
-            onClick={() => void refresh()}
-            disabled={busy}
-          >
-            重新读取登录状态
-          </button>
-        )}
-        <details className="login-checks">
-          <summary>检查运行环境</summary>
-          <RuntimeChecks />
-        </details>
-        <p className="login-note">
-          账号设置或验证器重置，请按管理员操作手册处理。
-        </p>
-      </section>
-    </main>
-  );
+  return <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <Card style={{ width: 460, maxWidth: "100%" }} aria-labelledby="login-title" aria-busy={busy}>
+      <Space direction="vertical" size="large" style={{ width: "100%" }}>
+        <div><Typography.Title level={3}>BUMBUM</Typography.Title><Typography.Title level={4} id="login-title">管理员登录</Typography.Title>
+          <Typography.Text type="secondary">使用账号、密码与手机 Authenticator 验证码登录。</Typography.Text></div>
+        {phase === "loading" && <Spin tip="正在读取登录状态…"><div style={{ height: 80 }} /></Spin>}
+        {phase === "out" && <Form form={form} layout="vertical" name="admin-login" aria-label="管理员登录表单" disabled={busy} onFinish={submit}>
+          <Form.Item name="username" label="账号" rules={[{ required: true, message: "请输入账号。" }]}><Input name="username" autoComplete="username" maxLength={64} /></Form.Item>
+          <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码。" }]}><Input.Password name="password" autoComplete="current-password" maxLength={128} /></Form.Item>
+          <Form.Item name="code" label="Authenticator 验证码" rules={[{ required: true, message: "请输入验证码。" }, { pattern: /^[0-9]{6}$/, message: "请输入6位数字。" }]}>
+            <Input name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block loading={busy}>登录</Button>
+        </Form>}
+        {message && <Alert type="error" showIcon message={message} />}
+        {phase === "unavailable" && <Button loading={busy} onClick={() => void refresh()}>重新读取登录状态</Button>}
+        <Collapse items={[{ key: "checks", label: "检查运行环境", children: <RuntimeChecks /> }]} />
+        <Typography.Text type="secondary">账号设置或验证器重置，请按管理员操作手册处理。</Typography.Text>
+      </Space>
+    </Card>
+  </main>;
 }

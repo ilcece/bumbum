@@ -79,15 +79,31 @@ export type ChipView = {
   provisioned_at: string | null; keys_generated: boolean;
   created_at: string; updated_at: string;
 };
-export type ChipQuery = { page: number; project: string; status: string; keyword: string };
-export type ChipList = { items: ChipView[]; total: number; page: number; page_size: number };
+export const CHIP_FILTERS = ["project", "status", "keyword", "batch_no", "registration_source", "has_item", "keys_generated", "provisioned", "created_from", "created_to", "updated_from", "updated_to", "provisioned_from", "provisioned_to"] as const;
+export type ChipQuery = { page: number; page_size?: number } & Partial<Record<typeof CHIP_FILTERS[number], string>>;
+export type ChipDetail = ChipView & { item_name: string | null; keyword_matches: string[] };
+export type ChipList = { items: ChipDetail[]; total: number; page: number; page_size: number; total_pages: number; page_adjusted: boolean };
 
 export async function listChips(query: ChipQuery): Promise<ChipList> {
-  const parameters = new URLSearchParams({ page: String(query.page), page_size: "20" });
-  for (const name of ["project", "status", "keyword"] as const) {
-    if (query[name]) parameters.set(name, query[name]);
+  const parameters = new URLSearchParams({ page: String(query.page), page_size: String(query.page_size || 20) });
+  for (const name of CHIP_FILTERS) {
+    if (query[name]) parameters.set(name, query[name]!);
   }
   return request<ChipList>(`/admin/chips?${parameters}`);
+}
+
+export function safeRecordId(id: number): boolean {
+  return Number.isSafeInteger(id) && id > 0;
+}
+
+export function readChip(id: number): Promise<ChipDetail> {
+  if (!safeRecordId(id)) throw new Error("芯片记录编号超出页面可处理范围。");
+  return request(`/admin/chips/${id}`);
+}
+
+export function saveChipBatch(id: number, batch_no: string | null): Promise<ChipDetail> {
+  if (!safeRecordId(id)) throw new Error("芯片记录编号超出页面可处理范围，未提交修改。");
+  return request(`/admin/chips/${id}`, { batch_no }, "PATCH");
 }
 
 export async function registerChip(chip_uid: string, project: string | null, batch_no: string | null): Promise<{ chip: ChipView; is_new: boolean }> {

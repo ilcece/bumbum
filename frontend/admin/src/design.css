@@ -114,18 +114,17 @@
 }
 body {
   margin: 0;
-  overflow: hidden;
   color: var(--color-ink);
   background: var(--color-canvas);
   font-family: var(--font-sans);
   font-size: var(--text-body);
 }
-button,
-input,
-select {
+:where(.legacy-ui) button,
+:where(.legacy-ui) input,
+:where(.legacy-ui) select {
   font: inherit;
 }
-button {
+:where(.legacy-ui) button {
   cursor: pointer;
 }
 .page-title {
@@ -708,11 +707,11 @@ button {
 .table-panel {
   margin-bottom: var(--space-4);
 }
-table {
+:where(.legacy-ui) table {
   width: 100%;
   border-collapse: collapse;
 }
-th {
+:where(.legacy-ui) th {
   padding: var(--space-3) var(--space-6);
   color: var(--color-ink-faint);
   font-size: 10px;
@@ -721,13 +720,13 @@ th {
   text-transform: uppercase;
   background: var(--color-surface-soft);
 }
-td {
+:where(.legacy-ui) td {
   padding: var(--space-4) var(--space-6);
   color: var(--color-ink-soft);
   border-top: 1px solid var(--color-border);
   white-space: nowrap;
 }
-td:first-child {
+:where(.legacy-ui) td:first-child {
   color: var(--color-ink);
 }
 .uid-icon {

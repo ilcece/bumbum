@@ -15,7 +15,7 @@
 | `frontend/admin/src/AdminLayout.tsx` | Make桌面框架、工作台全局库存/快捷操作、统计组件入口、所有权页占位、导航和统一未实现提示 |
 | `frontend/admin/src/TapStatisticsPanel.tsx`、`TapDailyChart.tsx` | 全项目有效触碰查询、卡片/明细、SVG日柱图及加载/失败状态；不写业务记录 |
 | `frontend/admin/src/RuntimeChecks.tsx` | 真实后端/数据库检查，供登录页、顶栏和系统状态复用 |
-| `frontend/admin/src/ChipPanel.tsx` | 登记弹窗、真实筛选分页及批次/首次来源，不模拟保存 |
+| `frontend/admin/src/ChipPanel.tsx`、`CreateChip.tsx` | 官方查询表格、独立详情/批次编辑、登记并继续和精确关联返回；保留受控绑定与密钥规则 |
 | `frontend/admin/src/ItemPanel.tsx` | 创建弹窗、真实物品列表、筛选分页与资料入口 |
 | `frontend/admin/src/ItemProfileEditor.tsx` | 服装资料弹窗、保存/启停、图片与未保存提醒，不含尺码表 |
 | `frontend/admin/src/AdminUI.tsx`、`components/ui/` | 复用Make的弹窗/按钮及反馈组件，不提前扩展设计系统 |
