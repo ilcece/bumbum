@@ -74,7 +74,7 @@ P0指现有核心流程阻断或可能产生错误数据等必须先修的问题
 
 | 工作流 | 独立提案 | 审批边界 |
 |---|---|---|
-| A：统一后台、维护与查询 | [A提案](docs/proposals/admin-management-update.md) | 选型及官方复用原则已确认，具体交互/字段/查询方案待审 |
+| A：统一后台、维护与查询 | [A提案](docs/proposals/admin-management-update.md) | A字段编辑、查询覆盖及连续流程规则已批准；原型待确认、技术未审核 |
 | B：生产验证识别与清理 | [B提案](docs/proposals/production-validation-cleanup.md) | 必要清理需求已确认；删除、编号、统计政策待审 |
 | C：专用纠错 | [C提案](docs/proposals/chip-correction.md) | 处理需求已确认；未配置/已配置路径待审 |
 | D：挂失换新与转售 | [D提案](docs/proposals/replacement-resale.md) | 转售必须新实体/新芯片已确认；资格、权益及接续细则待审 |
