@@ -76,15 +76,15 @@ function initial():Data {
   const teeStyle=itemRecords[0].styleId!;
   return withScenarioExamples({rightsRules:[{id:'RIGHT-RENEW',name:'付费定期／挂失换新',version:'发行约定样例1',kind:'renewal',quotaGroup:'RENEW-YEAR',summary:'定期与挂失换新共享自然年一次',qualification:'首次绑定所有人后具备资格',transfer:'转售继承物品当年余额，次年恢复一次',fees:'费用、占用/扣减节点及跨年时区待确认'},{id:'RIGHT-RESALE',name:'后台转售数字内容与约定权益',version:'发行约定样例1',kind:'resale',quotaGroup:null,summary:'交付新实体，旧实体无需回收',qualification:'后台核对原持有人和接收人',transfer:'转售履约不扣换新次数、不重置余额',fees:'费用与冻结范围、取消及争议政策待确认'}],items:itemRecords,chips:chipRecords(chips),auditLogs:structuredClone(INITIAL_AUDIT_LOGS),identities:Object.fromEntries(Object.entries(identities).map(([id,meta])=>[id,rawIdentity(meta)])),works:[],styles,issuances:[{id:'ISSUE-TEE-2026',name:'BUMBUM · 限定系列',styleId:teeStyle,series:'限定T恤',version:'首次发行约定样例',rightIds:['RIGHT-RENEW','RIGHT-RESALE'],total:100,color:'黑色',description:'限定100份；允许换新选码，颜色遵守发行约定，旧实体无需回收。',status:'issued'}]});
 }
-const STORAGE='bumbum-make-prototype-v3';
-function load():Data {try{const saved=sessionStorage.getItem(STORAGE);if(saved){const data=JSON.parse(saved);if(data.version===3&&Array.isArray(data.items)&&Array.isArray(data.works)&&Array.isArray(data.styles)&&Array.isArray(data.issuances))return {...data,chips:chipRecords(data.chips)};}}catch{}return initial();}
+const STORAGE='bumbum-make-prototype-v4';
+function load():Data {try{const saved=sessionStorage.getItem(STORAGE);if(saved){const data=JSON.parse(saved);if(data.version===4&&Array.isArray(data.items)&&Array.isArray(data.works)&&Array.isArray(data.styles)&&Array.isArray(data.issuances))return {...data,chips:chipRecords(data.chips)};}}catch{}return initial();}
 export function PrototypeProvider({children}:{children:React.ReactNode}){
   const [data,setData]=useState<Data>(load);
   const [editItemId,setEditItemId]=useState<number|null>(null),[issuanceItemId,setIssuanceItemId]=useState<number|null>(null);
   const [activeWorkId,setActiveWorkId]=useState<string|null>(null),[activeDraft,setActiveDraft]=useState<{itemId:number;kind:WorkKind}|null>(null);
   const [failureMode,setFailureMode]=useState<Store['failureMode']>('none');
   const guardRef=useRef<Store['guard']|null>(null);
-  useEffect(()=>{try{sessionStorage.setItem(STORAGE,JSON.stringify({...data,version:3}));}catch{message.warning('浏览器存储空间不足，本次样例暂只保留在当前页面。');}},[data]);
+  useEffect(()=>{try{sessionStorage.setItem(STORAGE,JSON.stringify({...data,version:4}));}catch{message.warning('浏览器存储空间不足，本次样例暂只保留在当前页面。');}},[data]);
   const items=itemViews(data.items,data.styles);
   const chips=chipViews(data.chips,items);
   const identities=Object.fromEntries(Object.entries(data.identities).map(([id,meta])=>{const issue=data.issuances.find(i=>i.id===meta.issuanceId);return [id,{...meta,series:issue?.name||null,total:issue?.total||null,edition:issue&&meta.editionNumber?`#${String(meta.editionNumber).padStart(3,'0')}/${issue.total}`:null}];}));

@@ -7,7 +7,7 @@ OUT=Path(sys.argv[2] if len(sys.argv)>2 else '/workspace/artifacts/admin-interac
 results=[];errors=[]
 def passed(name):results.append({'case':name,'status':'passed'});print('通过：'+name,flush=True)
 def data(page):
- d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v3'))")
+ d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v4'))")
  for i in d['items']:
   style=next((s for s in d['styles'] if s['id']==i['styleId']),None)
   i['profile']=style['profile'] if style else None

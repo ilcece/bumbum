@@ -10,7 +10,7 @@ export function withScenarioExamples(data: Data): Data {
   const stages=['preparing','dispatch','shipped','received','completed','cancelled','attention'] as const;
   const names=['待准备','待发货','运输中','待交付核验','转售已完成','已取消历史','运输异常待核对'];
   for(let index=0;index<stages.length;index++){
-    const stage=stages[index],id=101+index,oldChipId=101+index,candidateId=201+index;
+    const stage=stages[index],id=101+index,oldChipId=1001+index,candidateId=2001+index;
     const kind:Work['kind']=index===2||index===4?'resale':index===3?'loss':'periodic';
     const completed=stage==='completed',cancelled=stage==='cancelled';
     const oldUid=`04:DE:10:00:00:00:${String(index+1).padStart(2,'0')}`;

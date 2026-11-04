@@ -453,8 +453,10 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
         if (appliedFilters.dateTo && dateOnly > appliedFilters.dateTo) return false;
       }
       return true;
-    });
+    }).sort((a,b)=>Date.parse(b.created_at)-Date.parse(a.created_at)||b.id-a.id);
   }, [chips, items, appliedFilters]);
+
+  useEffect(()=>{const last=Math.max(1,Math.ceil(filteredChips.length/10));if(currentPage>last)setCurrentPage(last);},[filteredChips.length,currentPage]);
 
   const filtersDirty = JSON.stringify(filters) !== JSON.stringify(appliedFilters);
 
@@ -496,6 +498,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
       return;
     }
 
+    if(res.is_new)setCurrentPage(1);
     setRecentActionBanner({
       type: res.is_new ? 'success' : 'info',
       title: res.is_new
@@ -505,9 +508,9 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
         ? `状态为「待绑定」${
             res.chip.project
               ? `，物品类别：${PROJECT_SHORT_LABELS[res.chip.project]}`
-              : '，项目暂未分配（首次绑定时按目标物品确定）'
-          }。当前列表筛选条件已为您保留。`
-        : '根据幂等去重规则，原记录的项目、批次、首次来源和绑定状态均保持不变。',
+              : '，未关联物品，类别将从关联物品引用'
+          }。当前列表筛选条件已保留；若新记录不符合条件，可点击“查看详情与维护批次”核对。`
+        : '根据幂等去重规则，原记录的关联、批次、首次来源和绑定状态均保持不变。',
       chip: res.chip,
     });
 
@@ -527,7 +530,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
     const randomHex=()=>Math.floor(Math.random()*256).toString(16).padStart(2,'0').toUpperCase();
     const uid=mode==='duplicate'?lastWebhookUid:`04:DD:${randomHex()}:${randomHex()}:${randomHex()}:80:00`;
     if(!uid)return;const existed=chips.some(c=>c.chip_uid===uid);const res=onRegisterChip({chip_uid:uid,batch_no:null,source:'nfc_cool'});
-    setLastWebhookUid(res.chip.chip_uid);setRecentActionBanner({type:'success',title:existed?`〔演示〕重复回调命中原记录：${res.chip.chip_uid}`:`〔演示〕Webhook已登记：${res.chip.chip_uid}`,description:existed?'未新增、未覆盖原批次/首次来源，可查看确切原记录。':'合成回调样例：无独立类别、无批次、待绑定。可继续关联物品、演示配卡和核验。',chip:res.chip});
+    if(res.is_new)setCurrentPage(1);setLastWebhookUid(res.chip.chip_uid);setRecentActionBanner({type:'success',title:existed?`〔演示〕重复回调命中原记录：${res.chip.chip_uid}`:`〔演示〕Webhook已登记：${res.chip.chip_uid}`,description:existed?'未新增、未覆盖原批次/首次来源，可查看确切原记录。':'合成回调样例：无独立类别、无批次、待绑定。可继续关联物品、演示配卡和核验。筛选条件保留，若列表中没有该记录，可点击查看详情。',chip:res.chip});
   };
 
   const candidateItems = useMemo(() => {
@@ -1162,7 +1165,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
         title={
           <Space>
             <span>芯片列表</span>
-            <Tag color="blue">共 {filteredChips.length} 枚</Tag>
+            <Tag color="blue">共 {filteredChips.length} 枚</Tag><Text type="secondary" style={{fontSize:12}}>按登记时间从新到旧</Text>
           </Space>
         }
         extra={
@@ -1207,11 +1210,11 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
           scroll={{ x: 1020 }}
           pagination={{
             current: currentPage,
-            pageSize: 20,
+            pageSize: 10,
             total: filteredChips.length,
             showSizeChanger: false,
             onChange: (p) => setCurrentPage(p),
-            showTotal: (total) => `共 ${total} 枚芯片（每页固定 20 条）`,
+            showTotal: (total) => `共 ${total} 枚芯片（每页固定 10 条）`,
           }}
           locale={{
             emptyText: (

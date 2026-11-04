@@ -803,7 +803,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             loading={statsLoading}
             pagination={{
               current: statsSnapshot.page,
-              pageSize: 20,
+              pageSize: 10,
               total: statsSnapshot.total_items,
               showSizeChanger: false,
               showTotal: (total, range) =>

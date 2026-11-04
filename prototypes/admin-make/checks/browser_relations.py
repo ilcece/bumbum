@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright,expect
 url=sys.argv[1];out=Path(sys.argv[2]);out.mkdir(parents=True,exist_ok=True)
 checks=[];errors=[];requests=[]
 def passed(name):checks.append({'case':name,'status':'passed'});print('通过：'+name,flush=True)
-def raw(page):return page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v3'))")
+def raw(page):return page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v4'))")
 def modal(page):return page.locator('.ant-modal:visible').last
 def menu(page,name):page.get_by_role('menuitem',name=re.compile(name)).click()
 def tab(page,name):page.get_by_role('tab',name=name,exact=True).click()
@@ -19,7 +19,7 @@ with sync_playwright() as p:
   page.goto(url,wait_until='networkidle');page.get_by_role('button',name='使用演示身份进入').click();menu(page,'物品管理')
   for name in ['数字物品','款式资料','发行约定','办理记录']:expect(page.get_by_role('tab',name=name,exact=True)).to_be_visible()
   assert page.get_by_role('menuitem').count()==5;passed('5个一级入口与物品管理4个二级工作区')
-  page.get_by_role('button',name='FASH-2026-000121',exact=True).click();drawer=page.locator('.ant-drawer:visible');expect(drawer.get_by_role('button',name='维护共用资料',exact=True)).to_be_disabled();drawer.locator('.ant-drawer-close').click();expect(drawer).to_be_hidden();passed('归档物品为只读样例，不开放普通编辑或恢复归档')
+  page.locator('.ant-pagination:visible').get_by_title('2',exact=True).click();page.get_by_role('button',name='FASH-2026-000121',exact=True).click();drawer=page.locator('.ant-drawer:visible');expect(drawer.get_by_role('button',name='维护共用资料',exact=True)).to_be_disabled();drawer.locator('.ant-drawer-close').click();expect(drawer).to_be_hidden();page.locator('.ant-pagination:visible').get_by_title('1',exact=True).click();passed('归档物品为只读样例，不开放普通编辑或恢复归档')
   d=raw(page);assert all('project' not in x for group in ['items','chips','issuances'] for x in d[group]);assert all(i['styleId'] for i in d['items']);passed('类别只存在款式，物品/发行/芯片不保存独立类别')
   history=d['identities'];style=d['styles'][0];tab(page,'款式资料');page.get_by_role('button',name='维护共用资料',exact=True).first.click();e=modal(page);expect(e.get_by_label('物品类别',exact=True)).to_be_disabled();expect(e.get_by_text('商品资料预览 · 未保存预览',exact=True)).to_be_visible();e.get_by_label('名称',exact=True).fill('统一维护的共用款式');e.get_by_role('button',name='保存共用资料',exact=True).click();c=page.locator('.ant-modal-confirm:visible').last;expect(c.get_by_text(re.compile('其中.*已启用'))).to_be_visible();c.get_by_role('button',name='确认同步保存',exact=True).click();expect(page.get_by_role('dialog',name='维护共用款式商品资料',exact=True)).to_be_hidden();saved=next(s for s in raw(page)['styles'] if s['id']==style['id']);assert saved['profile']['name']=='统一维护的共用款式';assert saved['profile']['size_chart']==style['profile']['size_chart'];assert saved['sizes']==style['sizes'];assert raw(page)['identities']==history;passed('共用保存提示影响及生效，更新不覆盖实体/年度/流转事实和折叠尺码字段')
   page.get_by_role('button',name='新建款式资料',exact=True).click();e=modal(page);select(page,e.get_by_label('物品类别',exact=True),'饰品');e.get_by_label('款式编号',exact=True).fill('DEMO-JEWELRY-NEW');e.get_by_label('名称',exact=True).fill('演示手串新款');e.get_by_role('button',name='保存共用资料',exact=True).click();expect(page.get_by_role('dialog',name='新建共用款式商品资料',exact=True)).to_be_hidden();assert next(s for s in raw(page)['styles'] if s['code']=='DEMO-JEWELRY-NEW')['project']=='jewelry';passed('未引用款式可选择类别，新款按饰品显示适用字段')

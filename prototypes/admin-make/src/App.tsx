@@ -1306,7 +1306,7 @@ function AppCore() {
                     rowKey="id"
                     size="middle"
                     dataSource={auditLogs}
-                    pagination={{ pageSize: 20, showSizeChanger: false }}
+                    pagination={{ pageSize: 10, showSizeChanger: false }}
                     columns={[
                       {
                         title: '时间',

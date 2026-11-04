@@ -1076,7 +1076,7 @@ export function computeTapStatsSnapshot(
   }
 
   const totalItems = allTouchedRows.length;
-  const pageSize = 20;
+  const pageSize = 10;
   const totalPages = Math.ceil(totalItems / pageSize);
   const effectivePage = totalPages === 0 ? 1 : Math.min(Math.max(1, query.page), totalPages);
   const pageAdjusted = effectivePage !== query.page;

@@ -14,6 +14,10 @@
 
 类别只在款式维护。物品选择已有款式，类别只读引用；发行、实体和芯片沿关联取值。原型不开放无款式草稿创建，是否需要该场景仍待明确。发行草案可维护系列、版本、颜色、总量和权益引用；已发行承诺只读，正式发行及新编号分配仍因编号范围未定而关闭。
 
+列表每页上限已改为10条（候选选择保留5条）。芯片按登记时间倒序、同一时间按内部编号倒序；手工/Webhook新增后回首页并保留筛选。若新增不符合筛选，从成功提示查看确切记录。重复回调不新增或改登记时间。
+
+本轮修正了模拟芯片内部编号冲突，使用新的独立样例会话，旧版演示数据不会被覆盖；打开新版从修正后的合成样例开始。
+
 ## 建议核对的四组场景
 
 1. **架构、共用资料与发行：** 进入4个工作区，查询、重置、按类别/状态筛选；维护同款资料时查看受影响物品及已启用数量，核对未保存预览和保存生效提示。草案修改不追改已发行承诺；发行颜色与实体实际颜色分别取值。
@@ -35,4 +39,4 @@ Webhook新回调/重复/鉴权失败、登录快捷进入、样例编号/核验�
 
 ## 原型验证
 
-checks内脚本只做受影响业务验证，不是React 19独立组件矩阵。证据：[核心接续](checks/evidence/browser-review.json)、[保存/图片/创建](checks/evidence/browser-states.json)、[架构与引用](checks/evidence/browser-relations.json)、[Webhook与配卡演示](checks/evidence/browser-chip-demo.json)、[工作区与状态](checks/evidence/browser-workspaces.json)、[离线及容器](checks/evidence/preview-review.json)。旧导航证据留作历史，不计入本轮结果。实际交付/人工验收状态以[TODO](../../TODO.md)为准；正式代码构建等待原型确认。
+checks内脚本只做受影响业务验证，不是React 19独立组件矩阵。上一轮完整架构/状态验证及后续定向复核分别保留，不把未重跑的旧结果当本轮新证据。本轮排序/分页见[专项记录](checks/evidence/browser-pagination.json)，编号修正后的接续及配卡已定向复测。其他证据：[核心接续](checks/evidence/browser-review.json)、[保存/图片/创建](checks/evidence/browser-states.json)、[架构与引用](checks/evidence/browser-relations.json)、[Webhook与配卡演示](checks/evidence/browser-chip-demo.json)、[工作区与状态](checks/evidence/browser-workspaces.json)、[离线及容器](checks/evidence/preview-review.json)。旧导航证据留作历史，不计入本轮结果。实际交付/人工验收状态以[TODO](../../TODO.md)为准；正式代码构建等待原型确认。

@@ -8,7 +8,7 @@ results=[];errors=[];business_requests=[]
 def record(name):results.append({'case':name,'status':'passed'});print('通过：'+name,flush=True)
 def snapshot(page,name):page.screenshot(path=str(OUT/(name+'.png')))
 def data(page):
- d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v3'))")
+ d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v4'))")
  for i in d['items']:
   style=next((s for s in d['styles'] if s['id']==i['styleId']),None)
   i['profile']=style['profile'] if style else None
@@ -74,7 +74,12 @@ with sync_playwright() as p:
   page.locator('.ant-drawer:visible .ant-drawer-close').click();menu(page,'芯片管理');page.get_by_role('button',name=re.compile('手工登记芯片$')).click();record('手工登记入口可达')
   registration=modal(page);before=len(data(page)['chips']);registration.get_by_placeholder('如 04:A2:7F:1B:5E:80:18 或 04a27f1b5e8018').fill('04:AA:BB:CC:DD:EE:77');registration.get_by_placeholder('选填，如 HZ-202610-F03').fill('DEMO-BATCH');registration.get_by_role('button',name='登记并继续下一枚',exact=True).click();assert len(data(page)['chips'])==before+1;expect(registration.get_by_placeholder('选填，如 HZ-202610-F03')).to_have_value('');record('连续登记成功后清空UID/批次，无项目录入')
   registration.get_by_placeholder('如 04:A2:7F:1B:5E:80:18 或 04a27f1b5e8018').fill('04:AA:BB:CC:DD:EE:77');registration.get_by_placeholder('选填，如 HZ-202610-F03').fill('不得覆盖原批次');registration.get_by_role('button',name='登记并继续下一枚',exact=True).click();d=data(page);assert len(d['chips'])==before+1;assert next(c for c in d['chips'] if c['chip_uid']=='04:AA:BB:CC:DD:EE:77')['batch_no']=='DEMO-BATCH';record('重复登记不新增且不覆盖原记录')
-  modal(page).get_by_role('button',name=re.compile(r'^取\s*消$')).click();menu(page,'操作日志');expect(page.get_by_text('保存商品资料',exact=True).first).to_be_visible();record('原型操作日志反映已保存动作')
+  modal(page).get_by_role('button',name=re.compile(r'^取\s*消$')).click();menu(page,'操作日志')
+  for _ in range(5):
+   if page.get_by_text('保存共用商品资料',exact=True).first.is_visible():break
+   active=page.locator('.ant-pagination-item-active:visible');next_page=int(active.get_attribute('title'))+1
+   page.locator('.ant-pagination-next:visible').click();expect(active).to_have_attribute('title',str(next_page))
+  expect(page.get_by_text('保存共用商品资料',exact=True).first).to_be_visible();record('原型操作日志分页后可追溯已保存动作')
   assert not errors,errors;assert not business_requests,business_requests;record('无页面运行异常且未请求真实业务API')
  except Exception as exc:
   snapshot(page,'review-failure');results.append({'case':'当前路径','status':'failed','error':str(exc)});raise

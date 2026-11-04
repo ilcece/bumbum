@@ -438,6 +438,8 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
     });
   }, [items, appliedFilters]);
 
+  useEffect(()=>{const last=Math.max(1,Math.ceil(filteredItems.length/10));if(currentPage>last)setCurrentPage(last);},[filteredItems.length,currentPage]);
+
   const filtersDirty = JSON.stringify(filters) !== JSON.stringify(appliedFilters);
 
   const handleApplyFilters = () => {
@@ -1274,11 +1276,11 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
           scroll={{ x: 1020 }}
           pagination={{
             current: currentPage,
-            pageSize: 20,
+            pageSize: 10,
             total: filteredItems.length,
             showSizeChanger: false,
             onChange: (p) => setCurrentPage(p),
-            showTotal: (total) => `共 ${total} 件数字物品（每页固定 20 条）`,
+            showTotal: (total) => `共 ${total} 件数字物品（每页固定 10 条）`,
           }}
           locale={{
             emptyText: (

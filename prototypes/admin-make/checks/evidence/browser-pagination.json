@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "case": "芯片跨页按登记时间倒序、相同时编号倒序，每页最多10条且无遗漏",
+      "status": "passed"
+    },
+    {
+      "case": "第二页手工登记成功后回首页，新芯片排第一",
+      "status": "passed"
+    },
+    {
+      "case": "第二页Webhook新增成功后回首页，新记录排第一",
+      "status": "passed"
+    },
+    {
+      "case": "重复回调不新增、不改登记时间、不强制跳页",
+      "status": "passed"
+    },
+    {
+      "case": "新增保留筛选，不匹配时不伪造结果，成功提示仍可查看确切记录",
+      "status": "passed"
+    },
+    {
+      "case": "物品、款式、发行和办理各列表分页上限10条",
+      "status": "passed"
+    }
+  ],
+  "page_errors": []
+}
