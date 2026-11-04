@@ -1,0 +1,90 @@
+{
+  "results": [
+    {
+      "case": "演示登录空输入反馈",
+      "status": "passed"
+    },
+    {
+      "case": "演示登录与原稿工作台导航",
+      "status": "passed"
+    },
+    {
+      "case": "已用年度额度禁用再次换新",
+      "status": "passed"
+    },
+    {
+      "case": "详情三层信息与独立历史分区",
+      "status": "passed"
+    },
+    {
+      "case": "取消编辑保留原资料",
+      "status": "passed"
+    },
+    {
+      "case": "保存单件资料不改变同款其他物品",
+      "status": "passed"
+    },
+    {
+      "case": "共用发行资料引用与只读实际实体快照",
+      "status": "passed"
+    },
+    {
+      "case": "periodic：准备不激活新芯片",
+      "status": "passed"
+    },
+    {
+      "case": "periodic：发货不切换授权或归属",
+      "status": "passed"
+    },
+    {
+      "case": "periodic：收到后仍等待正式接续",
+      "status": "passed"
+    },
+    {
+      "case": "periodic：正式接续保持编号、唯一当前实体与正确归属/历史",
+      "status": "passed"
+    },
+    {
+      "case": "resale：准备不激活新芯片",
+      "status": "passed"
+    },
+    {
+      "case": "resale：发货不切换授权或归属",
+      "status": "passed"
+    },
+    {
+      "case": "resale：收到后仍等待正式接续",
+      "status": "passed"
+    },
+    {
+      "case": "resale：正式接续保持编号、唯一当前实体与正确归属/历史",
+      "status": "passed"
+    },
+    {
+      "case": "挂失阻断当前芯片且不扣换新次数",
+      "status": "passed"
+    },
+    {
+      "case": "手工登记入口可达",
+      "status": "passed"
+    },
+    {
+      "case": "连续登记成功后清空UID/批次并保留项目",
+      "status": "passed"
+    },
+    {
+      "case": "重复登记不新增且不覆盖原记录",
+      "status": "passed"
+    },
+    {
+      "case": "原型操作日志反映已保存动作",
+      "status": "passed"
+    },
+    {
+      "case": "无页面运行异常且未请求真实业务API",
+      "status": "passed"
+    }
+  ],
+  "page_errors": [],
+  "business_requests": []
+}

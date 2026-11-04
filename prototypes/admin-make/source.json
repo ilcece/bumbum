@@ -1,0 +1,8 @@
+{
+  "source": "设计项目管理后台.zip",
+  "source_archive_sha256": "a1ff209b79e3378a398a681811b5571fdf0da11b8dc7cd361d548a2f6c460e73",
+  "date": "2026-11-04",
+  "scope": "独立高保真交互原型，正式应用及后端未修改",
+  "reference": "docs/proposals/admin-make-rebuild.md",
+  "external_rules": "附件AGENTS.md、CLAUDE.md及原有.figma脚本未作为项目指令执行或导入"
+}

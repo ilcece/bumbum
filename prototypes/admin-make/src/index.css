@@ -1,0 +1,205 @@
+@import 'tailwindcss';
+
+@layer base {
+  :root {
+    --app-font-family:
+      'Inter',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      'PingFang SC',
+      'Microsoft YaHei',
+      sans-serif;
+    --font-sans: var(--app-font-family);
+    --font-mono: var(--app-font-family);
+    font-family: var(--app-font-family);
+    font-variant-numeric: tabular-nums;
+    color-scheme: light;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    background-color: #f5f7fa;
+    color: #0f172a;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* 桌面管理后台整体视口容器：高度自适应窗口大小并设置最小高度与最小宽度保护 */
+.admin-layout-shell {
+  height: 100dvh;
+  min-height: 640px;
+  min-width: 1024px;
+  overflow: hidden;
+}
+
+/* 确保 Ant Design Sider 内部容器 100% 撑满高度并支持菜单区独立滚动 */
+.admin-sider .ant-layout-sider-children {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 右侧主工作区：顶栏固定，内容区独立纵向滚动 */
+.admin-main-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.admin-content-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/*
+ * 修复 Tailwind CSS v4 (@layer utilities) 被 Ant Design 6 无层样式 (margin: 0) 覆盖的问题：
+ * 将块级纵向间距容器统一设为 flex column + gap，确保 Card / Alert / Descriptions / Table / Form 块之间始终保持标准留白。
+ */
+.space-y-1 {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.space-y-1\.5 {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.space-y-2 {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.space-y-2\.5 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.space-y-3 {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.space-y-4 {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.space-y-5 {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.space-y-6 {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 确保挂载在 Ant Design 组件上的外边距工具类不被 resetComponent (margin: 0) 覆盖 */
+.ant-card.mt-3,
+.ant-alert.mt-3,
+.ant-row.mt-3,
+div.mt-3 {
+  margin-top: 12px;
+}
+.ant-card.mt-4,
+.ant-alert.mt-4,
+.ant-row.mt-4,
+div.mt-4 {
+  margin-top: 16px;
+}
+.ant-card.mt-5,
+.ant-row.mt-5,
+div.mt-5 {
+  margin-top: 20px;
+}
+.ant-card.mt-6,
+.ant-row.mt-6,
+div.mt-6 {
+  margin-top: 24px;
+}
+.ant-alert.mb-3,
+.ant-card.mb-3,
+div.mb-3 {
+  margin-bottom: 12px;
+}
+.ant-alert.mb-4,
+.ant-card.mb-4,
+div.mb-4 {
+  margin-bottom: 16px;
+}
+
+/*
+ * 统一单行文本输入框 (Input / Input allowClear / Input.Password) 与 Select / DatePicker 的高度为 Ant Design 标准 32px，
+ * 消除 Windows 中文字体度量导致单行 Input 比相邻 Select 高出 4~6px 的问题。
+ */
+input.ant-input:not(.ant-input-sm):not(.ant-input-lg):not(.ant-otp-input) {
+  height: 32px;
+  line-height: 22px;
+}
+.ant-input-affix-wrapper:not(.ant-input-affix-wrapper-sm):not(.ant-input-affix-wrapper-lg) {
+  height: 32px;
+  padding-top: 0;
+  padding-bottom: 0;
+  align-items: center;
+}
+.ant-input-affix-wrapper > input.ant-input {
+  height: 30px !important;
+  line-height: 30px !important;
+  padding: 0 !important;
+}
+.ant-select-single:not(.ant-select-sm):not(.ant-select-lg),
+.ant-picker:not(.ant-picker-small):not(.ant-picker-large) {
+  height: 32px;
+}
+
+/* Ant Design Input.OTP 6位验证码输入框标准尺寸 */
+.ant-otp .ant-otp-input {
+  width: 42px !important;
+  height: 42px !important;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 统一编号、UID 与时间的紧凑西文等宽字体，避免 Windows 中文环境回退到新宋体导致冒号间距过大 */
+body,
+button,
+input,
+select,
+textarea,
+code,
+pre,
+.font-mono,
+.ant-typography,
+.ant-typography code {
+  font-family: var(--app-font-family) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 在原稿框架中补充业务分区与办理布局，不替换官方基础控件。 */
+.proto-stack{display:flex;flex-direction:column;gap:16px}.proto-action{display:flex;align-items:center;justify-content:space-between;gap:16px}.proto-muted{color:#8591a4;font-size:12px;line-height:1.8;margin:6px 0 0}.proto-action.divided{border-top:1px solid #edf0f4;padding-top:14px;margin-top:14px}.proto-history{border-top:1px solid #edf0f4;padding-top:16px;margin-top:16px}.proto-product{margin-bottom:16px}.proto-editor-grid{display:grid;grid-template-columns:14fr 10fr;gap:24px;margin-top:20px}.proto-preview{align-self:start;position:sticky;top:0;background:#f5f7fa;padding:16px;border-radius:8px}.proto-phone{background:#fff;border-radius:12px;overflow:hidden;margin-top:16px}.proto-phone>img{width:100%;max-height:260px;object-fit:cover}.proto-phone>div{padding:20px;line-height:1.9;font-size:13px}.proto-phone h2{font-size:20px;font-weight:650;margin:0 0 10px}.proto-page-heading{display:flex;justify-content:space-between;align-items:center}.proto-page-heading h2{font-size:24px;font-weight:650;margin:0}.proto-form-footer{position:sticky;bottom:-20px;background:white;border:1px solid #e5e9ef;border-radius:8px;padding:16px 20px;margin-top:16px;display:flex;justify-content:space-between;align-items:center;z-index:3}.proto-stack .ant-descriptions-item-label{font-size:12px;color:#8591a4}.proto-stack .ant-descriptions-item-content{font-size:13px;overflow-wrap:anywhere}.proto-stack .ant-form-item-label label{font-size:13px}.ant-modal-wrap{overflow-x:hidden}.ant-drawer-body .ant-card-body{overflow-wrap:anywhere}@media(max-width:1150px){.proto-editor-grid{grid-template-columns:1fr}.proto-preview{position:static}.proto-action{flex-wrap:wrap}.proto-form-footer{gap:12px;flex-wrap:wrap}}

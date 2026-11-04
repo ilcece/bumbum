@@ -1,0 +1,41 @@
+{
+  "results": [
+    {
+      "case": "保存失败保留输入且不改原资料",
+      "status": "passed"
+    },
+    {
+      "case": "失败恢复后明确重试保存成功",
+      "status": "passed"
+    },
+    {
+      "case": "未知结果先核对，不自动重发或误报成功",
+      "status": "passed"
+    },
+    {
+      "case": "Upload选择与预览仅暂存，未保存不关联",
+      "status": "passed"
+    },
+    {
+      "case": "图片随资料保存关联到当前物品",
+      "status": "passed"
+    },
+    {
+      "case": "连续创建保留项目并清空已提交字段",
+      "status": "passed"
+    },
+    {
+      "case": "重复物品编号拒绝覆盖",
+      "status": "passed"
+    },
+    {
+      "case": "已生效查询返回及刷新后仍保留",
+      "status": "passed"
+    },
+    {
+      "case": "异常与图片路径无页面运行错误",
+      "status": "passed"
+    }
+  ],
+  "page_errors": []
+}

@@ -4,6 +4,10 @@
 
 本轮以cece上传的原始最新版Make为基准，先对齐业务及页面改法再修改原型，cece满意后再整合。统一遵守[后台设计与交互规范](ADMIN_UI_GUIDELINES.md)，此前AI首轮改稿不作为基准；思路、预览状态和后端缺口见[最新Make方案](proposals/admin-make-rebuild.md)。现有正式工程暂作为后端与保护逻辑基线，不能把原型本地数组直接接入生产。
 
+## 独立交互原型与正式工程
+
+本次已授权的高保真交互原型位于[prototypes/admin-make](../prototypes/admin-make/README.md)，可下载[单HTML](../prototypes/admin-make/preview.html)离线核对；原始Make框架与列表复用，详情/编辑和办理流程按分支方案调整。它使用浏览器合成数据，不调用真实API，不是正式后台，也不替代下表工程。原型的构建和业务路径检查不代表正式代码、后端、实卡或人工验收完成。cece确认后才按相应技术批准范围整合正式工程，Figma导入和当前任务状态见TODO。
+
 ## 当前页面放在哪里
 
 后续管理端设计与实现同时遵守[后台设计与交互规范](ADMIN_UI_GUIDELINES.md)及[A提案的官方复用及迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)，本文件不复制第二套组件/主题/定制规则。A业务规则已审核通过；[旧交互原型](proposals/admin-management-update.md#32-原型审核入口与交互取舍)仅供参考，不再调整，也不要求复刻。列表筛选查询、详情只读与编辑态等样式和交互优先采用Ant Design 6官方规范；PRD只定义业务要求。依赖、接口及上传存储的批准范围见[附条件批准的技术方案](proposals/admin-management-implementation.md)，已纳入的产品规则及现行界面按[后台规范](product/admin-management.md)。
