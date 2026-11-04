@@ -30,6 +30,8 @@
 
 当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；现有用户工程位于frontend/user，后续按其实际任务修改，不再创建重复工程。本次Make已使用antd 6，因此复用Layout/Table/Form/Drawer/Modal的展示组合，旧Figma交互原型仍仅供参考；具体字段和交互约束以现行PRD及官方组件为准。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
 
+字段展示按[三层信息与详情/编辑落位](proposals/admin-make-rebuild.md#24-已同意的三层信息与字段展示)承接：界面称“实体”，共用发行约定、数字身份和每次实体交付分开；当前按物品保存的资料不自动变成同款共享。未交付字段在技术实施前补齐契约，不从原型假定后端支持。
+
 ## cece 提供什么，AI 怎样接入
 
 1. cece 指明要改哪个页面，提供 Figma 设计或导出内容，说明希望保留的操作与可检查的结果。
