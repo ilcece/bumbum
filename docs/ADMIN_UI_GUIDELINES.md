@@ -56,11 +56,11 @@
 
 ## 4. 复用及例外
 
-优先复用原始Make的应用壳、查询/列表/详情/编辑组合，以及Ant Design Layout、Menu、Table、Form、Descriptions、Modal、Drawer、Upload、Alert等官方组件。主题集中通过ConfigProvider与Token配置；布局使用现有样式工具，必要业务适配集中复用，不重写基础控件、不另造通用设计系统。
+已确认采用Ant Design Pro作为正式后台重构的应用布局与页面组合来源，具体接入方式见[提案第4.2节](proposals/admin-make-rebuild.md#42-采用ant-design-pro与工程接入范围)。原始Make继续作为视觉与已确认交互的基准，复用ProLayout、PageContainer、ProTable、ProForm等适用组合，以及Ant Design基础控件。主题集中通过ConfigProvider与Token配置；布局使用现有样式工具，必要业务适配集中复用，不重写基础控件、不另造通用设计系统。
 
 原稿组合能直接用时直接复用；需要改时先说明业务原因，再以官方示例或规范为依据调整。Ant Design组件保证单个控件的常规行为，页面宽度、信息层级、主次操作与业务流程仍须明确设计和验收。不能把“安装了antd”当作页面已经符合规范。
 
-保留现有React/Vite/TypeScript工程和真实接口、安全规则；未经对齐不迁入Umi或替换页面框架。原稿模拟数据、假登录、自动写卡成功、上传开关、配置/诊断演示不进入正式业务。不同Ant Design/Pro组件版本的复用先核对实际兼容性，不能为使用示例引入冲突版本。
+现有正式工程仍为React/Vite/TypeScript；采用Pro已确认，完整官方Umi工程与现有Vite接入Pro组件的迁移范围分别说明，工程取舍按技术方案明确后执行，不将其中一路当作隐含决定。保留真实接口与安全规则。原稿模拟数据、假登录、自动写卡成功、上传开关、配置/诊断演示不进入正式业务。不同Ant Design/Pro组件版本的复用先核对实际兼容性，不能为使用示例引入冲突版本。
 
 后续相关页面按[开源参考落实清单](proposals/admin-make-rebuild.md#41-开源参考的落实清单)选择官方页面组合，记录实际来源、适配与定制原因；清单区分流程借鉴、组件复用和已适配代码续用，不把原型展示或文档完成当正式实现。仍以本规范的Make视觉、容器和已确认业务为准。
 

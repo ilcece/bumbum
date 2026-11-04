@@ -32,7 +32,7 @@
 | `frontend/admin/src/api.ts` | 唯一接口调用层，保留Cookie、内存CSRF及失败处理 |
 | `frontend/admin/vite.config.ts` | 保留本机地址和/api代理，接入Tailwind 4编译本次Make样式 |
 
-当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。正式管理页面以后仍使用这个 React + Vite + TypeScript 项目；现有用户工程位于frontend/user，后续按其实际任务修改，不再创建重复工程。本次Make已使用antd 6，因此复用Layout/Table/Form/Drawer/Modal的展示组合，旧Figma交互原型仍仅供参考；具体字段和交互约束以现行PRD及官方组件为准。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
+当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。现有正式管理端为React + Vite + TypeScript；cece已确认采用Ant Design Pro重构，完整官方Umi工程或现有Vite接入ProComponents的选择与迁移范围见[提案第4.2节](proposals/admin-make-rebuild.md#42-采用ant-design-pro与工程接入范围)，本轮尚未切换工程；现有用户工程位于frontend/user，后续按其实际任务修改，不再创建重复工程。本次Make已使用antd 6，因此复用Layout/Table/Form/Drawer/Modal的展示组合，旧Figma交互原型仍仅供参考；具体字段和交互约束以现行PRD及官方组件为准。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
 
 字段展示按[三层信息与详情/编辑落位](proposals/admin-make-rebuild.md#24-已同意的三层信息与字段展示)承接：界面称“实体”，共用发行约定、数字身份和每次实体交付分开；目标为共用资料统一维护并同步引用，实体交付信息独立保留；当前正式应用仍逐件保存，迁移须另审。重构的物品类别只在款式维护，其他页面按引用展示/筛选，不能保留多处独立“所属项目”输入；隔离原型已按批准架构落实来源与文案；现有正式project接口/数据仍需技术适配。未交付字段在技术实施前补齐契约，不从原型假定后端支持。
 
