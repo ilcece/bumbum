@@ -194,7 +194,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
 
   const columns: ColumnsType<TapStatsItemRow> = [
     {
-      title: '所属项目',
+      title: '物品类别',
       dataIndex: 'project',
       key: 'project',
       width: 110,
@@ -554,13 +554,13 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
         <div className="flex flex-wrap items-end justify-between gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200/80">
           <Space wrap size={16} align="end">
             <div>
-              <div className="text-xs font-medium text-slate-600 mb-1.5">统计项目</div>
+              <div className="text-xs font-medium text-slate-600 mb-1.5">统计类别</div>
               <Select
                 style={{ width: 180 }}
                 value={draftProject}
                 onChange={(val) => setDraftProject(val)}
                 options={[
-                  { value: '', label: '全部项目 (服装 + 饰品)' },
+                  { value: '', label: '全部类别 (服装 + 饰品)' },
                   { value: 'fashion', label: '仅看服装 (Fashion)' },
                   { value: 'jewelry', label: '仅看饰品 (Jewelry)' },
                 ]}
@@ -593,7 +593,7 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             <div>
               <Text strong>当前已生效条件：</Text>
               <Tag color="blue" style={{ marginLeft: 4 }}>
-                {appliedQuery.project ? PROJECT_SHORT_LABELS[appliedQuery.project] : '全部项目'}
+                {appliedQuery.project ? PROJECT_SHORT_LABELS[appliedQuery.project] : '全部类别'}
               </Tag>
               <Tag color="geekblue">{RANGE_LABELS[appliedQuery.range]}</Tag>
               <span>
@@ -843,13 +843,13 @@ export const OverviewPage: React.FC<OverviewPageProps> = ({
             <span>
               <strong>统计口径说明：</strong>
               {statsSnapshot.first_recorded_at
-                ? `所选项目首条有效记录时间：${new Date(
+                ? `所选类别首条有效记录时间：${new Date(
                     statsSnapshot.first_recorded_at
                   ).toLocaleString('zh-CN', {
                     timeZone: 'Asia/Shanghai',
                     hour12: false,
                   })}（北京时间）。`
-                : '所选项目尚无有效记录。'}{' '}
+                : '所选类别尚无有效记录。'}{' '}
               不含后台配置核验、重复读数请求及失败请求；24小时持续查看期间刷新页面不增加触碰次数。
             </span>
             <Button

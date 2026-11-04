@@ -464,6 +464,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
 
   const handleSubmitCreateItem = (openEditorImmediately: boolean) => {
     setCreateError('');
+    if(!createSkuCode){setCreateError('请选择已有款式；类别只从款式引用。');return;}
     const check = validateItemUid(createProject, createItemUid);
     if (!check.ok) {
       setCreateError(check.error);
@@ -790,7 +791,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
       },
     },
     {
-      title: '所属项目',
+      title: '物品类别',
       dataIndex: 'project',
       key: 'project',
       width: 86,
@@ -864,7 +865,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
         ),
     },
     {
-      title: '物品状态',
+      title: '物品启用状态',
       dataIndex: 'status',
       key: 'status',
       width: 96,
@@ -979,7 +980,6 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><Button onClick={()=>proto.setCatalogOpen(true)}>款式与发行资料</Button></div>
       {simulateApiError && (
         <Alert
           type="error"
@@ -1061,20 +1061,20 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             />
           </Col>
           <Col xs={12} md={5} lg={4}>
-            <div className="text-xs font-medium text-slate-600 mb-1">所属项目</div>
+            <div className="text-xs font-medium text-slate-600 mb-1">物品类别</div>
             <Select
               style={{ width: '100%' }}
               value={filters.project}
               onChange={(val) => setFilters({ ...filters, project: val })}
               options={[
-                { value: '', label: '全部项目' },
+                { value: '', label: '全部类别' },
                 { value: 'fashion', label: '服装' },
                 { value: 'jewelry', label: '饰品' },
               ]}
             />
           </Col>
           <Col xs={12} md={5} lg={4}>
-            <div className="text-xs font-medium text-slate-600 mb-1">物品状态</div>
+            <div className="text-xs font-medium text-slate-600 mb-1">物品启用状态</div>
             <Select
               style={{ width: '100%' }}
               value={filters.status}
@@ -1134,7 +1134,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
                 />
               </Col>
               <Col xs={24} sm={6}>
-                <div className="text-xs font-medium text-slate-600 mb-1">资料状态</div>
+                <div className="text-xs font-medium text-slate-600 mb-1">物品启用状态</div>
                 <Select
                   style={{ width: '100%' }}
                   value={filters.profileState}
@@ -1330,22 +1330,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
         ]}
       >
         <Form layout="vertical" style={{ marginTop: 12 }}>
-          <Form.Item label="所属项目" style={{ marginBottom: 16 }}>
-            <Select
-              style={{ width: '100%' }}
-              value={createProject}
-              onChange={(val) => {
-                setCreateProject(val);
-                setCreateSkuCode('');
-                setCreateItemUid(suggestNextItemUid(val));
-                setCreateError('');
-              }}
-              options={[
-                { value: 'fashion', label: '服装' },
-                { value: 'jewelry', label: '饰品' },
-              ]}
-            />
-          </Form.Item>
+          <Form.Item label="物品类别（款式引用）" extra="类别只在款式维护，创建物品不单独选择。"><Input readOnly value={createSkuCode?(createProject==='fashion'?'服装':'饰品'):'选择款式后确定'}/></Form.Item>
 
           <Form.Item
             label="物品编号"
@@ -1359,7 +1344,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
                   setCreateError('');
                 }}
               >
-                填入样例建议编号
+                〔演示〕填入建议编号
               </Button>
             }
             style={{ marginBottom: 16 }}
@@ -1376,8 +1361,8 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             />
           </Form.Item>
 
-          <Form.Item label="关联款式商品资料" extra="从统一维护的款式中选择；可稍后在草稿详情维护关联。新建款式请进入列表页的“款式与发行资料”。">
-            <Select allowClear showSearch optionFilterProp="label" placeholder="选择已有款式（草稿可暂不关联）" value={createSkuCode||undefined} onChange={value=>setCreateSkuCode(value||'')} options={proto.styles.filter(s=>s.project===createProject).map(s=>({value:s.code,label:s.code+' · '+s.profile.name}))}/>
+          <Form.Item label="关联款式商品资料" required extra="本轮原型先选择已有款式再创建；款式在“款式资料”工作区维护。无款式草稿流程待确认。">
+            <Select allowClear showSearch optionFilterProp="label" placeholder="选择已有款式" value={proto.styles.find(s=>s.code===createSkuCode&&s.project===createProject)?.id} onChange={value=>{const style=proto.styles.find(s=>s.id===value);setCreateSkuCode(style?.code||'');if(style){setCreateProject(style.project);setCreateItemUid(suggestNextItemUid(style.project));}setCreateError('');}} options={proto.styles.map(s=>({value:s.id,label:s.code+' · '+s.profile.name+' · '+(s.project==='fashion'?'服装':'饰品')}))}/>
           </Form.Item>
 
           <Form.Item label="生产验证测试对象" style={{ marginBottom: createError ? 16 : 0 }}>
@@ -1849,7 +1834,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
 
       {/* 1. 修改未绑定草稿物品编号/项目弹窗 */}
       <Modal
-        title="修改物品编号 ／ 所属项目"
+        title="修改物品编号 ／ 物品类别"
         open={editIdentityModalOpen && activeItem !== null}
         onCancel={() => setEditIdentityModalOpen(false)}
         okText="确认修改"
@@ -1880,7 +1865,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
         <Form layout="vertical" style={{ marginTop: 12 }}>
           <Row gutter={12}>
             <Col span={9}>
-              <Form.Item label="所属项目" style={{ marginBottom: 16 }}>
+              <Form.Item label="物品类别" style={{ marginBottom: 16 }}>
                 <Select
                   style={{ width: '100%' }}
                   value={editIdentityProject}
@@ -2075,7 +2060,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
                 options={candidatePendingChipsForActiveItem.map((c) => ({
                   value: c.id,
                   label: `${c.chip_uid}（${
-                    c.project ? PROJECT_SHORT_LABELS[c.project] : '未分配项目'
+                    c.project ? PROJECT_SHORT_LABELS[c.project] : '未关联物品'
                   }${c.batch_no ? ` · 批次 ${c.batch_no}` : ''}）`,
                 }))}
               />
@@ -2123,7 +2108,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             <Alert
               type="info"
               showIcon
-              message={`仅展示同项目 (${PROJECT_SHORT_LABELS[bindChipTargetItem.project]}) 或未分配项目的「待绑定」芯片（共 ${candidatePendingChipsForItem.length} 枚可选）`}
+              message={`仅展示同类别 (${PROJECT_SHORT_LABELS[bindChipTargetItem.project]}) 或未关联物品的「待绑定」芯片（共 ${candidatePendingChipsForItem.length} 枚可选）`}
             />
             <Table
               rowKey="id"
@@ -2155,7 +2140,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
                   render: (u: string) => <Text code>{u}</Text>,
                 },
                 {
-                  title: '当前预分配项目',
+                  title: '物品类别（引用）',
                   dataIndex: 'project',
                   render: (p: ProjectCode | null) =>
                     p ? <Tag color="blue">{PROJECT_SHORT_LABELS[p]}</Tag> : <Tag>未分配</Tag>,

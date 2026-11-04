@@ -18,7 +18,9 @@ import {
   Row,
   Space,
   Switch,
+  Spin,
   Table,
+  Tabs,
   Tag,
   Tooltip,
   Typography,
@@ -58,6 +60,8 @@ import {
   type ItemPresetFilter,
 } from './components/OverviewPage';
 import { ChipManagementPage } from './components/ChipManagementPage';
+import {CatalogPage} from './components/CatalogManagement';
+import {WorkRecordsPage} from './components/WorkRecordsPage';
 import { ItemManagementPage } from './components/ItemManagementPage';
 import {PrototypeProvider,usePrototype} from './data/prototypeStore';
 import {PrototypeOverlays,pendingPolicy} from './components/PrototypeItemDetails';
@@ -75,18 +79,18 @@ const PAGE_TITLES: Record<NavPageKey, { title: string; subtitle: string }> = {
   },
   chips: {
     title: '芯片管理',
-    subtitle: '芯片登记、批次维护、绑定/解绑、挂失换新与实卡核验',
+    subtitle: '芯片登记、批次维护、关联引用与配置核验',
   },
   items: {
-    title: '数字物品管理',
-    subtitle: '物品建档、款式维护、商品资料与关联芯片管理',
+    title: '物品管理',
+    subtitle: '数字物品、共用款式、发行约定与办理记录',
   },
   audit: {
     title: '操作日志',
     subtitle: '管理员关键操作审计记录',
   },
   checks: {
-    title: '服务与数据库诊断',
+    title: '系统与环境',
     subtitle: '服务进程与数据库连接状态检查',
   },
 };
@@ -105,6 +109,7 @@ function AppCore() {
 
   // 导航与跨页抽屉联动状态
   const [currentPage, setCurrentPage] = useState<NavPageKey>(()=>{const key=location.hash.slice(1).split('?')[0];return ['overview','chips','items','audit','checks'].includes(key)?key as NavPageKey:'overview';});
+  const [itemTab,setItemTab]=useState(()=>{const value=new URLSearchParams(location.hash.split('?')[1]).get('view');return value&&['items','styles','issues','works'].includes(value)?value:'items';});
   const [activeChipId, setActiveChipId] = useState<number | null>(()=>Number(new URLSearchParams(location.hash.split('?')[1]).get('chip'))||null);
   const [activeItemId, setActiveItemId] = useState<number | null>(()=>Number(new URLSearchParams(location.hash.split('?')[1]).get('item'))||null);
   const [chipPresetFilter, setChipPresetFilter] = useState<{
@@ -126,28 +131,32 @@ function AppCore() {
   // 服务与数据库检查状态
   const [healthChecking, setHealthChecking] = useState(false);
   const [simulateApiError, setSimulateApiError] = useState(false);
+  const [simulateLoading,setSimulateLoading]=useState(false);
   const [lastCheckTime, setLastCheckTime] = useState<string>(() =>
     new Date().toLocaleTimeString('zh-CN', { hour12: false })
   );
 
-  useEffect(()=>{if(proto.activeWorkId||proto.activeDraft){setActiveChipId(null);setActiveItemId(null);}},[proto.activeWorkId,proto.activeDraft]);
+  const workOrigin=useRef<'detail'|'records'>('detail');
+  useEffect(()=>{if(proto.activeWorkId||proto.activeDraft){workOrigin.current=currentPage==='items'&&itemTab==='works'&&!activeItemId?'records':'detail';setActiveChipId(null);setActiveItemId(null);}},[proto.activeWorkId,proto.activeDraft]);
   const lastUrl=useRef(location.hash), routeReady=useRef(false), fromHistory=useRef(false);
   useEffect(()=>{
     const params=new URLSearchParams(location.hash.split('?')[1]);
     activeItemId?params.set('item',String(activeItemId)):params.delete('item');
     activeChipId?params.set('chip',String(activeChipId)):params.delete('chip');
+    if(currentPage==='items')params.set('view',itemTab);
     const next='#'+currentPage+(params.size?'?'+params.toString():'');
     const oldParams=new URLSearchParams(location.hash.split('?')[1]);
-    const changed=location.hash.slice(1).split('?')[0]!==currentPage||oldParams.get('item')!==params.get('item')||oldParams.get('chip')!==params.get('chip');
+    const changed=location.hash.slice(1).split('?')[0]!==currentPage||oldParams.get('item')!==params.get('item')||oldParams.get('chip')!==params.get('chip')||oldParams.get('view')!==params.get('view');
     if(routeReady.current&&changed&&!fromHistory.current)history.pushState(null,'',next);else history.replaceState(null,'',next);
     lastUrl.current=next;routeReady.current=true;fromHistory.current=false;
-  },[currentPage,activeItemId,activeChipId]);
+  },[currentPage,activeItemId,activeChipId,itemTab]);
   useEffect(()=>{const move=()=>{
     const requested=location.hash,[key,query]=requested.slice(1).split('?');
     if(!['overview','chips','items','audit','checks'].includes(key))return;
     history.replaceState(null,'',lastUrl.current||'#overview');
-    proto.guard(()=>{fromHistory.current=true;history.replaceState(null,'',requested);proto.closeWork();setCurrentPage(key as NavPageKey);const q=new URLSearchParams(query);setActiveItemId(Number(q.get('item'))||null);setActiveChipId(Number(q.get('chip'))||null);});
+    proto.guard(()=>{fromHistory.current=true;history.replaceState(null,'',requested);proto.closeWork();setCurrentPage(key as NavPageKey);const q=new URLSearchParams(query);const view=q.get('view');setItemTab(view&&['items','styles','issues','works'].includes(view)?view:'items');setActiveItemId(Number(q.get('item'))||null);setActiveChipId(Number(q.get('chip'))||null);});
   };window.addEventListener('popstate',move);return()=>window.removeEventListener('popstate',move);},[]);
+  useEffect(()=>{if(proto.catalogOpen){proto.setCatalogOpen(false);proto.setIssuanceItemId(null);setActiveItemId(null);setCurrentPage('items');setItemTab('styles');}},[proto.catalogOpen]);
   const appendAudit = (
     category: AuditLogEntry['category'],
     action: string,
@@ -356,7 +365,7 @@ function AppCore() {
       'key_provision',
       'chip.generate_keys',
       chip.chip_uid,
-      `派生并信封加密保存芯片 K0–K4 密钥 (key_version=v1)`
+      `〔演示〕仅更新密钥已准备标记，未派生、保存或操作真实密钥`
     );
     return { ok: true };
   };
@@ -387,7 +396,7 @@ function AppCore() {
                   action: 'provisioned',
                   timestamp: now,
                   operator: authenticatedUser || 'cece',
-                  summary: `完成双链接动态读数与 K0 权限核验，建立读取计数基线`,
+                  summary: `〔演示〕配置核验通过样例，不构成实卡证据`,
                   is_current_active: true,
                 },
               ],
@@ -400,7 +409,7 @@ function AppCore() {
       'key_provision',
       'chip.confirm_provisioning',
       chip.chip_uid,
-      `实卡双链接动态验签与计数器递增检查通过，保存 provisioned_at`
+      `〔演示〕仅标记配置核验结果，未执行真实实卡检查`
     );
     return { ok: true };
   };
@@ -441,6 +450,8 @@ function AppCore() {
     sku_code: string | null;
     is_validation_object?: boolean;
   }): { ok: boolean; item?: ItemView; error?: string } => {
+    const style=proto.styles.find(s=>s.code===payload.sku_code&&s.project===payload.project);
+    if(!style)return{ok:false,error:'请先选择已有款式，类别从款式引用。'};
     const dup = items.find(
       (i) => i.project === payload.project && i.item_uid === payload.item_uid
     );
@@ -452,11 +463,12 @@ function AppCore() {
       id: Math.max(0, ...items.map((i) => i.id)) + 1,
       project: payload.project,
       item_uid: payload.item_uid,
-      sku_code: payload.sku_code,
+      sku_code: style.code,
+      style_id:style.id,
       status: 'draft',
       created_at: now,
       updated_at: now,
-      profile: null,
+      profile: style.profile,
       bound_chip_id: null,
       bound_chip_uid: null,
       bound_chip_status: null,
@@ -913,7 +925,7 @@ function AppCore() {
     };
     setTapEvents((prev) => [...prev, newTap]);
     message.success(
-      '已模拟一次真实用户对 FASH-2026-000001 的有效 NFC 触碰！指标与趋势已即时更新。'
+      '〔演示〕已添加合成触碰样例，未请求真实验证接口。'
     );
   };
 
@@ -1088,12 +1100,22 @@ function AppCore() {
                 mode="inline"
                 selectedKeys={[currentPage]}
                 style={{ borderInlineEnd: 0 }}
-                onClick={({ key }) => proto.guard(()=>{proto.closeWork();setCurrentPage(key as NavPageKey);})}
+                onClick={({ key }) => proto.guard(()=>{proto.closeWork();setActiveItemId(null);setActiveChipId(null);setCurrentPage(key as NavPageKey);})}
                 items={[
                   {
                     key: 'overview',
                     icon: <AppstoreOutlined />,
                     label: '工作台总览',
+                  },
+                  {
+                    key: 'items',
+                    icon: <ShoppingOutlined />,
+                    label: (
+                      <div className="flex items-center justify-between">
+                        <span>物品管理</span>
+                        <Tag style={{ margin: 0, fontSize: 11 }}>{items.length}</Tag>
+                      </div>
+                    ),
                   },
                   {
                     key: 'chips',
@@ -1102,16 +1124,6 @@ function AppCore() {
                       <div className="flex items-center justify-between">
                         <span>芯片管理</span>
                         <Tag style={{ margin: 0, fontSize: 11 }}>{chips.length}</Tag>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'items',
-                    icon: <ShoppingOutlined />,
-                    label: (
-                      <div className="flex items-center justify-between">
-                        <span>数字物品管理</span>
-                        <Tag style={{ margin: 0, fontSize: 11 }}>{items.length}</Tag>
                       </div>
                     ),
                   },
@@ -1126,7 +1138,7 @@ function AppCore() {
                   {
                     key: 'checks',
                     icon: <CloudServerOutlined />,
-                    label: '服务与数据库诊断',
+                    label: '系统与环境',
                   },
                 ]}
               />
@@ -1134,7 +1146,7 @@ function AppCore() {
 
             <div className="px-4 py-3 border-t border-slate-200/80 bg-slate-50/60">
               <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>支持业务线：服装 / 饰品</span>
+                <span>物品类别：服装 / 饰品</span>
                 <Text code style={{ fontSize: 11 }}>
                   SUN v1
                 </Text>
@@ -1165,7 +1177,7 @@ function AppCore() {
             </div>
 
             <Space size={10} split={<Divider type="vertical" style={{ margin: 0 }} />}>
-              <Dropdown trigger={['click']} menu={{items:[{key:'normal',label:'恢复正常演示'},{key:'read',label:'列表读取失败'},{key:'save',label:'保存失败'},{key:'unknown',label:'保存结果未知'},{key:'upload',label:'图片上传失败'},{type:'divider'},{key:'tap',label:'添加触碰样例'},{key:'reset',label:'重置样例与办理记录'}],onClick:({key})=>{if(key==='reset'){proto.reset();return;}if(key==='tap'){handleSimulateNewTap();return;}setSimulateApiError(key==='read');proto.setFailureMode(key==='save'?'save':key==='unknown'?'unknown':key==='upload'?'upload':'none');}}}><Button size="small">原型演示 · 样例数据</Button></Dropdown>
+              <Dropdown trigger={['click']} menu={{items:[{key:'normal',label:'恢复正常演示'},{key:'loading',label:'〔演示〕列表加载中'},{key:'read',label:'列表读取失败'},{key:'save',label:'保存失败'},{key:'unknown',label:'保存结果未知'},{key:'upload',label:'图片上传失败'},{type:'divider'},{key:'tap',label:'添加触碰样例'},{key:'reset',label:'重置样例与办理记录'}],onClick:({key})=>{if(key==='reset'){setSimulateLoading(false);setSimulateApiError(false);proto.reset();return;}if(key==='tap'){handleSimulateNewTap();return;}setSimulateLoading(key==='loading');setSimulateApiError(key==='read');proto.setFailureMode(key==='save'?'save':key==='unknown'?'unknown':key==='upload'?'upload':'none');}}}><Button size="small">原型演示 · 样例数据</Button></Dropdown>
               <div className="flex items-center gap-2.5 bg-slate-50 border border-slate-200/90 rounded-full pl-2.5 pr-1.5 py-1">
                 <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-xs font-semibold flex items-center justify-center">
                   {authenticatedUser.slice(0, 1).toUpperCase()}
@@ -1194,10 +1206,10 @@ function AppCore() {
           <Content className="admin-content-scroll p-5">
             <div className="max-w-[1440px] mx-auto">
               <PrototypeOverlays/>
-              {(proto.activeWorkId||proto.activeDraft)&&<Modal open centered width={1120} title="业务办理" zIndex={1600} footer={null} mask={{closable:false}} onCancel={()=>proto.guard(()=>{const id=proto.activeDraft?.itemId||proto.works.find(w=>w.id===proto.activeWorkId)?.itemId;proto.closeWork();if(id){setCurrentPage('items');setActiveItemId(id);}})} styles={{body:{maxHeight:'calc(100dvh - 190px)',overflowY:'auto'}}}>
+              {(proto.activeWorkId||proto.activeDraft)&&<Modal open centered width={1120} title="业务办理" zIndex={1600} footer={null} mask={{closable:false}} onCancel={()=>proto.guard(()=>{const id=proto.activeDraft?.itemId||proto.works.find(w=>w.id===proto.activeWorkId)?.itemId;proto.closeWork();if(id&&workOrigin.current==='detail'){setCurrentPage('items');setActiveItemId(id);}})} styles={{body:{maxHeight:'calc(100dvh - 190px)',overflowY:'auto'}}}>
                 <LifecyclePage onBack={itemId=>{proto.closeWork();setCurrentPage('items');setActiveItemId(itemId);}}/>
               </Modal>}
-              <div>
+              <Spin spinning={simulateLoading} tip="〔演示〕正在读取样例"><div>
               <div style={{ display: currentPage === 'overview' ? 'block' : 'none' }}>
                 <OverviewPage
                   chips={chips}
@@ -1217,6 +1229,7 @@ function AppCore() {
                   onOpenChipDetail={handleOpenChipDetailFromAnywhere}
                   onSimulateNewTap={handleSimulateNewTap}
                 />
+                <Card size="small" style={{marginTop:20}} title="业务快捷入口"><Space><Button onClick={()=>{setCurrentPage('items');setItemTab('works');}}>查看办理记录</Button><Button onClick={()=>{setCurrentPage('items');setItemTab('styles');}}>维护款式资料</Button></Space></Card>
               </div>
 
               <div style={{ display: currentPage === 'chips' ? 'block' : 'none' }}>
@@ -1249,7 +1262,8 @@ function AppCore() {
               </div>
 
               <div style={{ display: currentPage === 'items' ? 'block' : 'none' }}>
-                <ItemManagementPage
+                <Tabs activeKey={itemTab} onChange={key=>proto.guard(()=>{setActiveItemId(null);setItemTab(key);})} items={[
+                  {key:'items',label:'数字物品',forceRender:true,children:(<ItemManagementPage
                   items={items}
                   chips={chips}
                   activeItemId={activeItemId}
@@ -1270,7 +1284,12 @@ function AppCore() {
                   onUnbindOrRebindMisboundChip={()=>({ok:false,error:'解绑/改绑规则待审核，未修改样例。'})}
                   onReportChipLost={(id,reason)=>{proto.reportLost(id,reason);return {ok:true};}}
                   onExecuteCarrierReplacement={()=>({ok:false,error:'请从物品权益进入换新或转售办理，不直接覆盖关联。'})}
-                />
+                />)},
+                  {key:'styles',label:'款式资料',children:<CatalogPage kind="styles" onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
+                  {key:'issues',label:'发行约定',children:<CatalogPage kind="issues" onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
+                  {key:'works',label:'办理记录',children:<WorkRecordsPage onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
+                ]}/>
+
               </div>
 
               <div style={{ display: currentPage === 'audit' ? 'block' : 'none' }}>
@@ -1324,6 +1343,7 @@ function AppCore() {
               </div>
 
               <div style={{ display: currentPage === 'checks' ? 'block' : 'none' }}>
+                <Alert style={{marginBottom:16}} showIcon type="info" title="运行诊断演示" description="未连接真实服务或数据库；正常/检查中状态仅是样例，不构成环境验收证据。"/>
                 <div className="space-y-4">
                   <Card
                     size="small"
@@ -1347,7 +1367,7 @@ function AppCore() {
                             }, 250);
                           }}
                         >
-                          重新执行检查
+                          〔演示〕重新执行检查
                         </Button>
                       </Space>
                     }
@@ -1387,7 +1407,7 @@ function AppCore() {
                                 200 OK · PostgreSQL 就绪
                               </div>
                               <div className="text-xs text-slate-500 mt-1">
-                                RDS PostgreSQL 连接池、芯片密钥信封加密主密钥 (v1) 与表结构校验通过。
+                                RDS MySQL 连接池、芯片密钥信封加密主密钥 (v1) 与表结构校验通过。
                               </div>
                             </div>
                           </Space>
@@ -1397,7 +1417,7 @@ function AppCore() {
                   </Card>
                 </div>
               </div>
-            </div>
+            </div></Spin>
             </div>
           </Content>
         </Layout>

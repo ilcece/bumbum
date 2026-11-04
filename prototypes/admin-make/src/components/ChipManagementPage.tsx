@@ -504,7 +504,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
       description: res.is_new
         ? `状态为「待绑定」${
             res.chip.project
-              ? `，所属项目：${PROJECT_SHORT_LABELS[res.chip.project]}`
+              ? `，物品类别：${PROJECT_SHORT_LABELS[res.chip.project]}`
               : '，项目暂未分配（首次绑定时按目标物品确定）'
           }。当前列表筛选条件已为您保留。`
         : '根据幂等去重规则，原记录的项目、批次、首次来源和绑定状态均保持不变。',
@@ -521,25 +521,13 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
     }
   };
 
-  const handleSimulateNfcCoolScan = () => {
-    const randomHex = () =>
-      Math.floor(Math.random() * 256)
-        .toString(16)
-        .padStart(2, '0')
-        .toUpperCase();
-    const uid = `04:${randomHex()}:${randomHex()}:${randomHex()}:80:00`;
-    const res = onRegisterChip({
-      chip_uid: uid,
-      batch_no: null,
-      source: 'nfc_cool',
-    });
-    setRecentActionBanner({
-      type: 'success',
-      title: `收到手机 NFC.cool 扫码回调：${res.chip.chip_uid}`,
-      description:
-        '手机批量扫码自动登记为「未分配项目、无批次号、待绑定」。您可以直接点击下方「查看详情与维护批次」或「立即绑定物品」。',
-      chip: res.chip,
-    });
+  const [lastWebhookUid,setLastWebhookUid]=useState<string|null>(null);const [webhookError,setWebhookError]=useState('');
+  const handleSimulateNfcCoolScan=(mode:'new'|'duplicate'|'rejected'='new')=>{
+    if(mode==='rejected'){setWebhookError('〔演示〕Webhook鉴权失败，未登记；记录数量和已有数据不变，不发送真实请求。');return;}setWebhookError('');
+    const randomHex=()=>Math.floor(Math.random()*256).toString(16).padStart(2,'0').toUpperCase();
+    const uid=mode==='duplicate'?lastWebhookUid:`04:DD:${randomHex()}:${randomHex()}:${randomHex()}:80:00`;
+    if(!uid)return;const existed=chips.some(c=>c.chip_uid===uid);const res=onRegisterChip({chip_uid:uid,batch_no:null,source:'nfc_cool'});
+    setLastWebhookUid(res.chip.chip_uid);setRecentActionBanner({type:'success',title:existed?`〔演示〕重复回调命中原记录：${res.chip.chip_uid}`:`〔演示〕Webhook已登记：${res.chip.chip_uid}`,description:existed?'未新增、未覆盖原批次/首次来源，可查看确切原记录。':'合成回调样例：无独立类别、无批次、待绑定。可继续关联物品、演示配卡和核验。',chip:res.chip});
   };
 
   const candidateItems = useMemo(() => {
@@ -637,7 +625,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
     setRevealedKeys(null);
     setTapLink1('');
     setTapLink2('');
-    setKeyModalSuccess('实卡配置核验通过！已保存 provisioned_at 完成时间及 SDM 计数基线。');
+    setKeyModalSuccess('〔演示〕配置核验通过样例已记录；未校验真实卡片或凭证。');
   };
 
   const columns: ColumnsType<ChipView> = [
@@ -685,7 +673,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
       },
     },
     {
-      title: '关联物品项目',
+      title: '物品类别',
       dataIndex: 'project',
       key: 'project',
       width: 86,
@@ -896,6 +884,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
         />
       )}
 
+      {webhookError&&<Alert type="error" showIcon title={webhookError} closable onClose={()=>setWebhookError('')}/>}
       {recentActionBanner && (
         <Alert
           type={recentActionBanner.type}
@@ -964,13 +953,13 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
             />
           </Col>
           <Col xs={12} md={5} lg={4}>
-            <div className="text-xs font-medium text-slate-600 mb-1">所属项目</div>
+            <div className="text-xs font-medium text-slate-600 mb-1">物品类别</div>
             <Select
               style={{ width: '100%' }}
               value={filters.project}
               onChange={(val) => setFilters({ ...filters, project: val })}
               options={[
-                { value: '', label: '全部项目' },
+                { value: '', label: '全部类别' },
                 { value: 'unassigned', label: '未关联物品' },
                 { value: 'fashion', label: '服装' },
                 { value: 'jewelry', label: '饰品' },
@@ -1188,11 +1177,13 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                   type="link"
                   icon={<MobileOutlined />}
                   style={{ padding: 0, color: '#7e22ce', fontSize: 12 }}
-                  onClick={()=>Modal.info({title:'手机扫描登记',content:'正式版本沿用现有手机登记能力。当前原型不连接NFC.cool，不生成假回调记录。'})}
+                  data-demo-only aria-label="〔演示〕触发Webhook登记" onClick={()=>handleSimulateNfcCoolScan('new')}
                 >
-                  查看手机扫描登记说明
+                  〔演示〕触发Webhook登记
                 </Button>
               </Tooltip>
+              <Button size="small" type="link" data-demo-only disabled={!lastWebhookUid} onClick={()=>handleSimulateNfcCoolScan('duplicate')}>〔演示〕重复回调</Button>
+              <Button size="small" type="link" data-demo-only onClick={()=>handleSimulateNfcCoolScan('rejected')}>〔演示〕鉴权失败</Button>
             </div>
             <Button
               size="small"
@@ -1280,7 +1271,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                   setRegError('');
                 }}
               >
-                填入示例 UID
+                〔演示〕填入示例 UID
               </Button>
             }
             style={{ marginBottom: 16 }}
@@ -1328,7 +1319,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
           {regConflictChip && (
             <div className="flex items-center justify-between p-2.5 rounded bg-amber-50 border border-amber-200 text-xs mt-3">
               <span>
-                已存在原记录：<Text code>{regConflictChip.chip_uid}</Text>（关联物品项目：
+                已存在原记录：<Text code>{regConflictChip.chip_uid}</Text>（物品类别：
                 {regConflictChip.project ? PROJECT_SHORT_LABELS[regConflictChip.project] : '未分配'}
                 ）
               </span>
@@ -1394,13 +1385,13 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                 },
                 {
                   key: 'proj',
-                  label: '关联物品项目',
+                  label: '物品类别',
                   children: bindModalChip.project ? (
                     <Tag color={bindModalChip.project === 'fashion' ? 'blue' : 'gold'}>
-                      {PROJECT_SHORT_LABELS[bindModalChip.project]}（仅列同项目候选）
+                      {PROJECT_SHORT_LABELS[bindModalChip.project]}（仅列同类别候选）
                     </Tag>
                   ) : (
-                    <Tag color="processing">未分配（绑定后将按所选物品确定项目）</Tag>
+                    <Tag color="processing">未分配（绑定后将按所选物品引用类别）</Tag>
                   ),
                 },
                 {
@@ -1418,7 +1409,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
 
             <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 p-3 rounded border border-slate-200">
               <Space wrap>
-                <span className="text-xs font-medium text-slate-600">候选项目：</span>
+                <span className="text-xs font-medium text-slate-600">候选物品类别：</span>
                 <Select
                   style={{ width: 150 }}
                   disabled={bindModalChip.project !== null}
@@ -1537,7 +1528,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                   </Text>
                   {bindModalChip.project === null && (
                     <Tag color="geekblue">
-                      绑定后展示物品项目：{PROJECT_SHORT_LABELS[selectedCandidateItem.project]}
+                      绑定后展示物品类别：{PROJECT_SHORT_LABELS[selectedCandidateItem.project]}
                     </Tag>
                   )}
                 </div>
@@ -1589,7 +1580,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
         ]}
       >
         {keyModalChip && (
-          <div className="space-y-5 pt-2">
+          <div className="space-y-5 pt-2"><Alert type="warning" showIcon title="芯片配卡交互演示" description="本窗口不连接真实设备或接口，密钥仅为占位文字，不能用于写卡。演示按钮不进入正式构建；真实配卡仍需技术方案与实卡验证。"/>
             <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-3 rounded border border-slate-200">
               <Space split={<Divider type="vertical" />} wrap>
                 <span>
@@ -1655,14 +1646,14 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                       const res = onGenerateChipKeys(keyModalChip.id);
                       if (res.ok) {
                         setKeyModalSuccess(
-                          '芯片密钥已生成并加密保存，请勾选下方确认后查看密钥并按手册配卡。'
+                          '〔演示〕仅更新已准备标记，可继续查看占位值；未生成或保存真实密钥。'
                         );
                       } else {
                         setKeyModalError(res.error || '生成失败');
                       }
                     }}
                   >
-                    {keyModalChip.keys_generated ? '密钥已生成 (不可覆盖)' : '生成芯片密钥'}
+                    {keyModalChip.keys_generated ? '密钥已生成 (不可覆盖)' : '〔演示〕生成芯片密钥标记'}
                   </Button>
                 </div>
 
@@ -1675,16 +1666,17 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                     onChange={(e) => setKeyViewAck(e.target.checked)}
                   >
                     <Text strong>我确认查看密钥：</Text>
-                    理解其中 <Text code>K1</Text> 是同版本跨项目全局共享秘密（影响所有项目的同版本芯片），明文仅用于本次配卡，关闭弹窗后立即清除。
+                    理解其中 <Text code>K1</Text> 是同版本跨类别全局共享秘密（影响所有项目的同版本芯片），明文仅用于本次配卡，关闭弹窗后立即清除。
                   </Checkbox>
                   <div>
                     {!revealedKeys ? (
                       <Button
                         icon={<EyeOutlined />}
+                        aria-label="〔演示〕查看密钥占位与模板"
                         disabled={!keyModalChip.keys_generated || !keyViewAck}
                         onClick={handleRevealKeys}
                       >
-                        受控查看 K0–K4 密钥与 SUN 模板
+                        〔演示〕查看密钥占位与模板
                       </Button>
                     ) : (
                       <Button
@@ -1702,7 +1694,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                   <div className="p-3 rounded-lg bg-slate-900 text-slate-100 space-y-2 font-mono text-xs">
                     <div className="flex items-center justify-between text-amber-300 font-sans">
                       <span>
-                        安全提示：本次查看已记录管理员审计日志（含时间与访问指纹），Cache-Control: no-store
+                        演示提示：这里仅为占位信息，真实审计与受控读取由正式服务实现
                       </span>
                       <span>版本：{revealedKeys.key_version}</span>
                     </div>
@@ -1757,7 +1749,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                       style={{ padding: 0, color: '#7e22ce', fontSize: 12 }}
                       onClick={handleFillDemoTapLinks}
                     >
-                      填入两条递增测试触碰链接
+                      〔演示〕填入两条递增链接
                     </Button>
                   </div>
                 )
@@ -1821,7 +1813,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                       }
                       onClick={handleSubmitProvisioning}
                     >
-                      提交双链接并确认配置核验
+                      〔演示〕提交双链接核验样例
                     </Button>
                   </div>
                 </div>
@@ -1880,7 +1872,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                     ),
                   },
                   {
-                    key:'project',label:'关联物品项目',children:activeChip.item_id?<Space><Tag>{activeChip.project?PROJECT_SHORT_LABELS[activeChip.project]:'未记录'}</Tag><a onClick={()=>guardDrawerBeforeAction(()=>onOpenItemDetail(activeChip.item_id!))}>查看关联物品</a></Space>:<Text type="secondary">未关联物品</Text>,
+                    key:'project',label:'物品类别',children:activeChip.item_id?<Space><Tag>{activeChip.project?PROJECT_SHORT_LABELS[activeChip.project]:'未记录'}</Tag><a onClick={()=>guardDrawerBeforeAction(()=>onOpenItemDetail(activeChip.item_id!))}>查看关联物品</a></Space>:<Text type="secondary">未关联物品</Text>,
                   },
                   {
                     key: 'time',
@@ -2356,7 +2348,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                 options={availableReplacementChips.map((c) => ({
                   value: c.id,
                   label: `${c.chip_uid}（${
-                    c.project ? PROJECT_SHORT_LABELS[c.project] : '未分配项目'
+                    c.project ? PROJECT_SHORT_LABELS[c.project] : '未关联物品'
                   }${c.batch_no ? ` · 批次 ${c.batch_no}` : ''}）`,
                 }))}
               />

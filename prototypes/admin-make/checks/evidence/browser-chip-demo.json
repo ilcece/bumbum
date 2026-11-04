@@ -1,0 +1,30 @@
+{
+  "results": [
+    {
+      "case": "为Webhook配卡链路创建确切款式引用的物品草稿",
+      "status": "passed"
+    },
+    {
+      "case": "Webhook登记后可首次关联物品，绑定不提前生成密钥或核验",
+      "status": "passed"
+    },
+    {
+      "case": "演示密钥准备标记不可覆盖，不自动完成配置核验",
+      "status": "passed"
+    },
+    {
+      "case": "受控查看演示仅显示占位文字，不产生真实密钥",
+      "status": "passed"
+    },
+    {
+      "case": "递增链接与人工确认位置保留，核验样例不认领所有人",
+      "status": "passed"
+    },
+    {
+      "case": "完整Webhook/配卡演示无运行异常或真实业务请求",
+      "status": "passed"
+    }
+  ],
+  "page_errors": [],
+  "business_requests": []
+}

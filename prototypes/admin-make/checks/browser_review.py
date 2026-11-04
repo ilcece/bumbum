@@ -8,7 +8,7 @@ results=[];errors=[];business_requests=[]
 def record(name):results.append({'case':name,'status':'passed'});print('通过：'+name,flush=True)
 def snapshot(page,name):page.screenshot(path=str(OUT/(name+'.png')))
 def data(page):
- d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v2'))")
+ d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v3'))")
  for i in d['items']:
   style=next((s for s in d['styles'] if s['id']==i['styleId']),None)
   i['profile']=style['profile'] if style else None
@@ -22,7 +22,7 @@ def save_shared(page,m):
  page.wait_for_timeout(450)
 def modal(page):return page.locator('.ant-modal:visible').last
 def menu(page,name):page.get_by_role('menuitem',name=re.compile(name)).click()
-def item(page,uid):menu(page,'数字物品管理');page.get_by_role('button',name=uid,exact=True).click();expect(page.get_by_role('button',name='申请换新',exact=True)).to_be_visible()
+def item(page,uid):menu(page,'物品管理');page.get_by_role('button',name=uid,exact=True).click();expect(page.get_by_role('button',name='申请换新',exact=True)).to_be_visible()
 def select(page,label,text):page.get_by_label(label,exact=True).click();page.locator('.ant-select-dropdown:visible').get_by_text(text,exact=True).last.click();expect(page.locator('.ant-select-dropdown:visible')).to_have_count(0)
 def enter(page):page.goto(URL,wait_until='networkidle');page.get_by_role('button',name='使用演示身份进入').click();expect(page.get_by_role('menuitem',name='工作台总览')).to_be_visible()
 def workflow(page,kind):
@@ -36,7 +36,7 @@ def workflow(page,kind):
  if kind=='resale':
   expect(page.get_by_label('目标尺码',exact=True)).to_have_count(0);select(page,'本次交付尺码','L')
  page.get_by_label('候选新芯片',exact=True).click();page.locator('.ant-select-dropdown:visible .ant-select-item-option:visible').first.click()
- page.get_by_role('button',name='填入样例核验引用').click();page.get_by_role('button',name='记录准备完成，进入交付',exact=True).click();expect(page.get_by_label('发货记录',exact=True)).to_be_visible()
+ page.get_by_role('button',name='〔演示〕填入样例核验引用').click();page.get_by_role('button',name='记录准备完成，进入交付',exact=True).click();expect(page.get_by_label('发货记录',exact=True)).to_be_visible()
  d=data(page);w=d['works'][0];assert next(i for i in d['items'] if i['id']==w['itemId'])['bound_chip_id']==old_id
  assert next(c for c in d['chips'] if c['id']==w['candidateChipId'])['item_id'] is None
  record(kind+'：准备不激活新芯片')
