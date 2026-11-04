@@ -792,38 +792,7 @@ function AppCore() {
     return { ok: true };
   };
 
-  const handleReportChipLost = (chipId: number, reason: string) => {
-    const chip = chips.find((c) => c.id === chipId);
-    if (!chip) return { ok: false, error: '芯片不存在' };
-    const now = new Date().toISOString();
-    setChips((prev) =>
-      prev.map((c) => (c.id === chipId ? { ...c, chip_status: 'lost', updated_at: now } : c))
-    );
-    if (chip.item_id) {
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === chip.item_id
-            ? {
-                ...i,
-                bound_chip_status: 'lost',
-                carrier_history: (i.carrier_history || []).map((h) => ({
-                  ...h,
-                  is_current_active: false,
-                })),
-                updated_at: now,
-              }
-            : i
-        )
-      );
-    }
-    appendAudit(
-      'replacement',
-      'd.chip.report_lost',
-      `${chip.chip_uid} (${chip.item_uid || ''})`,
-      `标记芯片挂失并立即失效旧短期查看凭证与持续查看会话：${reason}`
-    );
-    return { ok: true };
-  };
+  const handleReportChipLost = (chipId:number,reason:string)=>proto.reportLost(chipId,reason);
 
   const handleExecuteCarrierReplacement = (payload: {
     itemId: number;

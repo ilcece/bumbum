@@ -941,7 +941,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             </Space>
             <div className="mt-0.5 text-xs text-slate-500">
               {record.bound_chip_provisioned_at
-                ? '实卡配置已核验'
+                ? '〔演示〕配置已核验'
                 : record.bound_chip_keys_generated
                   ? '已生密钥 · 待双链接核验'
                   : '未生密钥'}

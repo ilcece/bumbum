@@ -1053,7 +1053,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                     { value: 'unprovisioned', label: '待完成实卡核验（含未生密钥/待核验）' },
                     { value: 'no_key', label: '未生成密钥' },
                     { value: 'key_only', label: '已生成密钥 · 待核验' },
-                    { value: 'provisioned', label: '已完成实卡配置核验' },
+                    { value: 'provisioned', label: '〔演示〕已完成配置核验样例' },
                   ]}
                 />
               </Col>
@@ -1602,7 +1602,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                   {keyModalChip.keys_generated ? '密钥已生成 (v1)' : '密钥未生成'}
                 </Tag>
                 <Tag color={keyModalChip.provisioned_at ? 'success' : 'warning'}>
-                  {keyModalChip.provisioned_at ? '实卡配置已核验' : '实卡配置未核验'}
+                  {keyModalChip.provisioned_at ? '〔演示〕配置已核验' : '〔演示〕待配置核验'}
                 </Tag>
               </Space>
             </div>
@@ -1762,7 +1762,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                 <Alert
                   type="success"
                   showIcon
-                  message={`已完成实卡配置核验（核验时间：${new Date(
+                  message={`〔演示〕已完成配置核验样例（核验时间：${new Date(
                     keyModalChip.provisioned_at
                   ).toLocaleString('zh-CN', { hour12: false })}）`}
                   description="该芯片已通过双链接防伪验签与计数器递增检查，已保存读取计数基线；不允许重复重置配置。"
@@ -2046,7 +2046,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                         <Tag color={activeChip.provisioned_at ? 'success' : 'warning'}>
                           {activeChip.provisioned_at
                             ? `配置已核验 (${new Date(activeChip.provisioned_at).toLocaleDateString('zh-CN')})`
-                            : '实卡配置未核验'}
+                            : '〔演示〕待配置核验'}
                         </Tag>
                       </Space>
                     </div>
