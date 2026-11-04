@@ -37,8 +37,12 @@ Webhook新回调/重复/鉴权失败、登录快捷进入、样例编号/核验�
 
 资格证据、费用、冻结范围/时点、跨年及扣减/占用节点、退款/取消/争议仍待定。换新完成后标“待核对计次”，不擅自选择政策；转售延续既有余额。取消/异常样例不是已批准的取消流程。B清理/C纠错继续显示条件和待审说明，不执行删除、改号、释放关联或复活旧卡；生产图片配套备份恢复门槛保留。
 
+## 本轮验收审查
+
+登录页已移除“检查运行环境”，系统工作区保留。旧物品补发行关联、发行字段/确认/状态/删除及其他发现见[审查与改法](../../docs/proposals/admin-make-rebuild.md#43-原型全面审查与待对齐改法2026-11-04)，本轮只改登录入口，其余待对齐。最新审核范围及86项现有路径核对见[记录](checks/evidence/audit-summary.json)，不把已有检查通过当作缺失流程已实现。
+
 ## 原型验证
 
-checks内脚本只做受影响业务验证，不是React 19独立组件矩阵。本轮构建与72项检查通过：发行创建/身份保护18、核心接续21、保存/图片/连续创建9、架构与引用15、Webhook配卡6、离线及容器3；没有真实业务请求。新建表单在1280×720下操作可达。编号建议不替代正式服务端唯一约束与事务，原型通过不关闭后端缺口。
+checks内脚本只做受影响业务验证，不是React 19独立组件矩阵。此前发行关联交付构建与72项检查通过：发行创建/身份保护18、核心接续21、保存/图片/连续创建9、架构与引用15、Webhook配卡6、离线及容器3；没有真实业务请求。新建表单在1280×720下操作可达。编号建议不替代正式服务端唯一约束与事务，原型通过不关闭后端缺口。
 
-证据：[发行关联专项](checks/evidence/browser-issuance.json)、[核心接续](checks/evidence/browser-review.json)、[保存/图片/创建](checks/evidence/browser-states.json)、[架构与引用](checks/evidence/browser-relations.json)、[Webhook配卡](checks/evidence/browser-chip-demo.json)、[离线及容器](checks/evidence/preview-review.json)。前轮[排序/分页专项](checks/evidence/browser-pagination.json)及工作区/导航结果作为历史证据保留，不计入本轮72项。实际交付/人工验收状态以[TODO](../../TODO.md)为准；正式代码构建等待原型确认。
+证据：[发行关联专项](checks/evidence/browser-issuance.json)、[核心接续](checks/evidence/browser-review.json)、[保存/图片/创建](checks/evidence/browser-states.json)、[架构与引用](checks/evidence/browser-relations.json)、[Webhook配卡](checks/evidence/browser-chip-demo.json)、[离线及容器](checks/evidence/preview-review.json)。前轮[排序/分页专项](checks/evidence/browser-pagination.json)及工作区/导航结果作为历史证据保留，不计入该轮72项。实际交付/人工验收状态以[TODO](../../TODO.md)为准；正式代码构建等待原型确认。

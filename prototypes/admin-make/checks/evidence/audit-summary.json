@@ -1,0 +1,453 @@
+{
+  "scope": "隔离原型，合成数据；不访问真实业务服务",
+  "business_checks": 86,
+  "login_environment_removed": true,
+  "issues": [
+    {
+      "status": "已修正",
+      "finding": "登录窗口冗余环境入口",
+      "recommendation": "移除登录页检查运行环境，系统与环境工作区保留。"
+    },
+    {
+      "status": "优先调整",
+      "finding": "旧物品缺发行约定后无法补齐",
+      "recommendation": "当前仅未绑定/未归属草稿可补。同款缺失关联应提供专用补齐路径：核对原发行依据、序号唯一性及权益影响；已有正确身份不普通改写，不自动新增承诺或重置余额。"
+    },
+    {
+      "status": "优先调整",
+      "finding": "已绑定但未核验的芯片在物品详情不可识别",
+      "recommendation": "实体只在配置核验后生成，EntityFacts无当前实体时不展示已绑定芯片摘要，但仍出现挂失按钮。应独立显示已关联芯片和待配置状态，不伪造实体接续事实。"
+    },
+    {
+      "status": "优先调整",
+      "finding": "发行确认步骤不易发现",
+      "recommendation": "当前必须保存关闭再重新打开，才出现确认。建议保存后展示明确的确认入口/结果动作；保留保存草案与确认约定的业务区别。"
+    },
+    {
+      "status": "界面调整",
+      "finding": "已发行标签与确认动作含义不符",
+      "recommendation": "确认只是允许用于登记物品，不证明已经有物品发行。建议显示草案/已确认，并显示引用物品数。"
+    },
+    {
+      "status": "字段简化建议",
+      "finding": "适用版本标记由管理员手填",
+      "recommendation": "它只是说明标签，没有完整修订/版本管理，默认草案也可确认。建议从业务表单移除，内部保留自动生成的确认标识、时间与审计；不扩建发布系统。"
+    },
+    {
+      "status": "规则对齐建议",
+      "finding": "允许颜色及例外约定是必填文本但未用于办理校验",
+      "recommendation": "当前办理从实体颜色取得，缺值还默认黑色，未解析或校验发行颜色。建议去掉独立重复输入，将例外写入发行说明，办理展示约定供核对；实际颜色仅记录实体事实，缺失时要求核对，不默填黑色。不取消已确认的颜色限制原则。"
+    },
+    {
+      "status": "规则对齐建议",
+      "finding": "发行约定没有删除入口",
+      "recommendation": "UI和store都没有删除操作。建议从未被物品引用的草案/已确认约定可经确认删除并留审计；已引用的禁止硬删并提供引用物品列表。删除权限与历史引用校验需要落实后才能算完成。"
+    },
+    {
+      "status": "需统一的规则",
+      "finding": "启停及故障反馈不一致",
+      "recommendation": "物品详情目前仅服装提供启停，启用检查仅名称；与先配卡后启用主流程需统一。启停/挂失未接入统一保存失败/未知演示，不能把其他表单的失败测试当这些动作已覆盖。"
+    },
+    {
+      "status": "展示调整",
+      "finding": "芯片核验演示结果容易被当真实成功",
+      "recommendation": "黄色提示写演示，但绿色结果仍写实卡配置已核验、已完成实卡配置核验。统一结果、徽标及步骤文字的演示标记；项目/限定编号等旧文案也要统一类别/发行编号。"
+    }
+  ],
+  "limits": [
+    "83项为本轮登录改动前的业务/异常/工作区核对；登录改动后构建及3项离线检查通过，并重新截图确认入口移除。",
+    "这些检查只证明已覆盖路径，不证明列出的缺失流程已完成；不是React19组件矩阵、正式后端/实卡/生产恢复或完整WCAG验收。",
+    "补充截图脚本最后共用资料定位未完成，未作为该步通过证据；共用资料/图片/未保存处理使用本轮现有业务脚本证据。"
+  ],
+  "suites": {
+    "browser-review": {
+      "results": [
+        {
+          "case": "演示登录空输入反馈",
+          "status": "passed"
+        },
+        {
+          "case": "演示登录与原稿工作台导航",
+          "status": "passed"
+        },
+        {
+          "case": "已用年度额度禁用再次换新",
+          "status": "passed"
+        },
+        {
+          "case": "详情三层信息与独立历史分区",
+          "status": "passed"
+        },
+        {
+          "case": "取消编辑保留原资料",
+          "status": "passed"
+        },
+        {
+          "case": "保存共用资料同步同款引用物品",
+          "status": "passed"
+        },
+        {
+          "case": "共用发行资料引用与只读实际实体快照",
+          "status": "passed"
+        },
+        {
+          "case": "periodic：准备不激活新芯片",
+          "status": "passed"
+        },
+        {
+          "case": "periodic：发货不切换授权或归属",
+          "status": "passed"
+        },
+        {
+          "case": "periodic：收到后仍等待正式接续",
+          "status": "passed"
+        },
+        {
+          "case": "periodic：正式接续保持编号、唯一当前实体与正确归属/历史",
+          "status": "passed"
+        },
+        {
+          "case": "resale：准备不激活新芯片",
+          "status": "passed"
+        },
+        {
+          "case": "resale：发货不切换授权或归属",
+          "status": "passed"
+        },
+        {
+          "case": "resale：收到后仍等待正式接续",
+          "status": "passed"
+        },
+        {
+          "case": "resale：正式接续保持编号、唯一当前实体与正确归属/历史",
+          "status": "passed"
+        },
+        {
+          "case": "挂失阻断当前芯片且不扣换新次数",
+          "status": "passed"
+        },
+        {
+          "case": "手工登记入口可达",
+          "status": "passed"
+        },
+        {
+          "case": "连续登记成功后清空UID/批次，无项目录入",
+          "status": "passed"
+        },
+        {
+          "case": "重复登记不新增且不覆盖原记录",
+          "status": "passed"
+        },
+        {
+          "case": "原型操作日志分页后可追溯已保存动作",
+          "status": "passed"
+        },
+        {
+          "case": "无页面运行异常且未请求真实业务API",
+          "status": "passed"
+        }
+      ],
+      "page_errors": [],
+      "business_requests": []
+    },
+    "browser-states": {
+      "results": [
+        {
+          "case": "保存失败保留输入且不改原资料",
+          "status": "passed"
+        },
+        {
+          "case": "失败恢复后明确重试保存成功",
+          "status": "passed"
+        },
+        {
+          "case": "未知结果先核对，不自动重发或误报成功",
+          "status": "passed"
+        },
+        {
+          "case": "Upload选择与预览仅暂存，未保存不关联",
+          "status": "passed"
+        },
+        {
+          "case": "图片保存到共用资料，同步物品引用",
+          "status": "passed"
+        },
+        {
+          "case": "连续创建保留类别引用并清空已提交字段",
+          "status": "passed"
+        },
+        {
+          "case": "重复物品编号拒绝覆盖",
+          "status": "passed"
+        },
+        {
+          "case": "已生效查询返回及刷新后仍保留",
+          "status": "passed"
+        },
+        {
+          "case": "异常与图片路径无页面运行错误",
+          "status": "passed"
+        }
+      ],
+      "page_errors": []
+    },
+    "browser-relations": {
+      "results": [
+        {
+          "case": "5个一级入口与物品管理4个二级工作区",
+          "status": "passed"
+        },
+        {
+          "case": "归档物品为只读样例，不开放普通编辑或恢复归档",
+          "status": "passed"
+        },
+        {
+          "case": "类别只存在款式，物品/发行/芯片不保存独立类别",
+          "status": "passed"
+        },
+        {
+          "case": "共用保存提示影响及生效，更新不覆盖实体/年度/流转事实和折叠尺码字段",
+          "status": "passed"
+        },
+        {
+          "case": "未引用款式可选择类别，新款按饰品显示适用字段",
+          "status": "passed"
+        },
+        {
+          "case": "物品选择发行自动引用新饰品款式和类别，保存关系准确",
+          "status": "passed"
+        },
+        {
+          "case": "已发行总量/颜色/权益版本只读，颜色取自发行而非当前实体",
+          "status": "passed"
+        },
+        {
+          "case": "发行草案可维护，保存不发行、不分配编号、不追改旧承诺",
+          "status": "passed"
+        },
+        {
+          "case": "发行草案未知回执先核对，禁止重复保存，恢复后明确重试",
+          "status": "passed"
+        },
+        {
+          "case": "办理列表覆盖准备、发货、运输、核验、完成、取消历史和异常只读状态",
+          "status": "passed"
+        },
+        {
+          "case": "取消与异常记录仅只读展示，没有擅自恢复/退款/接续操作",
+          "status": "passed"
+        },
+        {
+          "case": "跨物品查询并继续运输中办理，刷新保留工作区/条件/已保存阶段",
+          "status": "passed"
+        },
+        {
+          "case": "标记明确的Webhook演示登记未关联芯片，不请求真实回调",
+          "status": "passed"
+        },
+        {
+          "case": "重复回调不重复造卡，鉴权失败不登记或覆盖数据",
+          "status": "passed"
+        },
+        {
+          "case": "架构与演示路径无页面运行异常、无真实业务API请求",
+          "status": "passed"
+        }
+      ],
+      "page_errors": [],
+      "business_requests": []
+    },
+    "browser-chip-demo": {
+      "results": [
+        {
+          "case": "为Webhook配卡链路创建确切款式引用的物品草稿",
+          "status": "passed"
+        },
+        {
+          "case": "Webhook登记后可首次关联物品，绑定不提前生成密钥或核验",
+          "status": "passed"
+        },
+        {
+          "case": "演示密钥准备标记不可覆盖，不自动完成配置核验",
+          "status": "passed"
+        },
+        {
+          "case": "受控查看演示仅显示占位文字，不产生真实密钥",
+          "status": "passed"
+        },
+        {
+          "case": "递增链接与人工确认位置保留，核验样例不认领所有人",
+          "status": "passed"
+        },
+        {
+          "case": "完整Webhook/配卡演示无运行异常或真实业务请求",
+          "status": "passed"
+        }
+      ],
+      "page_errors": [],
+      "business_requests": []
+    },
+    "browser-workspaces": {
+      "results": [
+        {
+          "case": "数字物品工作区表格及操作可见，无页面横向溢出",
+          "status": "passed"
+        },
+        {
+          "case": "款式资料工作区表格及操作可见，无页面横向溢出",
+          "status": "passed"
+        },
+        {
+          "case": "发行约定工作区表格及操作可见，无页面横向溢出",
+          "status": "passed"
+        },
+        {
+          "case": "办理记录工作区表格及操作可见，无页面横向溢出",
+          "status": "passed"
+        },
+        {
+          "case": "加载中状态有明确反馈，可通过标记的演示入口恢复",
+          "status": "passed"
+        },
+        {
+          "case": "读取失败不冒充空表，重试恢复已保存资料",
+          "status": "passed"
+        },
+        {
+          "case": "无匹配结果显示独立空状态，重置后恢复列表",
+          "status": "passed"
+        },
+        {
+          "case": "1280×720下办理列表内部横向滚动，主页面不溢出",
+          "status": "passed"
+        }
+      ],
+      "page_errors": []
+    },
+    "browser-pagination": {
+      "results": [
+        {
+          "case": "芯片跨页按登记时间倒序、相同时编号倒序，每页最多10条且无遗漏",
+          "status": "passed"
+        },
+        {
+          "case": "第二页手工登记成功后回首页，新芯片排第一",
+          "status": "passed"
+        },
+        {
+          "case": "第二页Webhook新增成功后回首页，新记录排第一",
+          "status": "passed"
+        },
+        {
+          "case": "重复回调不新增、不改登记时间、不强制跳页",
+          "status": "passed"
+        },
+        {
+          "case": "新增保留筛选，不匹配时不伪造结果，成功提示仍可查看确切记录",
+          "status": "passed"
+        },
+        {
+          "case": "物品、款式、发行和办理各列表分页上限10条",
+          "status": "passed"
+        }
+      ],
+      "page_errors": []
+    },
+    "browser-issuance": {
+      "results": [
+        {
+          "case": "新建限定发行草案，独立保存总量/款式/承诺",
+          "status": "passed"
+        },
+        {
+          "case": "未确认草案不能用于新物品登记",
+          "status": "passed"
+        },
+        {
+          "case": "确认约定冻结承诺，不生成物品或提前启用",
+          "status": "passed"
+        },
+        {
+          "case": "确认后关联款式/总量/颜色及权益承诺不可普通改写",
+          "status": "passed"
+        },
+        {
+          "case": "新建只选发行，款式与类别自动引用且只读",
+          "status": "passed"
+        },
+        {
+          "case": "限定序号超过总量被拒绝且不产生半条身份",
+          "status": "passed"
+        },
+        {
+          "case": "创建时原子保存物品/发行/序号，仍未绑定未归属未启用",
+          "status": "passed"
+        },
+        {
+          "case": "连续创建保留发行，重复发行内序号拒绝覆盖",
+          "status": "passed"
+        },
+        {
+          "case": "系统物品编号与本件序号分开检查，重复身份不覆盖",
+          "status": "passed"
+        },
+        {
+          "case": "非限定草案保存无总量并可确认，仍绑定款式承诺",
+          "status": "passed"
+        },
+        {
+          "case": "新增发行字段后1280×720物品创建弹窗操作仍可达",
+          "status": "passed"
+        },
+        {
+          "case": "非限定允许大于100的本件序号，无发行数量上限",
+          "status": "passed"
+        },
+        {
+          "case": "非限定详情仅显示本件编号，已登记身份不能普通重分配",
+          "status": "passed"
+        },
+        {
+          "case": "刷新后保留准确发行引用与非限定序号",
+          "status": "passed"
+        },
+        {
+          "case": "非限定约定详情不伪造总量或限定规则",
+          "status": "passed"
+        },
+        {
+          "case": "旧的未绑定未归属草稿可补同款约定与序号，其他物品事实不变",
+          "status": "passed"
+        },
+        {
+          "case": "已启用/绑定/归属身份不开放普通重分配",
+          "status": "passed"
+        },
+        {
+          "case": "全程无页面运行错误及真实业务请求",
+          "status": "passed"
+        }
+      ],
+      "page_errors": [],
+      "business_requests": []
+    },
+    "preview-review": {
+      "results": [
+        {
+          "case": "离线详情抽屉宽800px",
+          "status": "passed"
+        },
+        {
+          "case": "1280×720下转售居中1120px，申请不填尺码，底部操作可达",
+          "status": "passed"
+        },
+        {
+          "case": "离线预览无网络请求及页面运行异常",
+          "status": "passed"
+        }
+      ],
+      "page_errors": [],
+      "network_requests": []
+    }
+  }
+}

@@ -6,7 +6,6 @@ import {
   Button,
   Card,
   Col,
-  Collapse,
   ConfigProvider,
   Divider,
   Dropdown,
@@ -1051,7 +1050,6 @@ function AppCore() {
                     </Button>
                   </Form.Item>
                 </Form>
-                <Collapse size="small" items={[{key:'runtime',label:'检查运行环境',children:'当前为独立交互原型，未连接真实后台或数据库。正式运行环境检查仍在诊断页独立展示。'}]}/>
               </div>
             </Card>
           </div>
