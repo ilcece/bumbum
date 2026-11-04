@@ -5,7 +5,7 @@ from playwright.sync_api import sync_playwright,expect
 url=sys.argv[1];out=Path(sys.argv[2]);out.mkdir(parents=True,exist_ok=True)
 checks=[];errors=[];requests=[]
 def passed(name):checks.append({'case':name,'status':'passed'});print('通过：'+name,flush=True)
-def raw(page):return page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v4'))")
+def raw(page):return page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v5'))")
 def modal(page):return page.locator('.ant-modal:visible').last
 def menu(page,name):page.get_by_role('menuitem',name=re.compile(name)).click()
 with sync_playwright() as p:

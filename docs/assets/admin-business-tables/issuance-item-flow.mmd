@@ -1,22 +1,22 @@
 flowchart LR
-    proposalRoot["建议流程：限定发行物品｜待对齐，尚未实施"]
+    proposalRoot["限定与非限定：发行约定到数字物品｜隔离原型流程"]
     styleRecord["建款：类别与共用商品资料"]
     issueDraft["建立本次发行约定草案"]
-    confirmTerms["核对并确认当次承诺｜入口与时点待审"]
+    confirmTerms["保存后单独确认承诺｜确认后只读"]
     createItem["登记物品：选择本次发行约定"]
     deriveStyle["自动带出款式与类别｜不可另选冲突款式"]
-    serial["填写本件限定序号｜编号范围待定"]
-    validateIdentity["核对唯一性、总量与发行款式一致"]
+    serial["填写本件正整数序号｜发行内唯一"]
+    validateIdentity["核对唯一性与引用｜限定不超总量，非限定无上限"]
     saveIdentity["一起保存物品编号、发行引用及本件序号"]
     relatedDraft["关联已成立｜物品仍未启用"]
     registerChip["手工或Webhook登记芯片"]
     bindItem["芯片绑定这件数字物品"]
     entityPreparation["记录真实实体并完成配卡与核验"]
     enableItem["单独启用物品｜仍须满足查看资格"]
-    futureDelivery["换新或转售：保留发行引用与限定序号"]
+    futureDelivery["换新或转售：保留发行引用与本件序号"]
     nextEntity["增加新实体和芯片，核验后明确接续"]
     ownership["持有人认领与转移走专用流程"]
-    nonLimited["待定：非限定物品是否也必须选发行约定"]
+    nonLimited["非限定也必须关联发行｜编号如#001，无总量分母"]
     proposalRoot --> styleRecord --> issueDraft --> confirmTerms --> createItem
     createItem --> deriveStyle --> serial --> validateIdentity --> saveIdentity --> relatedDraft
     proposalRoot --> registerChip
@@ -25,7 +25,7 @@ flowchart LR
     enableItem --> futureDelivery --> nextEntity
     bindItem -.->|"绑定不等于认领"| ownership
     nextEntity -.->|"转售才变更归属"| ownership
-    proposalRoot -.->|"本图暂不替代该决定"| nonLimited
+    proposalRoot -.->|"已确认规则"| nonLimited
     style confirmTerms fill:#FFECBD,stroke:#FFC943
     style serial fill:#FFECBD,stroke:#FFC943
     style nonLimited fill:#FFECBD,stroke:#FFC943

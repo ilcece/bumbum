@@ -31,6 +31,8 @@ export function withScenarioExamples(data: Data): Data {
   }
   const style=data.styles[0];
   data.styles.push({id:'STYLE-UNUSED',code:'BB-DEMO-NEXT',project:'fashion',profile:{...style.profile,name:'下一款产品 · 未引用样例',description:'演示尚未关联任何物品的共用款式'},sizes:['S','M','L']});
-  data.issuances.push({id:'ISSUE-DEMO-DRAFT',name:'同款再次发行 · 草稿样例',series:'限定T恤',version:'下一次发行草案',styleId:style.id,total:50,color:'蓝色',rightIds:[],description:'模拟同款再次发行的不同颜色和权益约定；草稿不影响首次发行物品。新编号范围未定，不能发行。',status:'draft'});
+  data.issuances.push({id:'ISSUE-DEMO-DRAFT',name:'同款再次发行 · 草稿样例',series:'限定T恤',version:'下一次发行草案',styleId:style.id,total:50,color:'蓝色',rightIds:[],description:'模拟同款再次发行的不同颜色和权益约定；草稿不影响首次发行物品。确认承诺后可用于登记同款新物品。',status:'draft'});
+  data.issuances.push({id:'ISSUE-TEE-UNLIMITED',name:'日常系列 · 非限定',series:'日常T恤',version:'非限定约定样例1',styleId:'STYLE-UNUSED',total:null,color:'黑色',rightIds:['RIGHT-RENEW','RIGHT-RESALE'],description:'每件记录本次发行内唯一序号，不设发行数量上限。实体交付及权益规则按本约定独立保留。',status:'issued'});
+  // 保留原有未关联旧草稿，供验证补关联；非限定新建从界面操作完成。
   return data;
 }

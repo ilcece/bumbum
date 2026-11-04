@@ -15,6 +15,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   Radio,
   Row,
@@ -87,6 +88,7 @@ interface ItemManagementPageProps {
     project: ProjectCode;
     item_uid: string;
     sku_code: string | null;
+    issuanceId:string;editionNumber:number|null;
     is_validation_object?: boolean;
   }) => { ok: boolean; item?: ItemView; error?: string };
   onUpdateItemMaintenance: (
@@ -251,9 +253,15 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createProject, setCreateProject] = useState<ProjectCode>('fashion');
   const [createItemUid, setCreateItemUid] = useState('');
-  const [createSkuCode, setCreateSkuCode] = useState('');
+  const [createIssuanceId,setCreateIssuanceId]=useState<string|undefined>();
+  const [createNumber,setCreateNumber]=useState<number|null>(null);
+  const createIssue=proto.issuances.find(i=>i.id===createIssuanceId);
+  const createStyle=proto.styles.find(s=>s.id===createIssue?.styleId);
+  const createSkuCode=createStyle?.code||'';
+  const nextNumber=(id:string,extra?:number|null)=>{const occupied=new Set(Object.values(proto.identities).filter(m=>m.issuanceId===id).map(m=>m.editionNumber));if(extra)occupied.add(extra);let n=1;while(occupied.has(n))n++;return n;};
   const [createIsValidation, setCreateIsValidation] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [createDirty,setCreateDirty]=useState(false);
 
   // 服装基础资料编辑独立弹窗（也可从详情抽屉或行操作直接呼出）
   const [profileModalItemId, setProfileModalItemId] = useState<number | null>(null);
@@ -466,7 +474,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
 
   const handleSubmitCreateItem = (openEditorImmediately: boolean) => {
     setCreateError('');
-    if(!createSkuCode){setCreateError('请选择已有款式；类别只从款式引用。');return;}
+    if(!createIssue||!createSkuCode){setCreateError('请选择已确认发行约定；款式与类别由关联取得。');return;}
     const check = validateItemUid(createProject, createItemUid);
     if (!check.ok) {
       setCreateError(check.error);
@@ -480,6 +488,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
       project: createProject,
       item_uid: check.item_uid,
       sku_code: skuTrimmed,
+      issuanceId:createIssue.id,editionNumber:createNumber,
       is_validation_object: createIsValidation,
     });
     if (!res.ok || !res.item) {
@@ -489,13 +498,13 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
 
     setRecentCreatedBanner(res.item);
     setCreateItemUid('');
-    setCreateSkuCode('');
+    setCreateNumber(nextNumber(createIssue.id,createNumber));
+    setCreateDirty(false);
     if(openEditorImmediately)setCreateModalOpen(false);
     message.success(`已创建样例 ${res.item.item_uid}，可继续录入下一件。`);
 
     if (openEditorImmediately) {
       onSelectItemId(res.item.id);
-      proto.setIdentityEditorId(res.item.id);
     }
   };
 
@@ -746,9 +755,9 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
     setProfDirty(true);
   };
 
-  const closeCreate = () => {if(createSkuCode.trim()||(createItemUid.trim()&&createItemUid!==suggestNextItemUid(createProject))){Modal.confirm({title:'放弃未提交的物品草稿？',content:'本次输入尚未保存，确定关闭吗？',okText:'确认关闭',cancelText:'继续填写',onOk:()=>setCreateModalOpen(false)});}else setCreateModalOpen(false);};
+  const closeCreate = () => {if(createDirty){Modal.confirm({title:'放弃未提交的物品草稿？',content:'本次输入尚未保存，确定关闭吗？',okText:'确认关闭',cancelText:'继续填写',onOk:()=>setCreateModalOpen(false)});}else setCreateModalOpen(false);};
   const columns: ColumnsType<ItemView> = [
-    {title:'限定编号／持有人',key:'identity',width:175,render:(_,record)=><div><div>{proto.identity(record).edition||'非限定／未设定'}</div><Text type="secondary" style={{fontSize:12}}>{userName(proto.identity(record).ownerId)}</Text></div>},
+    {title:'发行编号／持有人',key:'identity',width:175,render:(_,record)=><div><div>{proto.identity(record).edition||'未关联发行'}</div><Text type="secondary" style={{fontSize:12}}>{userName(proto.identity(record).ownerId)}</Text></div>},
     {
       title: '物品编号',
       dataIndex: 'item_uid',
@@ -1258,7 +1267,9 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             onClick={() => {
               setCreateProject('fashion');
               setCreateItemUid(suggestNextItemUid('fashion'));
-              setCreateSkuCode('');
+              setCreateIssuanceId(undefined);
+              setCreateNumber(null);
+              setCreateDirty(false);
               setCreateIsValidation(false);
               setCreateError('');
               setCreateModalOpen(true);
@@ -1315,6 +1326,8 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
         open={createModalOpen}
         onCancel={closeCreate}
         width={520}
+        centered
+        styles={{body:{maxHeight:'calc(100dvh - 210px)',overflowY:'auto'}}}
         footer={[
           <Button key="cancel" onClick={closeCreate}>
             取消
@@ -1327,12 +1340,16 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             type="primary"
             onClick={() => handleSubmitCreateItem(true)}
           >
-            {createProject === 'fashion' ? '创建并完善身份' : '创建并打开详情'}
+            创建并打开详情
           </Button>,
         ]}
       >
         <Form layout="vertical" style={{ marginTop: 12 }}>
-          <Form.Item label="物品类别（款式引用）" extra="类别只在款式维护，创建物品不单独选择。"><Input readOnly value={createSkuCode?(createProject==='fashion'?'服装':'饰品'):'选择款式后确定'}/></Form.Item>
+          <Form.Item label="关联发行约定" required extra="先在发行约定工作区保存并确认草案；限定与非限定均须关联。">
+            <Select aria-label="关联发行约定" showSearch optionFilterProp="label" placeholder="选择已确认的发行约定" value={createIssuanceId} onChange={value=>{const issue=proto.issuances.find(i=>i.id===value)!,style=proto.styles.find(s=>s.id===issue.styleId)!;setCreateDirty(true);setCreateIssuanceId(value);setCreateProject(style.project);setCreateItemUid(suggestNextItemUid(style.project));setCreateNumber(nextNumber(value));setCreateError('');}} options={proto.issuances.filter(i=>i.status==='issued').map(i=>({value:i.id,label:i.name+' · '+(i.total===null?'非限定／总量不限':'限定'+i.total+'份')}))}/>
+          </Form.Item>
+          <Form.Item label="关联款式（发行引用）"><Input readOnly value={createStyle?createStyle.code+' · '+createStyle.profile.name:'选择发行约定后确定'}/></Form.Item>
+          <Form.Item label="物品类别（款式引用）" extra="类别只在款式维护，创建物品不单独选择。"><Input readOnly value={createSkuCode?(createProject==='fashion'?'服装':'饰品'):'选择发行约定后确定'}/></Form.Item>
 
           <Form.Item
             label="物品编号"
@@ -1357,19 +1374,20 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
               }
               value={createItemUid}
               onChange={(e) => {
-                setCreateItemUid(e.target.value);
+                setCreateDirty(true);setCreateItemUid(e.target.value);
                 setCreateError('');
               }}
             />
           </Form.Item>
 
-          <Form.Item label="关联款式商品资料" required extra="本轮原型先选择已有款式再创建；款式在“款式资料”工作区维护。无款式草稿流程待确认。">
-            <Select allowClear showSearch optionFilterProp="label" placeholder="选择已有款式" value={proto.styles.find(s=>s.code===createSkuCode&&s.project===createProject)?.id} onChange={value=>{const style=proto.styles.find(s=>s.id===value);setCreateSkuCode(style?.code||'');if(style){setCreateProject(style.project);setCreateItemUid(suggestNextItemUid(style.project));}setCreateError('');}} options={proto.styles.map(s=>({value:s.id,label:s.code+' · '+s.profile.name+' · '+(s.project==='fashion'?'服装':'饰品')}))}/>
+          <Form.Item label="本件序号" required extra={createIssue?(createIssue.total===null?'非限定：在本次发行内唯一，不设发行数量上限；展示如 #001。':`限定：1–${createIssue.total}，展示如 #001/${createIssue.total}。`):'与系统物品编号独立，先选择发行约定。'}>
+            <InputNumber aria-label="本件序号" min={1} precision={0} value={createNumber} onChange={v=>{setCreateDirty(true);setCreateNumber(v);setCreateError('');}} style={{width:180}}/>
           </Form.Item>
+          <Alert type="info" showIcon title="保存时一起登记发行引用与本件序号" description="仅创建未绑定、未归属的物品草稿；不会启用、配卡或认领所有人。" style={{marginBottom:16}}/>
 
           <Form.Item label="生产验证测试对象" style={{ marginBottom: createError ? 16 : 0 }}>
             <Space>
-              <Switch checked={createIsValidation} onChange={setCreateIsValidation} />
+              <Switch checked={createIsValidation} onChange={v=>{setCreateIsValidation(v);setCreateDirty(true);}} />
               <Text type="secondary" style={{ fontSize: 12 }}>
                 仅标记与筛选；不直接赋予删除资格
               </Text>

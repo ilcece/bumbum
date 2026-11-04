@@ -448,6 +448,7 @@ function AppCore() {
     project: ProjectCode;
     item_uid: string;
     sku_code: string | null;
+    issuanceId:string;editionNumber:number|null;
     is_validation_object?: boolean;
   }): { ok: boolean; item?: ItemView; error?: string } => {
     const style=proto.styles.find(s=>s.code===payload.sku_code&&s.project===payload.project);
@@ -478,12 +479,13 @@ function AppCore() {
       owner_status: 'unclaimed',
       carrier_generation: 0,
     };
-    setItems((prev) => [newItem, ...prev]);
+    const saved=proto.createIdentityItem(newItem,payload.issuanceId,payload.editionNumber);
+    if(!saved.ok)return saved;
     appendAudit(
       'item',
       'item.create_draft',
       newItem.item_uid,
-      `创建 ${payload.project} 物品草稿（款式：${payload.sku_code || '未填'}）`
+      `创建 ${payload.project} 物品草稿（发行：${payload.issuanceId}，本件序号：${payload.editionNumber}）`
     );
     return { ok: true, item: newItem };
   };

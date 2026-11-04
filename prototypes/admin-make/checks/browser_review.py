@@ -8,13 +8,13 @@ results=[];errors=[];business_requests=[]
 def record(name):results.append({'case':name,'status':'passed'});print('通过：'+name,flush=True)
 def snapshot(page,name):page.screenshot(path=str(OUT/(name+'.png')))
 def data(page):
- d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v4'))")
+ d=page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v5'))")
  for i in d['items']:
   style=next((s for s in d['styles'] if s['id']==i['styleId']),None)
   i['profile']=style['profile'] if style else None
  for m in d['identities'].values():
   issue=next((s for s in d['issuances'] if s['id']==m['issuanceId']),None)
-  m['edition']=f"#{m['editionNumber']:03d}/{issue['total']}" if issue and m['editionNumber'] else None
+  m['edition']=f"#{m['editionNumber']:03d}"+(f"/{issue['total']}" if issue['total'] is not None else "") if issue and m['editionNumber'] else None
  return d
 def save_shared(page,m):
  m.get_by_role('button',name='保存共用资料',exact=True).click()

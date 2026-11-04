@@ -26,7 +26,7 @@ export interface Work {
   createdAt: string; history: { time: string; text: string }[];
 }
 export interface SharedStyle {id:string;code:string;project:ProjectCode;profile:FashionProfile|JewelryProfile;sizes:string[];}
-export interface Issuance {id:string;name:string;styleId:string;series?:string;version?:string;rightIds:string[];total:number;description:string;color?:string;status:'draft'|'issued';}
+export interface Issuance {id:string;name:string;styleId:string;series?:string;version?:string;rightIds:string[];total:number|null;description:string;color?:string;status:'draft'|'issued';}
 type ItemRecord=Omit<ItemView,'sku_code'|'profile'|'style_id'|'project'>&{styleId:string};
 type IdentityRecord=Omit<Identity,'series'|'edition'|'total'>;
 type ChipRecord=Omit<ChipView,'project'|'item_uid'>;
@@ -39,6 +39,7 @@ type Setter<T> = Dispatch<SetStateAction<T>>;
 interface Store extends Omit<Data,'chips'|'items'|'identities'> {
   items:ItemView[];identities:Record<number,Identity>;
   styleEditorId:string|null;setStyleEditorId:Setter<string|null>;catalogOpen:boolean;setCatalogOpen:Setter<boolean>;issuanceEditorId:string|null;setIssuanceEditorId:Setter<string|null>;identityEditorId:number|null;setIdentityEditorId:Setter<number|null>;
+  confirmIssuance:(id:string)=>{ok:boolean;error?:string};createIdentityItem:(item:ItemView,issuanceId:string,editionNumber:number|null)=>{ok:boolean;error?:string};
   saveStyle:(style:SharedStyle,attachItemId?:number)=>{ok:boolean;error?:string};saveIssuance:(issue:Issuance)=>{ok:boolean;error?:string};assignIdentity:(itemId:number,styleId:string|null,issuanceId:string|null,editionNumber:number|null)=>{ok:boolean;error?:string};
   chips:ChipView[];
   setItems: Setter<ItemView[]>; setChips: Setter<ChipView[]>; setAuditLogs: Setter<AuditLogEntry[]>;
@@ -76,18 +77,18 @@ function initial():Data {
   const teeStyle=itemRecords[0].styleId!;
   return withScenarioExamples({rightsRules:[{id:'RIGHT-RENEW',name:'付费定期／挂失换新',version:'发行约定样例1',kind:'renewal',quotaGroup:'RENEW-YEAR',summary:'定期与挂失换新共享自然年一次',qualification:'首次绑定所有人后具备资格',transfer:'转售继承物品当年余额，次年恢复一次',fees:'费用、占用/扣减节点及跨年时区待确认'},{id:'RIGHT-RESALE',name:'后台转售数字内容与约定权益',version:'发行约定样例1',kind:'resale',quotaGroup:null,summary:'交付新实体，旧实体无需回收',qualification:'后台核对原持有人和接收人',transfer:'转售履约不扣换新次数、不重置余额',fees:'费用与冻结范围、取消及争议政策待确认'}],items:itemRecords,chips:chipRecords(chips),auditLogs:structuredClone(INITIAL_AUDIT_LOGS),identities:Object.fromEntries(Object.entries(identities).map(([id,meta])=>[id,rawIdentity(meta)])),works:[],styles,issuances:[{id:'ISSUE-TEE-2026',name:'BUMBUM · 限定系列',styleId:teeStyle,series:'限定T恤',version:'首次发行约定样例',rightIds:['RIGHT-RENEW','RIGHT-RESALE'],total:100,color:'黑色',description:'限定100份；允许换新选码，颜色遵守发行约定，旧实体无需回收。',status:'issued'}]});
 }
-const STORAGE='bumbum-make-prototype-v4';
-function load():Data {try{const saved=sessionStorage.getItem(STORAGE);if(saved){const data=JSON.parse(saved);if(data.version===4&&Array.isArray(data.items)&&Array.isArray(data.works)&&Array.isArray(data.styles)&&Array.isArray(data.issuances))return {...data,chips:chipRecords(data.chips)};}}catch{}return initial();}
+const STORAGE='bumbum-make-prototype-v5';
+function load():Data {try{const saved=sessionStorage.getItem(STORAGE);if(saved){const data=JSON.parse(saved);if(data.version===5&&Array.isArray(data.items)&&Array.isArray(data.works)&&Array.isArray(data.styles)&&Array.isArray(data.issuances))return {...data,chips:chipRecords(data.chips)};}}catch{}return initial();}
 export function PrototypeProvider({children}:{children:React.ReactNode}){
   const [data,setData]=useState<Data>(load);
   const [editItemId,setEditItemId]=useState<number|null>(null),[issuanceItemId,setIssuanceItemId]=useState<number|null>(null);
   const [activeWorkId,setActiveWorkId]=useState<string|null>(null),[activeDraft,setActiveDraft]=useState<{itemId:number;kind:WorkKind}|null>(null);
   const [failureMode,setFailureMode]=useState<Store['failureMode']>('none');
   const guardRef=useRef<Store['guard']|null>(null);
-  useEffect(()=>{try{sessionStorage.setItem(STORAGE,JSON.stringify({...data,version:4}));}catch{message.warning('浏览器存储空间不足，本次样例暂只保留在当前页面。');}},[data]);
+  useEffect(()=>{try{sessionStorage.setItem(STORAGE,JSON.stringify({...data,version:5}));}catch{message.warning('浏览器存储空间不足，本次样例暂只保留在当前页面。');}},[data]);
   const items=itemViews(data.items,data.styles);
   const chips=chipViews(data.chips,items);
-  const identities=Object.fromEntries(Object.entries(data.identities).map(([id,meta])=>{const issue=data.issuances.find(i=>i.id===meta.issuanceId);return [id,{...meta,series:issue?.name||null,total:issue?.total||null,edition:issue&&meta.editionNumber?`#${String(meta.editionNumber).padStart(3,'0')}/${issue.total}`:null}];}));
+  const identities=Object.fromEntries(Object.entries(data.identities).map(([id,meta])=>{const issue=data.issuances.find(i=>i.id===meta.issuanceId);return [id,{...meta,series:issue?.name||null,total:issue?.total||null,edition:issue&&meta.editionNumber?`#${String(meta.editionNumber).padStart(3,'0')}${issue.total===null?'':'/'+issue.total}`:null}];}));
   const [styleEditorId,setStyleEditorId]=useState<string|null>(null),[catalogOpen,setCatalogOpen]=useState(false),[issuanceEditorId,setIssuanceEditorId]=useState<string|null>(null),[identityEditorId,setIdentityEditorId]=useState<number|null>(null);
   const setItems:Setter<ItemView[]>=value=>setData(prev=>{const incoming=typeof value==='function'?value(itemViews(prev.items,prev.styles)):value;const styles=[...prev.styles];const records:ItemRecord[]=incoming.map(({profile,sku_code,style_id,project,...item})=>{const style=styles.find(s=>s.id===style_id)||styles.find(s=>s.code===sku_code&&s.project===project);if(style&&profile&&JSON.stringify(profile)!==JSON.stringify(style.profile)){styles[styles.indexOf(style)]={...style,profile};}if(!style)throw new Error('原型物品必须引用已有款式');return {...item,styleId:style.id};});return {...prev,items:records,styles};});
   const setChips:Setter<ChipView[]>=value=>setData(prev=>({...prev,chips:chipRecords(typeof value==='function'?value(chipViews(prev.chips,itemViews(prev.items,prev.styles))):value)}));
@@ -126,18 +127,46 @@ export function PrototypeProvider({children}:{children:React.ReactNode}){
     const existing=data.styles.find(s=>s.id===style.id);if(existing&&existing.project!==style.project&&(used.length>0||data.issuances.some(i=>i.styleId===style.id)))return{ok:false,error:'已被物品或发行引用的款式，类别不能通过普通资料维护修改。'};
     setData(prev=>({...prev,styles:prev.styles.some(s=>s.id===style.id)?prev.styles.map(s=>s.id===style.id?style:s):[...prev.styles,style],items:attachItemId?prev.items.map(i=>i.id===attachItemId?{...i,styleId:style.id,updated_at:now()}:i):prev.items}));return{ok:true};
   };
-  const saveIssuance=(issue:Issuance)=>{if(data.issuances.some(i=>i.id===issue.id&&i.status==='issued'))return{ok:false,error:'已发行约定只读。'};if(!data.styles.some(s=>s.id===issue.styleId)||!issue.name.trim()||!issue.version?.trim()||!issue.color?.trim()||!Number.isInteger(issue.total)||issue.total<1)return{ok:false,error:'请完善款式引用、发行名称、版本、颜色与正整数总量。'};setData(prev=>({...prev,issuances:prev.issuances.some(i=>i.id===issue.id)?prev.issuances.map(i=>i.id===issue.id?{...issue,status:'draft' as const}:i):[...prev.issuances,{...issue,status:'draft' as const}]}));return{ok:true};};
+  const saveIssuance=(issue:Issuance)=>{
+    if(data.issuances.some(i=>i.id===issue.id&&i.status==='issued'))return{ok:false,error:'已确认发行约定只读。'};
+    if(!data.styles.some(s=>s.id===issue.styleId)||!issue.name.trim()||!issue.version?.trim()||!issue.color?.trim()||!issue.description.trim()||(issue.total!==null&&(!Number.isSafeInteger(issue.total)||issue.total<1)))return{ok:false,error:'请完善款式、名称、版本、颜色和说明；限定总量须为正整数，非限定不设上限。'};
+    setData(prev=>({...prev,issuances:prev.issuances.some(i=>i.id===issue.id)?prev.issuances.map(i=>i.id===issue.id?{...issue,status:'draft' as const}:i):[...prev.issuances,{...issue,status:'draft' as const}]}));return{ok:true};
+  };
+  const confirmIssuance=(id:string)=>{
+    const issue=data.issuances.find(i=>i.id===id);if(!issue||issue.status!=='draft')return{ok:false,error:'请选择已保存的发行草案。'};
+    if(failureMode!=='none')return{ok:false,error:'当前模拟异常未恢复，未确认发行约定。'};
+    setData(prev=>({...prev,issuances:prev.issuances.map(i=>i.id===id?{...i,status:'issued' as const}:i)}));
+    audit('item','确认发行约定',issue.name,'冻结当次承诺；不创建物品、不启用或认领。');return{ok:true};
+  };
+  const checkNumber=(issuanceId:string|null,editionNumber:number|null,itemId?:number)=>{
+    const issue=data.issuances.find(i=>i.id===issuanceId);
+    if(!issue||issue.status!=='issued')return '请选择已确认的发行约定。';
+    if(editionNumber===null||!Number.isSafeInteger(editionNumber)||editionNumber<1)return '本件序号须为正整数。';
+    if(issue.total!==null&&editionNumber>issue.total)return '本件序号超出限定发行总量。';
+    if(Object.entries(data.identities).some(([id,m])=>Number(id)!==itemId&&m.issuanceId===issuanceId&&m.editionNumber===editionNumber))return '该发行内的本件序号已占用。';
+    return null;
+  };
+  const createIdentityItem=(item:ItemView,issuanceId:string,editionNumber:number|null)=>{
+    const error=checkNumber(issuanceId,editionNumber);if(error)return{ok:false,error};
+    const issue=data.issuances.find(i=>i.id===issuanceId)!,style=data.styles.find(s=>s.id===issue.styleId);
+    if(!style||item.style_id!==style.id||item.project!==style.project)return{ok:false,error:'款式与类别须从发行约定引用。'};
+    if(data.items.some(i=>i.item_uid===item.item_uid))return{ok:false,error:'物品编号已存在，不能重复创建。'};
+    if(failureMode!=='none')return{ok:false,error:'当前模拟异常未恢复，本次未创建，输入保留。'};
+    const {project:_project,profile:_profile,sku_code:_sku,style_id:_style,...record}=item;
+    setData(prev=>({...prev,items:[{...record,styleId:style.id},...prev.items],identities:{...prev.identities,[item.id]:{...rawIdentity(fallback(item)),issuanceId,editionNumber}}}));return{ok:true};
+  };
   const assignIdentity=(itemId:number,styleId:string|null,issuanceId:string|null,editionNumber:number|null)=>{
     const item=items.find(i=>i.id===itemId);if(!item)return{ok:false,error:'物品不存在。'};const meta=identity(item);
-    if(item.status!=='draft'||item.bound_chip_id||meta.ownerId)return{ok:false,error:'已绑定或已发行物品不能通过普通维护变更发行身份。'};
-    if(issuanceId!==meta.issuanceId||editionNumber!==meta.editionNumber)return{ok:false,error:'编号范围待确认，暂不分配或更改发行编号；可以先关联款式。'};
-    const style=data.styles.find(s=>s.id===styleId),issue=data.issuances.find(i=>i.id===issuanceId);
-    if(!style)return{ok:false,error:'请选择已有款式；类别由款式引用，不单独填写。'};if(style.project!==item.project)return{ok:false,error:'草稿身份格式与目标类别不匹配，请走专用纠错。'};
-    if(issuanceId&&(!issue||issue.styleId!==styleId||!editionNumber||editionNumber<1||editionNumber>issue.total||!Number.isInteger(editionNumber)))return{ok:false,error:'发行与款式不匹配，或限定序号超出范围。'};
-    if(issuanceId&&Object.entries(data.identities).some(([id,m])=>Number(id)!==itemId&&m.issuanceId===issuanceId&&m.editionNumber===editionNumber))return{ok:false,error:'该发行内的限定序号已占用。'};
-    setData(prev=>({...prev,items:prev.items.map(i=>i.id===itemId?{...i,styleId:style.id,updated_at:now()}:i),identities:{...prev.identities,[itemId]:{...rawIdentity(meta),issuanceId,editionNumber:issuanceId?editionNumber:null}}}));return{ok:true};
+    if(item.status!=='draft'||item.bound_chip_id||meta.ownerId)return{ok:false,error:'已绑定、已归属或非草稿物品不能普通变更发行身份。'};
+    if(meta.issuanceId&&(issuanceId!==meta.issuanceId||editionNumber!==meta.editionNumber))return{ok:false,error:'已登记的发行与本件序号不在普通维护中重分配，请走专用纠错。'};
+    const error=checkNumber(issuanceId,editionNumber,itemId);if(error)return{ok:false,error};
+    const style=data.styles.find(s=>s.id===styleId),issue=data.issuances.find(i=>i.id===issuanceId)!;
+    if(!style||issue.styleId!==style.id||style.id!==item.style_id)return{ok:false,error:'旧草稿仅补关联同款发行，不借此更换款式或类别。'};
+    if(failureMode!=='none')return{ok:false,error:'当前模拟异常未恢复，未保存关联，输入保留。'};
+    setData(prev=>({...prev,identities:{...prev.identities,[itemId]:{...rawIdentity(meta),issuanceId,editionNumber}}}));
+    audit('item','补齐物品发行关联',item.item_uid,issue.name);return{ok:true};
   };
   const reset=()=>Modal.confirm({title:'重置原型样例？',content:'仅清除当前浏览器中的原型样例记录与已保存的办理进度，不影响真实项目。',okText:'重置样例',cancelText:'取消',onOk:()=>{setData(initial());setActiveWorkId(null);setActiveDraft(null);setEditItemId(null);setFailureMode('none');}});
-  return <Context.Provider value={{...data,items,chips,identities,styleEditorId,setStyleEditorId,catalogOpen,setCatalogOpen,issuanceEditorId,setIssuanceEditorId,identityEditorId,setIdentityEditorId,saveStyle,saveIssuance,assignIdentity,setItems,setChips,setAuditLogs:setter('auditLogs'),editItemId,setEditItemId,issuanceItemId,setIssuanceItemId,activeWorkId,activeDraft,openWork,resumeWork:(id)=>{setActiveDraft(null);setActiveWorkId(id);},closeWork:()=>{setActiveDraft(null);setActiveWorkId(null);},identity,createWork,updateWork,completeWork,reportLost,audit,failureMode,setFailureMode,guard:fn=>guardRef.current?guardRef.current(fn):fn(),setGuard:fn=>{guardRef.current=fn;},reset}}>{children}</Context.Provider>;
+  return <Context.Provider value={{...data,items,chips,identities,styleEditorId,setStyleEditorId,catalogOpen,setCatalogOpen,issuanceEditorId,setIssuanceEditorId,identityEditorId,setIdentityEditorId,saveStyle,saveIssuance,confirmIssuance,createIdentityItem,assignIdentity,setItems,setChips,setAuditLogs:setter('auditLogs'),editItemId,setEditItemId,issuanceItemId,setIssuanceItemId,activeWorkId,activeDraft,openWork,resumeWork:(id)=>{setActiveDraft(null);setActiveWorkId(id);},closeWork:()=>{setActiveDraft(null);setActiveWorkId(null);},identity,createWork,updateWork,completeWork,reportLost,audit,failureMode,setFailureMode,guard:fn=>guardRef.current?guardRef.current(fn):fn(),setGuard:fn=>{guardRef.current=fn;},reset}}>{children}</Context.Provider>;
 }
 export function usePrototype(){const value=useContext(Context);if(!value)throw new Error('原型上下文未初始化');return value;}

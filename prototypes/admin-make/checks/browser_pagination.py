@@ -5,7 +5,7 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
 url=sys.argv[1];out=Path(sys.argv[2]);out.mkdir(parents=True,exist_ok=True);cases=[];errors=[]
 def passed(name):cases.append({'case':name,'status':'passed'});print('通过：'+name,flush=True)
-def raw(page):return page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v4'))")
+def raw(page):return page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-make-prototype-v5'))")
 def rows(page):return page.locator('.ant-table:visible .ant-table-tbody > tr.ant-table-row')
 def goto_page(page,n):page.locator('.ant-pagination:visible').get_by_title(str(n),exact=True).click();expect(page.locator('.ant-pagination-item-active:visible')).to_have_attribute('title',str(n))
 with sync_playwright() as p:
