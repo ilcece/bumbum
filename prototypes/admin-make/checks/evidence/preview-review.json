@@ -1,0 +1,18 @@
+{
+  "results": [
+    {
+      "case": "离线详情抽屉宽800px",
+      "status": "passed"
+    },
+    {
+      "case": "1280×720下转售居中1120px，申请不填尺码，底部操作可达",
+      "status": "passed"
+    },
+    {
+      "case": "离线预览无网络请求及页面运行异常",
+      "status": "passed"
+    }
+  ],
+  "page_errors": [],
+  "network_requests": []
+}

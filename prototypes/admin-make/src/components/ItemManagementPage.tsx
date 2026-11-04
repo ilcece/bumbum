@@ -491,11 +491,8 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
     message.success(`已创建样例 ${res.item.item_uid}，可继续录入下一件。`);
 
     if (openEditorImmediately) {
-      if (res.item.project === 'fashion') {
-        handleOpenProfileEditor(res.item);
-      } else {
-        onSelectItemId(res.item.id);
-      }
+      onSelectItemId(res.item.id);
+      proto.setIdentityEditorId(res.item.id);
     }
   };
 
@@ -840,7 +837,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
         sku ? (
           <Space size={4}>
             <Text code>{sku}</Text>
-            <Tooltip title="点击在详情中修改款式编号">
+            <Tooltip title="查看款式关联；草稿可在详情维护关联">
               <Button
                 type="text"
                 size="small"
@@ -862,7 +859,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
               guardDrawerBeforeAction(() => onSelectItemId(record.id));
             }}
           >
-            + 补录款式编号
+            + 关联款式资料
           </Button>
         ),
     },
@@ -982,6 +979,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><Button onClick={()=>proto.setCatalogOpen(true)}>款式与发行资料</Button></div>
       {simulateApiError && (
         <Alert
           type="error"
@@ -1327,7 +1325,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             type="primary"
             onClick={() => handleSubmitCreateItem(true)}
           >
-            {createProject === 'fashion' ? '创建并编辑资料' : '创建并打开详情'}
+            {createProject === 'fashion' ? '创建并完善身份' : '创建并打开详情'}
           </Button>,
         ]}
       >
@@ -1338,6 +1336,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
               value={createProject}
               onChange={(val) => {
                 setCreateProject(val);
+                setCreateSkuCode('');
                 setCreateItemUid(suggestNextItemUid(val));
                 setCreateError('');
               }}
@@ -1377,29 +1376,15 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             />
           </Form.Item>
 
-          <Form.Item
-            label="款式编号"
-            validateStatus={[...createSkuCode.trim()].length > 64 ? 'error' : undefined}
-            help={
-              [...createSkuCode.trim()].length > 64
-                ? `款式编号最多 64 个字符（当前已输入 ${[...createSkuCode.trim()].length} 字符）`
-                : undefined
-            }
-            style={{ marginBottom: 16 }}
-          >
-            <Input
-              allowClear
-              placeholder="选填，如 BB-AW26-COAT-BLK-M"
-              value={createSkuCode}
-              onChange={(e) => setCreateSkuCode(e.target.value)}
-            />
+          <Form.Item label="关联款式商品资料" extra="从统一维护的款式中选择；可稍后在草稿详情维护关联。新建款式请进入列表页的“款式与发行资料”。">
+            <Select allowClear showSearch optionFilterProp="label" placeholder="选择已有款式（草稿可暂不关联）" value={createSkuCode||undefined} onChange={value=>setCreateSkuCode(value||'')} options={proto.styles.filter(s=>s.project===createProject).map(s=>({value:s.code,label:s.code+' · '+s.profile.name}))}/>
           </Form.Item>
 
           <Form.Item label="生产验证测试对象" style={{ marginBottom: createError ? 16 : 0 }}>
             <Space>
-              <Switch disabled checked={createIsValidation} onChange={setCreateIsValidation} />
+              <Switch checked={createIsValidation} onChange={setCreateIsValidation} />
               <Text type="secondary" style={{ fontSize: 12 }}>
-                用于测试验证的样衣/样卡档案，便于后续集中清理
+                仅标记与筛选；不直接赋予删除资格
               </Text>
             </Space>
           </Form.Item>

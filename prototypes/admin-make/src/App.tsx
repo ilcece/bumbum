@@ -193,33 +193,17 @@ function AppCore() {
   // ==================== 芯片操作处理 ====================
   const handleRegisterChip = (payload: {
     chip_uid: string;
-    project: ProjectCode | null;
     batch_no: string | null;
     source?: RegistrationSource;
     is_validation_object?: boolean;
   }): { chip: ChipView; is_new: boolean; error?: string } => {
     const existing = chips.find((c) => c.chip_uid === payload.chip_uid);
-    if (existing) {
-      if (
-        existing.project !== null &&
-        payload.project !== null &&
-        existing.project !== payload.project
-      ) {
-        return {
-          chip: existing,
-          is_new: false,
-          error: `该 UID 已登记，所属项目与本次选择不同（原记录所属项目为「${
-            existing.project === 'fashion' ? '服装 (Fashion)' : '饰品 (Jewelry)'
-          }」）。原记录未修改，请按 UID 查询。`,
-        };
-      }
-      return { chip: existing, is_new: false };
-    }
+    if (existing) return {chip:existing,is_new:false};
     const now = new Date().toISOString();
     const newChip: ChipView = {
       id: Math.max(0, ...chips.map((c) => c.id)) + 1,
       chip_uid: payload.chip_uid,
-      project: payload.project,
+      project: null,
       chip_status: 'pending',
       item_id: null,
       item_uid: null,
@@ -252,6 +236,8 @@ function AppCore() {
       validation_note: string | null;
     }
   ) => {
+    const targetBefore = chips.find(c=>c.id===chipId);
+    const markerLocked=!!targetBefore?.keys_generated||!!targetBefore?.provisioned_at||!!targetBefore?.item_id;
     const now = new Date().toISOString();
     setChips((prev) =>
       prev.map((c) =>
@@ -259,7 +245,7 @@ function AppCore() {
           ? {
               ...c,
               batch_no: payload.batch_no,
-              is_validation_object: payload.is_validation_object,
+              is_validation_object: markerLocked?c.is_validation_object:payload.is_validation_object,
               validation_note: payload.validation_note,
               updated_at: now,
             }
@@ -291,9 +277,6 @@ function AppCore() {
     }
     if (item.bound_chip_id !== null) {
       return { ok: false, error: '目标物品已被其他芯片占用，不能重复绑定。' };
-    }
-    if (chip.project && chip.project !== item.project) {
-      return { ok: false, error: '芯片预分配项目与目标物品项目不一致，禁止跨项目绑定。' };
     }
 
     const now = new Date().toISOString();
@@ -340,7 +323,7 @@ function AppCore() {
       'chip',
       'chip.bind_item',
       `${updatedChip.chip_uid} → ${item.item_uid}`,
-      `完成首次绑定，芯片项目确定为 ${item.project}`
+      `完成首次绑定，芯片项目引用物品项目： ${item.project}`
     );
     return { ok: true, chip: updatedChip };
   };
@@ -645,28 +628,6 @@ function AppCore() {
       'b.exit_validation.l2_chip',
       chip.chip_uid,
       `L2 生产验证对象退出验证服务并解除对测试物品 ${oldItemUid || ''} 的占用（保留安全计数历史）：${reason}`
-    );
-    return { ok: true };
-  };
-
-  const handleCorrectPendingChipProject = (
-    chipId: number,
-    newProject: ProjectCode | null,
-    reason: string
-  ) => {
-    const chip = chips.find((c) => c.id === chipId);
-    if (!chip || chip.chip_status !== 'pending' || chip.item_id !== null) {
-      return { ok: false, error: '仅待绑定且未关联物品的芯片可修正预分配项目。' };
-    }
-    const now = new Date().toISOString();
-    setChips((prev) =>
-      prev.map((c) => (c.id === chipId ? { ...c, project: newProject, updated_at: now } : c))
-    );
-    appendAudit(
-      'correction',
-      'c.correct.chip_project',
-      chip.chip_uid,
-      `预分配项目由 ${chip.project || '未分配'} 修正为 ${newProject || '未分配'}。原因：${reason}`
     );
     return { ok: true };
   };
@@ -1233,8 +1194,10 @@ function AppCore() {
           <Content className="admin-content-scroll p-5">
             <div className="max-w-[1440px] mx-auto">
               <PrototypeOverlays/>
-              {(proto.activeWorkId||proto.activeDraft)&&<LifecyclePage onBack={itemId=>{proto.closeWork();setCurrentPage('items');setActiveItemId(itemId);}}/>}
-              <div style={{display:proto.activeWorkId||proto.activeDraft?'none':undefined}}>
+              {(proto.activeWorkId||proto.activeDraft)&&<Modal open centered width={1120} title="业务办理" zIndex={1600} footer={null} mask={{closable:false}} onCancel={()=>proto.guard(()=>{const id=proto.activeDraft?.itemId||proto.works.find(w=>w.id===proto.activeWorkId)?.itemId;proto.closeWork();if(id){setCurrentPage('items');setActiveItemId(id);}})} styles={{body:{maxHeight:'calc(100dvh - 190px)',overflowY:'auto'}}}>
+                <LifecyclePage onBack={itemId=>{proto.closeWork();setCurrentPage('items');setActiveItemId(itemId);}}/>
+              </Modal>}
+              <div>
               <div style={{ display: currentPage === 'overview' ? 'block' : 'none' }}>
                 <OverviewPage
                   chips={chips}
@@ -1271,7 +1234,7 @@ function AppCore() {
                   onSelectChipId={setActiveChipId}
                   onOpenItemDetail={handleOpenItemDetailFromAnywhere}
                   onRegisterChip={handleRegisterChip}
-                  onUpdateChipMaintenance={(id,payload)=>{const old=chips.find(c=>c.id===id);handleUpdateChipMaintenance(id,{...payload,is_validation_object:!!old?.is_validation_object,validation_note:old?.validation_note||null});}}
+                  onUpdateChipMaintenance={handleUpdateChipMaintenance}
                   onBindChipToItem={handleBindChipToItem}
                   onGenerateChipKeys={handleGenerateChipKeys}
                   onConfirmChipProvisioning={handleConfirmChipProvisioning}

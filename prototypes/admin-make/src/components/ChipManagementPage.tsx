@@ -84,7 +84,6 @@ interface ChipManagementPageProps {
   onOpenItemDetail: (itemId: number) => void;
   onRegisterChip: (payload: {
     chip_uid: string;
-    project: ProjectCode | null;
     batch_no: string | null;
     source?: RegistrationSource;
     is_validation_object?: boolean;
@@ -219,7 +218,6 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
 
   const [registerModalOpen, setRegisterModalOpen] = useState(false);
   const [regUidInput, setRegUidInput] = useState('');
-  const [regProject, setRegProject] = useState<'' | ProjectCode>('');
   const [regBatchNo, setRegBatchNo] = useState('');
   const [regIsValidation, setRegIsValidation] = useState(false);
   const [regError, setRegError] = useState('');
@@ -486,7 +484,6 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
     }
     const res = onRegisterChip({
       chip_uid: validated.uid,
-      project: regProject || null,
       batch_no: batchTrimmed,
       source: 'manual',
       is_validation_object: regIsValidation,
@@ -533,7 +530,6 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
     const uid = `04:${randomHex()}:${randomHex()}:${randomHex()}:80:00`;
     const res = onRegisterChip({
       chip_uid: uid,
-      project: null,
       batch_no: null,
       source: 'nfc_cool',
     });
@@ -689,7 +685,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
       },
     },
     {
-      title: '所属项目',
+      title: '关联物品项目',
       dataIndex: 'project',
       key: 'project',
       width: 86,
@@ -697,8 +693,8 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
         project ? (
           <Tag color={project === 'fashion' ? 'blue' : 'gold'}>{PROJECT_SHORT_LABELS[project]}</Tag>
         ) : (
-          <Tooltip title="绑定目标物品时将自动按物品确定所属项目">
-            <Tag color="default">未分配</Tag>
+          <Tooltip title="项目来自关联物品；未关联时无项目">
+            <Tag color="default">未关联物品</Tag>
           </Tooltip>
         ),
     },
@@ -975,7 +971,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
               onChange={(val) => setFilters({ ...filters, project: val })}
               options={[
                 { value: '', label: '全部项目' },
-                { value: 'unassigned', label: '未分配' },
+                { value: 'unassigned', label: '未关联物品' },
                 { value: 'fashion', label: '服装' },
                 { value: 'jewelry', label: '饰品' },
               ]}
@@ -1300,22 +1296,6 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
             />
           </Form.Item>
 
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item label="所属项目" style={{ marginBottom: 16 }}>
-                <Select
-                  style={{ width: '100%' }}
-                  value={regProject}
-                  onChange={(val) => setRegProject(val)}
-                  options={[
-                    { value: '', label: '暂不分配' },
-                    { value: 'fashion', label: '服装' },
-                    { value: 'jewelry', label: '饰品' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
               <Form.Item
                 label="批次号"
                 validateStatus={[...regBatchNo.trim()].length > 64 ? 'error' : undefined}
@@ -1333,14 +1313,13 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                   onChange={(e) => setRegBatchNo(e.target.value)}
                 />
               </Form.Item>
-            </Col>
-          </Row>
+
 
           <Form.Item label="生产验证测试对象" style={{ marginBottom: regError || regConflictChip ? 16 : 0 }}>
             <Space>
-              <Switch disabled checked={regIsValidation} onChange={setRegIsValidation} />
+              <Switch checked={regIsValidation} onChange={setRegIsValidation} />
               <Text type="secondary" style={{ fontSize: 12 }}>
-                用于上线验证并在验证后可集中退出清理
+                仅标记与筛选；清理资格需独立核对
               </Text>
             </Space>
           </Form.Item>
@@ -1349,7 +1328,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
           {regConflictChip && (
             <div className="flex items-center justify-between p-2.5 rounded bg-amber-50 border border-amber-200 text-xs mt-3">
               <span>
-                已存在原记录：<Text code>{regConflictChip.chip_uid}</Text>（原项目：
+                已存在原记录：<Text code>{regConflictChip.chip_uid}</Text>（关联物品项目：
                 {regConflictChip.project ? PROJECT_SHORT_LABELS[regConflictChip.project] : '未分配'}
                 ）
               </span>
@@ -1415,7 +1394,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                 },
                 {
                   key: 'proj',
-                  label: '当前芯片项目',
+                  label: '关联物品项目',
                   children: bindModalChip.project ? (
                     <Tag color={bindModalChip.project === 'fashion' ? 'blue' : 'gold'}>
                       {PROJECT_SHORT_LABELS[bindModalChip.project]}（仅列同项目候选）
@@ -1558,7 +1537,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                   </Text>
                   {bindModalChip.project === null && (
                     <Tag color="geekblue">
-                      芯片项目将确定为：{PROJECT_SHORT_LABELS[selectedCandidateItem.project]}
+                      绑定后展示物品项目：{PROJECT_SHORT_LABELS[selectedCandidateItem.project]}
                     </Tag>
                   )}
                 </div>
@@ -1867,7 +1846,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
             '芯片详情'
           )
         }
-        width={640}
+        width={800}
         open={activeChip !== null}
         onClose={() => guardDrawerBeforeAction(() => onSelectChipId(null))}
       >
@@ -1901,33 +1880,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                     ),
                   },
                   {
-                    key: 'project',
-                    label: '所属项目',
-                    children: (
-                      <div className="flex items-center justify-between">
-                        {activeChip.project ? (
-                          <Tag color={activeChip.project === 'fashion' ? 'blue' : 'gold'}>
-                            {PROJECT_SHORT_LABELS[activeChip.project]}
-                          </Tag>
-                        ) : (
-                          <Tag>未分配</Tag>
-                        )}
-                        {activeChip.chip_status === 'pending' && activeChip.item_id === null && (
-                          <Button
-                            type="link"
-                            size="small"
-                            style={{ padding: 0 }}
-                            onClick={() => {
-                              setEditProjectVal(activeChip.project || '');
-                              setEditProjectReason('');
-                              setEditProjectModalOpen(true);
-                            }}
-                          >
-                            修改预分配项目
-                          </Button>
-                        )}
-                      </div>
-                    ),
+                    key:'project',label:'关联物品项目',children:activeChip.item_id?<Space><Tag>{activeChip.project?PROJECT_SHORT_LABELS[activeChip.project]:'未记录'}</Tag><a onClick={()=>guardDrawerBeforeAction(()=>onOpenItemDetail(activeChip.item_id!))}>查看关联物品</a></Space>:<Text type="secondary">未关联物品</Text>,
                   },
                   {
                     key: 'time',
@@ -1967,9 +1920,9 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                     </Form.Item>
                   </Col>
                   <Col xs={24} sm={8}>
-                    <Form.Item label="生产验证对象" style={{ marginBottom: 16 }}>
+                    <Form.Item label="生产验证对象" extra={activeChip?.keys_generated||activeChip?.provisioned_at||activeChip?.item_id?'已有配置或关联历史，标记只读；标记不授予删除资格':'仅标记与筛选，不授予删除资格'} style={{ marginBottom: 16 }}>
                       <Switch
-                        disabled checked={drawerIsValidation}
+                        disabled={!!activeChip?.keys_generated||!!activeChip?.provisioned_at||!!activeChip?.item_id} checked={drawerIsValidation}
                         checkedChildren="是"
                         unCheckedChildren="否"
                         onChange={(checked) => setDrawerIsValidation(checked)}
@@ -1983,7 +1936,7 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
                     <Input
                       allowClear
                       placeholder="选填，如：杭州公网入口切换首轮实卡验证"
-                      disabled value={drawerValidationNote}
+                      value={drawerValidationNote}
                       onChange={(e) => setDrawerValidationNote(e.target.value)}
                     />
                   </Form.Item>
@@ -2238,53 +2191,6 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
           </div>
         )}
       </Drawer>
-
-      {/* 1. 修改待绑定芯片预分配项目弹窗 */}
-      <Modal
-        title="修改预分配项目"
-        open={editProjectModalOpen && activeChip !== null}
-        onCancel={() => setEditProjectModalOpen(false)}
-        okText="确认修改"
-        okButtonProps={{ disabled: !editProjectReason.trim() }}
-        onOk={() => {
-          if (!activeChip) return;
-          const res = onCorrectPendingChipProject(
-            activeChip.id,
-            editProjectVal || null,
-            editProjectReason.trim()
-          );
-          if (res.ok) {
-            message.success('已修改芯片预分配项目');
-            setEditProjectModalOpen(false);
-          } else {
-            message.error(res.error || '修改失败');
-          }
-        }}
-        width={460}
-      >
-        <Form layout="vertical" style={{ marginTop: 12 }}>
-          <Form.Item label="目标预分配项目" style={{ marginBottom: 16 }}>
-            <Select
-              style={{ width: '100%' }}
-              value={editProjectVal}
-              onChange={(val) => setEditProjectVal(val)}
-              options={[
-                { value: '', label: '未分配（绑定物品时自动确定）' },
-                { value: 'fashion', label: '服装' },
-                { value: 'jewelry', label: '饰品' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item label="修改原因" required style={{ marginBottom: 0 }}>
-            <Input
-              allowClear
-              placeholder="如：登记时误选项目"
-              value={editProjectReason}
-              onChange={(e) => setEditProjectReason(e.target.value)}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
 
       {/* 2. 未核验芯片解绑 / 改绑弹窗 */}
       <Modal

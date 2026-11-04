@@ -21,7 +21,7 @@
       "status": "passed"
     },
     {
-      "case": "保存单件资料不改变同款其他物品",
+      "case": "保存共用资料同步同款引用物品",
       "status": "passed"
     },
     {
@@ -69,7 +69,7 @@
       "status": "passed"
     },
     {
-      "case": "连续登记成功后清空UID/批次并保留项目",
+      "case": "连续登记成功后清空UID/批次，无项目录入",
       "status": "passed"
     },
     {

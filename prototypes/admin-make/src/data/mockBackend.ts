@@ -79,6 +79,7 @@ export interface CarrierHistoryEntry {
 }
 
 export interface ItemView {
+  style_id?:string|null;
   id: number;
   project: ProjectCode;
   item_uid: string;
