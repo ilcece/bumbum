@@ -75,10 +75,10 @@ P0指现有核心流程阻断或可能产生错误数据等必须先修的问题
 
 | 工作流 | 独立提案 | 审批边界 |
 |---|---|---|
-| A：统一后台、维护与查询 | [A业务提案](docs/proposals/admin-management-update.md)、[A技术方案](docs/proposals/admin-management-implementation.md)、[最新Make原型与后端缺口](docs/proposals/admin-make-rebuild.md) | A业务规则已批准，含图片上传、关联引用及详情/编辑字段一致；旧交互原型仅参考，最新Make先作为展示基准迭代，控件与交互遵循Ant Design官方规范，技术方案有条件批准，固定React19独立冒烟要求已取消，图片恢复门槛保留，既有验证证据见CHANGELOG；芯片增量已承接至[现行规范](docs/product/chip-lifecycle.md#1-芯片登记与首次来源)，其余按TODO推进 |
+| A：统一后台、维护与查询 | [A业务提案](docs/proposals/admin-management-update.md)、[A技术方案](docs/proposals/admin-management-implementation.md)、[最新Make原型与后端缺口](docs/proposals/admin-make-rebuild.md) | A业务规则已批准，含图片上传、关联引用及详情/编辑字段一致；旧交互原型仅参考，最新Make先作为展示基准迭代，控件与交互遵循Ant Design官方规范及[统一后台设计规范](docs/ADMIN_UI_GUIDELINES.md)，技术方案有条件批准，固定React19独立冒烟要求已取消，图片恢复门槛保留，既有验证证据见CHANGELOG；芯片增量已承接至[现行规范](docs/product/chip-lifecycle.md#1-芯片登记与首次来源)，其余按TODO推进 |
 | B：生产验证识别与清理 | [B提案](docs/proposals/production-validation-cleanup.md) | 必要清理需求已确认；删除、编号、统计政策待审 |
 | C：专用纠错 | [C提案](docs/proposals/chip-correction.md) | 处理需求已确认；未配置/已配置路径待审 |
-| D：挂失换新与转售 | [D提案](docs/proposals/replacement-resale.md) | 转售必须新实体/新芯片已确认；资格、权益及接续细则待审 |
+| D：挂失换新与转售 | [D提案](docs/proposals/replacement-resale.md) | 数字权益、尺码/颜色限制、自然年共享换新额度、转售继承余额及旧实体不回收已确认；交付核验后由后台正式接续，资格/费用及其余细则待审 |
 
 共用保护、差异和S01–S30场景索引只维护在A提案，其他提案引用。文档重组获批不改变四工作流的业务审批状态；原型、技术、构建和交付分别推进。
 
