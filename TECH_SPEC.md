@@ -6,9 +6,9 @@
 
 管理后台组件库已确定为Ant Design，采用antd 6官方组件、本次Make展示组合及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前任务分支已迁移，人工验收与main/部署状态见TODO。锁定版本、React兼容性及依赖调整见技术方案；现有React/Vite/TypeScript工程与认证保留，用户H5独立设计。
 
-组件版本和A完整范围见[批准技术方案](docs/proposals/admin-management-implementation.md)，两项生效门槛的证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品列表、同字段详情/编辑、连续创建及Upload已接入；人工验收、合并与部署进度见TODO。
+组件版本和A完整范围见[批准技术方案](docs/proposals/admin-management-implementation.md)，图片恢复门槛保留，固定React19独立组件矩阵已按cece决定取消；历史验证证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品列表、同字段详情/编辑、连续创建及Upload已接入；人工验收、合并与部署进度见TODO。
 
-独立组件与配套恢复门槛保留；媒体后端使用005及[离线备份模块](core/media_backup.py)，实现边界见[附录第9节](docs/IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)，字段/图片契约见[API第4节](API_CONTRACT.md#4-管理物品)。原生SQL还原与文件还原分开，不依赖上传服务在线。生产上传默认关闭，隔离检查不等于真实目标备份或生产启用前提已满足。
+图片配套恢复门槛保留；媒体后端使用005及[离线备份模块](core/media_backup.py)，实现边界见[附录第9节](docs/IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)，字段/图片契约见[API第4节](API_CONTRACT.md#4-管理物品)。原生SQL还原与文件还原分开，不依赖上传服务在线。生产上传默认关闭，隔离检查不等于真实目标备份或生产启用前提已满足。
 
 现有chip.item_id唯一、停用/丢失仍占关联，支持首次绑定；历史载体与当前授权、资格永久撤销是[D提案](docs/proposals/replacement-resale.md)待设计的技术缺口。生产验证清理及纠错分别看[B](docs/proposals/production-validation-cleanup.md)、[C](docs/proposals/chip-correction.md)，本文件不另复制待审业务细则，也不解除现有约束。
 

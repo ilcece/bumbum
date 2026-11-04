@@ -458,11 +458,13 @@ Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction Si
 
 持续查看以最后一次成功查询计算24小时，成功查询续期；Cookie被浏览器清理可更早失效，不承诺跨设备或持有人身份。测试24小时边界由AI可控时钟覆盖，不要求cece等一天。图片及五组验收见[真实卡手册第6节](NFC_CARD_VERIFICATION.md#6-手机服装资料页与自动更新验收)，软件通过不等于手机公网通过。
 
-## 13. A方案生效门槛：组件冒烟与图片离线恢复
+<a name="13-a方案生效门槛组件冒烟与图片离线恢复"></a>
 
-本节复现[A技术方案](proposals/admin-management-implementation.md)要求的隔离证据，不替代完整业务流程或人工验收。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
+## 13. 图片备份与离线恢复门槛
 
-在`frontend/admin`目录可执行以下官方检查；成功应显示doctor无失败、弃用检查无问题，不能代替浏览器冒烟。API查询显式指定当前antd版本，若失败先检查npm ci是否完成及Node版本。
+本节复现[A技术方案](proposals/admin-management-implementation.md)保留的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
+
+在`frontend/admin`目录可执行以下官方检查；成功应显示doctor无失败、弃用检查无问题，不能代替实际业务验证。API查询显式指定当前antd版本，若失败先检查npm ci是否完成及Node版本。
 
 ```bash
 npx --no-install antd info Upload --version 6.6.8 --format json
@@ -473,11 +475,10 @@ npx --no-install antd lint ./src --only deprecated --format json
 在项目根目录、使用上述测试依赖所在的Python执行：
 
 ```bash
-python -m pytest tests/test_antd_compatibility.py --auth-db --browser -q
 python -m pytest tests/test_media_backup.py --auth-db -q
 ```
 
-第一条使用真实浏览器和独立Vite测试页，覆盖Modal/Notification静态、App、Hook调用，以及Upload合成HTTP成功/失败/取消和Form校验、只读、切换、重置、提交。页面明确标记合成数据，不进入正式管理端包；共享--browser参数要求同时给--auth-db，该组件测试不实例化数据库fixture。第二条由既有fixture创建专属MySQL 8.0.46容器、两个合成WebP及新的恢复库，原生转储/恢复后逐项核对引用、元数据、摘要、字节和图片可读性；缺图、篡改、错对象/时间点、转储错配及已有目录覆盖均必须拒绝。只清理自己创建的临时资源，不连接现有测试或生产库。
+原独立组件矩阵不再例行执行。上面的图片恢复检查使用专属临时MySQL及合成图片；具体冻结窗口、配套备份和离线上传服务恢复仍按下文执行。
 
 两条命令都应真实执行且无失败；跳过不是门槛通过。静态弹层不能继承动态主题上下文是官方既有限制，冒烟只识别这一准确警告，不屏蔽其他运行异常；实际业务优先App上下文。临时依赖副本复现时可用BUMBUM_ANTD_PROJECT指定已严格安装同一锁定组合的副本；默认检查frontend/admin。构建通过不能替代这些运行结果。
 
@@ -544,7 +545,7 @@ python scripts/media_cleanup.py --media-root /私有绝对路径/图片目录 --
 使用第9节准备的Playwright/Chromium、仓库锁定npm和Python依赖，在项目根目录运行：
 
 ```bash
-python -m pytest tests/test_admin_item_browser.py tests/test_admin_browser.py tests/test_admin_maintenance_browser.py tests/test_tap_stats_browser.py tests/test_antd_compatibility.py --auth-db --browser -q
+python -m pytest tests/test_admin_item_browser.py tests/test_admin_browser.py tests/test_admin_maintenance_browser.py tests/test_tap_stats_browser.py --auth-db --browser -q
 ```
 
-独立MySQL和合成图覆盖物品连续创建/确切定位、同字段详情与编辑、关联/查询返回、普通保存/启停、真实Upload暂存/关联/移除/取消、未知回执核对及原登录/绑定/密钥/统计回归；最后一组仍是显式组件门槛，不能只靠构建。不连接现有库、不启用生产上传；故障回执按测试明确合成，实际文件处理仍走真实接口。失败保留脱敏截图与测试提示，不上传秘密或完整浏览器网络记录。
+独立MySQL和合成图覆盖物品连续创建/确切定位、同字段详情与编辑、关联/查询返回、普通保存/启停、真实Upload暂存/关联/移除/取消、未知回执核对及原登录/绑定/密钥/统计回归；不单独追加React19组件矩阵；业务行为仍不能只靠构建判断。不连接现有库、不启用生产上传；故障回执按测试明确合成，实际文件处理仍走真实接口。失败保留脱敏截图与测试提示，不上传秘密或完整浏览器网络记录。
