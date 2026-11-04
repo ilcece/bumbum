@@ -1,121 +1,54 @@
-@import "./design.css";
-
-:root { font-family: Inter, "Microsoft YaHei", system-ui, sans-serif; }
-html, body, #root { min-height: 100%; }
-body { margin: 0; background: #f9fafb; }
-.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-/* 统计保留原生控件；限定作用域，避免覆盖官方表单与弹层。 */
-:where(.legacy-ui) h1,
-:where(.legacy-ui) h2,
-:where(.legacy-ui) h3,
-:where(.legacy-ui) p {
+/* 全局仅保留基础排版、无障碍文本和既有SVG图表；页面控件交给Ant Design。 */
+:root {
+  font-family: Inter, "Microsoft YaHei", system-ui, sans-serif;
+}
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
   margin: 0;
-}
-:where(.legacy-ui) h2 {
-  font-size: 15px;
-  font-weight: 650;
-}
-:where(.legacy-ui) button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-:where(.legacy-ui) fieldset {
-  min-width: 0;
-  border: 0;
-  padding: 0;
-  display: grid;
-  gap: 16px;
-}
-:where(.legacy-ui) label {
-  display: block;
-  font-size: 13px;
-  font-weight: 500;
-}
-:where(.legacy-ui) input,
-:where(.legacy-ui) select,
-:where(.legacy-ui) textarea {
-  display: block;
-  width: 100%;
-  margin-top: 6px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 8px;
-  color: var(--color-ink);
-  background: white;
-  font: inherit;
-}
-:where(.legacy-ui) textarea {
-  resize: vertical;
-}
-:where(.legacy-ui) input:focus,
-:where(.legacy-ui) select:focus,
-:where(.legacy-ui) textarea:focus {
-  outline: 2px solid var(--color-accent-soft);
-  border-color: var(--color-accent);
-}
-:where(.legacy-ui) table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-:where(.legacy-ui) caption {
-  text-align: left;
-  padding: 12px 24px;
-  color: var(--color-ink-soft);
-}
-:where(.legacy-ui) th,
-:where(.legacy-ui) td {
-  padding: 16px 20px;
-  text-align: left;
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-:where(.legacy-ui) th {
   background: #f9fafb;
-  color: var(--color-ink-soft);
-  font-weight: 500;
-  position: sticky;
-  top: 0;
-  z-index: 1;
 }
-:where(.legacy-ui) td {
-  max-width: 320px;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
   overflow: hidden;
-  text-overflow: ellipsis;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
-
-.notice { margin: 16px 0; color: #b91c1c; padding: 12px; background: #fef2f2; border-radius: 8px; }
-.diagnostic-id { overflow-wrap: anywhere; font-size: 12px; margin-top: 8px; }
-.tap-statistics { padding: 24px; margin: 20px 0; min-width: 0; overflow: visible; }
-.tap-statistics .panel-head { padding: 0 0 16px; }
-.tap-statistics h3 { font-size: 15px; margin: 24px 0 12px; }
-.tap-statistics fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.tap-filter-row, .tap-keyword-row { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
-.tap-filter-field { display: grid; gap: 6px; min-width: 180px; }
-.tap-keyword-row label { min-width: 240px; flex: 1; }
-.tap-statistics label { display: grid; gap: 6px; font-size: 13px; }
-.tap-statistics input, .tap-statistics select { width: 100%; }
-.tap-statistics button:disabled { cursor: default; opacity: .55; }
-.tap-statistics .action:focus-visible, .tap-chart-scroll:focus-visible { outline: 2px solid var(--color-accent, #2563eb); outline-offset: 3px; }
-.tap-pending { color: #92400e; font-size: 13px; margin: 10px 0; }
-.tap-applied { font-size: 13px; margin: 16px 0; color: var(--color-ink-soft, #4b5563); }
-.tap-applied p { margin: 5px 0; }
-.tap-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
-.tap-summary article { border: 1px solid var(--color-border, #e5e7eb); border-radius: 12px; padding: 20px; }
-.tap-summary span { color: var(--color-ink-soft, #4b5563); font-size: 13px; }
-.tap-summary output { display: block; margin-top: 10px; font-size: 30px; font-weight: 600; }
-.tap-chart { margin: 20px 0; }
-.tap-chart-scroll { max-width: 100%; overflow-x: auto; overflow-y: hidden; }
-.tap-chart-scroll svg { min-width: 100%; display: block; }
-.tap-chart-scroll text { fill: var(--color-ink-soft, #4b5563); font-size: 11px; }
-.tap-chart-axis { stroke: #d1d5db; }
-.tap-chart-bar { fill: #80a7f8; }
-.tap-chart-bar.selected { fill: #245eea; }
-.tap-chart-readout { min-height: 22px; color: var(--color-ink-soft, #4b5563); font-size: 13px; }
-.tap-table-scroll { overflow-x: auto; margin-top: 16px; }
-.tap-statistics table { width: 100%; min-width: 680px; }
-.tap-statistics td { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
-.tap-statistics td:nth-child(2) { min-width: 170px; }
-.tap-statistics .muted-text { color: var(--color-ink-soft, #4b5563); font-size: 12px; line-height: 1.6; }
-.tap-pagination { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0; font-size: 13px; }
-.tap-initial { padding: 24px 0; color: var(--color-ink-soft, #4b5563); }
+.tap-chart {
+  margin: 20px 0;
+}
+.tap-chart-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.tap-chart-scroll svg {
+  min-width: 100%;
+  display: block;
+}
+.tap-chart-scroll text {
+  fill: var(--color-ink-soft, #4b5563);
+  font-size: 11px;
+}
+.tap-chart-axis {
+  stroke: #d1d5db;
+}
+.tap-chart-bar {
+  fill: #80a7f8;
+}
+.tap-chart-bar.selected {
+  fill: #245eea;
+}
+.tap-chart-readout {
+  min-height: 22px;
+  color: var(--color-ink-soft, #4b5563);
+  font-size: 13px;
+}

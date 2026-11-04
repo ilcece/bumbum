@@ -1,0 +1,126 @@
+@import "tailwindcss";
+:root {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
+  color: #0f172a;
+}
+body {
+  background: #f5f7fa;
+}
+.make-shell {
+  min-height: 100vh;
+}
+.make-shell > .ant-layout {
+  min-width: 0;
+}
+.make-main {
+  padding: 20px;
+  min-width: 0;
+}
+.make-content {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+.make-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.make-header {
+  height: 58px;
+  padding: 0 24px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+  gap: 16px;
+  line-height: normal;
+}
+.make-brand {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.make-footer {
+  padding: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+.make-page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.make-id {
+  font-family: monospace;
+  font-weight: 600;
+}
+.make-secondary {
+  font-size: 12px;
+  color: #64748b;
+}
+.make-summary {
+  max-width: 230px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.make-preview {
+  padding: 16px;
+  border-radius: 12px;
+  background: #0f172a;
+  color: #fff;
+}
+.make-preview p {
+  white-space: pre-wrap;
+  color: #cbd5e1;
+  overflow-wrap: anywhere;
+}
+.make-record .ant-modal-body {
+  max-height: calc(100vh - 210px);
+  overflow: auto;
+  padding-right: 8px;
+}
+.make-record .ant-form-item-control {
+  min-width: 0;
+}
+.make-record .ant-form-item-control-input-content {
+  overflow-wrap: anywhere;
+}
+.make-query .ant-form-item {
+  margin-bottom: 0;
+}
+.make-query .ant-form-item-label {
+  font-size: 12px;
+}
+.make-query .ant-select,
+.make-query .ant-picker {
+  width: 100%;
+}
+.make-record .ant-drawer-body {
+  padding: 20px;
+}
+.make-shell .ant-table-cell {
+  overflow-wrap: anywhere;
+}
+.make-shell .ant-typography {
+  margin-top: 0;
+}
+@media (max-width: 1350px) {
+  .make-main {
+    padding: 16px;
+  }
+  .make-header-subtitle {
+    display: none;
+  }
+}
+
+.make-record .ant-form-item {
+  margin-bottom: 12px;
+}

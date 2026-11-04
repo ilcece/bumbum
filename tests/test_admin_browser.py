@@ -25,11 +25,11 @@ def test_login_restore_logout(desktop):
     desktop.login()
     page = desktop.page
     page.reload(wait_until='networkidle')
-    page.get_by_role('heading', name='你好，cece', exact=True).wait_for()
+    page.get_by_role('heading', name='工作台', exact=True).wait_for()
     assert page.get_by_role('link', name='所有权', exact=True).count() == 0
     page.get_by_role('button', name='退出登录', exact=True).click()
     page.get_by_role('button', name=re.compile(r'^登\s*录$')).wait_for()
-    assert page.locator('.admin-shell').count() == 0
+    assert page.locator('.make-shell').count() == 0
 
 
 def test_chip_batch_duplicate_and_query(desktop):
@@ -136,7 +136,7 @@ def test_keys_generate_view_confirm_and_clear(desktop):
     dialog.get_by_role('status').filter(has_text='配置核验通过').wait_for()
     assert query(desktop.app,'SELECT last_verified_counter FROM chip')[0]['last_verified_counter'] == 14
     assert dialog.get_by_label('第1条触碰链接',exact=True).input_value() == ''
-    dialog.get_by_role('button',name=re.compile(r'^关\s*闭$')).click()
+    dialog.locator('.ant-modal-footer').get_by_role('button',name=re.compile(r'^关\s*闭$')).click()
     desktop.page.get_by_role('button',name='密钥与配置',exact=True).click()
     assert dialog.get_by_label('K1',exact=True).count() == 0
     assert dialog.get_by_text('密钥已生成；配置已核验',exact=True).count() == 1
@@ -202,7 +202,7 @@ def test_binding_filters_occupied_before_pagination_without_hiding_main_list(des
     dialog.get_by_text('没有符合条件的可绑定物品。',exact=True).wait_for()
     dialog.get_by_role('button',name='取消绑定',exact=True).click()
     desktop.navigate('物品管理')
-    desktop.page.get_by_role('cell',name='FASH-2026-880025',exact=True).wait_for()
+    desktop.page.get_by_text('FASH-2026-880025',exact=True).wait_for()
 
 
 def test_binding_selection_and_real_save(desktop):
@@ -227,7 +227,7 @@ def test_binding_selection_and_real_save(desktop):
     assert query(desktop.app,"SELECT status FROM item WHERE item_uid='FASH-2026-880002'")[0]['status']=='draft'
     page.reload(wait_until='networkidle')
     desktop.navigate('芯片管理')
-    page.get_by_role('cell',name='FASH-2026-880002',exact=True).wait_for()
+    page.get_by_role('link',name='FASH-2026-880002',exact=True).wait_for()
 
 
 def test_binding_saved_but_response_lost_and_list_failure(desktop):
@@ -385,7 +385,7 @@ def test_binding_query_401_hides_management_data(desktop):
     page.route('**/api/admin/items?*',lambda route:route.fulfill(status=401,content_type='application/json',body=json.dumps({'status':'error','code':'unauthorized','message':'合成会话失效'})))
     dialog.get_by_role('button',name='查询物品',exact=True).click()
     page.get_by_role('button',name=re.compile(r'^登\s*录$')).wait_for()
-    assert page.locator('.admin-shell').count()==0
+    assert page.locator('.make-shell').count()==0
     assert page.get_by_role('dialog',name='绑定物品',exact=True).count()==0
 
 
@@ -405,7 +405,10 @@ def test_binding_refuses_imprecise_browser_ids_with_explanation(desktop,unsafe):
         desktop.navigate('芯片管理')
         button=page.get_by_role('button',name='查看详情',exact=True)
         button.wait_for()
-        assert button.is_disabled() and not writes
+        from playwright.sync_api import expect
+        expect(button).to_be_disabled()
+        expect(page.get_by_text('记录编号超出页面可处理范围，请联系维护。',exact=True)).to_be_visible()
+        assert not writes
         return
     page.route('**/api/admin/items?*',imprecise)
     dialog.get_by_role('button',name='查询物品',exact=True).click()

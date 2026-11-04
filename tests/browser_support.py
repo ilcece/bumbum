@@ -46,12 +46,17 @@ class BrowserSession:
         clock = self.app.test_clock[0].replace(tzinfo=timezone.utc).timestamp()
         page.get_by_label('Authenticator 验证码', exact=True).fill(pyotp.TOTP(self._account['secret']).at(clock))
         page.get_by_role('button', name=re.compile(r'^登\s*录$')).click()
-        page.get_by_role('heading', name='你好，cece', exact=True).wait_for()
+        page.get_by_role('heading', name='工作台', exact=True).wait_for()
 
     def navigate(self, name):
-        self.page.get_by_role('link', name=name, exact=True).click()
+        link = self.page.get_by_role('link', name=name, exact=True)
+        if self.page.locator('.ant-modal:visible, .ant-drawer:visible').count():
+            # 弹层遮罩阻止点击侧栏；这里显式触发路由以验证离开保护，物理关闭另有专测。
+            link.evaluate('(node) => node.click()')
+        else:
+            link.click()
         # 数据路由异步提交后再继续，避免连续点击实际没有离开旧页面。
-        target = self.page.get_by_role('heading', name='你好，cece' if name == '工作台' else name, exact=True)
+        target = self.page.get_by_role('heading', name=name, exact=True)
         blocked = self.page.get_by_role('dialog', name=re.compile(r'^(有未保存修改|操作尚未结束)$'))
         target.or_(blocked).first.wait_for()
 

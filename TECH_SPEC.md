@@ -4,7 +4,7 @@
 
 ## 1. 各部分负责什么
 
-管理后台组件库已确定为Ant Design，优先复用ProComponents及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前后台尚未完成迁移。版本、React兼容性及依赖调整在技术方案中核对，方案通过后按确认范围实施；现有React/Vite/TypeScript工程与认证保留，用户H5独立设计。
+管理后台组件库已确定为Ant Design，采用antd 6官方组件、本次Make展示组合及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前任务分支已迁移，人工验收与main/部署状态见TODO。锁定版本、React兼容性及依赖调整见技术方案；现有React/Vite/TypeScript工程与认证保留，用户H5独立设计。
 
 组件版本和A完整范围见[批准技术方案](docs/proposals/admin-management-implementation.md)，两项生效门槛的证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品列表、同字段详情/编辑、连续创建及Upload已接入；人工验收、合并与部署进度见TODO。
 
@@ -66,7 +66,7 @@
 
 管理员登录后填写UID，项目和批次可空；项目默认“暂不分配”，新增记录为待绑定。相同UID重复提交返回原记录，不分配、清空或覆盖原项目、批次、状态或绑定。只有原项目非空且本次明确选择另一个项目才拒绝，提示原记录未修改。新登记和操作记录一起保存，有一步失败就撤销。列表能显示和筛选“未分配”。登记不生成密钥、不写卡、不证明芯片真伪；手机入口见第2.5节，手动登记验收步骤见 [芯片登记](docs/CHIP_REGISTRATION.md)。
 
-芯片查询、按ID详情和批次维护使用[API第3节](API_CONTRACT.md#3-管理芯片已实现)契约及[产品规则](docs/product/chip-lifecycle.md#1-芯片登记与首次来源)。读列表使用同一只读一致性快照计数/分页；普通批次写入按管理员→会话→芯片重查并与最小审计原子提交，不反向锁物品、不改变绑定或密钥事务。前端加载官方React 19补丁，使用Ant Design/ProComponents和React Router；原型不作为样式规范。A余下实施范围见[批准方案](docs/proposals/admin-management-implementation.md)。
+芯片查询、按ID详情和批次维护使用[API第3节](API_CONTRACT.md#3-管理芯片已实现)契约及[产品规则](docs/product/chip-lifecycle.md#1-芯片登记与首次来源)。读列表使用同一只读一致性快照计数/分页；普通批次写入按管理员→会话→芯片重查并与最小审计原子提交，不反向锁物品、不改变绑定或密钥事务。前端使用原生兼容React 19的Ant Design 6和React Router，不再加载v5补丁；原型不作为样式规范。A余下实施范围见[批准方案](docs/proposals/admin-management-implementation.md)。
 
 ### 2.5 手机扫描后自动登记
 

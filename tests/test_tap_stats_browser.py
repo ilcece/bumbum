@@ -61,7 +61,8 @@ def test_real_default_filters_keyword_scope_pagination_and_clear(desktop):
     area.get_by_role('button',name='下一页',exact=True).click()
     expect(area.get_by_text('共23件／第2页，共2页',exact=True)).to_be_visible()
     expect(area.get_by_role('row')).to_have_count(4)
-    area.get_by_label('统计项目',exact=True).select_option('jewelry')
+    area.get_by_label('统计项目',exact=True).click()
+    desktop.page.locator('.ant-select-dropdown:visible').get_by_text('饰品',exact=True).click()
     expect(area.get_by_text('筛选条件已修改，点击查询统计生效。',exact=True)).to_be_visible()
     expect(area.get_by_label('有效触碰次数',exact=True)).to_have_text('24')
     area.get_by_role('button',name='查询统计',exact=True).click()
@@ -72,7 +73,7 @@ def test_real_default_filters_keyword_scope_pagination_and_clear(desktop):
     area.get_by_label('物品编号或名称',exact=True).press('Enter')
     expect(area.get_by_text('没有匹配的物品',exact=True)).to_be_visible()
     expect(area.get_by_label('有效触碰次数',exact=True)).to_have_text('2')
-    area.get_by_role('button',name='清空',exact=True).click()
+    area.get_by_role('button',name=re.compile(r'^清\s*空$')).click()
     expect(area.get_by_role('cell',name='平安扣',exact=True)).to_be_visible()
     # 库存始终是全局，不跟着饰品筛选缩小。
     expect(desktop.page.get_by_label('数字物品',exact=True)).to_have_text('23')
@@ -90,12 +91,13 @@ def test_refresh_uses_applied_filters_and_retry_uses_failed_request(desktop):
         requests.append(parse_qs(urlsplit(route.request.url).query))
         route.continue_()
     page.route('**/api/admin/stats/taps?*',watch)
-    area.get_by_label('统计项目',exact=True).select_option('jewelry')
+    area.get_by_label('统计项目',exact=True).click()
+    desktop.page.locator('.ant-select-dropdown:visible').get_by_text('饰品',exact=True).click()
     area.get_by_label('物品编号或名称',exact=True).fill('未查询关键词')
     area.get_by_role('button',name='刷新统计',exact=True).click()
     expect(area.get_by_role('button',name='刷新统计',exact=True)).to_be_enabled()
     assert 'project' not in requests[-1] and 'q' not in requests[-1]
-    expect(area.get_by_label('统计项目',exact=True)).to_have_value('jewelry')
+    expect(area.locator('.ant-form-item').filter(has_text='统计项目')).to_contain_text('饰品')
     expect(area.get_by_label('物品编号或名称',exact=True)).to_have_value('未查询关键词')
     page.unroute('**/api/admin/stats/taps?*')
     page.route('**/api/admin/stats/taps?*',lambda route: route.fulfill(status=503,json={'status':'error','code':'service_unavailable','message':'合成失败','error_id':'a'*24}))
@@ -103,10 +105,11 @@ def test_refresh_uses_applied_filters_and_retry_uses_failed_request(desktop):
     expect(area.get_by_role('alert')).to_contain_text('触碰统计读取失败')
     expect(area.get_by_label('有效触碰次数',exact=True)).to_have_text('3')
     expect(area.get_by_text('失败请求：饰品',exact=False)).to_be_visible()
-    area.get_by_label('统计项目',exact=True).select_option('fashion')
+    area.get_by_label('统计项目',exact=True).click()
+    page.locator('.ant-select-dropdown:visible').get_by_text('服装',exact=True).click()
     page.unroute('**/api/admin/stats/taps?*')
     page.route('**/api/admin/stats/taps?*',watch)
-    area.get_by_role('button',name='重试',exact=True).click()
+    area.get_by_role('button',name=re.compile(r'^重\s*试$')).click()
     expect(area.get_by_label('有效触碰次数',exact=True)).to_have_text('2')
     assert requests[-1]['project'] == ['jewelry'] and 'q' not in requests[-1]
 
@@ -131,7 +134,7 @@ def test_initial_failures_are_not_zero_or_partial_success(desktop, mode):
     expect(area.locator('output')).to_have_count(0)
     expect(area.get_by_text('尚未获得有效统计结果，请查询或重试。',exact=True)).to_be_visible()
     page.unroute('**/api/admin/stats/taps?*')
-    area.get_by_role('button',name='重试',exact=True).click()
+    area.get_by_role('button',name=re.compile(r'^重\s*试$')).click()
     expect(area.get_by_label('有效触碰次数',exact=True)).to_have_text('0')
     expect(area.get_by_text('共0件',exact=True)).to_be_visible()
 
@@ -188,7 +191,7 @@ def test_expired_session_clears_whole_dashboard(desktop):
     query(desktop.app,'UPDATE admin_session SET revoked_at=%s',(desktop.app.test_clock[0],))
     area.get_by_role('button',name='刷新统计',exact=True).click()
     expect(desktop.page.get_by_role('button',name=re.compile(r'^登\s*录$'))).to_be_visible()
-    expect(desktop.page.locator('.admin-shell')).to_have_count(0)
+    expect(desktop.page.locator('.make-shell')).to_have_count(0)
 
 
 def test_microsecond_timestamp_and_unicode_keyword_boundary(desktop):

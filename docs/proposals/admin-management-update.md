@@ -42,9 +42,11 @@ A/B/C/D分别审核、技术设计、测试和验收，不捆成一次发布，�
 
 ## 3 Ant Design与统一操作原则
 
-采用Ant Design与ProComponents作为管理端首选复用组合，统一布局、字段分组、表格、表单、按钮、校验、弹层、通知、加载与错误行为；覆盖芯片与物品核心流程，不以只换几个控件后长期混搭作为完成。保留现有React + Vite + TypeScript工程与认证机制，交互和页面组织优先采用Ant Design Pro官方模式；不自动迁入完整脚手架、引入Umi或重写后端。具体组件版本和兼容性在技术方案核对，用户H5另行设计。
+采用Ant Design 6官方组件与本次Make现有展示组合作为管理端复用方案，统一布局、字段分组、表格、表单、按钮、校验、弹层、通知、加载与错误行为；覆盖芯片与物品核心流程，不以只换几个控件后长期混搭作为完成。保留现有React + Vite + TypeScript工程与认证机制，交互和页面组织优先采用Ant Design Pro官方模式；不自动迁入完整脚手架、引入Umi或重写后端。具体组件版本和兼容性在技术方案核对，用户H5另行设计。
 
-**业务与设计的分工：** PRD定义字段含义、查询覆盖、可编辑权限、关联关系、状态、操作结果及异常保护。列表筛选与查询、表单详情的只读态与编辑态、校验反馈、布局及控件交互，优先采用Ant Design与ProComponents的官方规范、组件和推荐模式；原型与官方方案有差异时以官方方案为准，同时满足本稿业务规则。不另写一套控件设计规范，不要求cece逐项决定控件或像素样式；确有业务缺口再说明最小补充。
+本次实现以cece后来上传的《设计项目管理后台.zip》作为展示层来源，采用antd 6、保留Vite；该决定替代最初5系/ProComponents组合。旧交互原型仍仅供参考，本次Make的页面分组与展示予以复用，示例登录、数据、权限和未批准业务不进入正式工程。
+
+**业务与设计的分工：** PRD定义字段含义、查询覆盖、可编辑权限、关联关系、状态、操作结果及异常保护。列表筛选与查询、表单详情的只读态与编辑态、校验反馈、布局及控件交互，优先采用Ant Design的官方规范、组件和推荐模式；原型与官方方案有差异时以官方方案为准，同时满足本稿业务规则。不另写一套控件设计规范，不要求cece逐项决定控件或像素样式；确有业务缺口再说明最小补充。
 
 创建、详情、编辑共享清楚的身份区、资料区、关联与状态区。抽屉、弹窗或页面依官方适用模式选用，同类任务保持一致；原型中的统一右侧抽屉不构成实施约束。保存/取消、返回与键盘行为复用官方能力，并保留本稿要求的工作上下文及未保存保护。危险动作独立说明，不层层套弹窗。主按钮对应当前任务，不能让用户靠大段技术警告理解操作。
 
@@ -58,10 +60,10 @@ A/B/C/D分别审核、技术设计、测试和验收，不捆成一次发布，�
 
 | 后台任务 | 优先评估的现成组件／模式 | 体验与业务边界 |
 |---|---|---|
-| 导航、菜单、面包屑、页面容器 | ProLayout、PageContainer | 菜单只列已交付能力，路由与会话继续受控，不整包引入示例页 |
-| 列表、查询、分页及筛选 | ProTable；简单场景可用Table | 同类列表共享查询/重置/分页模式；条件与总数以服务端全量过滤结果为准 |
-| 创建、编辑、字段校验 | ProForm、Form及官方字段组件 | 两模块相同字段分组和校验反馈；表单切换到新记录须重置旧值；服务端重复校验业务规则 |
-| 详情、只读信息 | ProDescriptions、Descriptions | 身份和不可改字段仍展示原因与替代处理，不把只读理解为隐藏 |
+| 导航、菜单、面包屑、页面容器 | Layout、Menu、Card | 菜单只列已交付能力，路由与会话继续受控，不整包引入示例页 |
+| 列表、查询、分页及筛选 | Table、Form及内置分页 | 同类列表共享查询/重置/分页模式；条件与总数以服务端全量过滤结果为准 |
+| 创建、编辑、字段校验 | Form及官方字段组件 | 两模块相同字段分组和校验反馈；表单切换到新记录须重置旧值；服务端重复校验业务规则 |
+| 详情、只读信息 | Descriptions、Typography | 身份和不可改字段仍展示原因与替代处理，不把只读理解为隐藏 |
 | 页面或弹层里的表单 | Modal、Drawer与官方表单容器组合 | 容器形态按官方适用模式选用；保存/取消/关闭与未保存保护一致，不每页自创一种操作 |
 | 状态、提示、加载与失败 | Tag、Badge、Alert、Result、Message、Notification、Spin、Skeleton、Empty | 同类结果用一致样式及文字；真实保存结果来自后端，不用动画、定时器或本地状态伪造成功 |
 | 挂失、核验、接续步骤与历史 | Steps、Timeline | 只展示真实业务进度；点下一步不等于实卡完成、授权切换或权益迁移 |
@@ -77,7 +79,7 @@ A/B/C/D分别审核、技术设计、测试和验收，不捆成一次发布，�
 
 **按完整任务迁移验收：** 以“列表 → 创建/详情 → 编辑 → 返回”的完整流程为交付单元，保留已有认证、接口适配、安全检查及业务测试；流程交付时移除其已被替代的旧控件、重复样式和无用依赖，先核对跨页面共用依赖再删除。不默认推倒重写整个后台；不以组件安装成功或几处截图变好看当迁移完成。
 
-官方参考：[Ant Design设计规范](https://ant.design/docs/spec/introduce-cn)、[组件总览](https://ant.design/components/overview/)、[Table](https://ant.design/components/table/)、[Form](https://ant.design/components/form/)、[Upload](https://ant.design/components/upload/)、[主题配置](https://ant.design/docs/react/customize-theme/)、[ProComponents](https://procomponents.ant.design/components/)、[Ant Design Pro](https://github.com/ant-design/ant-design-pro)。版本锁定、具体导出及React兼容以实施时技术核对为准，以上是复用方向，不表示依赖已经安装。
+官方参考：[Ant Design设计规范](https://ant.design/docs/spec/introduce-cn)、[组件总览](https://ant.design/components/overview/)、[Table](https://ant.design/components/table/)、[Form](https://ant.design/components/form/)、[Upload](https://ant.design/components/upload/)、[主题配置](https://ant.design/docs/react/customize-theme/)、[ProComponents](https://procomponents.ant.design/components/)、[Ant Design Pro](https://github.com/ant-design/ant-design-pro)。当前安装组合以技术方案和package-lock为准；官方参考不表示引入完整Pro脚手架或Umi。
 
 ### 3.2 原型审核入口与交互取舍
 
@@ -143,7 +145,7 @@ A的查询覆盖、普通编辑边界和连续流程规则已通过，图片上�
 
 | 编号／功能 | 使用场景与证据分类 | 本轮定位／建议及边界 |
 |---|---|---|
-| S01 Ant Design统一 | cece明确要组件、风格、交互一致，已选库并确认官方能力优先复用 | A已确认；按[对应规则](admin-management-update.md#31-官方复用定制与迁移约定已确认)优先Ant Design/ProComponents及Pro官方模式，主题集中、定制说明缺口，整条流程统一，不自建通用后台框架 |
+| S01 Ant Design统一 | cece明确要组件、风格、交互一致，已选库并确认官方能力优先复用 | A已确认；按[对应规则](admin-management-update.md#31-官方复用定制与迁移约定已确认)优先Ant Design官方组件及已确认Make展示模式，主题集中、定制说明缺口，整条流程统一，不自建通用后台框架 |
 | S02 假入口/旧说明 | 已观察到可点占位与过时说明，cece确认修正 | A改善现有界面，移除无效动作，不为菜单完整性开发功能 |
 | S03 芯片详情与下一步 | cece要清楚查看身份/关联/状态并能维护；已确认不好用 | A统一体系；关联物品可点击查看详情，容器与交互采用官方模式，秘密仍受控 |
 | S04 物品详情与关联 | cece从物品核对关联并继续编辑，已确认统一流程 | A纳入关联查看；不额外造“可出厂”认证状态 |

@@ -1,4 +1,4 @@
-"""真实浏览器显式检查React 19补丁；独立页面不使用业务数据库。"""
+"""真实浏览器显式检查antd 6与React 19原生兼容；独立页面不使用业务数据库。"""
 
 from io import BytesIO
 import os

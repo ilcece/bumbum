@@ -460,7 +460,15 @@ Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction Si
 
 ## 13. A方案生效门槛：组件冒烟与图片离线恢复
 
-本节复现[A技术方案](proposals/admin-management-implementation.md)要求的隔离证据，不代表芯片/物品改版或真实上传接口已交付。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。无需安装全局Ant Design CLI，也不访问Figma。
+本节复现[A技术方案](proposals/admin-management-implementation.md)要求的隔离证据，不替代完整业务流程或人工验收。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
+
+在`frontend/admin`目录可执行以下官方检查；成功应显示doctor无失败、弃用检查无问题，不能代替浏览器冒烟。API查询显式指定当前antd版本，若失败先检查npm ci是否完成及Node版本。
+
+```bash
+npx --no-install antd info Upload --version 6.6.8 --format json
+npx --no-install antd doctor --format json
+npx --no-install antd lint ./src --only deprecated --format json
+```
 
 在项目根目录、使用上述测试依赖所在的Python执行：
 

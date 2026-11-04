@@ -1,10 +1,8 @@
 // 仅使用合成数据验证官方组件，不能作为真实上传或业务权限验收。
-import '@ant-design/v5-patch-for-react-19';
 import React, { useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { App, Button, ConfigProvider, Form, Modal, notification, Select, Space, Upload } from 'antd';
+import { App, Button, ConfigProvider, Form, Input, Modal, notification, Select, Space, Upload } from 'antd';
 import type { UploadFile, UploadProps } from 'antd';
-import { ProForm, ProFormText } from '@ant-design/pro-components';
 import zhCN from 'antd/locale/zh_CN';
 import 'antd/dist/reset.css';
 
@@ -35,7 +33,7 @@ function Smoke() {
   function notify(mode: 'static' | 'app' | 'hook', action: 'open' | 'success' | 'update' | 'destroy') {
     const api = mode === 'static' ? notification : mode === 'app' ? app.notification : hookNotification;
     if (action === 'destroy') { api.destroy('smoke'); return; }
-    const options = { key: 'smoke', message: action === 'update' ? '更新后的通知' : `${mode}通知`, description: '合成内容', duration: 0 };
+    const options = { key: 'smoke', title: action === 'update' ? '更新后的通知' : `${mode}通知`, description: '合成内容', duration: 0 };
     if (action === 'success') api.success(options);
     else api.open(options);
   }
@@ -77,11 +75,11 @@ function Smoke() {
       <Upload {...upload}><Button>选择合成图片</Button></Upload>
     </section>
     <section aria-label="表单验证"><h2>Form</h2>
-      <ProForm form={form} name="compat" readonly={readonly} initialValues={{ name: '', uid: '04:A2:7F:1B:5E:80:00' }} submitter={false}
-        onFinish={async values => { setEvent(`已提交:${values.name}`); return true; }}>
-        <ProFormText name="name" label="名称" rules={[{ required: true, message: '请填写名称' }]} />
-        <ProFormText name="uid" label="芯片身份" readonly />
-      </ProForm>
+      <Form form={form} name="compat" initialValues={{ name: '', uid: '04:A2:7F:1B:5E:80:00' }}
+        onFinish={values=>setEvent(`已提交:${values.name}`)}>
+        {readonly?<Form.Item label="名称"><span>{form.getFieldValue('name')}</span></Form.Item>:<Form.Item name="name" label="名称" rules={[{required:true,message:'请填写名称'}]}><Input/></Form.Item>}
+        <Form.Item label="芯片身份"><span>04:A2:7F:1B:5E:80:00</span></Form.Item>
+      </Form>
       <Space>
         <Button onClick={async () => { try { await form.validateFields(); setEvent('校验通过'); } catch { form.scrollToField('name', { focus: true }); setEvent('校验拒绝'); } }}>校验并定位</Button>
         <Button onClick={() => form.setFieldsValue({ name: '记录B' })}>载入记录B</Button>

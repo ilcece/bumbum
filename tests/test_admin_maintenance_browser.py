@@ -35,7 +35,8 @@ def test_chip_query_relation_equal_fields_edit_return(desktop):
     page.get_by_label('关键词', exact=True).fill('浏览器关联名称')
     page.get_by_role('button', name=re.compile(r'查\s*询$')).click()
     expect(page).to_have_url(re.compile('keyword='))
-    page.get_by_role('cell', name='关联物品名称', exact=True).wait_for()
+    page.get_by_text('浏览器关联名称',exact=True).wait_for()
+    expect(page.get_by_text('命中：关联物品名称',exact=True)).to_be_visible()
     original = page.url
     page.get_by_role('button', name='查看详情', exact=True).click()
     expect(page).to_have_url(re.compile(f'/chips/{chip}$'))
@@ -53,7 +54,7 @@ def test_chip_query_relation_equal_fields_edit_return(desktop):
     page.get_by_label('批次', exact=True).fill('新批次')
     page.get_by_role('button', name='保存批次', exact=True).click()
     expect(page).to_have_url(re.compile(f'/chips/{chip}$'))
-    page.get_by_text('新批次', exact=True).wait_for()
+    page.get_by_role('dialog',name=re.compile('芯片详情')).get_by_text('新批次',exact=True).wait_for()
     page.get_by_role('button', name='返回来源', exact=True).click()
     expect(page).to_have_url(original)
     expect(page.get_by_label('关键词', exact=True)).to_have_value('浏览器关联名称')
@@ -120,6 +121,7 @@ def test_advanced_dates_pagination_and_clear(desktop):
     from playwright.sync_api import expect
     for number in range(25):
         query(desktop.app, "INSERT INTO chip(chip_uid,batch_no,created_at) VALUES (%s,'范围批次','2026-11-02 16:00:00')", (f'04:11:22:33:44:55:{number:02X}',))
+    query(desktop.app,"INSERT INTO chip(chip_uid,batch_no,created_at) VALUES ('04:EE:EE:EE:EE:EE:01','不匹配批次','2026-10-01 00:00:00')")
     desktop.login(); desktop.navigate('芯片管理')
     page = desktop.page
     page.get_by_text('展开', exact=True).click()
@@ -149,3 +151,27 @@ def test_advanced_dates_pagination_and_clear(desktop):
     expect(page).not_to_have_url(re.compile('created_from='))
     expect(page).to_have_url(re.compile('page=1'))
     expect(page.get_by_label('批次', exact=True)).to_have_value('范围批次')
+
+
+@pytest.mark.parametrize('kind',['chips','items'])
+def test_collapsed_query_retains_url_dates_and_advanced_conditions(desktop,kind):
+    from playwright.sync_api import expect
+    if kind=='chips':
+        for suffix,batch,created in [(1,'保留批次','2026-11-02 16:00:00'),(2,'其他批次','2026-11-02 16:00:00'),(3,'保留批次','2026-10-01 00:00:00')]:
+            query(desktop.app,'INSERT INTO chip(chip_uid,batch_no,created_at) VALUES (%s,%s,%s)',(f'04:AA:BB:CC:DD:EE:{suffix:02X}',batch,created))
+        advanced='batch_no=%E4%BF%9D%E7%95%99%E6%89%B9%E6%AC%A1'
+    else:
+        for suffix,created in [(1,'2026-11-02 16:00:00'),(2,'2026-11-02 16:00:00'),(3,'2026-10-01 00:00:00')]:
+            query(desktop.app,'INSERT INTO item(project_id,item_uid,created_at) VALUES (1,%s,%s)',(f'FASH-2026-{930000+suffix:06d}',created))
+        item=query(desktop.app,"SELECT id FROM item WHERE item_uid='FASH-2026-930002'")[0]['id']
+        query(desktop.app,"INSERT INTO chip(chip_uid,project_id,item_id,chip_status) VALUES ('04:AA:BB:CC:DD:EE:02',1,%s,'bound')",(item,))
+        advanced='has_chip=false'
+    desktop.login();page=desktop.page
+    page.goto(f'http://localhost:5174/{kind}?page=1&page_size=20&{advanced}&created_from=2026-11-03&created_to=2026-11-03',wait_until='networkidle')
+    rows=page.locator('.ant-table-tbody .ant-table-row')
+    expect(rows).to_have_count(1)
+    expect(page.get_by_role('button',name='展开',exact=True)).to_be_visible()
+    page.get_by_role('button',name=re.compile(r'查\s*询$')).click()
+    expect(page).to_have_url(re.compile('created_from=2026-11-03'))
+    expect(page).to_have_url(re.compile(advanced))
+    expect(rows).to_have_count(1)

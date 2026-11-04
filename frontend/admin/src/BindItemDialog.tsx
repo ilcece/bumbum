@@ -1,5 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, App, Button, Checkbox, Form, Input, Modal, Select, Space, Table, Typography } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Checkbox,
+  Form,
+  Input,
+  Modal,
+  Select,
+  Space,
+  Table,
+  Typography,
+} from "antd";
 import { ApiError, bindChipItem, listChips, listItems } from "./api";
 import type { ChipView, ItemList, ItemQuery, ItemView } from "./api";
 
@@ -102,8 +114,15 @@ export function BindItemDialog({
   function close() {
     if (inFlight.current) return;
     if (selected || unknown) {
-      modal.confirm({ title: "放弃本次绑定选择？", content: unknown ? "绑定结果尚未确认，关闭后须按芯片ID核对。" : "关闭不会提交绑定。",
-        okText: "放弃并关闭", cancelText: "继续核对", onOk: onClose });
+      modal.confirm({
+        title: "放弃本次绑定选择？",
+        content: unknown
+          ? "绑定结果尚未确认，关闭后须按芯片ID核对。"
+          : "关闭不会提交绑定。",
+        okText: "放弃并关闭",
+        cancelText: "继续核对",
+        onOk: onClose,
+      });
       return;
     }
     onClose();
@@ -220,59 +239,215 @@ export function BindItemDialog({
   const busy = sending || checking;
   const canSubmit = Boolean(
     selected &&
-      confirmed &&
-      !pending &&
-      !loading &&
-      !busy &&
-      !blocked &&
-      (!unknown || retryAllowed),
+    confirmed &&
+    !pending &&
+    !loading &&
+    !busy &&
+    !blocked &&
+    (!unknown || retryAllowed),
   );
-  return <Modal open title="绑定物品" onCancel={close} maskClosable={false} closable={!busy} width={900}
-    footer={<Space>
-      {unknown && <Button loading={checking} disabled={busy} onClick={() => void verify()}>查询此芯片</Button>}
-      <Button disabled={busy} onClick={close}>取消绑定</Button>
-      <Button aria-label={unknown ? "重试原目标绑定" : "确认绑定"} type="primary" loading={sending} disabled={!canSubmit} onClick={() => void submit()}>{unknown ? "重试原目标绑定" : "确认绑定"}</Button>
-    </Space>}>
-    <Space direction="vertical" size="middle" style={{ width: "100%" }}>
-      <Alert type="info" showIcon message="绑定只建立关联，不生成密钥或写卡。本版本暂不提供解绑或换绑。" />
-      <Typography.Text>芯片UID：{chip.chip_uid}；当前项目：{chip.project ? PROJECTS[chip.project] : "未分配，绑定时按目标物品确定"}；批次：{chip.batch_no || "未填写"}</Typography.Text>
-      {!safeId(chip.id) && <Alert type="error" message="芯片记录编号超出当前页面可处理范围，不能选择或绑定，请反馈。" />}
-      <Form layout="inline" disabled={busy || unknown} aria-label="查询绑定候选物品" onFinish={() => { if (!busy && !unknown) runQuery(); }}>
-        <Form.Item label="候选项目" htmlFor="candidate-project"><Select id="candidate-project" style={{ width: 150 }}
-          value={filters.project} disabled={busy || unknown || chip.project !== null}
-          options={Object.entries(PROJECTS).map(([value, label]) => ({ value, label }))}
-          onChange={value => changeFilters({ ...filters, project: value })} /></Form.Item>
-        <Form.Item label="物品关键词" htmlFor="candidate-keyword"><Input id="candidate-keyword" maxLength={128} value={filters.keyword}
-          placeholder="物品编号或款式编号" onChange={event => changeFilters({ ...filters, keyword: event.target.value })} /></Form.Item>
-        <Form.Item><Button htmlType="submit" disabled={busy || unknown}>查询物品</Button></Form.Item>
-      </Form>
-      {pending && <Alert type="info" message="条件已改变，请点击“查询物品”；旧结果不可选。" />}
-      {searchError && <Alert type="error" showIcon message={searchError} />}
-      {!query && <Typography.Text>可输入编号或款式后查询，也可直接查询所选项目。</Typography.Text>}
-      {result && !searchError && <>
-        <Typography.Text>共 {result.total} 件未被芯片占用的物品；最终能否绑定以提交时检查为准。</Typography.Text>
-        {result.items.some(item => !safeId(item.id)) && <Alert type="error" message="有物品记录编号超出当前页面可处理范围，该行不能选择，请反馈。" />}
-        <Table<ItemView> aria-label="绑定候选物品" rowKey="id" loading={loading} dataSource={result.items} scroll={{ x: 700 }}
-          columns={[
-            { title: "项目", dataIndex: "project", render: (value: ItemView["project"]) => PROJECTS[value] },
-            { title: "物品编号", dataIndex: "item_uid" }, { title: "款式编号", dataIndex: "sku_code", render: value => value || "未填写" },
-            { title: "名称", render: (_, item) => typeof item.profile?.name === "string" ? item.profile.name : "未填写" },
-            { title: "状态", dataIndex: "status", render: (value: ItemView["status"]) => STATES[value] },
-          ]}
-          rowSelection={{ type: "radio", selectedRowKeys: selected ? [selected.id] : [],
-            getCheckboxProps: item => ({ disabled: busy || unknown || pending || item.status === "archived" || !safeId(item.id) || !safeId(chip.id), "aria-label": `选择物品 ${item.item_uid}` }),
-            onChange: (_, rows) => { setSelected(rows[0] || null); setConfirmed(false); setError(""); } }}
-          pagination={{ current: query?.page, pageSize: result.page_size, total: result.total, showSizeChanger: false,
-            disabled: busy || unknown || pending, onChange: page => runQuery(page) }} locale={{ emptyText: "没有符合条件的可绑定物品。" }} />
-      </>}
-      {selected && <Alert type="warning" showIcon message={`核对芯片 ${chip.chip_uid} → ${PROJECTS[selected.project]}物品 ${selected.item_uid}`}
-        description={<Space direction="vertical">
-          {chip.project === null && <span>芯片项目将确定为：{PROJECTS[selected.project]}</span>}
-          <Checkbox checked={confirmed} disabled={busy || blocked || (unknown && !retryAllowed)} onChange={event => setConfirmed(event.target.checked)}>
-            我已核对芯片与物品编号，理解本版本暂不提供解绑或换绑。
-          </Checkbox>
-        </Space>} />}
-      {error && <Alert type="error" showIcon message={error} />}
-    </Space>
-  </Modal>;
+  return (
+    <Modal
+      open
+      title="绑定物品"
+      onCancel={close}
+      mask={{ closable: false }}
+      closable={!busy}
+      width={900}
+      footer={
+        <Space>
+          {unknown && (
+            <Button
+              loading={checking}
+              disabled={busy}
+              onClick={() => void verify()}
+            >
+              查询此芯片
+            </Button>
+          )}
+          <Button disabled={busy} onClick={close}>
+            取消绑定
+          </Button>
+          <Button
+            aria-label={unknown ? "重试原目标绑定" : "确认绑定"}
+            type="primary"
+            loading={sending}
+            disabled={!canSubmit}
+            onClick={() => void submit()}
+          >
+            {unknown ? "重试原目标绑定" : "确认绑定"}
+          </Button>
+        </Space>
+      }
+    >
+      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+        <Alert
+          type="info"
+          showIcon
+          title="绑定只建立关联，不生成密钥或写卡。本版本暂不提供解绑或换绑。"
+        />
+        <Typography.Text>
+          芯片UID：{chip.chip_uid}；当前项目：
+          {chip.project
+            ? PROJECTS[chip.project]
+            : "未分配，绑定时按目标物品确定"}
+          ；批次：{chip.batch_no || "未填写"}
+        </Typography.Text>
+        {!safeId(chip.id) && (
+          <Alert
+            type="error"
+            title="芯片记录编号超出当前页面可处理范围，不能选择或绑定，请反馈。"
+          />
+        )}
+        <Form
+          layout="inline"
+          disabled={busy || unknown}
+          aria-label="查询绑定候选物品"
+          onFinish={() => {
+            if (!busy && !unknown) runQuery();
+          }}
+        >
+          <Form.Item label="候选项目" htmlFor="candidate-project">
+            <Select
+              id="candidate-project"
+              style={{ width: 150 }}
+              value={filters.project}
+              disabled={busy || unknown || chip.project !== null}
+              options={Object.entries(PROJECTS).map(([value, label]) => ({
+                value,
+                label,
+              }))}
+              onChange={(value) =>
+                changeFilters({ ...filters, project: value })
+              }
+            />
+          </Form.Item>
+          <Form.Item label="物品关键词" htmlFor="candidate-keyword">
+            <Input
+              id="candidate-keyword"
+              maxLength={128}
+              value={filters.keyword}
+              placeholder="物品编号或款式编号"
+              onChange={(event) =>
+                changeFilters({ ...filters, keyword: event.target.value })
+              }
+            />
+          </Form.Item>
+          <Form.Item>
+            <Button htmlType="submit" disabled={busy || unknown}>
+              查询物品
+            </Button>
+          </Form.Item>
+        </Form>
+        {pending && (
+          <Alert
+            type="info"
+            title="条件已改变，请点击“查询物品”；旧结果不可选。"
+          />
+        )}
+        {searchError && <Alert type="error" showIcon title={searchError} />}
+        {!query && (
+          <Typography.Text>
+            可输入编号或款式后查询，也可直接查询所选项目。
+          </Typography.Text>
+        )}
+        {result && !searchError && (
+          <>
+            <Typography.Text>
+              共 {result.total}{" "}
+              件未被芯片占用的物品；最终能否绑定以提交时检查为准。
+            </Typography.Text>
+            {result.items.some((item) => !safeId(item.id)) && (
+              <Alert
+                type="error"
+                title="有物品记录编号超出当前页面可处理范围，该行不能选择，请反馈。"
+              />
+            )}
+            <Table<ItemView>
+              aria-label="绑定候选物品"
+              rowKey="id"
+              loading={loading}
+              dataSource={result.items}
+              scroll={{ x: 700 }}
+              columns={[
+                {
+                  title: "项目",
+                  dataIndex: "project",
+                  render: (value: ItemView["project"]) => PROJECTS[value],
+                },
+                { title: "物品编号", dataIndex: "item_uid" },
+                {
+                  title: "款式编号",
+                  dataIndex: "sku_code",
+                  render: (value) => value || "未填写",
+                },
+                {
+                  title: "名称",
+                  render: (_, item) =>
+                    typeof item.profile?.name === "string"
+                      ? item.profile.name
+                      : "未填写",
+                },
+                {
+                  title: "状态",
+                  dataIndex: "status",
+                  render: (value: ItemView["status"]) => STATES[value],
+                },
+              ]}
+              rowSelection={{
+                type: "radio",
+                selectedRowKeys: selected ? [selected.id] : [],
+                getCheckboxProps: (item) => ({
+                  disabled:
+                    busy ||
+                    unknown ||
+                    pending ||
+                    item.status === "archived" ||
+                    !safeId(item.id) ||
+                    !safeId(chip.id),
+                  "aria-label": `选择物品 ${item.item_uid}`,
+                }),
+                onChange: (_, rows) => {
+                  setSelected(rows[0] || null);
+                  setConfirmed(false);
+                  setError("");
+                },
+              }}
+              pagination={{
+                current: query?.page,
+                pageSize: result.page_size,
+                total: result.total,
+                showSizeChanger: false,
+                disabled: busy || unknown || pending,
+                onChange: (page) => runQuery(page),
+              }}
+              locale={{ emptyText: "没有符合条件的可绑定物品。" }}
+            />
+          </>
+        )}
+        {selected && (
+          <Alert
+            type="warning"
+            showIcon
+            title={`核对芯片 ${chip.chip_uid} → ${PROJECTS[selected.project]}物品 ${selected.item_uid}`}
+            description={
+              <Space orientation="vertical">
+                {chip.project === null && (
+                  <span>芯片项目将确定为：{PROJECTS[selected.project]}</span>
+                )}
+                <Checkbox
+                  checked={confirmed}
+                  disabled={busy || blocked || (unknown && !retryAllowed)}
+                  onChange={(event) => setConfirmed(event.target.checked)}
+                >
+                  我已核对芯片与物品编号，理解本版本暂不提供解绑或换绑。
+                </Checkbox>
+              </Space>
+            }
+          />
+        )}
+        {error && <Alert type="error" showIcon title={error} />}
+      </Space>
+    </Modal>
+  );
 }

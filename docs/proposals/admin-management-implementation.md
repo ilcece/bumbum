@@ -5,7 +5,7 @@ status: approved
 
 # A：管理后台改版技术方案
 
-本稿承接[已确认的A业务规则](admin-management-update.md)。2026-11-03 cece有条件批准本技术方案，条件为React 19显式组件冒烟，以及图片备份恢复的元数据—文件一致性和离线上传服务恢复验证；具体生效门槛见下文。批准允许完成门槛所需的实现与验证，不能把文档批准写成门槛已通过；全部门槛通过后才按本方案继续完整业务构建。原型只作参考，按Ant Design官方设计规范和交互模式实现，不再补画；人工验收、合并main和生产部署分别处理，当前进度只维护在[TODO](../../TODO.md)。
+本稿承接[已确认的A业务规则](admin-management-update.md)。2026-11-03 cece有条件批准本技术方案，生效条件为React 19显式组件冒烟，以及图片备份恢复的元数据—文件一致性和离线上传服务恢复验证，具体门槛见下文。随后cece确认验证并继续采用“antd 6＋保留Vite＋复用本次Make展示层”，当前组件组合按该决定修订，原两项门槛继续有效。批准允许完成门槛所需的实现与验证，不能把文档批准写成门槛已通过；全部门槛通过后才按本方案继续完整业务构建。旧交互原型只作参考；本次Make展示按第3节提取，交互仍遵循Ant Design官方规范。人工验收、合并main和生产部署分别处理，当前进度只维护在[TODO](../../TODO.md)。
 
 ## 1 推荐方案与审核重点
 
@@ -13,7 +13,7 @@ status: approved
 
 有条件批准范围：
 
-1. **组件组合：** 使用Ant Design 5.29.3 + ProComponents 2.8.10，接入官方React 19兼容补丁；当前ProComponents稳定版未声明兼容Ant Design 6，不强制忽略依赖冲突。
+1. **组件组合：** 使用Ant Design 6.6.8原生支持React 19，保留Vite/React Router，直接复用cece上传的《设计项目管理后台.zip》的页面布局和展示组合；移除ProComponents 2及v5兼容补丁，不迁入Umi，不引入ProComponents 3预发布版。
 2. **管理能力：** 补芯片独立详情、批次/款式编辑、目标查询覆盖和关联详情读取；详情与编辑共用业务字段定义，普通资料一次保存，不将一个保存按钮拆成多个可能部分成功的写请求。
 3. **图片落地：** 使用Upload组件和现有ECS的独立持久目录，新增一张图片元数据表。图片不设公开静态目录，读取沿用管理员会话或用户查看资格。新增文件需要与数据库配套备份；不新增OSS、CDN、Redis、队列或媒体管理平台。
 
@@ -23,7 +23,7 @@ status: approved
 
 | 事项 | 推荐 | 替代与代价 |
 |---|---|---|
-| 组件版本 | antd 5 + ProComponents稳定版，使用官方React 19补丁 | antd 6可直接支持React 19，但当前ProComponents稳定版peerDependencies仅列4/5；只用6的基础组件需要更多页面组合。待ProComponents正式支持6时另评估升级，本轮不同时承担跨主版本适配 |
+| 组件版本与工程 | antd 6 + 保留Vite + 本次Make展示层 | 原5系组合已被本次决定替代。Make已经提供6系的Layout/Table/Form等页面组合，减少重新组合成本；Umi可以提供路由/布局约定，但仍须适配现有认证、接口、状态和Make展示，当前迁框架没有额外业务收益。这里是本次选择，不表示未来禁止Umi |
 | 图片存储 | 现有ECS独立目录，应用鉴权读取，适合当前单机、小规模维护 | OSS私有桶更适合后续扩容及多实例，但要新增资源、身份权限、SDK和存储/请求费用。当前没有必须增加这项云服务的证据；仅保留URL输入更省事，但不能完成本地图片上传目标 |
 
 推荐方案不增加独立服务订阅，仍消耗ECS磁盘、带宽及备份空间，不等于零成本。磁盘故障会损失未备份图片；跨实例共享、异地图片备份和大规模分发不包含在本次实现中。生产启用前须核实可用空间及备份去向，不能只凭构建通过上线。
@@ -43,13 +43,13 @@ status: approved
 | [杭州部署生成器](../../scripts/hangzhou.py) | 非root、只读容器根目录，生产512MiB/两个worker、测试256MiB/一个worker；现有日志卷和CA挂载不提供图片持久存储 |
 | [用户查看](../../core/tap_grants.py)、[图片展示](../../frontend/user/src/ImageGallery.tsx) | 现有服装查看Cookie限定到具体物品路径，图片使用URL；新增自管图片需接入相同资格检查，不重做用户UI |
 
-### 2.1 拟锁定的直接依赖
+### 2.1 当前锁定的直接依赖
 
-| 依赖 | 建议版本 | 用途与依据 |
+| 依赖 | 锁定版本 | 用途与依据 |
 |---|---|---|
-| antd | 5.29.3 | 当前5系稳定发布；沿用已确认的Ant Design体系 |
-| @ant-design/pro-components | 2.8.10 | 官方表格、表单、布局及只读能力；发布声明antd为`^4.24.15 || ^5.11.2` |
-| @ant-design/v5-patch-for-react-19 | 1.0.3 | 入口加载官方兼容补丁，核对Modal、通知与波纹等行为；不自行修改React内部接口 |
+| antd | 6.6.8 | 官方基础组件和Make现有页面组合；原生支持React 19，仍执行显式运行冒烟 |
+| @ant-design/cli | 6.6.8，开发依赖 | 按锁定版本查API、迁移和弃用项，运行doctor；不打入业务包 |
+| tailwindcss / @tailwindcss/vite | 4.2.2，开发依赖 | 编译本次Make保留的布局/文字类，不引入另一套控件库 |
 | @ant-design/icons | 6.3.4 | 与官方控件配套；逐步替代迁移流程内旧图标，不单独重画图标 |
 | dayjs | 1.11.23 | 日期控件值转换；浏览器显示北京时间，服务端独立校验时间范围 |
 | react-router-dom | 7.18.5 | 管理端路由、URL查询参数、前后退及离开保护；不另写路由框架或引入全局状态库 |
@@ -57,13 +57,15 @@ status: approved
 
 现有React、TypeScript、Vite、Python和数据库版本保留。新前端依赖写入admin的package.json并由npm生成锁文件；Pillow加入requirements.in，并重新生成受影响的运行、开发、浏览器和部署锁定清单。用户前端不安装antd。
 
-发布版本、peerDependencies和官方React 19适配方法只提供选型依据；严格依赖解析、类型和打包仍需检查，实际运行兼容性以第2.2节显式冒烟为准，不能用安装或构建通过替代。具体通过/未执行证据见CHANGELOG，当前门槛进展见TODO；不用`--force`或`--legacy-peer-deps`凑通过。出现未声明兼容或实际冲突时暂停受影响实现并修订选型，不悄悄升级现有技术栈。CLI/MCP不是运行依赖，本轮不要求全局安装；组件API按锁定版本查官方文档。
+发布版本、peerDependencies和官方React 19适配方法只提供选型依据；严格依赖解析、类型和打包仍需检查，实际运行兼容性以第2.2节显式冒烟为准，不能用安装或构建通过替代。具体通过/未执行证据见CHANGELOG，当前门槛进展见TODO；不用`--force`或`--legacy-peer-deps`凑通过。出现未声明兼容或实际冲突时暂停受影响实现并修订选型，不悄悄升级现有技术栈。官方CLI已纳入项目开发依赖，npm ci一并安装，无需全局安装；用法集中在本地运行说明。组件API按锁定版本查询，MCP不是业务运行依赖。
 
-依据：[antd 5.29.3元数据](https://registry.npmjs.org/antd/5.29.3)、[ProComponents 2.8.10元数据](https://registry.npmjs.org/@ant-design%2fpro-components/2.8.10)、[antd 6.6.8元数据](https://registry.npmjs.org/antd/6.6.8)、[React 19官方适配](https://ant.design/docs/react/v5-for-19-cn)、[补丁元数据](https://registry.npmjs.org/@ant-design%2fv5-patch-for-react-19/1.0.3)、[Pillow元数据](https://pypi.org/pypi/Pillow/13.0.0/json)。
+依据：[antd 6.6.8元数据](https://registry.npmjs.org/antd/6.6.8)、[Ant Design For Agents](https://ant.design/docs/react/for-agents-cn)、[6系迁移说明](https://ant.design/docs/react/migration-v6-cn)、[Pillow元数据](https://pypi.org/pypi/Pillow/13.0.0/json)。5系初次选型及补丁验证保留在历史记录，不作为当前安装要求。
 
-### 2.2 React 19补丁的显式冒烟门槛
+<a name="22-react-19补丁的显式冒烟门槛"></a>
 
-使用上述锁定组合和真实浏览器执行以下矩阵，构建成功不代替运行证据。Modal、Notification覆盖静态调用及实际使用的App/Hook上下文调用；Upload和Form没有对应的静态弹层API，分别验证其真实上传回调和Form.useForm等官方接口，不编造不存在的方法。
+### 2.2 React 19的显式冒烟门槛
+
+升级6后继续执行原有批准条件，不再加载v5补丁。使用上述锁定组合和真实浏览器执行以下矩阵，构建成功不代替运行证据。Modal、Notification覆盖静态调用及实际使用的App/Hook上下文调用；Upload和Form没有对应的静态弹层API，分别验证其真实上传回调和Form.useForm等官方接口，不编造不存在的方法。
 
 | 对象 | 必须实际触发的操作 | 通过依据 |
 |---|---|---|
@@ -82,17 +84,19 @@ status: approved
 
 | 任务 | 官方实现 | 本项目只补什么 |
 |---|---|---|
-| 页面框架 | ConfigProvider、App、ProLayout、PageContainer | 一个中文与主题入口、已交付菜单和现有会话门禁；工作台统计图和真实运行检查保留 |
-| 列表查询 | ProTable的查询表单、request及分页 | 将已提交条件转换为API参数、结果校验、错误处理；返回`data/success/total`，不复制一套筛选/分页控件 |
-| 详情与编辑 | ProDescriptions、ProForm及官方readonly字段 | 芯片、物品各有一份带类型的字段定义，详情/编辑均由它生成；编辑仅放开白名单，图片、关联等用官方组件组合。不是数据库驱动的通用表单系统 |
-| 创建 | 官方ModalForm/DrawerForm或页面表单 | 现行编号校验、重复结果、确切记录定位、继续创建清空；容器按官方适用模式选用，不照搬Figma抽屉 |
+| 页面框架 | ConfigProvider、App、Layout、Menu、Card | 一个中文与主题入口、已交付菜单和现有会话门禁；工作台统计图和真实运行检查保留 |
+| 列表查询 | Table、Form、Row/Col、DatePicker、Select及内置分页 | 将已提交条件转换为既有API参数、总数及分页；InventorySearch仅组合两类业务查询字段；用Form官方保留值API提交收起的高级条件，日期回车只选定日期，翻页读取最新URL，避免条件丢失；不手写分页控件 |
+| 详情与编辑 | Descriptions、Form及官方只读文本/关联链接 | 芯片、物品各有一份带类型的字段定义，详情/编辑均由它生成；编辑仅放开白名单，图片、关联等用官方组件组合。不是数据库驱动的通用表单系统 |
+| 创建 | Modal + Form | 现行编号校验、重复结果、确切记录定位、继续创建清空；容器按官方适用模式选用，复用本次Make的创建弹窗 |
 | 图片 | Upload受控fileList、customRequest、Image预览 | 上传/取消/重试请求适配，区分暂存与已保存关联；不自制上传列表或媒体库 |
 | 反馈和确认 | App上下文内的Message/Notification、Modal、Alert、Empty、Result等 | 业务结果、只读原因、会话失效及未知结果核对；不重写弹层或通知系统 |
 | 返回与离开保护 | React Router的数据路由、useBlocker、浏览器beforeunload | 保存后继续／放弃继续／取消的业务分支，以及来源记录和列表位置；刷新/关闭使用浏览器原生提醒 |
 
 集中配置品牌主题与Token，不覆盖大批官方内部CSS。详情与编辑使用相同的适用业务字段、名称和数据来源；只读字段可复制、可跳转，不靠隐藏或禁用输入框代替完整详情。饰品保留现有可读资料，不新增尚未定义的编辑模板；尺码表按现有数据只读展示并在保存时保留。
 
-按流程替换ChipPanel、ItemPanel、ItemProfileEditor和相关绑定/密钥弹层中的外观组件，复用其API调用及业务规则。登录、共享框架、真实工作台和检查入口使用同一主题与基础组件；不借此重写统计聚合、图表算法或认证。整条流程交付后删除其已替代控件/样式；只有rg和构建确认无其他引用才移除旧依赖。当前整条迁移已替代旧Radix封装并移除无引用Radix/Tailwind/lucide依赖，统计聚合和图表保留，使用局部CSS及官方reset。
+按流程替换ChipPanel、ItemPanel、ItemProfileEditor和相关绑定/密钥弹层中的外观组件，复用其API调用及业务规则。登录、共享框架、真实工作台和检查入口使用同一主题与基础组件；不借此重写统计聚合、图表算法或认证。整条流程交付后删除其已替代控件/样式；只有rg和构建确认无其他引用才移除旧依赖。当前移除旧Radix封装、ProComponents 2及v5补丁；Tailwind仅作为本次Make样式编译工具。工作台筛选、卡片和明细也使用Ant Design，原统计查询状态、聚合和SVG图表算法保留。
+
+本次Make只复用展示层：248px侧栏、58px顶栏、最大1440px内容、分组查询和摘要列、680px详情抽屉、960px编辑弹窗及分组预览。上传仍最多20张，字段长度、只读权限、真实关联和服务器查询仍依批准业务规范；不复制Make的假登录、本地数组、9图限制、所有权或治理演示。弹层尺寸及页面留白是该展示的配置，校验、焦点、滚动、上传列表和反馈交给Ant Design。共同展示容器只补标题、尺寸和操作栏，不建设通用业务框架。
 
 ### 3.2 查询、关联与保存状态
 
