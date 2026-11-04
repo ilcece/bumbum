@@ -541,26 +541,46 @@ cece要求将open-dpp、sdm-backend与Ant Design Pro的参考内容落实为清�
 
 ### 4.2 采用Ant Design Pro与工程接入范围
 
-cece已明确同意使用Ant Design Pro进行后台重构。**采用Pro已确认，不再仅列为参考或待选择项；完整官方工程迁入Umi，还是在现有Vite工程接入ProComponents和官方页面组合，是另一项工程取舍，当前尚未实施。** 原型仍由cece验收，现有Make外观、信息架构、字段、容器及业务流程继续作为验收基准；采用Pro不代表自动改成官方演示站外观。
+cece已明确同意使用Ant Design Pro进行后台重构。**采用Pro已确认，不再仅列为参考或待选择项；完整官方工程迁入Umi，还是在现有Vite工程接入ProComponents和官方页面组合，是另一项工程取舍；本节已完成比较并明确推荐Vite接入，当前尚未实施。** 原型仍由cece验收，现有Make外观、信息架构、字段、容器及业务流程继续作为验收基准；采用Pro不代表自动改成官方演示站外观。
 
 Ant Design Pro提供后台应用模板、布局和页面组合；Vite负责开发服务器、热更新和打包，二者不在同一层。官方完整Pro工程基于Umi，不能将“在Vite中使用ProComponents”表述成“完整官方Pro工程已迁入”。AntD仍提供基础控件，ProComponents提供ProLayout、ProTable、ProForm等高级组合。
 
-| 接入方式 | 可直接获得的能力 | 需要适配的范围 |
+**本次迁移评估结论：推荐保留Vite，接入ProComponents并采用Ant Design Pro的官方页面组合。** 采用Pro已由cece确认；本段是工程路线的明确推荐，不表示依赖已安装、完整官方工程已迁入或原型已验收。实施时应实际使用ProLayout、PageContainer、ProTable、ProForm等适用能力，按第4.1节说明复用来源和必要业务适配。
+
+推荐依据是本次要获得的页面能力与新增迁移工作的对比，而不是“旧工程已投入所以不能换”。官方查询表格、基础/高级表单、详情和分步办理都由同一ProComponents/AntD组合构成，两条路线都能使用；Umi主要增加应用框架的一体化约定，不能自动补齐我们的发行、权益或接续业务。当前已有真实认证/请求与路由保护，且Windows启动和浏览器测试直接启动Vite，完整迁入Umi会增加这些环节的迁移与验证，而不会额外生成本次所需业务页面。
+
+| 取舍 | 完整官方Pro/Umi工程 | Vite接入ProComponents与官方页面组合（推荐） |
 |---|---|---|
-| 采用官方完整Ant Design Pro工程（Umi） | 官方应用布局、路由/运行时配置、页面模板和配套工程组织 | Vite构建/开发代理及React Router路由迁到Umi；逐项接回真实会话、CSRF、失效处理、未保存保护、API适配和Make视觉；模拟用户、示例接口与无关页面排除 |
-| 现有Vite工程接入ProComponents与官方页面组合 | ProLayout、ProTable、ProForm等可独立使用的能力与页面源码 | 保留现有构建及路由，替换示例中的Umi hook/状态/接口调用；自行接合应用级配置。应明确这是组件与页面组合接入，不能宣称整套官方工程已落地 |
+| 页面和组件复用 | 官方布局、列表、详情、基础/高级/分步表单可作为起点，仍需替换示例业务字段 | 同样使用这些高级组件和页面组合；需替换示例中的Umi路由、国际化/状态hook和接口调用 |
+| 应用框架收益 | 路由/菜单、initialState、access、国际化等插件组织统一，按官方工程开发后续示例更顺手 | 保留React Router和现有会话组织，通过ProLayout路由/菜单数据及页面适配连接；没有整套Umi插件约定，需维护这部分接合代码 |
+| 认证与请求 | 迁入或重接当前密码/TOTP、Cookie、内存CSRF、401及退出处理；官方currentUser/access示例不能直接代表现有单管理员会话 | 延续现有认证和请求语义，主要调整展示与调用位置；ProTable/ProForm仍须适配真实返回、错误和提交结果 |
+| 路由及未保存保护 | 核对并适配现有Link、navigate、嵌套路由、查询参数、返回点和useBlocker与Umi路由上下文的行为，不能假定直接兼容 | 保留机制，按新信息架构扩展业务路由；把Pro菜单/页面操作接入已有离开保护，不能绕过保护直接跳转 |
+| 启动和环境 | 迁移Vite配置、import.meta.env访问方式、Tailwind编译、开发代理，以及Windows/浏览器测试的启动入口；可保持原端口和对外路径，但必须验证 | 保留当前开发/构建链和环境变量边界，增加Pro依赖/主题及页面适配；既有脚本的Vite启动机制继续可用，受影响流程仍需复测 |
+| 构建与部署 | 保持npm构建命令、dist输出及单页应用回退时，现有CI/Docker总体流程可以延续，仍须核对资源路径和直接访问；不意味着必须增加Node运行服务 | 保留既有npm构建/dist/单页应用交付方式，核对新增组件样式和资源；不会因采用Pro就引入额外运行服务 |
+| 前端效果 | 可以实现Make效果，仍要适配主题、尺寸、分区和业务容器，官方默认外观不是验收结论 | 可以用相同组件实现相同目标；Vite不决定字段宽度/操作栏/详情层次，必须实际按Pro组合和设计规范实现 |
+| 一次性与维护成本 | 框架迁移范围较大；后续可沿官方工程约定复用，但需理解并维护Umi插件/配置及与本项目的定制差异 | 当前一次性范围较小；后续需维护示例与现有路由/请求的适配，但组件复用并不少，现阶段框架层更少 |
+| 依赖风险 | 官方模板的依赖仍须锁定、裁剪和核对；ProComponents候选版本风险不能靠迁Umi消除 | 同样需要锁定、核对ProComponents及其样式依赖；不宣称“不用Umi就没有Umi命名的工具依赖” |
 
-工程选择要围绕完整页面复用量与现有真实能力迁移量比较，不能以“现有就是Vite”默认排除Umi，也不能因“采用Pro”就未经说明替换构建与路由。正式整合技术方案明确所选路线、受影响文件/依赖、接口保护保留、验证及回退；按既有批准范围执行。该工程取舍不阻塞cece继续验收业务原型。
+以上成本为源码和调用链核对后的相对判断；本轮没有双路线构建对照，不报告未经测量的工时、速度、包体或复用百分比。Umi路线并非不可行：若后续明确依赖其应用级插件体系、复杂权限/路由组织或团队统一Umi约定，可重新评估；目前尚无这些需求足以抵消额外迁移范围。
 
-| 已确认采用方向 | 计划复用点 | 业务适配 |
+**代码与工程证据。** 正式管理端当前入口在[main.tsx](../../frontend/admin/src/main.tsx)，菜单/嵌套路由在[AdminLayout.tsx](../../frontend/admin/src/AdminLayout.tsx)、[ItemPanel.tsx](../../frontend/admin/src/ItemPanel.tsx)、[ChipPanel.tsx](../../frontend/admin/src/ChipPanel.tsx)；真实会话在[LoginPanel.tsx](../../frontend/admin/src/LoginPanel.tsx)，请求集中在[api.ts](../../frontend/admin/src/api.ts)，离开保护在[NavigationGuard.tsx](../../frontend/admin/src/NavigationGuard.tsx)，返回点在[adminNavigation.ts](../../frontend/admin/src/adminNavigation.ts)。[Windows启动](../../scripts/windows_local.py)与[浏览器支持](../../tests/browser_support.py)直接调用vite/bin/vite.js；[CI](../../.github/workflows/checks.yml)和[Docker构建](../../deploy/cloud_test/Dockerfile)按npm脚本构建，后者拷贝dist。它们是实际适配点，不将整套工程误称为不可复用。
+
+上游依据为固定版本的[Pro配置](https://github.com/ant-design/ant-design-pro/blob/42f2cb1d303380909ea04c73b5e60679d09c321a/config/config.ts)、[运行时布局/初始状态](https://github.com/ant-design/ant-design-pro/blob/42f2cb1d303380909ea04c73b5e60679d09c321a/src/app.tsx)、[路由](https://github.com/ant-design/ant-design-pro/blob/42f2cb1d303380909ea04c73b5e60679d09c321a/config/routes.ts)及第4.1节页面源码。npm只读检查确认候选ProComponents包不要求将应用改成@umijs/max工程，但依赖含@umijs/route-utils等工具；组件独立使用不等于完全没有相关工具依赖。
+
+**按推荐路线的实施清单。**
+
+| 落点 | 执行内容 | 本次迁移的完成依据 |
 |---|---|---|
-| 后台框架 | ProLayout、PageContainer及官方管理员菜单组合 | 5个一级入口、物品内4个工作区，真实会话/退出和Make视觉尺寸 |
-| 查询列表 | ProTable及查询表格页面 | 服务端筛选/排序/总数、每页10条、返回上下文与新增定位 |
-| 创建/编辑 | ProForm、ModalForm及基础/高级表单 | 关联引用、只读字段、连续创建、Upload暂存与保存、失败/未知结果 |
-| 分组详情 | ProDescriptions、Descriptions及官方详情组合 | 800px详情、三层信息、实体/归属历史和可返回的关联链接 |
-| 分步办理 | StepsForm及官方分步核对/结果组合 | 1120px居中、持久办理进度、交付核验后明确接续；不直接套转账示例的业务动作 |
+| 依赖与主题 | 在frontend/admin的package/锁文件接入核定版本ProComponents，保持单一React/AntD组合；在main.tsx集中主题/上下文 | 实际安装/构建及受影响页面运行正常；不为复用模板整体带入其图表、AI、国际化或数据请求体系 |
+| 应用框架 | AdminLayout采用ProLayout/PageContainer及官方管理员菜单组合，保留Make外观和5个一级入口/4个工作区 | 新框架实际使用Pro组件，菜单/身份/退出/返回行为正确，不继续平行维护两套应用壳 |
+| 列表和表单 | ChipPanel、ItemPanel及新工作区按ProTable/ProForm等组合适配，第4.1节约束继续执行 | 服务端查询/总数/排序/每页10条、连续创建、字段宽度、提交错误和未知结果均可实际操作；不只替换组件名称 |
+| 详情及办理 | 详情/编辑共用字段定义，按Pro详情/表单和分步组合接入800px/1120px容器；新业务在对应技术批准范围接后端 | 关联可跳转并返回，进度可保存/继续，身份与历史只读；假数据和假成功处理不进入正式服务 |
+| 既有保护与验证 | 延续LoginPanel/api/NavigationGuard语义，检查Pro菜单/弹窗是否接入保护；保持开发端口/API代理/资源路径 | 定向核对登录/会话失效/退出、CSRF、未保存离开、列表返回、图片暂存/保存和小窗口真实视觉；沿用cece取消独立React19组件矩阵的决定 |
+| 交付与回退 | 在现有任务分支分步提交依赖/应用壳与业务页，保留改前提交和锁文件；正式数据模型变化另按获批迁移方案 | 回退以对应代码版本及锁文件恢复；前端路线回退不等于数据库或芯片恢复。原型验收、正式整合、main合并和部署分别报告 |
 
-上述为正式整合采用方向，不要求为套组件改写已经确认的业务；具体使用的组件组合须在所选工程及固定依赖下验证。2026-11-04只读核对npm元数据：官方示例使用的`@ant-design/pro-components@3.1.14-2`已发布，peer要求为`antd ^6.0.0`、`react/react-dom >=18.0.0`，覆盖当前AntD 6.6.8及React 19.3.1声明范围；它是带预发布标记的候选版本，此证据仅证明依赖声明范围，不等于运行兼容性验证或正式依赖已安装。本轮没有修改package/锁文件，不重新执行React19独立组件矩阵。
+此处明确本次路线推荐与技术边界；cece继续当前原型验收，正式工程尚未修改。原型确认后按获批技术范围实施，不以本次比较先行安装依赖或迁移业务。
+
+上述清单为正式整合采用方向，不要求为套组件改写已经确认的业务；具体使用的组件组合须在所选工程及固定依赖下验证。2026-11-04只读核对npm元数据：官方示例使用的`@ant-design/pro-components@3.1.14-2`已发布，peer要求为`antd ^6.0.0`、`react/react-dom >=18.0.0`，覆盖当前AntD 6.6.8及React 19.3.1声明范围；它是带预发布标记的候选版本，此证据仅证明依赖声明范围，不等于运行兼容性验证或正式依赖已安装。本轮没有修改package/锁文件，不重新执行React19独立组件矩阵。
 
 
 ## 5. 仍需决定的业务细节
