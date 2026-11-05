@@ -20,6 +20,8 @@ const actions: Record<string, string> = {
   assignIssue: "补齐原发行",
   register: "登记芯片",
   batch: "维护批次",
+  validation: "维护生产验证标记",
+  deleteValidation: "删除生产验证对象",
   bind: "首次绑定",
   keys: "演示密钥准备",
   configure: "演示配置核验",

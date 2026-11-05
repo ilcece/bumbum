@@ -7,6 +7,7 @@ import {
   ProFormText,
   ProFormDigit,
   ProFormInstance,
+  ProFormSwitch,
 } from "@ant-design/pro-components";
 import { Alert, Button, Space, Tag } from "antd";
 import { history } from "@umijs/max";
@@ -95,7 +96,8 @@ export default function Items() {
               (i, x) =>
                 (!x.status || i.status === x.status) &&
                 (!x.sold || String(i.sold) === x.sold) &&
-                (!x.owner || (x.owner === "yes") === !!i.ownerId),
+                (!x.owner || (x.owner === "yes") === !!i.ownerId) &&
+                (!x.isValidation || (x.isValidation === "yes") === !!i.isValidation),
             )
           }
           toolBarRender={() => [
@@ -126,7 +128,7 @@ export default function Items() {
               dataIndex: "uid",
               search: false,
               render: (_, i) => (
-                <CopyValue value={i.uid} onClick={() => setTarget({kind: "items", id: i.id})} />
+                <div><CopyValue value={i.uid} onClick={() => setTarget({kind: "items", id: i.id})} />{i.isValidation && <div style={{marginTop: 4}}><StatusTag value="生产验证对象" /></div>}</div>
               ),
             },
             {
@@ -144,6 +146,7 @@ export default function Items() {
                 )} />,
             },
             { title: "物品状态", dataIndex: "status", valueEnum: itemStates, render: (_, i) => <StatusTag value={itemStates[i.status]} /> },
+            { title: "数据性质", dataIndex: "isValidation", hideInTable: true, valueEnum: { yes: "仅生产验证对象", no: "仅非验证对象" } },
             {
               title: "售出确认",
               dataIndex: "sold",
@@ -232,6 +235,7 @@ export default function Items() {
           style={{ marginBottom: 16 }}
         />
         <ProFormText name="uid" label="系统物品编号" rules={required} />
+        <ProFormSwitch name="isValidation" label="生产验证对象" fieldProps={{ "aria-label": "生产验证对象" }} extra="开启后可直接删除验证对象，不受绑定、配置或持有状态限制。" />
         <ProFormDigit
           name="number"
           label="本件正式序号"

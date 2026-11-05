@@ -13,12 +13,13 @@ import { useStore } from "../data/store";
 import { chipStates, timeText, statistics } from "../data/domain";
 import { useReturnPath, useAction, go, ErrorState } from "../ui";
 import { CopyValue, StatusTag, DetailContainer } from "../components/RecordPresentation";
+import ValidationControls from "../components/ValidationControls";
 import {
   ProvisionPanel,
   BindEditor,
   StateEditor,
 } from "../components/ChipActions";
-export default function ChipDetail({ chipId, embedded = false }: { chipId?: number; embedded?: boolean }) {
+export default function ChipDetail({ chipId, embedded = false, onDeleted }: { chipId?: number; embedded?: boolean; onDeleted?: () => void }) {
   const p = useStore(),
     { id } = useParams(),
     c = p.data.chips.find((c) => c.id === (chipId ?? Number(id))),
@@ -100,6 +101,7 @@ export default function ChipDetail({ chipId, embedded = false }: { chipId?: numb
                   },
                 ]}
               />
+              <ValidationControls kind="chips" id={c.id} checked={c.isValidation} onDeleted={() => embedded ? onDeleted?.() : history.push(back)} />
             </ProCard>
             {!i && !c.candidateFor && c.state === "pending" && (
               <ProCard

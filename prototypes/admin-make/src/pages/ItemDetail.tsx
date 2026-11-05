@@ -28,8 +28,9 @@ import { BindEditor } from "../components/ChipActions";
 import SaleEditor from "../components/SaleEditor";
 import HandoverEditor from "../components/HandoverEditor";
 import StyleEditor from "./StyleEditor";
+import ValidationControls from "../components/ValidationControls";
 import { CopyValue, StatusTag, ProductGallery, DetailContainer, EditionValue, HolderValue } from "../components/RecordPresentation";
-export default function ItemDetail({ itemId, embedded = false }: { itemId?: number; embedded?: boolean }) {
+export default function ItemDetail({ itemId, embedded = false, onDeleted }: { itemId?: number; embedded?: boolean; onDeleted?: () => void }) {
   const p = useStore(),
     d = p.data,
     { id } = useParams(),
@@ -160,6 +161,7 @@ export default function ItemDetail({ itemId, embedded = false }: { itemId?: numb
                   },
                 ]}
               />
+              <ValidationControls kind="items" id={i.id} checked={i.isValidation} onDeleted={() => embedded ? onDeleted?.() : history.push(back)} />
               <Typography.Text type="secondary">售出与认领分别维护。更正售出标记保留首次时间、身份、持有人及触碰历史。</Typography.Text>
             </ProCard>
             <ProCard size="small" headerBordered variant="outlined" title="共用商品资料" extra={style && <Button onClick={() => setEditStyle(true)}>编辑共用资料</Button>}>

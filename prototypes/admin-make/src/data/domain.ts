@@ -55,6 +55,7 @@ export interface Item {
   entities: Entity[];
   used: number;
   quotaReview?: boolean;
+  isValidation?: boolean;
 }
 export interface Chip {
   id: number;
@@ -68,6 +69,7 @@ export interface Chip {
   createdAt: string;
   counter: number;
   candidateFor?: string;
+  isValidation?: boolean;
 }
 export interface Handover {
   id: string;
@@ -111,6 +113,8 @@ export interface Data {
   touches: Touch[];
   audits: Audit[];
   importNote?: string;
+  nextItemId?: number;
+  nextChipId?: number;
 }
 export const users = [
   { value: "DEMO-A", label: "持有人甲 · 演示账户" },
@@ -430,6 +434,7 @@ export function migrateV5(old: any): Data {
       updatedAt: i.updated_at,
       sold: false,
       ownerId: m.ownerId || null,
+      isValidation: i.is_validation_object === true,
       firstOwnerAt: m.firstOwnerAt,
       owners: m.ownership || [],
       used: m.used || 0,
@@ -449,6 +454,7 @@ export function migrateV5(old: any): Data {
   const chips: Chip[] = (old.chips || []).map((c: any) => ({
     id: c.id,
     uid: c.chip_uid,
+    isValidation: c.is_validation_object === true,
     batch: c.batch_no || "",
     source: c.registration_source || "unknown",
     state: c.chip_status,
@@ -665,7 +671,7 @@ export function operate(source: Data, command: Command): Data {
         throw Error("系统物品编号已存在。");
       validateNumber(d, s, v.number ?? null);
       d.items.push({
-        id: Math.max(0, ...d.items.map((i) => i.id)) + 1,
+        id: Math.max(d.nextItemId || 1, Math.max(0, ...d.items.map((i) => i.id)) + 1),
         uid: v.uid,
         issueId: s.id,
         styleId: s.styleId,
@@ -674,11 +680,13 @@ export function operate(source: Data, command: Command): Data {
         createdAt: when,
         updatedAt: when,
         sold: false,
+        isValidation: v.isValidation === true,
         ownerId: null,
         owners: [],
         entities: [],
         used: 0,
       });
+      d.nextItemId = d.items[d.items.length - 1].id + 1;
       s.everReferenced = true;
       break;
     }
@@ -706,16 +714,53 @@ export function operate(source: Data, command: Command): Data {
       if (String(v.batch || "").length > 64)
         throw Error("批次不能超过64字符。");
       d.chips.unshift({
-        id: Math.max(0, ...d.chips.map((c) => c.id)) + 1,
+        id: Math.max(d.nextChipId || 1, Math.max(0, ...d.chips.map((c) => c.id)) + 1),
         uid: normalized,
         batch: v.batch || "",
         source: v.source === "nfc_cool" ? "nfc_cool" : "manual",
         state: "pending",
         itemId: null,
         keys: false,
+        isValidation: v.isValidation === true,
         createdAt: when,
         counter: 0,
       });
+      d.nextChipId = d.chips[0].id + 1;
+      break;
+    }
+    case "validation": {
+      if (v.kind !== "items" && v.kind !== "chips") throw Error("请选择物品或芯片。");
+      const target = v.kind === "items" ? item() : chip();
+      target.isValidation = v.enabled === true;
+      auditDetail = `${v.kind === "items" ? "数字物品" : "芯片"} ${target.uid}：生产验证标记${target.isValidation ? "开启" : "关闭"}`;
+      break;
+    }
+    case "deleteValidation": {
+      if (v.kind !== "items" && v.kind !== "chips") throw Error("请选择物品或芯片。");
+      const target = v.kind === "items" ? item() : chip();
+      if (!target.isValidation) throw Error("仅生产验证对象可以直接删除。");
+      const works = d.handovers.filter(w => v.kind === "items" ? w.itemId === target.id : w.chipId === target.id);
+      const workIds = new Set(works.map(w => w.id));
+      const touches = d.touches.filter(e => v.kind === "items" ? e.itemId === target.id : e.chipId === target.id);
+      // 仅清理目标及指向目标的记录；另一侧档案、密钥标记和计数不随之删除或重置。
+      for (const c of d.chips) {
+        if (c.candidateFor && workIds.has(c.candidateFor)) delete c.candidateFor;
+        if (v.kind === "items" && c.itemId === target.id) {
+          c.itemId = null;
+          if (c.state === "bound") c.state = "pending";
+        }
+      }
+      if (v.kind === "items") {
+        d.nextItemId = Math.max(d.nextItemId || 1, Math.max(0, ...d.items.map(i => i.id)) + 1);
+        d.items = d.items.filter(i => i.id !== target.id);
+      } else {
+        d.nextChipId = Math.max(d.nextChipId || 1, Math.max(0, ...d.chips.map(c => c.id)) + 1);
+        d.chips = d.chips.filter(c => c.id !== target.id);
+        for (const i of d.items) i.entities = i.entities.filter(e => e.chipId !== target.id);
+      }
+      d.handovers = d.handovers.filter(w => !workIds.has(w.id));
+      d.touches = d.touches.filter(e => v.kind === "items" ? e.itemId !== target.id : e.chipId !== target.id);
+      auditDetail = `直接删除生产验证${v.kind === "items" ? "物品" : "芯片"} ${target.uid}；清理${touches.length}条触碰、${works.length}条接续及相关关联；另一侧档案和审计保留`;
       break;
     }
     case "batch": {

@@ -4,6 +4,7 @@ import {
   ProTable,
   ModalForm,
   ProFormText,
+  ProFormSwitch,
 } from "@ant-design/pro-components";
 import { Button, Tag, Space } from "antd";
 import { useStore } from "../data/store";
@@ -61,6 +62,7 @@ export default function Chips() {
                 (c, x) =>
                   (!x.state || c.state === x.state) &&
                   (!x.source || c.source === x.source) &&
+                  (!x.isValidation || (x.isValidation === "yes") === !!c.isValidation) &&
                   (!x.configured ||
                     (x.configured === "yes") === !!c.configuredAt),
               )
@@ -100,7 +102,7 @@ export default function Chips() {
                 dataIndex: "uid",
                 search: false,
                 render: (_, c) => (
-                  <CopyValue value={c.uid} onClick={() => setTarget({kind: "chips", id: c.id})} />
+                  <div><CopyValue value={c.uid} onClick={() => setTarget({kind: "chips", id: c.id})} />{c.isValidation && <div style={{marginTop: 4}}><StatusTag value="生产验证对象" /></div>}</div>
                 ),
               },
               { title: "批次", dataIndex: "batch", search: false, render: (_, c) => <CopyValue value={c.batch} /> },
@@ -130,6 +132,7 @@ export default function Chips() {
                 valueEnum: { yes: "已核验", no: "待核验" },
                 render: (_, c) => <StatusTag value={c.configuredAt ? "演示核验就绪" : "待配置"} />,
               },
+              { title: "数据性质", dataIndex: "isValidation", hideInTable: true, valueEnum: { yes: "仅生产验证对象", no: "仅非验证对象" } },
               {
                 title: "关联物品",
                 search: false,
@@ -189,6 +192,7 @@ export default function Chips() {
           label="批次（选填）"
           fieldProps={{ maxLength: 64 }}
         />
+        <ProFormSwitch name="isValidation" label="生产验证对象" fieldProps={{ "aria-label": "生产验证对象" }} extra="开启后可直接删除验证对象，不受绑定、配置或服务状态限制。" />
         {a.feedback}
       </ModalForm>
       <RecordDrawer target={target} onClose={() => setTarget(undefined)} />

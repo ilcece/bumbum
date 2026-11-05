@@ -24,12 +24,13 @@ const colors: Record<string, string> = {
   待核对: "gold", 未分配: "default", 已保存内容: "green", 未保存预览: "gold",
   全局共享: "red", 单卡独立: "cyan",
   正式编号待封版: "gold", 未关联发行: "gold",
+  生产验证对象: "orange",
 };
 export function StatusTag({ value }: { value: string }) {
   return <Tag color={colors[value] || "default"} className="status-tag">{value}</Tag>;
 }
 export function EditionValue({ value }: { value: string }) {
-  return value.startsWith("#") ? <CopyValue value={value} /> : <StatusTag value={value} />;
+  return value.startsWith("#") ? <span>{value}</span> : <StatusTag value={value} />;
 }
 export function HolderValue({ id, name }: { id: string | null; name: string }) {
   return id ? <Space direction="vertical" size={0}><span>{name}</span><CopyValue value={id} /></Space> : <StatusTag value="未认领" />;
