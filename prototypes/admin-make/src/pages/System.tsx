@@ -29,8 +29,9 @@ const actions: Record<string, string> = {
   sale: "售出确认/更正",
   demoClaim: "演示首次认领",
   chipState: "芯片状态变更",
-  prepare: "准备新绑定",
-  complete: "确认接续",
+  loseItem: "挂失整套物品",
+  prepare: "准备替换物品",
+  complete: "确认整套物品交付生效",
   touch: "演示有效触碰",
 };
 export default function System() {

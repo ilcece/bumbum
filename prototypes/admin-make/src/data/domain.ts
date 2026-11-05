@@ -37,6 +37,10 @@ export interface Entity {
   from: string;
   to?: string;
   reason?: string;
+  generation?: number;
+  lost?: boolean;
+  lostAt?: string;
+  lossEvidence?: string;
 }
 export interface Item {
   id: number;
@@ -84,6 +88,9 @@ export interface Handover {
   completedAt?: string;
   deliveryEvidence?: string;
   legacy?: boolean;
+  sourceEntityId?: string;
+  entityId?: string;
+  generation?: number;
 }
 export interface Touch {
   id: string;
@@ -163,7 +170,7 @@ export const chipStates = {
   pending: "待绑定",
   bound: "已绑定",
   disabled: "临时停用",
-  lost: "已挂失",
+  lost: "随物品挂失停用",
   retired: "已退役",
 };
 export const kindNames = {
@@ -171,6 +178,27 @@ export const kindNames = {
   loss: "挂失换新",
   resale: "后台转售",
 };
+export const wholeState = (entity?: Entity) => !entity ? "待准备" : entity.to ? "已替换" : entity.lost ? "已挂失" : "正常";
+export const wholeName = (entity?: Pick<Entity, "generation">) => entity ? `第${entity.generation || 1}代物品` : "物品待准备";
+// 兼容旧会话的实体代次和芯片挂失事实，不补造挂失时间、证据或操作审计。
+export function normalizeWholeItems(source: Data): Data {
+  const d = structuredClone(source);
+  for (const i of d.items) for (const [n, e] of i.entities.entries()) {
+    e.generation ??= n + 1;
+    if (e.reason === kindNames.loss || (!e.to && d.chips.some(c => c.id === e.chipId && c.state === "lost"))) e.lost = true;
+  }
+  for (const w of d.handovers) {
+    if (w.legacy) continue;
+    const i = d.items.find(i => i.id === w.itemId);
+    const old = i?.entities.find(e => w.completedAt ? e.to === w.completedAt : !e.to);
+    const next = i?.entities.find(e => e.chipId === w.chipId && e.from === w.completedAt);
+    w.sourceEntityId ??= old?.id;
+    w.entityId ??= next?.id || `PREPARED-${w.id}`;
+    w.generation ??= next?.generation || Math.max(0, ...(i?.entities.map(e => e.generation || 1) || [])) + 1;
+    if (!w.completedAt && w.kind === "periodic" && old?.lost) w.kind = "loss";
+  }
+  return d;
+}
 export const illustration =
   "data:image/svg+xml;charset=utf-8," +
   encodeURIComponent(
@@ -377,7 +405,7 @@ export function seed(): Data {
         kind: "touch",
         valid: true,
       });
-  return {
+  return normalizeWholeItems({
     version: 6,
     revision: 0,
     styles,
@@ -387,7 +415,7 @@ export function seed(): Data {
     handovers: [],
     touches,
     audits: [],
-  };
+  });
 }
 export function migrateV5(old: any): Data {
   const styles: Style[] = (old.styles || []).map((s: any) => ({
@@ -464,7 +492,7 @@ export function migrateV5(old: any): Data {
     createdAt: c.created_at,
     counter: c.last_counter || 0,
   }));
-  return {
+  return normalizeWholeItems({
     version: 6,
     revision: 0,
     styles,
@@ -489,7 +517,7 @@ export function migrateV5(old: any): Data {
     audits: [],
     importNote:
       "已复制导入旧版核心档案，原v5会话未改动。售出事实不从持有人猜测，待你确认；旧版未持久化触碰事件，不补造次数。旧长流程记录仍保留在原会话，旧办理仅供历史核对。",
-  };
+  });
 }
 export function validateNumber(
   d: Data,
@@ -739,7 +767,7 @@ export function operate(source: Data, command: Command): Data {
       if (v.kind !== "items" && v.kind !== "chips") throw Error("请选择物品或芯片。");
       const target = v.kind === "items" ? item() : chip();
       if (!target.isValidation) throw Error("仅生产验证对象可以直接删除。");
-      const works = d.handovers.filter(w => v.kind === "items" ? w.itemId === target.id : w.chipId === target.id);
+      const works = d.handovers.filter(w => v.kind === "items" ? w.itemId === target.id : w.chipId === target.id || d.items.find(i => i.id === w.itemId)?.entities.find(e => e.id === w.sourceEntityId)?.chipId === target.id);
       const workIds = new Set(works.map(w => w.id));
       const touches = d.touches.filter(e => v.kind === "items" ? e.itemId === target.id : e.chipId === target.id);
       // 仅清理目标及指向目标的记录；另一侧档案、密钥标记和计数不随之删除或重置。
@@ -787,6 +815,7 @@ export function operate(source: Data, command: Command): Data {
       c.state = "bound";
       i.entities.push({
         id: crypto.randomUUID(),
+        generation: Math.max(0, ...i.entities.map(e => e.generation || 1)) + 1,
         chipId: c.id,
         spec: v.spec,
         from: when,
@@ -796,14 +825,14 @@ export function operate(source: Data, command: Command): Data {
     }
     case "keys": {
       const c = chip();
-      if (c.state === "retired" || (!c.itemId && !c.candidateFor))
+      if (["retired", "lost", "disabled"].includes(c.state) || (!c.itemId && !c.candidateFor) || d.items.some(i => i.entities.some(e => e.chipId === c.id && !e.to && e.lost)))
         throw Error("请先关联物品或保存候选准备。");
       c.keys = true;
       break;
     }
     case "configure": {
       const c = chip();
-      if (!c.keys || c.state === "retired")
+      if (!c.keys || ["retired", "lost", "disabled"].includes(c.state) || d.items.some(i => i.entities.some(e => e.chipId === c.id && !e.to && e.lost)))
         throw Error("请先准备密钥标记并核对候选。");
       if (!v.checked || !v.checked2)
         throw Error("请核对密钥/模板及两条递增链接的演示证据。");
@@ -816,7 +845,7 @@ export function operate(source: Data, command: Command): Data {
       if (i.status === "archived") throw Error("归档物品只读。");
       if (
         i.status !== "active" &&
-        (!i.issueId || !c?.configuredAt || c.state !== "bound")
+        (!i.issueId || !c?.configuredAt || c.state !== "bound" || i.entities.find(e => !e.to)?.lost)
       )
         throw Error("启用前需要发行、有效芯片及配置核验。");
       i.status = i.status === "active" ? "disabled" : "active";
@@ -841,7 +870,7 @@ export function operate(source: Data, command: Command): Data {
     }
     case "demoClaim": {
       const i = item();
-      if (i.ownerId || i.status !== "active")
+      if (i.ownerId || i.status !== "active" || i.entities.find(e => !e.to)?.lost)
         throw Error("仅能模拟已启用且未认领的物品。");
       if (!users.some((u) => u.value === v.ownerId))
         throw Error("请选择演示账户。");
@@ -850,11 +879,27 @@ export function operate(source: Data, command: Command): Data {
       i.owners.push({ ownerId: v.ownerId, from: when });
       break;
     }
+    case "loseItem": {
+      const i = item(), e = i.entities.find(e => !e.to), c = currentChip(i);
+      if (!e || !c || e.id !== v.entityId) throw Error("当前整套物品已变化或缺失，请重新核对。");
+      if (i.status === "archived" || e.lost || !["bound", "disabled"].includes(c.state)) throw Error("当前整套物品已挂失、已归档或无法办理挂失。");
+      required(v.evidence, "物品挂失依据");
+      e.lost = true;
+      e.lostAt = when;
+      e.lossEvidence = v.evidence;
+      c.state = "lost";
+      i.updatedAt = when;
+      for (const w of d.handovers) if (w.itemId === i.id && !w.completedAt && !w.legacy && w.kind === "periodic") w.kind = "loss";
+      auditDetail = `${i.uid} ${wholeName(e)}整套挂失，配套芯片${c.uid}同步停用；身份、持有人和额度保留。依据：${v.evidence}`;
+      break;
+    }
     case "chipState": {
       const c = chip();
+      if (!["disable", "restore"].includes(v.action)) throw Error("挂失请从物品详情发起，芯片页仅提供技术停用与恢复。");
       required(v.evidence, "状态操作依据");
       if (c.state === "retired" || c.candidateFor)
         throw Error("退役或候选芯片不能普通恢复/改状态。");
+      if (d.items.some(i => i.entities.some(e => e.chipId === c.id && !e.to && e.lost))) throw Error("关联整套物品已挂失，不能通过技术停用或恢复解除挂失。");
       if (v.action === "restore") {
         if (c.state !== "disabled")
           throw Error("仅临时停用芯片可普通恢复；挂失解除须另审。");
@@ -868,10 +913,6 @@ export function operate(source: Data, command: Command): Data {
         )
           throw Error("当前授权已变化，禁止恢复。");
         c.state = c.itemId ? "bound" : "pending";
-      } else if (v.action === "lost") {
-        if (!c.itemId || !["bound", "disabled"].includes(c.state))
-          throw Error("只能挂失当前关联芯片。");
-        c.state = "lost";
       } else {
         if (!["pending", "bound"].includes(c.state))
           throw Error("当前状态不能临时停用。");
@@ -882,10 +923,12 @@ export function operate(source: Data, command: Command): Data {
     case "prepare": {
       const i = item(),
         c = chip();
+      if (!["periodic", "loss", "resale"].includes(v.kind)) throw Error("请选择换新或转售类型。");
       if (!i.ownerId || i.status === "archived" || !i.issueId)
         throw Error("请先确认物品、持有人和发行。");
       const old = currentChip(i);
-      if (!old)
+      const sourceEntity = i.entities.find(e => !e.to);
+      if (!old || !sourceEntity)
         throw Error("当前实体/芯片关系缺失，须先核对，不能直接换新或转售。");
       const iss = d.issues.find((s) => s.id === i.issueId)!;
       if (!iss.rights.includes(v.kind === "resale" ? "resale" : "renewal"))
@@ -899,10 +942,10 @@ export function operate(source: Data, command: Command): Data {
       if (v.kind !== "resale" && (i.used >= 1 || i.quotaReview))
         throw Error("年度余额不足或上次计次待核，不能重复申请换新。");
       if (
-        (v.kind === "loss" && old?.state !== "lost") ||
-        (v.kind === "periodic" && old?.state === "lost")
+        (v.kind === "loss" && !sourceEntity.lost) ||
+        (v.kind === "periodic" && sourceEntity.lost)
       )
-        throw Error("请按当前挂失状态选择换新类型。");
+        throw Error("请按当前整套物品的挂失状态选择换新类型。");
       if (c.itemId != null || c.state !== "pending" || c.candidateFor)
         throw Error("候选芯片已占用或不可用。");
       required(v.spec, "新实体实际规格");
@@ -916,6 +959,9 @@ export function operate(source: Data, command: Command): Data {
         throw Error("请选择与原持有人不同的已核对接收账户。");
       const w: Handover = {
         id: crypto.randomUUID(),
+        sourceEntityId: sourceEntity.id,
+        entityId: crypto.randomUUID(),
+        generation: Math.max(0, ...i.entities.map(e => e.generation || 1)) + 1,
         itemId: i.id,
         kind: v.kind,
         ownerId: i.ownerId,
@@ -935,6 +981,8 @@ export function operate(source: Data, command: Command): Data {
         throw Error("记录不存在、只读或已完成。");
       const i = d.items.find((x) => x.id === w.itemId)!,
         c = d.chips.find((x) => x.id === w.chipId)!;
+      const oldEntity = i?.entities.find(e => !e.to), oldChip = d.chips.find(c => c.id === oldEntity?.chipId);
+      if (!i || !c || !oldEntity || !oldChip || oldEntity.id !== w.sourceEntityId || oldChip.itemId !== i.id || !["bound", "disabled", "lost"].includes(oldChip.state)) throw Error("原整套物品或准备的新物品已变化，请重新核对。");
       if (
         i.status === "archived" ||
         i.ownerId !== w.ownerId ||
@@ -958,7 +1006,8 @@ export function operate(source: Data, command: Command): Data {
       c.state = "bound";
       delete c.candidateFor;
       i.entities.push({
-        id: crypto.randomUUID(),
+        id: w.entityId || crypto.randomUUID(),
+        generation: w.generation || Math.max(0, ...i.entities.map(e => e.generation || 1)) + 1,
         chipId: c.id,
         spec: w.spec,
         from: when,
@@ -985,7 +1034,7 @@ export function operate(source: Data, command: Command): Data {
         c.state !== "bound" ||
         !c.keys ||
         !c.configuredAt ||
-        !i.entities.some((e) => !e.to && e.chipId === c.id)
+        !i.entities.some((e) => !e.to && !e.lost && e.chipId === c.id)
       )
         throw Error(
           "当前芯片/物品不可提供有效触碰；退役、停用或候选卡不会增加次数。",

@@ -10,7 +10,7 @@ import {
 import { Button, Space, Alert, Tag } from "antd";
 import { history, useParams } from "@umijs/max";
 import { useStore } from "../data/store";
-import { chipStates, timeText, statistics } from "../data/domain";
+import { chipStates, timeText, statistics, wholeName, wholeState } from "../data/domain";
 import { useReturnPath, useAction, go, ErrorState } from "../ui";
 import { CopyValue, StatusTag, DetailContainer } from "../components/RecordPresentation";
 import ValidationControls from "../components/ValidationControls";
@@ -27,12 +27,13 @@ export default function ChipDetail({ chipId, embedded = false, onDeleted }: { ch
     a = useAction(),
     [batch, setBatch] = useState(false),
     [bind, setBind] = useState(false),
-    [state, setState] = useState<"disable" | "restore" | "lost" | null>(null);
+    [state, setState] = useState<"disable" | "restore" | null>(null);
   if (!c)
     return (
       <PageContainer title="芯片不存在" onBack={() => history.push("/chips")} />
     );
   const i = p.data.items.find((i) => i.id === c.itemId),
+    entity = i?.entities.find(e => e.chipId === c.id),
     events = p.data.touches.filter(
       (e) => e.chipId === c.id && e.valid && e.kind === "touch",
     );
@@ -76,6 +77,8 @@ export default function ChipDetail({ chipId, embedded = false, onDeleted }: { ch
                           : "未记录",
                   },
                   { title: "登记时间", render: () => timeText(c.createdAt) },
+                  { title: "所属整套物品", render: () => entity ? `${wholeName(entity)} · ${entity.spec}` : "尚未配套物品" },
+                  { title: "整套物品状态", render: () => <StatusTag value={wholeState(entity)} /> },
                   { title: "服务状态", render: () => <StatusTag value={chipStates[c.state]} /> },
                   {
                     title: "配置状态",
@@ -111,7 +114,7 @@ export default function ChipDetail({ chipId, embedded = false, onDeleted }: { ch
                 title="首次关联"
               >
                 <Button type="primary" onClick={() => setBind(true)}>
-                  绑定数字物品
+                    配套首套物品
                 </Button>
               </ProCard>
             )}
@@ -122,7 +125,7 @@ export default function ChipDetail({ chipId, embedded = false, onDeleted }: { ch
               size="small"
               headerBordered
               variant="outlined"
-              title="服务状态操作"
+              title="芯片技术维护"
             >
               <Space wrap>
                 {["bound", "pending"].includes(c.state) && !c.candidateFor && (
@@ -135,14 +138,9 @@ export default function ChipDetail({ chipId, embedded = false, onDeleted }: { ch
                     恢复当前芯片
                   </Button>
                 )}
-                {i && ["bound", "disabled"].includes(c.state) && (
-                  <Button danger onClick={() => setState("lost")}>
-                    挂失当前芯片
-                  </Button>
-                )}
                 {i && (
                   <Button onClick={() => go("/items/" + i.id)}>
-                    到物品办理换新/转售
+                    到物品办理挂失/换新/转售
                   </Button>
                 )}
                 {c.state === "retired" && (
@@ -154,7 +152,7 @@ export default function ChipDetail({ chipId, embedded = false, onDeleted }: { ch
                 {c.state === "lost" && (
                   <Alert
                     type="warning"
-                    title="保持挂失保护，解除条件另审；可从物品办理挂失换新。"
+                    title="所属整套物品已挂失，本芯片随之停止服务；请到物品详情办理挂失换新，不能从技术恢复解除挂失。"
                   />
                 )}
               </Space>

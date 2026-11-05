@@ -14,10 +14,10 @@ import { required, useAction } from "../ui";
 export { default as KeyConfigDialog } from "./KeyConfigDialog";
 import KeyConfigDialog from "./KeyConfigDialog";
 import { CopyValue, StatusTag } from "./RecordPresentation";
-export function ProvisionPanel({ chipId }: { chipId: number }) {
+export function ProvisionPanel({ chipId, title = "芯片密钥与配置" }: { chipId: number; title?: string }) {
   const p = useStore(), c = p.data.chips.find(c => c.id === chipId), [open, setOpen] = useState(false);
   if (!c) return null;
-  return <ProCard size="small" headerBordered variant="outlined" title="芯片密钥与配置" extra={<StatusTag value={c.configuredAt ? "演示核验就绪" : "待配置"} />}>
+  return <ProCard size="small" headerBordered variant="outlined" title={title} extra={<StatusTag value={c.configuredAt ? "演示核验就绪" : "待配置"} />}>
     <Space direction="vertical" size={12} style={{width: "100%"}}>
       <Space wrap><CopyValue value={c.uid} /><StatusTag value={c.keys ? "已准备演示标记" : "未准备"} /></Space>
       <Typography.Text type="secondary">生成密钥 → 受控查看与配卡 → 双链接动态读数核验。原型仅演示交互。</Typography.Text>
@@ -41,7 +41,7 @@ export function BindEditor({
     a = useAction();
   return (
     <ModalForm
-      title="首次绑定物品与芯片"
+      title="准备物品（实物＋芯片）"
       open={open}
       onOpenChange={(v) => {
         a.clear();
@@ -50,14 +50,14 @@ export function BindEditor({
       initialValues={{ itemId, chipId }}
       modalProps={{ destroyOnHidden: true }}
       submitter={{
-        searchConfig: { submitText: "确认首次绑定" },
+        searchConfig: { submitText: "保存物品准备" },
         submitButtonProps: { disabled: a.unknown },
       }}
       onFinish={async (v) => {
         const ok = a.run(
           "bind",
           v,
-          "首次关联已保存，继续配置核验；未自动启用或认领",
+          "整套物品已准备，继续配置核验；未自动启用或认领",
         );
         if (ok) onOpenChange(false);
         return ok;
@@ -65,12 +65,12 @@ export function BindEditor({
     >
       <Alert
         type="info"
-        title="建立首次关联，不覆盖历史绑定"
-        description="绑定后还须配置核验及按条件启用，持有人关系单独建立。"
+        title="为数字身份准备实物与配套芯片"
+        description="实物和芯片作为同一整套物品保存，仍须配置核验及按条件启用，持有人关系单独建立。"
       />
       <ProFormSelect
         name="itemId"
-        label="目标数字物品"
+        label="目标数字身份"
         disabled={!!itemId}
         rules={[{ required: true }]}
         options={p.data.items
@@ -93,7 +93,7 @@ export function BindEditor({
       />
       <ProFormSelect
         name="chipId"
-        label="待绑定芯片"
+        label="物品所配芯片"
         disabled={!!chipId}
         rules={[{ required: true }]}
         options={p.data.chips
@@ -102,7 +102,7 @@ export function BindEditor({
       />
       <ProFormText
         name="spec"
-        label="实际实体规格"
+        label="物品实际规格"
         rules={required}
         extra="填写实际适用尺寸/颜色等，不录订单、工厂或物流。"
       />
@@ -117,7 +117,7 @@ export function StateEditor({
   onOpenChange,
 }: {
   chipId: number;
-  action: "disable" | "restore" | "lost";
+  action: "disable" | "restore";
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
@@ -127,7 +127,6 @@ export function StateEditor({
     names = {
       disable: "临时停用芯片",
       restore: "恢复当前芯片",
-      lost: "挂失当前芯片",
     };
   return (
     <ModalForm

@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "routes": 5,
+  "viewport": "1280x720",
+  "errors": [],
+  "externalResources": [],
+  "documentRequests": [
+    "http://127.0.0.1:8784/preview.html"
+  ],
+  "fileNavigation": "ERR_BLOCKED_BY_ADMINISTRATOR；同一个HTML通过本机HTTP验证"
+}

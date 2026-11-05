@@ -25,6 +25,8 @@ const colors: Record<string, string> = {
   全局共享: "red", 单卡独立: "cyan",
   正式编号待封版: "gold", 未关联发行: "gold",
   生产验证对象: "orange",
+  正常: "green", 已替换: "default", 待准备: "gold", 随物品挂失停用: "red",
+  曾挂失: "red", 待生效: "gold", 已生效: "green",
 };
 export function StatusTag({ value }: { value: string }) {
   return <Tag color={colors[value] || "default"} className="status-tag">{value}</Tag>;

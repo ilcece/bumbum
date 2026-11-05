@@ -22,13 +22,17 @@ import {
   timeText,
   statistics,
   kindNames,
+  Handover,
+  wholeName,
+  wholeState,
 } from "../data/domain";
 import { useReturnPath, useAction, go, required, ErrorState } from "../ui";
-import { BindEditor } from "../components/ChipActions";
+import { BindEditor, ProvisionPanel } from "../components/ChipActions";
 import SaleEditor from "../components/SaleEditor";
 import HandoverEditor from "../components/HandoverEditor";
 import StyleEditor from "./StyleEditor";
 import ValidationControls from "../components/ValidationControls";
+import ItemLossEditor from "../components/ItemLossEditor";
 import { CopyValue, StatusTag, ProductGallery, DetailContainer, EditionValue, HolderValue } from "../components/RecordPresentation";
 export default function ItemDetail({ itemId, embedded = false, onDeleted }: { itemId?: number; embedded?: boolean; onDeleted?: () => void }) {
   const p = useStore(),
@@ -45,6 +49,9 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
     [assignId, setAssignId] = useState<string>(),
     [handover, setHandover] = useState(false),
     [workId, setWorkId] = useState<string>(),
+    [initialKind, setInitialKind] = useState<Handover["kind"]>("periodic"),
+    [loss, setLoss] = useState(false),
+    [lossEntityId, setLossEntityId] = useState<string>(),
     [scope, setScope] = useState<"sold" | "all">("sold"),
     [range, setRange] = useState<"7d" | "30d" | "all">("all");
   if (!i)
@@ -62,8 +69,9 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
     works = d.handovers.filter((w) => w.itemId === i.id),
     pending = works.find((w) => !w.completedAt && !w.legacy),
     assignIssue = d.issues.find((x) => x.id === assignId);
-  const begin = (work?: string) => {
+  const begin = (work?: string, kind: Handover["kind"] = "periodic") => {
     setWorkId(work);
+    setInitialKind(kind);
     setHandover(true);
   };
   return (
@@ -176,16 +184,17 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
               size="small"
               headerBordered
               variant="outlined"
-              title="当前实体与芯片"
+              title="当前物品（实物＋芯片）"
               extra={
                 !entity ? (
                   <Button type="primary" onClick={() => setBind(true)}>
-                    首次绑定芯片
+                    {i.entities.length ? "补齐当前物品" : "准备首套物品"}
                   </Button>
                 ) : (
-                  <Button onClick={() => go("/chips/" + chip?.id)}>
-                    维护当前芯片
-                  </Button>
+                  <Space wrap>
+                    <Button danger disabled={!!entity.lost || i.status === "archived" || !chip} onClick={() => { setLossEntityId(entity.id); setLoss(true); }}>挂失物品</Button>
+                    {pending ? <Button type="primary" onClick={() => begin(pending.id)}>继续办理{pending.kind === "resale" ? "转售" : "换新"}</Button> : i.ownerId && <><Button type="primary" onClick={() => begin(undefined, entity.lost ? "loss" : "periodic")}>办理换新</Button><Button onClick={() => begin(undefined, "resale")}>办理转售</Button></>}
+                  </Space>
                 )
               }
             >
@@ -196,9 +205,11 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                   style={{ marginBottom: 12 }}
                   column={2}
                   columns={[
-                    { title: "实际实体规格", render: () => entity.spec },
+                    { title: "物品代次", render: () => wholeName(entity) },
+                    { title: "物品状态", render: () => <StatusTag value={wholeState(entity)} /> },
+                    { title: "实物规格", render: () => entity.spec },
                     {
-                      title: "当前芯片",
+                      title: "配套芯片",
                       render: () => (
                         <CopyValue value={chip?.uid} onClick={() => go("/chips/" + chip?.id)} />
                       ),
@@ -213,21 +224,24 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                         <StatusTag value={chip?.configuredAt ? "演示核验就绪" : "待准备/核验"} />,
                     },
                     { title: "关联时间", render: () => timeText(entity.from) },
+                    ...(entity.lost ? [{ title: "挂失时间", render: () => entity.lostAt ? timeText(entity.lostAt) : "旧记录未记时间" }, { title: "挂失依据", render: () => entity.lossEvidence || "旧记录未记依据" }] : []),
                   ]}
                 />
               ) : (
                 <Alert
                   type="info"
-                  title="尚无实体与芯片关联"
-                  description="首次绑定后，到芯片详情准备配置，核验就绪后再启用物品。"
+                  title="尚未准备首套物品"
+                  description="为此数字身份准备实物及配套芯片，完成配置核验后再启用。"
                 />
               )}
+              {entity?.lost && <Alert type="warning" showIcon title="当前整套物品已挂失" description="配套芯片已停止服务。挂失记录属于这一代物品；换新后的新物品不会继承旧物品的挂失状态，解除挂失政策仍待定。" />}
+              {chip && chip.state !== "retired" && <ProvisionPanel chipId={chip.id} title="当前物品的芯片配置" />}
             </ProCard>
             <ProCard
               size="small"
               headerBordered
               variant="outlined"
-              title="持有人与接续"
+              title="持有人与权益"
               extra={
                 !i.ownerId ? (
                   <Button
@@ -237,11 +251,7 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                   >
                     〔演示〕模拟首次认领
                   </Button>
-                ) : (
-                  <Button type="primary" onClick={() => begin(pending?.id)}>
-                    {pending ? "继续未完成接续" : "办理换新 / 转售"}
-                  </Button>
-                )
+                ) : undefined
               }
             >
               <ProDescriptions
@@ -276,7 +286,7 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                   },
                 ]}
               />
-              <Collapse ghost items={[{ key: "works", label: `接续记录（${works.length}）`, children: <ProTable
+              <Collapse ghost items={[{ key: "works", label: `物品办理记录（${works.length}）`, children: <ProTable
                 rowKey="id"
                 search={false}
                 scroll={{ x: "max-content" }}
@@ -351,7 +361,7 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                   suffix="次"
                 />
                 <div>
-                  按此稳定数字身份合并历代芯片。
+                  按此稳定数字身份汇总历代整套物品。
                   <br />
                   北京时间；配置核验、失败和重复刷新不计次。
                 </div>
@@ -366,8 +376,9 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                   i.entities.some((e) => e.chipId === c.id),
                 )}
                 columns={[
+                  { title: "物品代次", render: (_, c) => wholeName(i.entities.find(e => e.chipId === c.id)) },
                   {
-                    title: "历代芯片",
+                    title: "配套芯片",
                     render: (_, c) => (
                       <CopyValue value={c.uid} onClick={() => go("/chips/" + c.id)} />
                     ),
@@ -411,7 +422,7 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                 items={[
                   {
                     key: "entities",
-                    label: "实体与芯片历程",
+                    label: "物品历程（实物＋芯片）",
                     children: (
                       <ProTable
                         rowKey="id"
@@ -421,9 +432,10 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                         pagination={{ pageSize: 10, showSizeChanger: false }}
                         dataSource={i.entities}
                         columns={[
+                          { title: "物品代次", render: (_, e) => wholeName(e) },
                           { title: "实际规格", dataIndex: "spec" },
                           {
-                            title: "芯片UID",
+                            title: "配套芯片UID",
                             render: (_, e) => (
                               <CopyValue value={d.chips.find((c) => c.id === e.chipId)?.uid} onClick={() => go("/chips/" + e.chipId)} />
                             ),
@@ -438,6 +450,8 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
                               e.to ? timeText(e.to) : <StatusTag value="当前关联" />,
                           },
                           { title: "变更原因", dataIndex: "reason" },
+                          { title: "物品状态", render: (_, e) => <Space><StatusTag value={wholeState(e)} />{e.to && e.lost && <StatusTag value="曾挂失" />}</Space> },
+                          { title: "挂失记录", render: (_, e) => e.lost ? <Space direction="vertical" size={0}><span>{e.lostAt ? timeText(e.lostAt) : "旧记录未记时间"}</span><span>{e.lossEvidence || "旧记录未记依据"}</span></Space> : "—" },
                         ]}
                       />
                     ),
@@ -477,12 +491,14 @@ export default function ItemDetail({ itemId, embedded = false, onDeleted }: { it
           </>
         )}
         <BindEditor itemId={i.id} open={bind} onOpenChange={setBind} />
+        {loss && <ItemLossEditor itemId={i.id} entityId={lossEntityId} open onOpenChange={setLoss} />}
         {editStyle && <StyleEditor styleId={i.styleId} modalMode onClose={() => setEditStyle(false)} />}
         <SaleEditor ids={[i.id]} open={sale} onOpenChange={setSale} />
         {handover && (
           <HandoverEditor
             itemId={i.id}
             workId={workId}
+            initialKind={initialKind}
             open={handover}
             onOpenChange={setHandover}
           />

@@ -14,7 +14,7 @@ async def main():
    assert await page.evaluate('document.documentElement.scrollWidth<=innerWidth'),menu+'整页水平溢出'
   await page.get_by_role('tab',name='连接与范围',exact=True).click();await expect(page.get_by_text('未连接',exact=True)).to_be_visible()
   await page.get_by_role('menuitem',name=re.compile('工作台$')).click();await page.get_by_role('button',name='FASH-2026-000001',exact=True).click();await page.mouse.move(300,10);await page.evaluate('window.scrollTo(0,0)');await page.wait_for_timeout(800);await page.screenshot(path=str(OUT/'item-20.png'),full_page=True)
-  await page.get_by_role('button',name='办理换新 / 转售',exact=True).click();await expect(page.get_by_role('dialog')).to_be_visible();await page.wait_for_timeout(400);await page.screenshot(path=str(OUT/'handover-1280.png'))
+  await page.get_by_role('button',name='办理换新',exact=True).click();await expect(page.get_by_role('dialog')).to_be_visible();await page.wait_for_timeout(400);await page.screenshot(path=str(OUT/'handover-1280.png'))
   assert not errors,errors
   extra=[r for r in resources if r['type']!='document' and not r['url'].startswith('data:')]
   assert not extra,extra

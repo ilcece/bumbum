@@ -12,7 +12,7 @@ import {
 import { Alert, Button, Space, Tag } from "antd";
 import { history } from "@umijs/max";
 import { useStore } from "../data/store";
-import { Item, itemStates, edition, issueText, userName } from "../data/domain";
+import { Item, itemStates, edition, issueText, userName, wholeState, wholeName } from "../data/domain";
 import {
   go,
   required,
@@ -97,7 +97,8 @@ export default function Items() {
                 (!x.status || i.status === x.status) &&
                 (!x.sold || String(i.sold) === x.sold) &&
                 (!x.owner || (x.owner === "yes") === !!i.ownerId) &&
-                (!x.isValidation || (x.isValidation === "yes") === !!i.isValidation),
+                (!x.isValidation || (x.isValidation === "yes") === !!i.isValidation) &&
+                (!x.wholeStatus || wholeState(i.entities.find(e => !e.to)) === x.wholeStatus),
             )
           }
           toolBarRender={() => [
@@ -134,7 +135,7 @@ export default function Items() {
             {
               title: "商品款式",
               search: false,
-              render: (_, i) => <StyleCell style={d.styles.find((s) => s.id === i.styleId)} />,
+              render: (_, i) => <div><StyleCell style={d.styles.find((s) => s.id === i.styleId)} /><div className="cell-secondary">{wholeName(i.entities.find(e => !e.to))} · {i.entities.find(e => !e.to)?.spec || "实物＋芯片尚未准备"}</div></div>,
             },
             {
               title: "发行编号",
@@ -145,7 +146,8 @@ export default function Items() {
                   d.issues.find((s) => s.id === i.issueId),
                 )} />,
             },
-            { title: "物品状态", dataIndex: "status", valueEnum: itemStates, render: (_, i) => <StatusTag value={itemStates[i.status]} /> },
+            { title: "档案状态", dataIndex: "status", valueEnum: itemStates, render: (_, i) => <StatusTag value={itemStates[i.status]} /> },
+            { title: "当前物品状态", dataIndex: "wholeStatus", valueEnum: { 正常: "正常", 已挂失: "已挂失", 待准备: "待准备" }, render: (_, i) => <StatusTag value={wholeState(i.entities.find(e => !e.to))} /> },
             { title: "数据性质", dataIndex: "isValidation", hideInTable: true, valueEnum: { yes: "仅生产验证对象", no: "仅非验证对象" } },
             {
               title: "售出确认",

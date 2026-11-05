@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useRef, useState } from "react";
-import { seed, migrateV5, operate, Data, Command } from "./domain";
+import { seed, migrateV5, normalizeWholeItems, operate, Data, Command } from "./domain";
 const STORAGE = "bumbum-pro-prototype-v6";
 function initial(): Data {
   try {
@@ -9,7 +9,7 @@ function initial(): Data {
       Array.isArray(saved.items) &&
       Array.isArray(saved.touches)
     )
-      return saved;
+      return normalizeWholeItems(saved);
     const old = JSON.parse(
       sessionStorage.getItem("bumbum-make-prototype-v5") || "null",
     );
