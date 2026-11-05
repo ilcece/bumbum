@@ -1,10 +1,9 @@
-import {FirstSalesPage} from './FirstSalesPage';
 import React,{useState} from 'react';
-import {Alert,Button,Card,Empty,Input,Select,Space,Table,Tag,Typography,Segmented} from 'antd';
+import {Alert,Button,Card,Empty,Input,Select,Space,Table,Tag,Typography} from 'antd';
 import {usePrototype,userName,timeText} from '../data/prototypeStore';
 import {readFilters,writeFilters} from '../data/prototypeNavigation';
 export const workKindNames={periodic:'定期换新',loss:'挂失换新',resale:'后台转售'};
-function AfterSalesRecords({onOpenItem,readError,onRetry}:{onOpenItem:(id:number)=>void;readError:boolean;onRetry:()=>void}){
+export function AfterSalesRecords({onOpenItem,readError,onRetry}:{onOpenItem:(id:number)=>void;readError:boolean;onRetry:()=>void}){
  const p=usePrototype();const [filters,setFilters]=useState(()=>readFilters('works',{keyword:'',kind:'',phase:''}));const [applied,setApplied]=useState(filters);
  const phase=(w:typeof p.works[number])=>w.demoReadOnly&&w.status!=='cancelled'?'异常只读':w.status==='completed'?'已完成':w.status==='cancelled'?'已取消历史':w.status==='shipped'?'运输中':w.status==='received'?'待交付核验':w.step===1?'待准备':w.step===2?'待发货':'申请核对';
  const apply=(value=filters)=>{setApplied(value);writeFilters('works',value,1);};
@@ -13,9 +12,4 @@ function AfterSalesRecords({onOpenItem,readError,onRetry}:{onOpenItem:(id:number
  return <div className="proto-stack"><Card size="small"><Space wrap><Input aria-label="办理关键词" style={{width:300}} placeholder="办理编号、物品编号或名称" allowClear value={filters.keyword} onChange={e=>setFilters({...filters,keyword:e.target.value})} onPressEnter={()=>apply()}/><Select aria-label="办理类型" style={{width:155}} value={filters.kind} onChange={kind=>setFilters({...filters,kind})} options={[{value:'',label:'全部类型'},...Object.entries(workKindNames).map(([value,label])=>({value,label}))]}/><Select aria-label="办理阶段" style={{width:170}} value={filters.phase} onChange={phase=>setFilters({...filters,phase})} options={['','待准备','待发货','运输中','待交付核验','已完成','已取消历史','异常只读'].map(value=>({value,label:value||'全部阶段'}))}/><Button type="primary" onClick={()=>apply()}>查询</Button><Button onClick={()=>{const v={keyword:'',kind:'',phase:''};setFilters(v);apply(v);}}>重置</Button></Space></Card>
  <Alert type="info" showIcon title="已保存进度可跨物品查询和继续；准备、发货、收到均不自动接续" description="历史取消/异常样例仅供演示；资格、费用、冻结、跨年和计次细则未定，不提供假定政策下的处置按钮。"/>
  <Card size="small" title={`办理记录 · ${rows.length}条`}><Table rowKey="id" size="middle" scroll={{x:1250}} dataSource={rows} pagination={{pageSize:10,showSizeChanger:false}} locale={{emptyText:<Empty description="暂无匹配的办理记录，可从物品相应权益分区发起"/>}} columns={[{title:'办理编号',dataIndex:'id',width:165},{title:'数字物品',width:200,render:(_,w)=>{const item=p.items.find(i=>i.id===w.itemId);return <Space orientation="vertical" size={0}><Button type="link" size="small" onClick={()=>onOpenItem(w.itemId)}>{item?.item_uid||'未找到物品'}</Button><Typography.Text type="secondary">{item?p.identity(item).edition:'未记录'}</Typography.Text></Space>;}},{title:'类型',width:110,render:(_,w)=>workKindNames[w.kind]},{title:'持有人／接收人',width:190,render:(_,w)=><Space orientation="vertical" size={0}><span>{userName(w.ownerId)}</span><Typography.Text type="secondary">接收：{userName(w.recipientId)}</Typography.Text></Space>},{title:'当前阶段',width:130,render:(_,w)=><Tag color={w.status==='completed'?'success':w.demoReadOnly?'default':'processing'}>{phase(w)}</Tag>},{title:'更新时间',width:180,render:(_,w)=>timeText(w.history.at(-1)?.time||w.createdAt)},{title:'操作',width:110,fixed:'right',render:(_,w)=><Button size="small" onClick={()=>p.resumeWork(w.id)}>{w.status==='completed'||w.demoReadOnly?'查看记录':'继续办理'}</Button>}]}/></Card></div>;
-}
-
-export function WorkRecordsPage(props:{onOpenItem:(id:number)=>void;readError:boolean;onRetry:()=>void;onManageItems:()=>void;onManageChips:()=>void}){
- const p=usePrototype();const [view,setView]=useState(()=>sessionStorage.getItem('bumbum-first-sales-view')==='after'?'after':'first');
- return <div className="proto-stack"><Segmented value={view} options={[{value:'first',label:'首次销售与交付'},{value:'after',label:'换新与转售'}]} onChange={v=>p.guard(()=>{setView(String(v));sessionStorage.setItem('bumbum-first-sales-view',String(v));})}/>{view==='first'?(props.readError?<Alert type="error" title="首次交付记录读取失败" description="已保存进度仍保留，未当作空列表。" action={<Button onClick={props.onRetry}>重试读取</Button>}/>:<FirstSalesPage onOpenItem={props.onOpenItem} onManageItems={props.onManageItems} onManageChips={props.onManageChips}/>):<AfterSalesRecords {...props}/>}</div>;
 }

@@ -975,7 +975,7 @@ export function computeTapStatsSnapshot(
   events: TapEventRecord[],
   excludeValidation = false
 ): TapStats {
-  const todayStr = '2026-11-04';
+  const todayStr = new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const asOf = new Date().toISOString();
 
   const projectEvents = events.filter((e) => {
@@ -989,9 +989,9 @@ export function computeTapStatsSnapshot(
 
   let startStr: string | null = null;
   if (query.range === '7d') {
-    startStr = '2026-10-21';
+    startStr = new Date(Date.parse(todayStr+'T00:00:00Z')-6*86400000).toISOString().slice(0,10);
   } else if (query.range === '30d') {
-    startStr = '2026-09-28';
+    startStr = new Date(Date.parse(todayStr+'T00:00:00Z')-29*86400000).toISOString().slice(0,10);
   } else {
     startStr = firstRecordedAt ? sortedAll[0].beijing_date : null;
   }

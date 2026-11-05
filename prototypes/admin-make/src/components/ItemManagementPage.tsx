@@ -1,3 +1,4 @@
+import {issueLabel} from '../data/salesJourney';
 import {usePrototype,userName} from '../data/prototypeStore';
 import {PrototypeItemDetails} from './PrototypeItemDetails';
 import {readFilters,writeFilters} from '../data/prototypeNavigation';
@@ -488,7 +489,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
       project: createProject,
       item_uid: check.item_uid,
       sku_code: skuTrimmed,
-      issuanceId:createIssue.id,editionNumber:createNumber,
+      issuanceId:createIssue.id,editionNumber:createIssue.mode==='timed'&&!createIssue.sealedAt?null:createNumber,
       is_validation_object: createIsValidation,
     });
     if (!res.ok || !res.item) {
@@ -1346,7 +1347,7 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
       >
         <Form layout="vertical" style={{ marginTop: 12 }}>
           <Form.Item label="关联发行约定" required extra="先在发行约定工作区保存并确认草案；限定与非限定均须关联。">
-            <Select aria-label="关联发行约定" showSearch optionFilterProp="label" placeholder="选择已确认的发行约定" value={createIssuanceId} onChange={value=>{const issue=proto.issuances.find(i=>i.id===value)!,style=proto.styles.find(s=>s.id===issue.styleId)!;setCreateDirty(true);setCreateIssuanceId(value);setCreateProject(style.project);setCreateItemUid(suggestNextItemUid(style.project));setCreateNumber(nextNumber(value));setCreateError('');}} options={proto.issuances.filter(i=>i.status==='issued').map(i=>({value:i.id,label:i.name+' · '+(i.total===null?'非限定／总量不限':'限定'+i.total+'份')}))}/>
+            <Select aria-label="关联发行约定" showSearch optionFilterProp="label" placeholder="选择已确认的发行约定" value={createIssuanceId} onChange={value=>{const issue=proto.issuances.find(i=>i.id===value)!,style=proto.styles.find(s=>s.id===issue.styleId)!;setCreateDirty(true);setCreateIssuanceId(value);setCreateProject(style.project);setCreateItemUid(suggestNextItemUid(style.project));setCreateNumber(issue.mode==='timed'&&!issue.sealedAt?null:nextNumber(value));setCreateError('');}} options={proto.issuances.filter(i=>i.status==='issued').map(i=>({value:i.id,label:i.name+' · '+issueLabel(i)}))}/>
           </Form.Item>
           <Form.Item label="关联款式（发行引用）"><Input readOnly value={createStyle?createStyle.code+' · '+createStyle.profile.name:'选择发行约定后确定'}/></Form.Item>
           <Form.Item label="物品类别（款式引用）" extra="类别只在款式维护，创建物品不单独选择。"><Input readOnly value={createSkuCode?(createProject==='fashion'?'服装':'饰品'):'选择发行约定后确定'}/></Form.Item>
@@ -1380,8 +1381,8 @@ export const ItemManagementPage: React.FC<ItemManagementPageProps> = ({
             />
           </Form.Item>
 
-          <Form.Item label="本件序号" required extra={createIssue?(createIssue.total===null?'非限定：在本次发行内唯一，不设发行数量上限；展示如 #001。':`限定：1–${createIssue.total}，展示如 #001/${createIssue.total}。`):'与系统物品编号独立，先选择发行约定。'}>
-            <InputNumber aria-label="本件序号" min={1} precision={0} value={createNumber} onChange={v=>{setCreateDirty(true);setCreateNumber(v);setCreateError('');}} style={{width:180}}/>
+          <Form.Item label="本件序号" required extra={createIssue?(createIssue.mode==='timed'&&!createIssue.sealedAt?'限时发售仅准备稳定身份，正式序号与总量在封版确定。':createIssue.total===null?'非限定：在本次发行内唯一，不设发行数量上限；展示如 #001。':`限定：1–${createIssue.total}，展示如 #001/${createIssue.total}。`):'与系统物品编号独立，先选择发行约定。'}>
+            <InputNumber disabled={createIssue?.mode==='timed'&&!createIssue.sealedAt} aria-label="本件序号" min={1} precision={0} value={createNumber} onChange={v=>{setCreateDirty(true);setCreateNumber(v);setCreateError('');}} style={{width:180}}/>
           </Form.Item>
           <Alert type="info" showIcon title="保存时一起登记发行引用与本件序号" description="仅创建未绑定、未归属的物品草稿；不会启用、配卡或认领所有人。" style={{marginBottom:16}}/>
 

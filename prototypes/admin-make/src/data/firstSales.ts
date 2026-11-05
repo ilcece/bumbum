@@ -1,11 +1,16 @@
 import type {Data, SharedStyle} from './prototypeStore';
 
 // 仅保存浏览器中的合成首交事实；不包含支付、库存扣减或所有权授权。
+export interface SalesChannel {id:string; shop:string; productRef:string; listed:boolean; closed:boolean; checkedAt?:string; expectedCount?:number; evidence?:string;}
 export interface SalesPlan {
   id:string; name:string; styleId:string; quantity:number; channel:string; productRef:string;
+  issuanceId?:string; mode?:'fixed'|'timed'|'unlimited'; status?:'draft'|'ready'|'selling'|'reconciling'|'sealed';
+  startAt?:string; endAt?:string; basis?:string; deliveryPromise?:string; supplierRef?:string; sampleRef?:string; channels?:SalesChannel[]; sealedAt?:string; sealEvidence?:string; finalCount?:number;
 }
 export interface FirstDelivery {
   id:string; planId:string; orderRef:string; lineRef:string; piece:number; requestedSpec:string; recipientRef:string;
+  channelId?:string; saleState?:'valid'|'review'|'excluded'; salesEvidence?:string; paidAt?:string; editionNumber?:number;
+  chipId?:number; chipUid?:string; configuredAt?:string; qualityAttempts?:{time:string;actualSpec:string;quality:'pass'|'fail';evidence:string}[];
   stage:number; productionEvidence?:string; factoryRef?:string; factoryReceipt?:string;
   quality?:'pass'|'fail'; qualityEvidence?:string; actualSpec?:string;
   itemId?:number; checkEvidence?:string; tracking?:string; receiptEvidence?:string;

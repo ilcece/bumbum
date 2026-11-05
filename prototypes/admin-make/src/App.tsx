@@ -60,7 +60,10 @@ import {
 } from './components/OverviewPage';
 import { ChipManagementPage } from './components/ChipManagementPage';
 import {CatalogPage} from './components/CatalogManagement';
-import {WorkRecordsPage} from './components/WorkRecordsPage';
+import {AfterSalesRecords} from './components/WorkRecordsPage';
+import {FirstSalesPage} from './components/FirstSalesPage';
+import {BusinessOverview,SaleWorkspace} from './components/SaleWorkspace';
+import type {FirstDelivery} from './data/firstSales';
 import { ItemManagementPage } from './components/ItemManagementPage';
 import {PrototypeProvider,usePrototype} from './data/prototypeStore';
 import {PrototypeOverlays,pendingPolicy} from './components/PrototypeItemDetails';
@@ -69,27 +72,29 @@ import {LifecyclePage} from './components/LifecyclePage';
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
-type NavPageKey = 'overview' | 'chips' | 'items' | 'audit' | 'checks';
+type NavPageKey = 'overview' | 'commerce' | 'delivery' | 'chips' | 'items' | 'audit' | 'checks';
 
 const PAGE_TITLES: Record<NavPageKey, { title: string; subtitle: string }> = {
+  commerce:{title:'商品与发售',subtitle:'商品准备、发行规则、多店销售与期末封版'},
+  delivery:{title:'交付与售后',subtitle:'按任务处理生产、验收、配卡、发货与接续'},
   overview: {
     title: '工作台总览',
     subtitle: '全局库存概况与有效触碰统计',
   },
   chips: {
-    title: '芯片管理',
+    title: '物品与芯片',
     subtitle: '芯片登记、批次维护、关联引用与配置核验',
   },
   items: {
-    title: '物品管理',
+    title: '物品与芯片',
     subtitle: '数字物品、共用款式、发行约定与办理记录',
   },
   audit: {
-    title: '操作日志',
+    title: '系统管理',
     subtitle: '管理员关键操作审计记录',
   },
   checks: {
-    title: '系统与环境',
+    title: '系统管理',
     subtitle: '服务进程与数据库连接状态检查',
   },
 };
@@ -97,6 +102,12 @@ const PAGE_TITLES: Record<NavPageKey, { title: string; subtitle: string }> = {
 const UNIFIED_FONT_FAMILY =
   'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
 
+// 旧工作区链接指向重组后的业务位置，保留既有查询参数。
+function routePage(key:string,query:URLSearchParams):NavPageKey {
+  if(key==='items'&&['styles','issues'].includes(query.get('view')||''))return 'commerce';
+  if(key==='items'&&query.get('view')==='works')return 'delivery';
+  return ['overview','commerce','delivery','chips','items','audit','checks'].includes(key)?key as NavPageKey:'overview';
+}
 function AppCore() {
   const proto=usePrototype();
   // 登录会话状态（默认已作为管理员 cece 登录，支持退出返回登录页完整验证登录流程）
@@ -107,8 +118,18 @@ function AppCore() {
   const [loginError, setLoginError] = useState('');
 
   // 导航与跨页抽屉联动状态
-  const [currentPage, setCurrentPage] = useState<NavPageKey>(()=>{const key=location.hash.slice(1).split('?')[0];return ['overview','chips','items','audit','checks'].includes(key)?key as NavPageKey:'overview';});
-  const [itemTab,setItemTab]=useState(()=>{const value=new URLSearchParams(location.hash.split('?')[1]).get('view');return value&&['items','styles','issues','works'].includes(value)?value:'items';});
+  const [currentPage, setCurrentPage] = useState<NavPageKey>(()=>routePage(location.hash.slice(1).split('?')[0],new URLSearchParams(location.hash.split('?')[1])));
+  const [saleId,setSaleId]=useState<string|null>(()=>new URLSearchParams(location.hash.split('?')[1]).get('sale'));
+  const [saleTab,setSaleTab]=useState(()=>new URLSearchParams(location.hash.split('?')[1]).get('saleTab')||'overview');
+  const [commerceView,setCommerceView]=useState(()=>new URLSearchParams(location.hash.split('?')[1]).get('commerceView')||(['styles','issues'].includes(new URLSearchParams(location.hash.split('?')[1]).get('view')||'')?new URLSearchParams(location.hash.split('?')[1]).get('view')!:'sales'));
+  const [newSaleStyle,setNewSaleStyle]=useState<string|undefined>();
+  const [firstRecordId,setFirstRecordId]=useState<string|null>(()=>new URLSearchParams(location.hash.split('?')[1]).get('first'));
+  const [deliveryView,setDeliveryView]=useState(()=>new URLSearchParams(location.hash.split('?')[1]).get('deliveryView')||'first');
+  const [taskReturn,setTaskReturn]=useState<{page:'commerce'|'delivery';saleId?:string|null;recordId?:string|null;itemId?:number}|null>(()=>{try{return JSON.parse(sessionStorage.getItem('bumbum-task-return')||'null');}catch{return null;}});
+  useEffect(()=>{sessionStorage.setItem('bumbum-task-return',JSON.stringify(taskReturn));},[taskReturn]);
+  const selectSale=(id:string|null,tab='overview')=>{setSaleId(id);setSaleTab(tab);setCommerceView('sales');setCurrentPage('commerce');};
+  const captureTask=(record?:FirstDelivery)=>{if(currentPage==='commerce'||currentPage==='delivery')setTaskReturn({page:currentPage,saleId:record?.planId||saleId,recordId:record?.id||firstRecordId,itemId:record?.itemId});};
+  const returnToTask=()=>{if(!taskReturn)return;setCurrentPage(taskReturn.page);setSaleId(taskReturn.saleId||null);setSaleTab('orders');setCommerceView('sales');setFirstRecordId(taskReturn.recordId||null);setTaskReturn(null);};
   const [activeChipId, setActiveChipId] = useState<number | null>(()=>Number(new URLSearchParams(location.hash.split('?')[1]).get('chip'))||null);
   const [activeItemId, setActiveItemId] = useState<number | null>(()=>Number(new URLSearchParams(location.hash.split('?')[1]).get('item'))||null);
   const [chipPresetFilter, setChipPresetFilter] = useState<{
@@ -136,26 +157,28 @@ function AppCore() {
   );
 
   const workOrigin=useRef<'detail'|'records'>('detail');
-  useEffect(()=>{if(proto.activeWorkId||proto.activeDraft){workOrigin.current=currentPage==='items'&&itemTab==='works'&&!activeItemId?'records':'detail';setActiveChipId(null);setActiveItemId(null);}},[proto.activeWorkId,proto.activeDraft]);
+  useEffect(()=>{if(proto.activeWorkId||proto.activeDraft){workOrigin.current=currentPage==='delivery'&&!activeItemId?'records':'detail';setActiveChipId(null);setActiveItemId(null);}},[proto.activeWorkId,proto.activeDraft]);
   const lastUrl=useRef(location.hash), routeReady=useRef(false), fromHistory=useRef(false);
   useEffect(()=>{
     const params=new URLSearchParams(location.hash.split('?')[1]);
     activeItemId?params.set('item',String(activeItemId)):params.delete('item');
     activeChipId?params.set('chip',String(activeChipId)):params.delete('chip');
-    if(currentPage==='items')params.set('view',itemTab);
+    params.delete('view');
+    params.set('commerceView',commerceView);params.set('deliveryView',deliveryView);
+    saleId?params.set('sale',saleId):params.delete('sale');params.set('saleTab',saleTab);firstRecordId?params.set('first',firstRecordId):params.delete('first');
     const next='#'+currentPage+(params.size?'?'+params.toString():'');
     const oldParams=new URLSearchParams(location.hash.split('?')[1]);
-    const changed=location.hash.slice(1).split('?')[0]!==currentPage||oldParams.get('item')!==params.get('item')||oldParams.get('chip')!==params.get('chip')||oldParams.get('view')!==params.get('view');
+    const changed=location.hash.slice(1).split('?')[0]!==currentPage||oldParams.get('item')!==params.get('item')||oldParams.get('chip')!==params.get('chip')||oldParams.get('view')!==params.get('view')||oldParams.get('sale')!==params.get('sale')||oldParams.get('saleTab')!==params.get('saleTab')||oldParams.get('first')!==params.get('first')||oldParams.get('commerceView')!==commerceView||oldParams.get('deliveryView')!==deliveryView;
     if(routeReady.current&&changed&&!fromHistory.current)history.pushState(null,'',next);else history.replaceState(null,'',next);
     lastUrl.current=next;routeReady.current=true;fromHistory.current=false;
-  },[currentPage,activeItemId,activeChipId,itemTab]);
+  },[currentPage,activeItemId,activeChipId,saleId,saleTab,firstRecordId,commerceView,deliveryView]);
   useEffect(()=>{const move=()=>{
     const requested=location.hash,[key,query]=requested.slice(1).split('?');
-    if(!['overview','chips','items','audit','checks'].includes(key))return;
+    if(!['overview','commerce','delivery','chips','items','audit','checks'].includes(key))return;
     history.replaceState(null,'',lastUrl.current||'#overview');
-    proto.guard(()=>{fromHistory.current=true;history.replaceState(null,'',requested);proto.closeWork();setCurrentPage(key as NavPageKey);const q=new URLSearchParams(query);const view=q.get('view');setItemTab(view&&['items','styles','issues','works'].includes(view)?view:'items');setActiveItemId(Number(q.get('item'))||null);setActiveChipId(Number(q.get('chip'))||null);});
+    proto.guard(()=>{fromHistory.current=true;history.replaceState(null,'',requested);proto.closeWork();const q=new URLSearchParams(query);setCurrentPage(routePage(key,q));setCommerceView(q.get('commerceView')||(['styles','issues'].includes(q.get('view')||'')?q.get('view')!:'sales'));setDeliveryView(q.get('deliveryView')||'first');setSaleId(q.get('sale'));setSaleTab(q.get('saleTab')||'overview');setFirstRecordId(q.get('first'));setActiveItemId(Number(q.get('item'))||null);setActiveChipId(Number(q.get('chip'))||null);});
   };window.addEventListener('popstate',move);return()=>window.removeEventListener('popstate',move);},[]);
-  useEffect(()=>{if(proto.catalogOpen){proto.setCatalogOpen(false);proto.setIssuanceItemId(null);setActiveItemId(null);setCurrentPage('items');setItemTab('styles');}},[proto.catalogOpen]);
+  useEffect(()=>{if(proto.catalogOpen){proto.setCatalogOpen(false);proto.setIssuanceItemId(null);setActiveItemId(null);setCurrentPage('commerce');setCommerceView('styles');}},[proto.catalogOpen]);
   const appendAudit = (
     category: AuditLogEntry['category'],
     action: string,
@@ -183,6 +206,7 @@ function AppCore() {
 
   // 双向跳转：从任意位置打开某个物品详情抽屉
   const handleOpenItemDetailFromAnywhere = (itemId: number) => {
+    captureTask();
     setActiveChipId(null);
     setCurrentPage('items');
     setActiveItemId(itemId);
@@ -447,7 +471,7 @@ function AppCore() {
     project: ProjectCode;
     item_uid: string;
     sku_code: string | null;
-    issuanceId:string;editionNumber:number|null;
+    issuanceId:string;editionNumber:number|null;firstDeliveryId?:string;
     is_validation_object?: boolean;
   }): { ok: boolean; item?: ItemView; error?: string } => {
     const style=proto.styles.find(s=>s.code===payload.sku_code&&s.project===payload.project);
@@ -478,7 +502,7 @@ function AppCore() {
       owner_status: 'unclaimed',
       carrier_generation: 0,
     };
-    const saved=proto.createIdentityItem(newItem,payload.issuanceId,payload.editionNumber);
+    const saved=proto.createIdentityItem(newItem,payload.issuanceId,payload.editionNumber,payload.firstDeliveryId);
     if(!saved.ok)return saved;
     appendAudit(
       'item',
@@ -577,6 +601,17 @@ function AppCore() {
     );
     return { ok: true };
   };
+
+  const prepareFirstItem=(id:string)=>{
+    const record=proto.firstDeliveries.find(r=>r.id===id),plan=proto.salesPlans.find(s=>s.id===record?.planId),issue=proto.issuances.find(i=>i.id===plan?.issuanceId),style=proto.styles.find(s=>s.id===plan?.styleId);
+    if(!record||!plan||!issue||!style||record.stage!==3||record.itemId||record.saleState==='review'||record.saleState==='excluded')return{ok:false,error:'请从合格验收后的本件任务准备数字身份。'};
+    const occupied=new Set(Object.values(proto.identities).filter(m=>m.issuanceId===issue.id).map(m=>m.editionNumber));let number=record.editionNumber||1;if(record.editionNumber&&occupied.has(number))return{ok:false,error:'本件正式序号与已有身份冲突，请核对原记录。'};while(occupied.has(number))number++;
+    const prefix=style.project==='fashion'?'FASH-2026-':'JEW-2026-';let uidNumber=Math.max(0,...items.filter(i=>i.item_uid.startsWith(prefix)).map(i=>Number(i.item_uid.slice(prefix.length))).filter(n=>n<900000))+1;while(items.some(i=>i.item_uid===prefix+String(uidNumber).padStart(6,'0')))uidNumber++;
+    const result=handleCreateItemDraft({project:style.project,sku_code:style.code,item_uid:prefix+String(uidNumber).padStart(6,'0'),issuanceId:issue.id,firstDeliveryId:record.id,editionNumber:issue.mode==='timed'&&!issue.sealedAt?null:number});
+    if(result.ok&&result.item)proto.setFirstDeliveries(prev=>prev.map(r=>r.id===id?{...r,itemId:result.item!.id,history:[...r.history,{time:new Date().toISOString(),text:'从本次交付建立并关联稳定数字身份；未配卡或认领'}]}:r));
+    return result;
+  };
+  const renderFirstDeliveries=(planId?:string)=>simulateApiError?<Alert type="error" title="交付任务读取失败" action={<Button onClick={()=>setSimulateApiError(false)}>重试读取</Button>}/>:<FirstSalesPage planId={planId} initialRecordId={firstRecordId} onRecordChange={setFirstRecordId} onPrepareItem={prepareFirstItem} onOpenSale={id=>{setFirstRecordId(null);selectSale(id,'overview');}} onOpenItem={handleOpenItemDetailFromAnywhere} onManageItems={()=>{captureTask();setCurrentPage('items');}} onManageChips={record=>{captureTask(record);setCurrentPage('chips');if(record?.itemId){const i=items.find(i=>i.id===record.itemId);setActiveChipId(i?.bound_chip_id||null);}}}/>;
 
   // ==================== B / C / D 治理动作实现 ====================
   const handleDeleteL1Chip = (chipId: number, reason: string) => {
@@ -1067,48 +1102,15 @@ function AppCore() {
             <div className="flex-1 py-2 overflow-y-auto">
               <Menu
                 mode="inline"
-                selectedKeys={[currentPage]}
+                selectedKeys={[(currentPage==='items'||currentPage==='chips')?'assets':(currentPage==='audit'||currentPage==='checks')?'system':currentPage]}
                 style={{ borderInlineEnd: 0 }}
-                onClick={({ key }) => proto.guard(()=>{proto.closeWork();setActiveItemId(null);setActiveChipId(null);setCurrentPage(key as NavPageKey);})}
+                onClick={({key})=>proto.guard(()=>{proto.closeWork();setActiveItemId(null);setActiveChipId(null);setFirstRecordId(null);setTaskReturn(null);setCurrentPage(key==='assets'?'items':key==='system'?'audit':key as NavPageKey);})}
                 items={[
-                  {
-                    key: 'overview',
-                    icon: <AppstoreOutlined />,
-                    label: '工作台总览',
-                  },
-                  {
-                    key: 'items',
-                    icon: <ShoppingOutlined />,
-                    label: (
-                      <div className="flex items-center justify-between">
-                        <span>物品管理</span>
-                        <Tag style={{ margin: 0, fontSize: 11 }}>{items.length}</Tag>
-                      </div>
-                    ),
-                  },
-                  {
-                    key: 'chips',
-                    icon: <LinkOutlined />,
-                    label: (
-                      <div className="flex items-center justify-between">
-                        <span>芯片管理</span>
-                        <Tag style={{ margin: 0, fontSize: 11 }}>{chips.length}</Tag>
-                      </div>
-                    ),
-                  },
-                  {
-                    type: 'divider',
-                  },
-                  {
-                    key: 'audit',
-                    icon: <AuditOutlined />,
-                    label: '操作日志',
-                  },
-                  {
-                    key: 'checks',
-                    icon: <CloudServerOutlined />,
-                    label: '系统与环境',
-                  },
+                  {key:'overview',icon:<AppstoreOutlined/>,label:'工作台'},
+                  {key:'commerce',icon:<ShoppingOutlined/>,label:'商品与发售'},
+                  {key:'delivery',icon:<CheckCircleOutlined/>,label:'交付与售后'},
+                  {key:'assets',icon:<LinkOutlined/>,label:'物品与芯片'},
+                  {key:'system',icon:<CloudServerOutlined/>,label:'系统管理'},
                 ]}
               />
             </div>
@@ -1179,7 +1181,14 @@ function AppCore() {
                 <LifecyclePage onBack={itemId=>{proto.closeWork();setCurrentPage('items');setActiveItemId(itemId);}}/>
               </Modal>}
               <Spin spinning={simulateLoading} tip="〔演示〕正在读取样例"><div>
+              {taskReturn&&(currentPage==='items'||currentPage==='chips')&&<Alert style={{marginBottom:16}} type="info" showIcon title={'当前任务：'+(proto.salesPlans.find(s=>s.id===taskReturn.saleId)?.name||'交付办理')+(taskReturn.itemId?' · '+items.find(i=>i.id===taskReturn.itemId)?.item_uid:'')} description="登记、绑定和配置仍使用已有流程；完成后回到本次交付继续。" action={<Button type="primary" onClick={returnToTask}>返回本次交付</Button>}/>}
+              {(currentPage==='items'||currentPage==='chips')&&<Tabs activeKey={currentPage} onChange={key=>proto.guard(()=>setCurrentPage(key as NavPageKey))} items={[{key:'items',label:'数字物品档案'},{key:'chips',label:'芯片库存与配卡'}]}/>}
+              {(currentPage==='audit'||currentPage==='checks')&&<Tabs activeKey={currentPage} onChange={key=>setCurrentPage(key as NavPageKey)} items={[{key:'audit',label:'操作日志'},{key:'checks',label:'系统与环境'}]}/>}
+              {currentPage==='commerce'&&<div className="proto-stack">{!saleId&&<Tabs activeKey={commerceView} onChange={key=>proto.guard(()=>setCommerceView(key))} items={[{key:'sales',label:'发售批次'},{key:'styles',label:'商品款式'},{key:'issues',label:'发行档案'}]}/>}{commerceView==='sales'?<SaleWorkspace tapEvents={tapEvents} saleId={saleId} tab={saleTab} initialStyleId={newSaleStyle} onSelect={selectSale} onOpenItem={handleOpenItemDetailFromAnywhere} orders={id=>renderFirstDeliveries(id)}/>:<CatalogPage key={commerceView} onOpenSale={id=>selectSale(id,'product')} kind={commerceView==='styles'?'styles':'issues'} onStartSale={styleId=>{setNewSaleStyle(styleId);selectSale('new');}} onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>}</div>}
+              {currentPage==='delivery'&&<div className="proto-stack"><Tabs activeKey={deliveryView} onChange={key=>proto.guard(()=>setDeliveryView(key))} items={[{key:'first',label:'首次交付任务'},{key:'after',label:'换新与转售'}]}/>{deliveryView==='first'?renderFirstDeliveries():<AfterSalesRecords onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>}</div>}
               <div style={{ display: currentPage === 'overview' ? 'block' : 'none' }}>
+                <BusinessOverview onNew={()=>{setNewSaleStyle(undefined);selectSale('new');}} onSale={id=>selectSale(id)} onDelivery={()=>{setDeliveryView('first');setCurrentPage('delivery');}}/>
+
                 <OverviewPage
                   chips={chips}
                   items={items}
@@ -1198,11 +1207,12 @@ function AppCore() {
                   onOpenChipDetail={handleOpenChipDetailFromAnywhere}
                   onSimulateNewTap={handleSimulateNewTap}
                 />
-                <Card size="small" style={{marginTop:20}} title="业务快捷入口"><Space><Button onClick={()=>{setCurrentPage('items');setItemTab('works');}}>查看办理记录</Button><Button onClick={()=>{setCurrentPage('items');setItemTab('styles');}}>维护款式资料</Button></Space></Card>
+
               </div>
 
               <div style={{ display: currentPage === 'chips' ? 'block' : 'none' }}>
                 <ChipManagementPage
+                  contextItemId={taskReturn?.itemId}
                   chips={chips}
                   items={items}
                   tapEvents={tapEvents}
@@ -1231,8 +1241,7 @@ function AppCore() {
               </div>
 
               <div style={{ display: currentPage === 'items' ? 'block' : 'none' }}>
-                <Tabs activeKey={itemTab} onChange={key=>proto.guard(()=>{setActiveItemId(null);setItemTab(key);})} items={[
-                  {key:'items',label:'数字物品',forceRender:true,children:(<ItemManagementPage
+<ItemManagementPage
                   items={items}
                   chips={chips}
                   activeItemId={activeItemId}
@@ -1253,12 +1262,7 @@ function AppCore() {
                   onUnbindOrRebindMisboundChip={()=>({ok:false,error:'解绑/改绑规则待审核，未修改样例。'})}
                   onReportChipLost={(id,reason)=>{proto.reportLost(id,reason);return {ok:true};}}
                   onExecuteCarrierReplacement={()=>({ok:false,error:'请从物品权益进入换新或转售办理，不直接覆盖关联。'})}
-                />)},
-                  {key:'styles',label:'款式资料',children:<CatalogPage kind="styles" onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
-                  {key:'issues',label:'发行约定',children:<CatalogPage kind="issues" onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
-                  {key:'works',label:'办理记录',children:<WorkRecordsPage onManageItems={()=>setItemTab('items')} onManageChips={()=>setCurrentPage('chips')} onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
-                ]}/>
-
+                />
               </div>
 
               <div style={{ display: currentPage === 'audit' ? 'block' : 'none' }}>

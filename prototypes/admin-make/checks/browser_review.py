@@ -1,5 +1,5 @@
 """只验证隔离交互原型的业务路径，不运行React独立组件冒烟或调用真实后台。"""
-import base64,json,re,sys
+import base64,json,re,sys,shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
 URL=sys.argv[1] if len(sys.argv)>1 else 'http://127.0.0.1:8644'
@@ -22,9 +22,9 @@ def save_shared(page,m):
  page.wait_for_timeout(450)
 def modal(page):return page.locator('.ant-modal:visible').last
 def menu(page,name):page.get_by_role('menuitem',name=re.compile(name)).click()
-def item(page,uid):menu(page,'物品管理');page.get_by_role('button',name=uid,exact=True).click();expect(page.get_by_role('button',name='申请换新',exact=True)).to_be_visible()
+def item(page,uid):menu(page,'物品与芯片');page.get_by_role('button',name=uid,exact=True).click();expect(page.get_by_role('button',name='申请换新',exact=True)).to_be_visible()
 def select(page,label,text):page.get_by_label(label,exact=True).click();page.locator('.ant-select-dropdown:visible').get_by_text(text,exact=True).last.click();expect(page.locator('.ant-select-dropdown:visible')).to_have_count(0)
-def enter(page):page.goto(URL,wait_until='networkidle');page.get_by_role('button',name='使用演示身份进入').click();expect(page.get_by_role('menuitem',name='工作台总览')).to_be_visible()
+def enter(page):page.goto(URL,wait_until='networkidle');page.get_by_role('button',name='使用演示身份进入').click();expect(page.get_by_role('menuitem',name='工作台')).to_be_visible()
 def workflow(page,kind):
  uid='FASH-2026-000001' if kind=='resale' else 'FASH-2026-000002'
  item(page,uid);page.get_by_role('button',name='办理转售' if kind=='resale' else '申请换新',exact=True).click()
@@ -57,7 +57,7 @@ def workflow(page,kind):
  record(kind+'：正式接续保持编号、唯一当前实体与正确归属/历史')
  page.get_by_role('button',name='查看物品及历史',exact=True).click();expect(page.get_by_text('当前实体与历史实体',exact=True)).to_be_visible()
 with sync_playwright() as p:
- b=p.chromium.launch(args=['--no-sandbox']);page=b.new_page(viewport={'width':1600,'height':1000});page.set_default_timeout(7000)
+ b=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox']);page=b.new_page(viewport={'width':1600,'height':1000});page.set_default_timeout(7000)
  page.on('pageerror',lambda e:errors.append(str(e)))
  page.on('request',lambda r:business_requests.append(r.url) if '/api/' in r.url else None)
  try:
@@ -71,10 +71,10 @@ with sync_playwright() as p:
   page.locator('.ant-drawer:visible .ant-drawer-close').click()
   workflow(page,'periodic');page.locator('.ant-drawer:visible .ant-drawer-close').click()
   workflow(page,'resale');page.locator('.ant-drawer:visible').get_by_role('button',name='挂失芯片',exact=True).click();modal(page).locator('textarea').fill('原型挂失申请及核对记录');modal(page).get_by_role('button',name='确认挂失',exact=True).click();expect(page.locator('.ant-drawer:visible').get_by_text('已挂失',exact=True).last).to_be_visible();assert data(page)['identities']['1']['used']==1;record('挂失阻断当前芯片且不扣换新次数')
-  page.locator('.ant-drawer:visible .ant-drawer-close').click();menu(page,'芯片管理');page.get_by_role('button',name=re.compile('手工登记芯片$')).click();record('手工登记入口可达')
+  page.locator('.ant-drawer:visible .ant-drawer-close').click();menu(page,'物品与芯片');page.get_by_role('tab',name='芯片库存与配卡',exact=True).click();page.get_by_role('button',name=re.compile('手工登记芯片$')).click();record('手工登记入口可达')
   registration=modal(page);before=len(data(page)['chips']);registration.get_by_placeholder('如 04:A2:7F:1B:5E:80:18 或 04a27f1b5e8018').fill('04:AA:BB:CC:DD:EE:77');registration.get_by_placeholder('选填，如 HZ-202610-F03').fill('DEMO-BATCH');registration.get_by_role('button',name='登记并继续下一枚',exact=True).click();assert len(data(page)['chips'])==before+1;expect(registration.get_by_placeholder('选填，如 HZ-202610-F03')).to_have_value('');record('连续登记成功后清空UID/批次，无项目录入')
   registration.get_by_placeholder('如 04:A2:7F:1B:5E:80:18 或 04a27f1b5e8018').fill('04:AA:BB:CC:DD:EE:77');registration.get_by_placeholder('选填，如 HZ-202610-F03').fill('不得覆盖原批次');registration.get_by_role('button',name='登记并继续下一枚',exact=True).click();d=data(page);assert len(d['chips'])==before+1;assert next(c for c in d['chips'] if c['chip_uid']=='04:AA:BB:CC:DD:EE:77')['batch_no']=='DEMO-BATCH';record('重复登记不新增且不覆盖原记录')
-  modal(page).get_by_role('button',name=re.compile(r'^取\s*消$')).click();menu(page,'操作日志')
+  modal(page).get_by_role('button',name=re.compile(r'^取\s*消$')).click();menu(page,'系统管理')
   for _ in range(5):
    if page.get_by_text('保存共用商品资料',exact=True).first.is_visible():break
    active=page.locator('.ant-pagination-item-active:visible');next_page=int(active.get_attribute('title'))+1

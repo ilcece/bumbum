@@ -1,5 +1,5 @@
 """定向验证原型的保存异常、图片、连续创建与查询上下文，不涉及组件矩阵。"""
-import base64,json,re,sys
+import base64,json,re,sys,shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
 URL=sys.argv[1] if len(sys.argv)>1 else 'http://127.0.0.1:8644'
@@ -21,12 +21,12 @@ def save_shared(page,m):
  page.wait_for_timeout(450)
 def modal(page):return page.locator('.ant-modal:visible').last
 def menu(page,name):page.get_by_role('menuitem',name=re.compile(name)).click()
-def detail(page):menu(page,'物品管理');page.get_by_role('button',name='FASH-2026-000002',exact=True).click()
+def detail(page):menu(page,'物品与芯片');page.get_by_role('button',name='FASH-2026-000002',exact=True).click()
 def edit(page):page.locator('.ant-drawer:visible').get_by_role('button',name='维护共用资料',exact=True).click();return modal(page)
 def close_detail(page):page.locator('.ant-drawer:visible .ant-drawer-close').click()
 def mode(page,label):page.get_by_role('button',name='原型演示 · 样例数据',exact=True).click();page.get_by_role('menuitem',name=label,exact=True).click()
 with sync_playwright() as p:
- b=p.chromium.launch(args=['--no-sandbox']);page=b.new_page(viewport={'width':1600,'height':1000});page.set_default_timeout(7000);page.on('pageerror',lambda e:errors.append(str(e)))
+ b=p.chromium.launch(executable_path=shutil.which('chromium'),args=['--no-sandbox']);page=b.new_page(viewport={'width':1600,'height':1000});page.set_default_timeout(7000);page.on('pageerror',lambda e:errors.append(str(e)))
  try:
   page.goto(URL,wait_until='networkidle');page.get_by_role('button',name='使用演示身份进入').click();mode(page,'保存失败');detail(page);m=edit(page);m.get_by_label('名称',exact=True).fill('失败后保留的样例名称');save_shared(page,m);expect(m.get_by_text(re.compile('模拟保存失败'))).to_be_visible();expect(m.get_by_label('名称',exact=True)).to_have_value('失败后保留的样例名称');assert data(page)['items'][1]['profile']['name']!='失败后保留的样例名称';passed('保存失败保留输入且不改原资料')
   m.get_by_role('button',name='恢复正常演示').click();save_shared(page,m);expect(page.locator('.ant-modal:visible')).to_have_count(0);assert data(page)['items'][1]['profile']['name']=='失败后保留的样例名称';passed('失败恢复后明确重试保存成功');close_detail(page)

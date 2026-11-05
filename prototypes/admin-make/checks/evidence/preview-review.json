@@ -9,7 +9,7 @@
       "status": "passed"
     },
     {
-      "case": "离线预览无网络请求及页面运行异常",
+      "case": "单HTML无外部资源请求及页面运行异常",
       "status": "passed"
     }
   ],

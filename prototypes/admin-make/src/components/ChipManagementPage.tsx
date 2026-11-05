@@ -70,6 +70,7 @@ const { Text } = Typography;
 const { RangePicker } = DatePicker;
 
 interface ChipManagementPageProps {
+  contextItemId?:number;
   chips: ChipView[];
   items: ItemView[];
   tapEvents: TapEventRecord[];
@@ -150,6 +151,7 @@ const INITIAL_FILTERS: ChipFilterState = {
 };
 
 export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
+  contextItemId,
   chips,
   items,
   tapEvents,
@@ -363,8 +365,8 @@ export const ChipManagementPage: React.FC<ChipManagementPageProps> = ({
 
   const handleOpenBindModal = (chip: ChipView) => {
     setBindModalChipId(chip.id);
-    setBindCandidateProject(chip.project || 'fashion');
-    setBindCandidateKeyword('');
+    setBindCandidateProject(items.find(i=>i.id===contextItemId)?.project||chip.project||'fashion');
+    setBindCandidateKeyword(items.find(i=>i.id===contextItemId)?.item_uid||'');
     setSelectedCandidateId(null);
     setBindConfirmedCheck(false);
     setBindError('');
