@@ -7,11 +7,11 @@
 | 要解决的问题 | 唯一详细入口 | 适用边界 |
 |---|---|---|
 | 长期愿景、稳定账户、数字身份与实体载体 | [PRODUCT](PRODUCT.md) | 长期方向，不等于完整实现 |
-| 管理登录、物品草稿、服装资料启停、桌面页面与统计 | [后台管理规范](docs/product/admin-management.md) | 现行行为，含各功能验收；新的统一交互与查询见A提案 |
+| 管理登录、物品草稿、服装资料启停、桌面页面与统计 | [后台管理规范](docs/product/admin-management.md) | 现行行为，含各功能验收；新版后台范围与交互见聚合审核稿 |
 | 芯片登记、首次来源、首次绑定、密钥与实卡配置核验 | [芯片生命周期规范](docs/product/chip-lifecycle.md) | 不把登记/绑定/配置当作所有权或可出厂证明 |
 | 用户真实触碰、验证、图片资料、持续查看与异常 | [服装用户体验规范](docs/product/fashion-touch.md) | 仅服装H5；共用验证不等于饰品新体验已交付 |
-| 后台改版、验证清理、纠错、挂失换新与转售 | [四工作流提案](#6-独立改动提案) | 已确认方向与待审细则分别标注 |
-| 商品如何从准备发售走到多店销售、交付及发行封版 | [通用经营流程与后台任务架构提案](docs/proposals/initial-sale-delivery.md) | 三类共用方法、帽子100为预估且限时按销量定量已确认；目标导航/主容器、统计及编号/封版交互已授权制作隔离原型；正式政策、技术与人工验收待完成 |
+| 后台定位、架构、字段、芯片接续和核心统计 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 初创阶段收口；新流程/字段/官方工程待重新审核，原已确认原则保留 |
+| 发行数量怎样确定，订单物流是否重复维护 | [范围与核心流程](docs/proposals/admin-make-rebuild.md#scope) | 保留发行承诺/结果与数字身份，订单/工厂/物流退出后台；精简原型尚未调整 |
 | 手串数字体验或权益为什么值得做 | [探索说明](docs/BRACELET_NFC_EXPLORATION.md) | 新体验未定，不是新PRD；不关联婚礼机会 |
 | 旧祈愿、旧养成描述 | [祈愿归档](docs/archive/nfc-prayer-h5.md)、[养成候选归档](docs/archive/legacy-growth-candidate.md) | 历史追溯，不作为实施依据 |
 
@@ -74,14 +74,16 @@ P0指现有核心流程阻断或可能产生错误数据等必须先修的问题
 
 ## 6. 独立改动提案
 
-| 工作流 | 独立提案 | 审批边界 |
-|---|---|---|
-| A：统一后台、维护与查询 | [A业务提案](docs/proposals/admin-management-update.md)、[A技术方案](docs/proposals/admin-management-implementation.md)、[最新Make原型与后端缺口](docs/proposals/admin-make-rebuild.md) | A业务规则已批准，含图片上传、关联引用及详情/编辑字段一致；旧交互原型仅参考，最新Make先作为展示基准迭代，控件与交互遵循Ant Design官方规范及[统一后台设计规范](docs/ADMIN_UI_GUIDELINES.md)，技术方案有条件批准，固定React19独立冒烟要求已取消，图片恢复门槛保留，既有验证证据见CHANGELOG；芯片增量已承接至[现行规范](docs/product/chip-lifecycle.md#1-芯片登记与首次来源)，其余按TODO推进 |
-| B：生产验证识别与清理 | [B提案](docs/proposals/production-validation-cleanup.md) | 必要清理需求已确认；删除、编号、统计政策待审 |
-| C：专用纠错 | [C提案](docs/proposals/chip-correction.md) | 处理需求已确认；未配置/已配置路径待审 |
-| D：挂失换新与转售 | [D提案](docs/proposals/replacement-resale.md) | 数字权益、尺码/颜色限制、自然年共享换新额度、转售继承余额及旧实体不回收已确认；交付核验后由后台正式接续，资格/费用及其余细则待审 |
+本轮将分支全部7份后台提案聚合为下列审核材料，避免A/B/C/D与旧经营方案各维护一套当前规则。整体结构待cece重新审核；已纳入product的A能力和既有身份/接续原则继续有效。
 
-共用保护、差异和S01–S30场景索引只维护在A提案，其他提案引用。文档重组获批不改变四工作流的业务审批状态；原型、技术、构建和交付分别推进。
+| 审核材料 | 负责什么 | 边界 |
+|---|---|---|
+| [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 定位、范围、信息/功能架构、核心流程、统计及待审选择 | 数字物品、芯片、持有人及核心数据；不建设订单/工厂/物流后台 |
+| [业务字段表](docs/proposals/admin-rebuild-fields.md) | 档案、操作表单及只读视图的字段/含义/录入边界 | 不是DDL或已可用API清单 |
+| [设计与交互规范](docs/ADMIN_UI_GUIDELINES.md) | 官方页面/组件、布局、容器、查询/保存/返回及视觉验收 | 新版优先官方Pro模式，旧Make只作历史参考 |
+| [Umi工程迁移说明](docs/proposals/admin-rebuild-implementation.md) | 完整官方工程路线、真实能力保留、版本冲突及实施前提 | 当前正式工程仍为Vite；未安装/迁移，用户H5和后端不随之重写 |
+
+B验证清理、C纠错和D未定政策在主方案相应章节集中审核，分别按实际批准范围实施，不因聚合捆绑发布。旧路径、S01–S30与历史批准/测试记录从[主方案来源表](docs/proposals/admin-make-rebuild.md#sources)查阅；归档不改变真实已实现状态，也不把旧53项原型检查当作新版或Umi验收。
 
 <details>
 <summary>旧PRD章节链接兼容入口（仅导航）</summary>

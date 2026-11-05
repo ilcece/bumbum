@@ -1,16 +1,18 @@
-# 页面与 Figma 怎么协作
+# 后台页面与前端工程怎样协作
 
-目的：按页面接入Figma外观，同时保留真实接口和安全逻辑。Make管理端以cece本次上传的《设计项目管理后台.zip》为来源，仅桌面网页，不做移动适配或用户H5。操作见[桌面管理端手册](ADMIN_DESKTOP.md)，任务和验收分别见[TODO](../TODO.md)、[CHANGELOG](../CHANGELOG.md)。
+<a name="页面与-figma-怎么协作"></a>
 
-本轮以cece上传的原始最新版Make为基准，先对齐业务及页面改法再修改原型，cece满意后再整合。统一遵守[后台设计与交互规范](ADMIN_UI_GUIDELINES.md)，此前AI首轮改稿不作为基准；思路、预览状态和后端缺口见[最新Make方案](proposals/admin-make-rebuild.md)。现有正式工程暂作为后端与保护逻辑基线，不能把原型本地数组直接接入生产。
+目的：在已确认业务范围内使用官方页面模式，保留真实接口和安全逻辑。新版后台定位、字段及审核顺序从[聚合方案](proposals/admin-make-rebuild.md)进入，设计按[统一规范](ADMIN_UI_GUIDELINES.md)，工程路线按[Umi迁移说明](proposals/admin-rebuild-implementation.md)。cece本轮建议完整官方Ant Design Pro工程迁入Umi Max，替代此前保留Vite只接组件的推荐；具体方案正在重新审核，正式代码尚未切换。
+
+原始Make、旧Figma和当前长经营原型保留为历史参考，新版不再要求复刻其像素/容器或订单物流主线。Figma附件按实际页面需要提取，不整包覆盖源码、依赖、认证或后端。当前操作见[桌面管理端手册](ADMIN_DESKTOP.md)，状态只看[TODO](../TODO.md)。
 
 ## 独立交互原型与正式工程
 
-本次已授权的高保真交互原型位于[prototypes/admin-make](../prototypes/admin-make/README.md)，可下载[单HTML](../prototypes/admin-make/preview.html)离线核对；原始Make框架与列表复用，详情/编辑和办理流程按分支方案调整。它使用浏览器合成数据，不调用真实API，不是正式后台，也不替代下表工程。原型的构建和业务路径检查不代表正式代码、后端、实卡或人工验收完成。cece确认后才按相应技术批准范围整合正式工程，Figma导入和当前任务状态见TODO。
+本次已授权的高保真交互原型位于[prototypes/admin-make](../prototypes/admin-make/README.md)，可下载[单HTML](../prototypes/admin-make/preview.html)离线核对；其中保留上一轮Make及长经营流程，尚未按新的收口稿调整。它使用浏览器合成数据，不调用真实API，不是正式后台，也不替代下表工程。原型的构建和业务路径检查不代表正式代码、后端、实卡或人工验收完成。产品和必要技术范围通过后，新预览直接采用官方Umi/Pro工程，并复用同套页面接真实服务；交互与正式能力分别验收，不再先重画旧Make再迁移。当前任务状态见TODO。
 
 ## 当前页面放在哪里
 
-后续管理端设计与实现同时遵守[后台设计与交互规范](ADMIN_UI_GUIDELINES.md)及[A提案的官方复用及迁移约定](proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)，本文件不复制第二套组件/主题/定制规则。A业务规则已审核通过；[旧交互原型](proposals/admin-management-update.md#32-原型审核入口与交互取舍)仅供参考，不再调整，也不要求复刻。列表筛选查询、详情只读与编辑态等样式和交互优先采用Ant Design 6官方规范；PRD只定义业务要求。依赖、接口及上传存储的批准范围见[附条件批准的技术方案](proposals/admin-management-implementation.md)，已纳入的产品规则及现行界面按[后台规范](product/admin-management.md)。
+后续设计与实现以聚合稿、字段表和统一规范为依据；已交付A规则继续由[现行后台规范](product/admin-management.md)及[芯片规范](product/chip-lifecycle.md)维护。旧A/B/C/D路径只留兼容入口，批准的既有能力不被文档重组撤回，未定业务/技术也不因重组获批。
 
 下表是当前任务分支的真实分工；Ant Design 6已接入，人工验收、合并和部署状态仍见TODO，用户H5独立维护。旧Radix、ProComponents 2、v5补丁及lucide已移除，Tailwind仅编译Make布局样式，不同时维护两套控件。
 
@@ -32,9 +34,9 @@
 | `frontend/admin/src/api.ts` | 唯一接口调用层，保留Cookie、内存CSRF及失败处理 |
 | `frontend/admin/vite.config.ts` | 保留本机地址和/api代理，接入Tailwind 4编译本次Make样式 |
 
-当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。现有正式管理端为React + Vite + TypeScript；cece已确认采用Ant Design Pro重构，现明确推荐保留Vite并实际接入ProComponents及官方页面组合，完整Pro/Umi与该路线的比较、实施及回退范围见[提案第4.2节](proposals/admin-make-rebuild.md#42-采用ant-design-pro与工程接入范围)，本轮尚未切换工程；现有用户工程位于frontend/user，后续按其实际任务修改，不再创建重复工程。本次Make已使用antd 6，因此复用Layout/Table/Form/Drawer/Modal的展示组合，旧Figma交互原型仍仅供参考；具体字段和交互约束以现行PRD及官方组件为准。Make原有本地样例、定时器成功、所有权和H5演示不接入业务；不复制其pnpm锁、Vite专有插件、AGENTS/CLAUDE或.figma脚本。React/TypeScript/Vite继续仓库固定版本，npm管理并锁定必要新依赖。
+当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。现有正式管理端仍为React + Vite + TypeScript，下一目标推荐完整官方Umi Max/Ant Design Pro工程，迁移落在frontend/admin。具体路由、请求/会话、构建和启动脚本适配见工程说明，不把组件安装等同完整迁入。用户工程frontend/user保持独立Vite，后端与NFC安全方案保留。未实施前不改现行启动命令；实施时用npm锁定核定版本并更新原本地运行说明，不复制官方无关示例/假接口/外部分析或演示发布脚本。
 
-字段展示按[三层信息与详情/编辑落位](proposals/admin-make-rebuild.md#24-已同意的三层信息与字段展示)承接：界面称“实体”，共用发行约定、数字身份和每次实体交付分开；目标为共用资料统一维护并同步引用，实体交付信息独立保留；当前正式应用仍逐件保存，迁移须另审。重构的物品类别只在款式维护，其他页面按引用展示/筛选，不能保留多处独立“所属项目”输入；隔离原型已按批准架构落实来源与文案；现有正式project接口/数据仍需技术适配。未交付字段在技术实施前补齐契约，不从原型假定后端支持。
+字段展示按[业务字段表](proposals/admin-rebuild-fields.md)承接：界面称“实体”，共用发行约定、数字身份和每次实体交付分开；目标为共用资料统一维护并同步引用，实体交付信息独立保留；当前正式应用仍逐件保存，迁移须另审。重构的物品类别只在款式维护，其他页面按引用展示/筛选，不能保留多处独立“所属项目”输入；隔离原型已按批准架构落实来源与文案；现有正式project接口/数据仍需技术适配。未交付字段在技术实施前补齐契约，不从原型假定后端支持。
 
 独立原型中的〔演示〕Webhook触发/重复/鉴权失败、假登录、密钥占位、样例核验/诊断、故障注入、fixtures和会话样例均不进入正式构建；真实Webhook登记能力继续保留，并接真实接口及认证/幂等规则，不能移植模拟成功处理。原型入口及核对步骤见[原型说明](../prototypes/admin-make/README.md)。
 
