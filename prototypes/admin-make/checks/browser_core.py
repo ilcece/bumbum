@@ -19,10 +19,11 @@ async def main():
    if '芯片' in label:await expect(field.locator('xpath=ancestor::div[contains(@class, "ant-select ")][1]').get_by_title(text,exact=True)).to_be_visible()
   async def data():return await page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-pro-prototype-v6'))")
   async def configure(root=None):
-   root=root or page;await button('〔演示〕准备密钥标记',root)
-   await root.get_by_label('已核对密钥与模板的演示步骤').check();await root.get_by_label('已核对两条递增链接的演示步骤').check();await button('〔演示〕记录配置核验',root)
+   root=root or page;await button('查看密钥与配置',root)
+   config=page.get_by_role('dialog').filter(has_text='芯片密钥、受控查看与配置核验')
+   await button('〔演示〕准备密钥标记',config);await button('填入两条演示链接',config);await config.get_by_label('我已人工核对新 K0 可以认证且文件权限符合手册（演示确认）',exact=True).check();first_link=await config.get_by_label('第 1 条触碰链接（演示）',exact=True).input_value();await config.get_by_label('第 2 条触碰链接（演示）',exact=True).fill(first_link);await button('〔演示〕提交双链接并确认配置核验',config);await expect(config.get_by_text('仅接受当前芯片的两条递增演示链接；真实读数请使用正式配卡服务核验。',exact=True)).to_be_visible();await button('填入两条演示链接',config);await button('〔演示〕提交双链接并确认配置核验',config);await expect(config.get_by_text('演示配置核验已记录',exact=True)).to_be_visible();await button('关闭窗口',config)
   try:
-   await page.goto(BASE);await button('使用演示身份进入');await expect(page.get_by_text('准备、使用与持有，分别核对',exact=True)).to_be_visible()
+   await page.goto(BASE);await button('使用演示身份进入');await expect(page.get_by_text('物品与芯片概况',exact=True)).to_be_visible()
    await page.mouse.move(1000,20);await page.screenshot(path=str(OUT/'overview.png'),full_page=True)
    await button('新建款式');await page.get_by_label('款式编号',exact=True).fill('CORE-CAP-01');await page.get_by_label('款式名称',exact=True).fill('核心流程验收帽子');await page.get_by_label('商品介绍',exact=True).fill('同一数字身份延续实体与芯片历史');await page.get_by_label('材质',exact=True).fill('棉');await page.get_by_label('适用规格（每行一项）',exact=True).fill('蓝色 · 均码')
    await button('保存共用资料');await expect(page).to_have_url(__import__('re').compile(r'/catalog/style/(?!new)'))

@@ -11,82 +11,20 @@ import { Alert, Button, Checkbox, Space, Tag, Typography } from "antd";
 import { useStore } from "../data/store";
 import { chipStates, edition, timeText } from "../data/domain";
 import { required, useAction } from "../ui";
+export { default as KeyConfigDialog } from "./KeyConfigDialog";
+import KeyConfigDialog from "./KeyConfigDialog";
+import { CopyValue, StatusTag } from "./RecordPresentation";
 export function ProvisionPanel({ chipId }: { chipId: number }) {
-  const p = useStore(),
-    a = useAction(),
-    c = p.data.chips.find((c) => c.id === chipId),
-    [first, setFirst] = useState(false),
-    [second, setSecond] = useState(false);
-  useEffect(() => {
-    setFirst(false);
-    setSecond(false);
-    a.clear();
-  }, [chipId]);
+  const p = useStore(), c = p.data.chips.find(c => c.id === chipId), [open, setOpen] = useState(false);
   if (!c) return null;
-  return (
-    <ProCard
-      size="small"
-      headerBordered
-      variant="outlined"
-      title="芯片准备与配置核验"
-      extra={
-        <Tag color={c.configuredAt ? "blue" : "default"}>
-          {c.configuredAt ? "演示核验就绪" : "待配置"}
-        </Tag>
-      }
-    >
-      <div className="page-stack">
-        <Alert
-          type="info"
-          title="以下为明确标记的配卡演示"
-          description="不生成真实密钥，不向芯片写入，不验证真实动态链接或凭证。正式整合复用现有受控配卡服务。"
-        />
-        <Space>
-          <Typography.Text>
-            密钥状态：{c.keys ? "已记录演示准备标记" : "未准备"}
-          </Typography.Text>
-          <Button
-            data-demo-only
-            disabled={c.keys || a.unknown || c.state === "retired"}
-            onClick={() => a.run("keys", { chipId }, "仅记录演示密钥标记")}
-          >
-            〔演示〕准备密钥标记
-          </Button>
-        </Space>
-        <Checkbox checked={first} onChange={(e) => setFirst(e.target.checked)}>
-          已核对密钥与模板的演示步骤
-        </Checkbox>
-        <Checkbox
-          checked={second}
-          onChange={(e) => setSecond(e.target.checked)}
-        >
-          已核对两条递增链接的演示步骤
-        </Checkbox>
-        <Button
-          data-demo-only
-          type="primary"
-          disabled={
-            !c.keys || !!c.configuredAt || a.unknown || c.state === "retired"
-          }
-          onClick={() =>
-            a.run(
-              "configure",
-              { chipId, checked: first, checked2: second },
-              "演示配置核验已记录，未验证实卡",
-            )
-          }
-        >
-          〔演示〕记录配置核验
-        </Button>
-        {c.configuredAt && (
-          <Typography.Text type="secondary">
-            演示记录时间：{timeText(c.configuredAt)}。未校验真实卡片。
-          </Typography.Text>
-        )}
-        {a.feedback}
-      </div>
-    </ProCard>
-  );
+  return <ProCard size="small" headerBordered variant="outlined" title="芯片密钥与配置" extra={<StatusTag value={c.configuredAt ? "演示核验就绪" : "待配置"} />}>
+    <Space direction="vertical" size={12} style={{width: "100%"}}>
+      <Space wrap><CopyValue value={c.uid} /><StatusTag value={c.keys ? "已准备演示标记" : "未准备"} /></Space>
+      <Typography.Text type="secondary">生成密钥 → 受控查看与配卡 → 双链接动态读数核验。原型仅演示交互。</Typography.Text>
+      <Button type="primary" onClick={() => setOpen(true)}>查看密钥与配置</Button>
+    </Space>
+    {open && <KeyConfigDialog key={chipId} chipId={chipId} onClose={() => setOpen(false)} />}
+  </ProCard>;
 }
 export function BindEditor({
   open,

@@ -148,7 +148,7 @@ export function rootContainer(container: React.ReactNode) {
           colorBorder: "#dbe1e8",
           colorBorderSecondary: "#e2e8f0",
           colorBgLayout: "#f5f7fa",
-          fontSize: 13,
+          fontSize: 14,
           controlHeight: 32,
           fontFamily:
             'Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif',
@@ -161,7 +161,7 @@ export function rootContainer(container: React.ReactNode) {
             rowHoverBg: "#f8fbff",
             cellPaddingBlock: 12,
             cellPaddingInline: 12,
-            fontSize: 13,
+            fontSize: 14,
           },
           Form: {
             labelColor: "#475569",

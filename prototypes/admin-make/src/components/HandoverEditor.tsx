@@ -22,6 +22,7 @@ import { useStore } from "../data/store";
 import { kindNames, userName, users, timeText } from "../data/domain";
 import { required, useAction } from "../ui";
 import { ProvisionPanel } from "./ChipActions";
+import { CopyValue, StatusTag, HolderValue } from "./RecordPresentation";
 export default function HandoverEditor({
   itemId,
   workId,
@@ -81,10 +82,13 @@ export default function HandoverEditor({
             column={2}
             dataSource={w}
             columns={[
-              { title: "原持有人", render: () => userName(w.ownerId) },
-              { title: "接收账户", render: () => userName(w.recipientId) },
+              { title: "数字物品编号", render: () => <CopyValue value={i.uid} /> },
+              { title: "当前芯片", render: () => <CopyValue value={oldChip?.uid} /> },
+              { title: "原持有人", render: () => <HolderValue id={w.ownerId} name={userName(w.ownerId)} /> },
+              { title: "接收账户", render: () => <HolderValue id={w.recipientId} name={userName(w.recipientId)} /> },
               { title: "新实体规格", dataIndex: "spec" },
-              { title: "候选芯片", render: () => candidate?.uid },
+              { title: "候选芯片", render: () => <CopyValue value={candidate?.uid} /> },
+              { title: "接续状态", render: () => <StatusTag value={w.legacy ? "旧版记录待核对" : w.completedAt ? "已完成" : "待确认接续"} /> },
               { title: "准备依据", dataIndex: "evidence" },
               { title: "准备时间", render: () => timeText(w.createdAt) },
             ]}

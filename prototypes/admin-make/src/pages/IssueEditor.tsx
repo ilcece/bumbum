@@ -26,6 +26,7 @@ import {
   queryState,
   dateISO,
 } from "../ui";
+import { CopyValue, StatusTag, EditionValue } from "../components/RecordPresentation";
 export default function IssueEditor() {
   const p = useStore(),
     { id } = useParams(),
@@ -97,7 +98,7 @@ export default function IssueEditor() {
               headerBordered
               variant="outlined"
               title={current.name}
-              extra={issueText(current)}
+              extra={<Space><StatusTag value="已确认" />{issueText(current)}</Space>}
             >
               <ProDescriptions
                 size="small"
@@ -136,7 +137,7 @@ export default function IssueEditor() {
                       current.mode === "timed"
                         ? current.sealedAt
                           ? current.total + "个身份"
-                          : "待封版"
+                          : <StatusTag value="待封版" />
                         : issueText(current),
                   },
                   { title: "核定依据", dataIndex: "sealEvidence", span: 2 },
@@ -193,12 +194,10 @@ export default function IssueEditor() {
                   {
                     title: "物品编号",
                     render: (_, i) => (
-                      <Button type="link" onClick={() => go("/items/" + i.id)}>
-                        {i.uid}
-                      </Button>
+                      <CopyValue value={i.uid} onClick={() => go("/items/" + i.id)} />
                     ),
                   },
-                  { title: "发行编号", render: (_, i) => edition(i, current) },
+                  { title: "发行编号", render: (_, i) => <EditionValue value={edition(i, current)} /> },
                 ]}
               />
             </ProCard>

@@ -15,15 +15,18 @@ import {
   modeNames,
 } from "../data/domain";
 import { go, queryState, useDataTable, tableRequest, ErrorState } from "../ui";
+import StyleEditor from "./StyleEditor";
+import { CopyValue, StatusTag, StyleCell } from "../components/RecordPresentation";
 export default function Catalog() {
   const p = useStore(),
     table = useDataTable(),
-    [tab, setTab] = useState(queryState().tab || "styles");
+    [tab, setTab] = useState(queryState().tab || "styles"),
+    [editId, setEditId] = useState<string>();
   const d = p.data;
   const styleColumns: ProColumns<Style>[] = [
-    { title: "关键词", dataIndex: "keyword", hideInTable: true },
-    { title: "款式编号", dataIndex: "code", search: false },
-    { title: "名称", dataIndex: "name", search: false },
+    { title: "关键词", dataIndex: "keyword", hideInTable: true, fieldProps: { placeholder: "搜索款式编号或名称" } },
+    { title: "款式编号", dataIndex: "code", search: false, render: (_, s) => <CopyValue value={s.code} /> },
+    { title: "商品款式", dataIndex: "name", search: false, render: (_, s) => <StyleCell style={s} onClick={() => setEditId(s.id)} /> },
     { title: "物品类别", dataIndex: "category", valueEnum: categoryNames },
     {
       title: "关联发行",
@@ -39,7 +42,7 @@ export default function Catalog() {
       title: "操作",
       valueType: "option",
       render: (_, s) => [
-        <a key="edit" onClick={() => go("/catalog/style/" + s.id)}>
+        <a key="edit" onClick={() => setEditId(s.id)}>
           维护资料
         </a>,
         <a key="issue" onClick={() => go("/catalog/issue/new?styleId=" + s.id)}>
@@ -49,7 +52,7 @@ export default function Catalog() {
     },
   ];
   const issueColumns: ProColumns<Issue>[] = [
-    { title: "关键词", dataIndex: "keyword", hideInTable: true },
+    { title: "关键词", dataIndex: "keyword", hideInTable: true, fieldProps: { placeholder: "搜索发行名称、系列或款式编号" } },
     { title: "发行约定", dataIndex: "name", search: false },
     {
       title: "款式",
@@ -62,6 +65,7 @@ export default function Catalog() {
       title: "确认状态",
       dataIndex: "status",
       valueEnum: { draft: "草案", confirmed: "已确认" },
+      render: (_, i) => <StatusTag value={i.status === "confirmed" ? "已确认" : "草案"} />,
     },
     {
       title: "引用物品",
@@ -80,8 +84,7 @@ export default function Catalog() {
   ];
   return (
     <PageContainer
-      title="款式与发行"
-      subTitle="先维护共用商品，再确认数字发行承诺"
+      header={{ title: false, breadcrumb: {} }}
     >
       <Tabs
         className="section-tabs"
@@ -156,6 +159,7 @@ export default function Catalog() {
           ]}
         />
       )}
+      {editId && <StyleEditor key={editId} styleId={editId} modalMode onClose={() => setEditId(undefined)} />}
     </PageContainer>
   );
 }

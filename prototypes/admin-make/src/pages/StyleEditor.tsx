@@ -7,6 +7,7 @@ import {
   ProFormTextArea,
   ProFormSelect,
   ProFormInstance,
+  FooterToolbar,
 } from "@ant-design/pro-components";
 import {
   App,
@@ -17,22 +18,27 @@ import {
   Upload,
   Typography,
   Col,
+  Modal,
+  Tag,
 } from "antd";
 import { PlusOutlined } from "@ant-design/icons";
 import { history, useParams } from "@umijs/max";
 import { useStore } from "../data/store";
 import { Style, categoryNames } from "../data/domain";
 import { go, required, useAction, useUnsaved, useReturnPath } from "../ui";
-export default function StyleEditor() {
+import { CopyValue, ProductPreview } from "../components/RecordPresentation";
+export default function StyleEditor({ styleId, modalMode = false, onClose }: { styleId?: string; modalMode?: boolean; onClose?: () => void }) {
+  const params = useParams();
   const p = useStore(),
-    { id } = useParams(),
+    id = styleId || params.id,
     record = p.data.styles.find((s) => s.id === id),
     form = useRef<ProFormInstance | undefined>(undefined),
     action = useAction(),
     { modal, message } = App.useApp(),
     [savedId, setSavedId] = useState(record?.id),
     [pictures, setPictures] = useState(record?.pictures || []),
-    [uploading, setUploading] = useState(false),
+    [uploading, setUploading] = useState(0),
+    [saving, setSaving] = useState(false),
     [preview, setPreview] = useState(
       record || { name: "商品名称", description: "", material: "", care: "" },
     ),
@@ -88,6 +94,16 @@ export default function StyleEditor() {
     return ok;
   };
   const unsaved = useUnsaved(() => save());
+  const close = () => {
+    if (uploading || saving) return;
+    const leave = () => { unsaved.setDirty(false); if (modalMode) onClose?.(); else history.push(back); };
+    if (!modalMode || !unsaved.isDirty) { if (modalMode) leave(); else history.push(back); return; }
+    const popup = modal.confirm({
+      title: "尚有未保存的修改", content: "已保存资料会保留，选择如何离开。",
+      footer: () => <Space><Button onClick={() => popup.destroy()}>继续编辑</Button><Button onClick={() => { popup.destroy(); leave(); }}>放弃并继续</Button><Button type="primary" onClick={async () => { if (await save()) { popup.destroy(); leave(); } }}>保存后继续</Button></Space>,
+    });
+  };
+  const footer = <div className="editor-footer"><Typography.Text type="secondary">{savedId ? `共用资料 · 引用 ${p.data.items.filter(i => i.styleId === savedId).length} 件物品` : "先建立款式资料，再维护发行约定"}</Typography.Text><Space><Button disabled={!!uploading || saving} onClick={close}>取消</Button><Button type="primary" loading={saving} disabled={action.unknown || !!uploading} onClick={async () => { setSaving(true); try { if (await save()) { if (modalMode) onClose?.(); } } finally { setSaving(false); } }}>保存共用资料</Button></Space></div>;
   useEffect(() => {
     const next = p.getData().styles.find((x) => x.id === id);
     setSavedId(next?.id);
@@ -103,21 +119,10 @@ export default function StyleEditor() {
     );
     unsaved.setDirty(false);
   }, [id]);
-  return (
-    <PageContainer
-      title={savedId ? "维护共用款式" : "新建款式"}
-      onBack={() => history.push(back)}
-      extra={
-        savedId ? (
-          <Button onClick={() => go("/catalog/issue/new?styleId=" + savedId)}>
-            建立该款发行约定
-          </Button>
-        ) : undefined
-      }
-    >
+  const content = (
       <div className="page-stack form-page">
         {action.feedback}
-        <div className="two-columns">
+        <div className="style-editor-grid">
           <ProCard
             size="small"
             headerBordered
@@ -136,14 +141,10 @@ export default function StyleEditor() {
               }
               onValuesChange={(_, all) => {
                 unsaved.setDirty(true);
-                setPreview(all);
+                setPreview({...all, specs: String(all.specsText || "").split("\n").map(s => s.trim()).filter(Boolean)});
               }}
               onFinish={() => save()}
-              submitter={{
-                searchConfig: { submitText: "保存共用资料" },
-                resetButtonProps: false,
-                submitButtonProps: { disabled: action.unknown || uploading },
-              }}
+              submitter={false}
             >
               <ProFormText
                 name="code"
@@ -190,12 +191,12 @@ export default function StyleEditor() {
                 <Typography.Paragraph>参考图片</Typography.Paragraph>
                 <Upload
                   accept="image/png,image/jpeg,image/webp"
-                  listType="picture-card"
+                  listType="picture"
                   multiple
                   maxCount={20}
                   fileList={pictures.map((url, n) => ({
                     uid: String(n),
-                    name: "商品图片" + (n + 1),
+                    name: `第 ${n + 1} 张 · 商品图片${n + 1}${n === 0 ? " · 列表首图" : ""}`,
                     status: "done",
                     url,
                   }))}
@@ -212,18 +213,19 @@ export default function StyleEditor() {
                     return true;
                   }}
                   customRequest={(options) => {
-                    setUploading(true);
+                    setUploading(n => n + 1);
                     const reader = new FileReader();
                     reader.onload = () => {
                       setPictures((prev) =>
                         [...prev, String(reader.result)].slice(0, 20),
                       );
                       unsaved.setDirty(true);
-                      setUploading(false);
+                      setUploading(n => n - 1);
                       options.onSuccess?.({});
                     };
                     reader.onerror = () => {
-                      setUploading(false);
+                      setUploading(n => n - 1);
+                      message.error("图片读取失败，请重新选择；原有图片保留");
                       options.onError?.(new Error("读取失败"));
                     };
                     reader.readAsDataURL(options.file as File);
@@ -241,43 +243,22 @@ export default function StyleEditor() {
                     })
                   }
                 >
-                  {pictures.length < 20 && <PlusOutlined />}
+                  {pictures.length < 20 && <Button icon={<PlusOutlined />}>上传商品图片</Button>}
                 </Upload>
                 <Typography.Paragraph type="secondary">
-                  图片仅在浏览器暂存，保存后关联本原型共用资料。
+                  <Tag color={unsaved.isDirty ? "gold" : "green"}>{unsaved.isDirty ? "有未保存修改" : "已保存内容"}</Tag>最多20张，单张不超过8MiB。图片仅在本原型浏览器暂存。
                 </Typography.Paragraph>
               </Col>
             </ProForm>
           </ProCard>
-          <ProCard
-            size="small"
-            headerBordered
-            variant="outlined"
-            title="商品资料预览"
-            className="preview-box"
-          >
-            <Typography.Text type="secondary">
-              商品资料预览 ·{" "}
-              {!savedId || unsaved.isDirty ? "未保存" : "已保存内容"}
-            </Typography.Text>
-            {pictures[0] && (
-              <Image
-                src={pictures[0]}
-                style={{ marginTop: 16, width: "100%" }}
-              />
-            )}
-            <Typography.Title level={3}>
-              {preview.name || "商品名称"}
-            </Typography.Title>
-            <p>{preview.description}</p>
-            <p>{preview.material}</p>
-            <p>{preview.care}</p>
+          <div className="style-editor-preview">
+            <ProductPreview style={preview} pictures={pictures} dirty={!savedId || unsaved.isDirty} />
             <Typography.Text type="secondary">
               不公开内部持有人、核对依据或操作历史。
             </Typography.Text>
-          </ProCard>
+          </div>
         </div>
-        {savedId && (
+        {savedId && !modalMode && (
           <Alert
             type="success"
             title="款式已保存，可建立发行约定"
@@ -291,6 +272,6 @@ export default function StyleEditor() {
           />
         )}
       </div>
-    </PageContainer>
   );
+  return modalMode ? <Modal title={<Space>编辑共用款式 <CopyValue value={record?.code} /></Space>} open width={1120} className="editor-modal" onCancel={close} maskClosable={false} footer={footer} destroyOnHidden>{content}</Modal> : <PageContainer title={savedId ? "维护共用款式" : "新建款式"} onBack={() => history.push(back)}>{content}<FooterToolbar>{footer}</FooterToolbar></PageContainer>;
 }

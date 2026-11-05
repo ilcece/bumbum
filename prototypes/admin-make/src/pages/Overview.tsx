@@ -34,6 +34,7 @@ import {
   timeText,
 } from "../data/domain";
 import { go, queryState, saveQuery, ErrorState } from "../ui";
+import { CopyValue, EditionValue, StatusTag } from "../components/RecordPresentation";
 export default function Overview() {
   const p = useStore(),
     q = queryState();
@@ -92,17 +93,7 @@ export default function Overview() {
   ];
   return (
     <PageContainer
-      title="工作台"
-      subTitle="准备、使用与持有，分别核对"
-      extra={
-        <Button
-          type="primary"
-          icon={<ShoppingOutlined aria-hidden />}
-          onClick={() => go("/catalog/style/new")}
-        >
-          新建款式
-        </Button>
-      }
+      header={{ title: false, breadcrumb: {} }}
     >
       <div className="page-stack">
         <ProCard
@@ -147,6 +138,7 @@ export default function Overview() {
               </Col>
             ))}
           </Row>
+          <div className="workbench-shortcuts"><Typography.Text strong>快捷操作</Typography.Text><Button type="primary" onClick={() => go("/catalog/style/new")}>新建款式</Button><Button onClick={() => go("/catalog/issue/new")}>新建发行约定</Button><Button onClick={() => go("/items?create=1")}>登记数字物品</Button><Button onClick={() => go("/chips")}>芯片登记与配置</Button></div>
         </ProCard>
         <ProCard
           size="small"
@@ -230,11 +222,15 @@ export default function Overview() {
                 </span>
               </div>
             </div>
+            <Row gutter={[16, 16]}>
+              {[
+                ["有效触碰次数", s.total, "次"],
+                ["被触碰物品数", s.touched, "件"],
+              ].map(([title, value, unit]) => <Col xs={24} sm={12} key={title}><ProCard size="small" variant="outlined" className="metric-card metric-primary"><Statistic title={title} value={value} suffix={unit} /><div className="cell-secondary">所选口径与时间范围内</div></ProCard></Col>)}
+            </Row>
             <Row gutter={[12, 12]}>
               {[
                 ["已确认售出物品", s.sold, "件"],
-                ["有效触碰次数", s.total, "次"],
-                ["被触碰物品数", s.touched, "件"],
                 ["已认领物品", s.claimed, "件"],
                 ["当前持有人", s.owners, "人"],
               ].map(([title, value, unit]) => (
@@ -242,9 +238,10 @@ export default function Overview() {
                   <ProCard
                     size="small"
                     variant="outlined"
-                    className="metric-card"
+                    className="metric-card metric-secondary"
                   >
                     <Statistic title={title} value={value} suffix={unit} />
+                    <div className="cell-secondary">所选款式/发行的当前关系，不按触碰时间折算</div>
                   </ProCard>
                 </Col>
               ))}
@@ -324,18 +321,16 @@ export default function Overview() {
                   {
                     title: "数字物品",
                     render: (_, r) => (
-                      <Button type="link" onClick={() => go("/items/" + r.id)}>
-                        {r.item.uid}
-                      </Button>
+                      <CopyValue value={r.item.uid} onClick={() => go("/items/" + r.id)} />
                     ),
                   },
                   {
                     title: "发行编号",
                     render: (_, r) =>
-                      edition(
+                      <EditionValue value={edition(
                         r.item,
                         d.issues.find((x) => x.id === r.item.issueId),
-                      ),
+                      )} />,
                   },
                   {
                     title: "售出确认",
@@ -347,7 +342,7 @@ export default function Overview() {
                   },
                   {
                     title: "持有人",
-                    render: (_, r) => userName(r.item.ownerId),
+                    render: (_, r) => r.item.ownerId ? <Space direction="vertical" size={0}><span>{userName(r.item.ownerId)}</span><CopyValue value={r.item.ownerId} /></Space> : <StatusTag value="未认领" />,
                   },
                   { title: "有效触碰", dataIndex: "count" },
                   { title: "最近触碰", render: (_, r) => timeText(r.last) },
@@ -373,7 +368,7 @@ export default function Overview() {
                 }))}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
                 columns={[
-                  { title: "稳定账户", dataIndex: "id" },
+                  { title: "稳定账户", dataIndex: "id", render: (_, r) => <CopyValue value={r.id} /> },
                   { title: "持有人", dataIndex: "name" },
                   {
                     title: "当前持有",
@@ -384,13 +379,11 @@ export default function Overview() {
                     render: (_, r) => (
                       <Space wrap>
                         {r.items.map((i) => (
-                          <Button
+                          <CopyValue
                             key={i.id}
-                            type="link"
+                            value={i.uid}
                             onClick={() => go("/items/" + i.id)}
-                          >
-                            {i.uid}
-                          </Button>
+                          />
                         ))}
                       </Space>
                     ),

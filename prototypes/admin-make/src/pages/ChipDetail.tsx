@@ -12,15 +12,16 @@ import { history, useParams } from "@umijs/max";
 import { useStore } from "../data/store";
 import { chipStates, timeText, statistics } from "../data/domain";
 import { useReturnPath, useAction, go, ErrorState } from "../ui";
+import { CopyValue, StatusTag, DetailContainer } from "../components/RecordPresentation";
 import {
   ProvisionPanel,
   BindEditor,
   StateEditor,
 } from "../components/ChipActions";
-export default function ChipDetail() {
+export default function ChipDetail({ chipId, embedded = false }: { chipId?: number; embedded?: boolean }) {
   const p = useStore(),
     { id } = useParams(),
-    c = p.data.chips.find((c) => c.id === Number(id)),
+    c = p.data.chips.find((c) => c.id === (chipId ?? Number(id))),
     back = useReturnPath("/chips"),
     a = useAction(),
     [batch, setBatch] = useState(false),
@@ -35,11 +36,12 @@ export default function ChipDetail() {
       (e) => e.chipId === c.id && e.valid && e.kind === "touch",
     );
   return (
-    <PageContainer
-      title={c.uid}
-      subTitle={chipStates[c.state]}
+    <DetailContainer
+      embedded={embedded}
+      title={<CopyValue value={c.uid} />}
+      subTitle={<StatusTag value={chipStates[c.state]} />}
       onBack={() => history.push(back)}
-      extra={<Button onClick={() => history.push(back)}>返回来源</Button>}
+      extra={!embedded && <Button onClick={() => history.push(back)}>返回来源</Button>}
     >
       <div className="page-stack">
         {a.feedback}
@@ -62,7 +64,7 @@ export default function ChipDetail() {
                 dataSource={c}
                 columns={[
                   { title: "UID", dataIndex: "uid", copyable: true },
-                  { title: "批次", render: () => c.batch || "未填写" },
+                  { title: "批次", render: () => <CopyValue value={c.batch} /> },
                   {
                     title: "首次登记来源",
                     render: () =>
@@ -73,23 +75,18 @@ export default function ChipDetail() {
                           : "未记录",
                   },
                   { title: "登记时间", render: () => timeText(c.createdAt) },
-                  { title: "服务状态", render: () => chipStates[c.state] },
+                  { title: "服务状态", render: () => <StatusTag value={chipStates[c.state]} /> },
                   {
                     title: "配置状态",
-                    render: () => (c.configuredAt ? "演示核验就绪" : "待配置"),
+                    render: () => <StatusTag value={c.configuredAt ? "演示核验就绪" : "待配置"} />,
                   },
                   {
                     title: "数字物品",
                     render: () =>
                       i ? (
-                        <Button
-                          type="link"
-                          onClick={() => go("/items/" + i.id)}
-                        >
-                          {i.uid}
-                        </Button>
+                        <CopyValue value={i.uid} onClick={() => go("/items/" + i.id)} />
                       ) : (
-                        "未关联"
+                        <StatusTag value="未关联" />
                       ),
                   },
                   {
@@ -127,7 +124,7 @@ export default function ChipDetail() {
             >
               <Space wrap>
                 {["bound", "pending"].includes(c.state) && !c.candidateFor && (
-                  <Button onClick={() => setState("disable")}>
+                  <Button danger onClick={() => setState("disable")}>
                     临时停用芯片
                   </Button>
                 )}
@@ -179,6 +176,7 @@ export default function ChipDetail() {
               <ProTable
                 rowKey="id"
                 search={false}
+                scroll={{ x: "max-content" }}
                 options={false}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
                 dataSource={events}
@@ -187,7 +185,7 @@ export default function ChipDetail() {
                   {
                     title: "当时的数字物品",
                     render: (_, e) =>
-                      p.data.items.find((i) => i.id === e.itemId)?.uid,
+                      <CopyValue value={p.data.items.find((i) => i.id === e.itemId)?.uid} />,
                   },
                   { title: "有效读数", dataIndex: "counter" },
                 ]}
@@ -225,6 +223,6 @@ export default function ChipDetail() {
           />
         )}
       </div>
-    </PageContainer>
+    </DetailContainer>
   );
 }

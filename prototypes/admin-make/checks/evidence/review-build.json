@@ -1,0 +1,18 @@
+{
+  "date": "2026-11-05",
+  "timezone": "Asia/Shanghai",
+  "typecheck": "passed",
+  "umiBuild": "passed",
+  "domainChecks": 9,
+  "browserChecks": {
+    "visual": 11,
+    "core": 8,
+    "recovery": 10,
+    "delivery": true
+  },
+  "artifactSha256": "2bb3c816412c1a9b32e6b5e03467a2a7e01debec3a82bbbee4e7d7ead916826b",
+  "artifactBytes": 2872783,
+  "realServices": "not_connected",
+  "realChipVerification": "not_executed",
+  "manualVisualAcceptance": "pending"
+}

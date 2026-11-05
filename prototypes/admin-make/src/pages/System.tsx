@@ -9,6 +9,7 @@ import { Alert, Tabs, Tag } from "antd";
 import { useStore } from "../data/store";
 import { timeText } from "../data/domain";
 import { ErrorState } from "../ui";
+import { CopyValue, StatusTag } from "../components/RecordPresentation";
 const actions: Record<string, string> = {
   style: "维护款式",
   issue: "维护发行草稿",
@@ -33,7 +34,7 @@ const actions: Record<string, string> = {
 export default function System() {
   const p = useStore();
   return (
-    <PageContainer title="系统管理" subTitle="查看操作记录和原型连接状态">
+    <PageContainer header={{ title: false, breadcrumb: {} }}>
       {p.readError ? (
         <ErrorState />
       ) : (
@@ -56,7 +57,7 @@ export default function System() {
                       title: "操作",
                       render: (_, r) => actions[r.action] || r.action,
                     },
-                    { title: "对象", dataIndex: "target" },
+                    { title: "对象", dataIndex: "target", render: (_, r) => <CopyValue value={r.target} /> },
                     { title: "依据 / 范围", dataIndex: "detail" },
                   ]}
                 />
@@ -87,10 +88,10 @@ export default function System() {
                         render: () =>
                           "官方 Ant Design Pro 工程结构 + Umi Max 路由与运行时",
                       },
-                      { title: "正式业务API", render: () => <Tag>未连接</Tag> },
+                      { title: "正式业务API", render: () => <StatusTag value="未连接" /> },
                       {
                         title: "真实配卡与验证",
-                        render: () => <Tag>未执行</Tag>,
+                        render: () => <StatusTag value="未执行" />,
                       },
                       {
                         title: "当前数据",

@@ -6,7 +6,7 @@ const settings: ProLayoutProps = {
   layout: "mix",
   splitMenus: false,
   siderWidth: 248,
-  contentWidth: "Fluid",
+  contentWidth: "Fixed",
   fixedHeader: true,
   fixSiderbar: true,
   title: "BUMBUM",

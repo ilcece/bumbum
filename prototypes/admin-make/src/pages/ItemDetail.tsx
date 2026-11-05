@@ -9,7 +9,7 @@ import {
   ProFormDigit,
   ProFormTextArea,
 } from "@ant-design/pro-components";
-import { Alert, Button, Space, Tag, Statistic, Tabs, Select } from "antd";
+import { Alert, Button, Space, Tag, Statistic, Tabs, Select, Collapse, Typography } from "antd";
 import { history, useParams } from "@umijs/max";
 import { useStore } from "../data/store";
 import {
@@ -27,17 +27,20 @@ import { useReturnPath, useAction, go, required, ErrorState } from "../ui";
 import { BindEditor } from "../components/ChipActions";
 import SaleEditor from "../components/SaleEditor";
 import HandoverEditor from "../components/HandoverEditor";
-export default function ItemDetail() {
+import StyleEditor from "./StyleEditor";
+import { CopyValue, StatusTag, ProductGallery, DetailContainer, EditionValue, HolderValue } from "../components/RecordPresentation";
+export default function ItemDetail({ itemId, embedded = false }: { itemId?: number; embedded?: boolean }) {
   const p = useStore(),
     d = p.data,
     { id } = useParams(),
-    i = d.items.find((x) => x.id === Number(id)),
+    i = d.items.find((x) => x.id === (itemId ?? Number(id))),
     back = useReturnPath("/items"),
     a = useAction(),
     [bind, setBind] = useState(false),
     [sale, setSale] = useState(false),
     [claim, setClaim] = useState(false),
     [assign, setAssign] = useState(false),
+    [editStyle, setEditStyle] = useState(false),
     [assignId, setAssignId] = useState<string>(),
     [handover, setHandover] = useState(false),
     [workId, setWorkId] = useState<string>(),
@@ -63,16 +66,18 @@ export default function ItemDetail() {
     setHandover(true);
   };
   return (
-    <PageContainer
-      title={i.uid}
+    <DetailContainer
+      embedded={embedded}
+      title={<CopyValue value={i.uid} />}
       subTitle={`${style?.name || "款式待核对"} · ${edition(i, issue)}`}
       onBack={() => history.push(back)}
       extra={
         <Space>
-          <Button onClick={() => history.push(back)}>返回来源</Button>
+          {!embedded && <Button onClick={() => history.push(back)}>返回来源</Button>}
           <Button onClick={() => setSale(true)}>维护售出确认</Button>
           <Button
-            type="primary"
+            type={i.status === "active" ? "default" : "primary"}
+            danger={i.status === "active"}
             disabled={i.status === "archived" || a.unknown}
             onClick={() =>
               a.run(
@@ -101,9 +106,7 @@ export default function ItemDetail() {
               variant="outlined"
               title="数字身份与发行"
               extra={
-                <Tag color={i.status === "active" ? "blue" : "default"}>
-                  {itemStates[i.status]}
-                </Tag>
+                <StatusTag value={itemStates[i.status]} />
               }
             >
               <ProDescriptions
@@ -114,7 +117,7 @@ export default function ItemDetail() {
                 dataSource={i}
                 columns={[
                   { title: "系统物品编号", dataIndex: "uid", copyable: true },
-                  { title: "发行编号", render: () => edition(i, issue) },
+                  { title: "发行编号", render: () => <EditionValue value={edition(i, issue)} /> },
                   {
                     title: "商品款式",
                     render: () => (
@@ -144,24 +147,28 @@ export default function ItemDetail() {
                   },
                   {
                     title: "售出确认",
-                    render: () => (i.sold ? "已确认售出" : "未确认售出"),
+                    render: () => <StatusTag value={i.sold ? "已确认售出" : "未确认售出"} />,
                   },
                   {
                     title: "首次售出时间",
                     render: () => timeText(i.firstSoldAt),
                   },
-                  { title: "当前持有人", render: () => userName(i.ownerId) },
+                  { title: "当前持有人", render: () => <HolderValue id={i.ownerId} name={userName(i.ownerId)} /> },
                   {
                     title: "首次认领时间",
                     render: () => timeText(i.firstOwnerAt),
                   },
                 ]}
               />
-              <Alert
-                type="info"
-                title="售出与认领分别维护"
-                description="售出确认来自外部经营核对；未认领也可以已售出，赠品认领后也可以未售出。更正售出标记保留原时间、身份、持有人及触碰记录。"
-              />
+              <Typography.Text type="secondary">售出与认领分别维护。更正售出标记保留首次时间、身份、持有人及触碰历史。</Typography.Text>
+            </ProCard>
+            <ProCard size="small" headerBordered variant="outlined" title="共用商品资料" extra={style && <Button onClick={() => setEditStyle(true)}>编辑共用资料</Button>}>
+              <div className="product-profile"><ProductGallery pictures={style?.pictures} /><div><Typography.Title level={5} style={{marginTop: 0}}>{style?.name || "款式待核对"}</Typography.Title><Typography.Paragraph type="secondary">来自共用款式 <CopyValue value={style?.code} />，统一维护引用物品的商品资料。</Typography.Paragraph><ProDescriptions size="small" column={1} columns={[
+                { title: "商品介绍", render: () => style?.description || "未填写" },
+                { title: "材质说明", render: () => style?.material || "未填写" },
+                { title: "养护或寓意", render: () => style?.care || "未填写" },
+                { title: "适用规格", render: () => style?.specs.join("、") || "未填写" },
+              ]} /></div></div>
             </ProCard>
             <ProCard
               size="small"
@@ -191,22 +198,17 @@ export default function ItemDetail() {
                     {
                       title: "当前芯片",
                       render: () => (
-                        <Button
-                          type="link"
-                          onClick={() => go("/chips/" + chip?.id)}
-                        >
-                          {chip?.uid}
-                        </Button>
+                        <CopyValue value={chip?.uid} onClick={() => go("/chips/" + chip?.id)} />
                       ),
                     },
                     {
                       title: "芯片服务状态",
-                      render: () => (chip ? chipStates[chip.state] : "待核对"),
+                      render: () => <StatusTag value={chip ? chipStates[chip.state] : "待核对"} />,
                     },
                     {
                       title: "配置状态",
                       render: () =>
-                        chip?.configuredAt ? "演示核验就绪" : "待准备/核验",
+                        <StatusTag value={chip?.configuredAt ? "演示核验就绪" : "待准备/核验"} />,
                     },
                     { title: "关联时间", render: () => timeText(entity.from) },
                   ]}
@@ -246,7 +248,7 @@ export default function ItemDetail() {
                 style={{ marginBottom: 12 }}
                 column={2}
                 columns={[
-                  { title: "当前持有人", render: () => userName(i.ownerId) },
+                  { title: "当前持有人", render: () => <HolderValue id={i.ownerId} name={userName(i.ownerId)} /> },
                   {
                     title: "已约定权益",
                     render: () =>
@@ -267,14 +269,15 @@ export default function ItemDetail() {
                       i.quotaReview ? (
                         <Tag color="orange">待核对计次</Tag>
                       ) : (
-                        "暂无待核对"
+                        <StatusTag value="暂无待核对" />
                       ),
                   },
                 ]}
               />
-              <ProTable
+              <Collapse ghost items={[{ key: "works", label: `接续记录（${works.length}）`, children: <ProTable
                 rowKey="id"
                 search={false}
+                scroll={{ x: "max-content" }}
                 options={false}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
                 dataSource={works}
@@ -287,15 +290,15 @@ export default function ItemDetail() {
                   {
                     title: "状态",
                     render: (_, w) =>
-                      w.legacy
+                      <StatusTag value={w.legacy
                         ? "旧版记录待核对"
                         : w.completedAt
                           ? "已完成"
-                          : "待确认接续",
+                          : "待确认接续"} />,
                   },
                   {
                     title: "接收账户",
-                    render: (_, w) => userName(w.recipientId),
+                    render: (_, w) => <HolderValue id={w.recipientId} name={userName(w.recipientId)} />,
                   },
                   {
                     title: "操作",
@@ -306,7 +309,7 @@ export default function ItemDetail() {
                     ),
                   },
                 ]}
-              />
+              /> }]} />
             </ProCard>
             <ProCard
               size="small"
@@ -337,7 +340,7 @@ export default function ItemDetail() {
                 </Space>
               }
             >
-              <Space size={48} align="start">
+              <Space size={24} align="start" wrap>
                 <Statistic
                   title={
                     scope === "sold" ? "售出后有效触碰" : "全生命周期有效触碰"
@@ -354,6 +357,7 @@ export default function ItemDetail() {
               <ProTable
                 rowKey="id"
                 search={false}
+                scroll={{ x: "max-content" }}
                 options={false}
                 pagination={{ pageSize: 10, showSizeChanger: false }}
                 dataSource={d.chips.filter((c) =>
@@ -363,12 +367,10 @@ export default function ItemDetail() {
                   {
                     title: "历代芯片",
                     render: (_, c) => (
-                      <Button type="link" onClick={() => go("/chips/" + c.id)}>
-                        {c.uid}
-                      </Button>
+                      <CopyValue value={c.uid} onClick={() => go("/chips/" + c.id)} />
                     ),
                   },
-                  { title: "当前状态", render: (_, c) => chipStates[c.state] },
+                  { title: "当前状态", render: (_, c) => <StatusTag value={chipStates[c.state]} /> },
                   {
                     title: "所选口径有效触碰",
                     render: (_, c) =>
@@ -412,6 +414,7 @@ export default function ItemDetail() {
                       <ProTable
                         rowKey="id"
                         search={false}
+                        scroll={{ x: "max-content" }}
                         options={false}
                         pagination={{ pageSize: 10, showSizeChanger: false }}
                         dataSource={i.entities}
@@ -420,12 +423,7 @@ export default function ItemDetail() {
                           {
                             title: "芯片UID",
                             render: (_, e) => (
-                              <Button
-                                type="link"
-                                onClick={() => go("/chips/" + e.chipId)}
-                              >
-                                {d.chips.find((c) => c.id === e.chipId)?.uid}
-                              </Button>
+                              <CopyValue value={d.chips.find((c) => c.id === e.chipId)?.uid} onClick={() => go("/chips/" + e.chipId)} />
                             ),
                           },
                           {
@@ -435,7 +433,7 @@ export default function ItemDetail() {
                           {
                             title: "结束时间",
                             render: (_, e) =>
-                              e.to ? timeText(e.to) : "当前关联",
+                              e.to ? timeText(e.to) : <StatusTag value="当前关联" />,
                           },
                           { title: "变更原因", dataIndex: "reason" },
                         ]}
@@ -449,13 +447,14 @@ export default function ItemDetail() {
                       <ProTable
                         rowKey={(o) => o.ownerId + o.from}
                         search={false}
+                        scroll={{ x: "max-content" }}
                         options={false}
                         pagination={{ pageSize: 10, showSizeChanger: false }}
                         dataSource={i.owners}
                         columns={[
                           {
                             title: "持有人",
-                            render: (_, o) => userName(o.ownerId),
+                            render: (_, o) => <HolderValue id={o.ownerId} name={userName(o.ownerId)} />,
                           },
                           {
                             title: "开始时间",
@@ -464,7 +463,7 @@ export default function ItemDetail() {
                           {
                             title: "结束时间",
                             render: (_, o) =>
-                              o.to ? timeText(o.to) : "当前持有人",
+                              o.to ? timeText(o.to) : <StatusTag value="当前持有人" />,
                           },
                         ]}
                       />
@@ -476,6 +475,7 @@ export default function ItemDetail() {
           </>
         )}
         <BindEditor itemId={i.id} open={bind} onOpenChange={setBind} />
+        {editStyle && <StyleEditor styleId={i.styleId} modalMode onClose={() => setEditStyle(false)} />}
         <SaleEditor ids={[i.id]} open={sale} onOpenChange={setSale} />
         {handover && (
           <HandoverEditor
@@ -561,6 +561,6 @@ export default function ItemDetail() {
           {a.feedback}
         </ModalForm>
       </div>
-    </PageContainer>
+    </DetailContainer>
   );
 }

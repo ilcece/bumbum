@@ -16,13 +16,18 @@ import {
   tableRequest,
   ErrorState,
 } from "../ui";
+import RecordDrawer from "../components/RecordDrawer";
+import { CopyValue, StatusTag } from "../components/RecordPresentation";
+import { KeyConfigDialog } from "../components/ChipActions";
 export default function Chips() {
   const p = useStore(),
     d = p.data,
     table = useDataTable(),
     a = useAction(),
     [create, setCreate] = useState(false),
-    [lastUid, setLastUid] = useState("");
+    [lastUid, setLastUid] = useState(""),
+    [target, setTarget] = useState<{ kind: "items" | "chips"; id: number }>(),
+    [keyId, setKeyId] = useState<number>();
   useEffect(() => {
     if (lastUid) {
       const c = d.chips.find((c) => c.uid === lastUid);
@@ -34,8 +39,7 @@ export default function Chips() {
   }, [lastUid, d.revision]);
   return (
     <PageContainer
-      title="芯片管理"
-      subTitle="登记、首次关联、配置与当前服务状态"
+      header={{ title: false, breadcrumb: {} }}
     >
       <div className="page-stack">
         {a.feedback}
@@ -53,7 +57,7 @@ export default function Chips() {
                     b.createdAt.localeCompare(a.createdAt) || b.id - a.id,
                 ),
                 v,
-                (c) => c.uid + " " + c.batch,
+                (c) => c.uid + " " + c.batch + " " + d.items.find(i => i.id === c.itemId)?.uid,
                 (c, x) =>
                   (!x.state || c.state === x.state) &&
                   (!x.source || c.source === x.source) &&
@@ -90,18 +94,16 @@ export default function Chips() {
               </Button>,
             ]}
             columns={[
-              { title: "关键词", dataIndex: "keyword", hideInTable: true },
+              { title: "关键词", dataIndex: "keyword", hideInTable: true, fieldProps: { placeholder: "搜索芯片 UID、批次或物品编号" } },
               {
                 title: "芯片UID",
                 dataIndex: "uid",
                 search: false,
                 render: (_, c) => (
-                  <Button type="link" onClick={() => go("/chips/" + c.id)}>
-                    {c.uid}
-                  </Button>
+                  <CopyValue value={c.uid} onClick={() => setTarget({kind: "chips", id: c.id})} />
                 ),
               },
-              { title: "批次", dataIndex: "batch", search: false },
+              { title: "批次", dataIndex: "batch", search: false, render: (_, c) => <CopyValue value={c.batch} /> },
               {
                 title: "首次来源",
                 dataIndex: "source",
@@ -117,18 +119,8 @@ export default function Chips() {
                 valueEnum: chipStates,
                 render: (_, c) => (
                   <Space>
-                    <Tag
-                      color={
-                        c.state === "bound"
-                          ? "blue"
-                          : c.state === "lost"
-                            ? "orange"
-                            : "default"
-                      }
-                    >
-                      {chipStates[c.state]}
-                    </Tag>
-                    {c.candidateFor && <Tag>候选准备</Tag>}
+                    <StatusTag value={chipStates[c.state]} />
+                    {c.candidateFor && <StatusTag value="候选准备" />}
                   </Space>
                 ),
               },
@@ -136,7 +128,7 @@ export default function Chips() {
                 title: "配置状态",
                 dataIndex: "configured",
                 valueEnum: { yes: "已核验", no: "待核验" },
-                render: (_, c) => (c.configuredAt ? "演示核验就绪" : "待配置"),
+                render: (_, c) => <StatusTag value={c.configuredAt ? "演示核验就绪" : "待配置"} />,
               },
               {
                 title: "关联物品",
@@ -144,16 +136,15 @@ export default function Chips() {
                 render: (_, c) => {
                   const i = d.items.find((i) => i.id === c.itemId);
                   return i ? (
-                    <Button type="link" onClick={() => go("/items/" + i.id)}>
-                      {i.uid}
-                    </Button>
+                    <CopyValue value={i.uid} onClick={() => setTarget({kind: "items", id: i.id})} />
                   ) : c.candidateFor ? (
-                    "候选未生效"
+                    <StatusTag value="候选未生效" />
                   ) : (
-                    "未关联"
+                    <StatusTag value="未关联" />
                   );
                 },
               },
+              { title: "操作", valueType: "option", fixed: "right", render: (_, c) => <Space><a onClick={() => setTarget({kind: "chips", id: c.id})}>查看</a><Button type="link" disabled={(!c.itemId && !c.candidateFor) || ["retired", "lost", "disabled"].includes(c.state)} onClick={() => setKeyId(c.id)}>密钥与配置</Button></Space> },
               {
                 title: "登记时间",
                 search: false,
@@ -200,6 +191,8 @@ export default function Chips() {
         />
         {a.feedback}
       </ModalForm>
+      <RecordDrawer target={target} onClose={() => setTarget(undefined)} />
+      {keyId != null && <KeyConfigDialog chipId={keyId} onClose={() => setKeyId(undefined)} />}
     </PageContainer>
   );
 }

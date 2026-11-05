@@ -23,6 +23,8 @@ import {
   ErrorState,
 } from "../ui";
 import SaleEditor from "../components/SaleEditor";
+import RecordDrawer from "../components/RecordDrawer";
+import { CopyValue, EditionValue, StatusTag, StyleCell } from "../components/RecordPresentation";
 export default function Items() {
   const p = useStore(),
     d = p.data,
@@ -33,7 +35,8 @@ export default function Items() {
     [issueId, setIssueId] = useState<string | undefined>(q.issueId),
     [selected, setSelected] = useState<React.Key[]>([]),
     [sale, setSale] = useState(false),
-    [lastUid, setLastUid] = useState("");
+    [lastUid, setLastUid] = useState(""),
+    [target, setTarget] = useState<{ kind: "items" | "chips"; id: number }>();
   const form = useRef<ProFormInstance | undefined>(undefined),
     issue = d.issues.find((i) => i.id === issueId),
     style = d.styles.find((s) => s.id === issue?.styleId);
@@ -74,7 +77,7 @@ export default function Items() {
     }
   }, [lastUid, d.revision]);
   return (
-    <PageContainer title="数字物品" subTitle="稳定身份、当前关联及必要历史">
+    <PageContainer header={{ title: false, breadcrumb: {} }}>
       {p.readError ? (
         <ErrorState />
       ) : (
@@ -88,7 +91,7 @@ export default function Items() {
               d.items,
               v,
               (i) =>
-                i.uid + " " + d.styles.find((s) => s.id === i.styleId)?.name,
+                i.uid + " " + d.styles.find((s) => s.id === i.styleId)?.name + " " + d.chips.find(c => c.id === i.entities.find(e => !e.to)?.chipId)?.uid,
               (i, x) =>
                 (!x.status || i.status === x.status) &&
                 (!x.sold || String(i.sold) === x.sold) &&
@@ -117,32 +120,30 @@ export default function Items() {
             </Button>,
           ]}
           columns={[
-            { title: "关键词", dataIndex: "keyword", hideInTable: true },
+            { title: "关键词", dataIndex: "keyword", hideInTable: true, fieldProps: { placeholder: "搜索物品编号、款式名称或芯片 UID" } },
             {
               title: "系统物品编号",
               dataIndex: "uid",
               search: false,
               render: (_, i) => (
-                <Button type="link" onClick={() => go("/items/" + i.id)}>
-                  {i.uid}
-                </Button>
+                <CopyValue value={i.uid} onClick={() => setTarget({kind: "items", id: i.id})} />
               ),
             },
             {
               title: "商品款式",
               search: false,
-              render: (_, i) => d.styles.find((s) => s.id === i.styleId)?.name,
+              render: (_, i) => <StyleCell style={d.styles.find((s) => s.id === i.styleId)} />,
             },
             {
               title: "发行编号",
               search: false,
               render: (_, i) =>
-                edition(
+                <EditionValue value={edition(
                   i,
                   d.issues.find((s) => s.id === i.issueId),
-                ),
+                )} />,
             },
-            { title: "物品状态", dataIndex: "status", valueEnum: itemStates },
+            { title: "物品状态", dataIndex: "status", valueEnum: itemStates, render: (_, i) => <StatusTag value={itemStates[i.status]} /> },
             {
               title: "售出确认",
               dataIndex: "sold",
@@ -157,7 +158,7 @@ export default function Items() {
               title: "当前持有人",
               dataIndex: "owner",
               valueEnum: { yes: "已认领", no: "未认领" },
-              render: (_, i) => userName(i.ownerId),
+              render: (_, i) => i.ownerId ? <div>{userName(i.ownerId)}<div className="cell-secondary"><CopyValue value={i.ownerId} /></div></div> : <StatusTag value="未认领" />,
             },
             {
               title: "当前芯片",
@@ -166,14 +167,13 @@ export default function Items() {
                 const e = i.entities.find((e) => !e.to),
                   c = d.chips.find((c) => c.id === e?.chipId);
                 return c ? (
-                  <Button type="link" onClick={() => go("/chips/" + c.id)}>
-                    {c.uid}
-                  </Button>
+                  <div><CopyValue value={c.uid} onClick={() => setTarget({kind: "chips", id: c.id})} /><div style={{marginTop: 6}}><StatusTag value={c.configuredAt ? "演示核验就绪" : "待配置"} /></div></div>
                 ) : (
-                  "未关联"
+                  <StatusTag value="未关联" />
                 );
               },
             },
+            { title: "操作", valueType: "option", fixed: "right", render: (_, i) => <a onClick={() => setTarget({ kind: "items", id: i.id })}>查看</a> },
           ]}
         />
       )}
@@ -256,6 +256,7 @@ export default function Items() {
         open={sale}
         onOpenChange={setSale}
       />
+      <RecordDrawer target={target} onClose={() => setTarget(undefined)} />
     </PageContainer>
   );
 }
