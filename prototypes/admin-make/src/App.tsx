@@ -1256,7 +1256,7 @@ function AppCore() {
                 />)},
                   {key:'styles',label:'款式资料',children:<CatalogPage kind="styles" onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
                   {key:'issues',label:'发行约定',children:<CatalogPage kind="issues" onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
-                  {key:'works',label:'办理记录',children:<WorkRecordsPage onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
+                  {key:'works',label:'办理记录',children:<WorkRecordsPage onManageItems={()=>setItemTab('items')} onManageChips={()=>setCurrentPage('chips')} onOpenItem={handleOpenItemDetailFromAnywhere} readError={simulateApiError} onRetry={()=>setSimulateApiError(false)}/>},
                 ]}/>
 
               </div>
