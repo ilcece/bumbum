@@ -1,0 +1,116 @@
+body {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  background: #f5f7fa;
+}
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #1677ff;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.ant-pro-page-container-children-content {
+  padding-block: 20px;
+}
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.muted {
+  color: rgba(0, 0, 0, 0.45);
+}
+.stat-link {
+  cursor: pointer;
+}
+.trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 160px;
+  padding-top: 20px;
+}
+.trend-day {
+  display: flex;
+  flex: 1;
+  min-width: 18px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  gap: 8px;
+  font-size: 12px;
+}
+.trend-bar {
+  width: 100%;
+  max-width: 36px;
+  min-height: 2px;
+  background: #1677ff;
+  border-radius: 4px 4px 0 0;
+}
+.form-page {
+  max-width: 1060px;
+}
+.preview-box {
+  background: #f5f7fa;
+  padding: 20px;
+  border-radius: 8px;
+  line-height: 1.8;
+}
+.ant-pro-layout .ant-pro-layout-content {
+  min-width: 0;
+}
+.ant-modal-body .ant-form {
+  padding-top: 12px;
+}
+.ant-pro-table-list-toolbar-right {
+  flex-wrap: wrap;
+}
+.login-frame {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f0f5ff, #fafcff);
+}
+.login-card {
+  width: 480px;
+  padding: 32px;
+}
+.detail-id {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+.two-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+  gap: 24px;
+}
+@media (max-width: 1150px) {
+  .two-columns {
+    grid-template-columns: 1fr;
+  }
+  .ant-pro-page-container-children-content {
+    margin-inline: 16px;
+  }
+}
+.ant-pro-page-container-warp-page-header {
+  background: #fff;
+}
+.ant-form-item .ant-input-number {
+  min-width: 140px;
+}
+
+.trend {
+  overflow-x: auto;
+}
+.trend-day {
+  flex: 1 0 28px;
+}

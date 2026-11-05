@@ -1,3 +1,0 @@
-// 仅把已生效的非敏感查询条件放入原型URL；编辑草稿和登录输入不持久化。
-export function readFilters<T>(page:string,fallback:T):T{try{const value=new URLSearchParams(location.hash.split('?')[1]).get(page+'Filters');return value?{...fallback,...JSON.parse(value)}:fallback;}catch{return fallback;}}
-export function writeFilters(page:string,filters:unknown,currentPage:number){const [view,query]=location.hash.slice(1).split('?');const params=new URLSearchParams(query);params.set(page+'Filters',JSON.stringify(filters));params.set(page+'Page',String(currentPage));history.replaceState(null,'','#'+(view||'overview')+'?'+params.toString());}

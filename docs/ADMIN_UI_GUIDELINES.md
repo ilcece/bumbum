@@ -1,6 +1,6 @@
 # 管理后台设计与交互规范
 
-本文件是[管理后台重构方案](proposals/admin-make-rebuild.md#design)第四章的详细审核稿，专门维护页面和交互规则。**目标以Ant Design Pro官方工程、页面组织及组件规范为准；原Make不再是必须复刻的像素基准。** 保留已确认的业务保护、品牌识别与官方组件优先原则；新菜单、容器选择及页面细节随本轮一起审核，尚未改动现有界面。
+本文件是[管理后台重构方案](proposals/admin-make-rebuild.md#design)第四章的详细规范，专门维护页面和交互规则。**目标以Ant Design Pro官方工程、页面组织及组件规范为准；原Make不再是必须复刻的像素基准。** 保留已确认的业务保护、品牌识别与官方组件优先原则；整体方向现已通过审核，按本轮授权重建隔离原型。
 
 业务范围与状态见[主方案](proposals/admin-make-rebuild.md)，字段见[字段表](proposals/admin-rebuild-fields.md)，Umi路线与实际工程适配见[工程说明](proposals/admin-rebuild-implementation.md)。这里不另定所有权、额度、密钥或数据清理政策。
 

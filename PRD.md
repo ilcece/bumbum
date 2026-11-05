@@ -10,8 +10,8 @@
 | 管理登录、物品草稿、服装资料启停、桌面页面与统计 | [后台管理规范](docs/product/admin-management.md) | 现行行为，含各功能验收；新版后台范围与交互见聚合审核稿 |
 | 芯片登记、首次来源、首次绑定、密钥与实卡配置核验 | [芯片生命周期规范](docs/product/chip-lifecycle.md) | 不把登记/绑定/配置当作所有权或可出厂证明 |
 | 用户真实触碰、验证、图片资料、持续查看与异常 | [服装用户体验规范](docs/product/fashion-touch.md) | 仅服装H5；共用验证不等于饰品新体验已交付 |
-| 后台定位、架构、字段、芯片接续和核心统计 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 初创阶段收口；新流程/字段/官方工程待重新审核，原已确认原则保留 |
-| 发行数量怎样确定，订单物流是否重复维护 | [范围与核心流程](docs/proposals/admin-make-rebuild.md#scope) | 保留发行承诺/结果与数字身份，订单/工厂/物流退出后台；精简原型尚未调整 |
+| 后台定位、架构、字段、芯片接续和核心统计 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 初创阶段收口；定位、流程、字段、设计及Umi原型路线已通过；未定政策与正式技术整合另审 |
+| 发行数量怎样确定，订单物流是否重复维护 | [范围与核心流程](docs/proposals/admin-make-rebuild.md#scope) | 保留发行承诺/结果与数字身份，订单/工厂/物流退出后台；精简Umi原型已重建，真实能力另行整合 |
 | 手串数字体验或权益为什么值得做 | [探索说明](docs/BRACELET_NFC_EXPLORATION.md) | 新体验未定，不是新PRD；不关联婚礼机会 |
 | 旧祈愿、旧养成描述 | [祈愿归档](docs/archive/nfc-prayer-h5.md)、[养成候选归档](docs/archive/legacy-growth-candidate.md) | 历史追溯，不作为实施依据 |
 

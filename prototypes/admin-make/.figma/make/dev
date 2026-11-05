@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
-exec node node_modules/vite/bin/vite.js --host "${FIGMA_DEV_SERVER_HOST:-0.0.0.0}" --port "$PORT" --strictPort
+export HOST="${FIGMA_DEV_SERVER_HOST:-0.0.0.0}"
+exec npm run dev

@@ -2,13 +2,13 @@
 
 <a name="页面与-figma-怎么协作"></a>
 
-目的：在已确认业务范围内使用官方页面模式，保留真实接口和安全逻辑。新版后台定位、字段及审核顺序从[聚合方案](proposals/admin-make-rebuild.md)进入，设计按[统一规范](ADMIN_UI_GUIDELINES.md)，工程路线按[Umi迁移说明](proposals/admin-rebuild-implementation.md)。cece本轮建议完整官方Ant Design Pro工程迁入Umi Max，替代此前保留Vite只接组件的推荐；具体方案正在重新审核，正式代码尚未切换。
+目的：在已确认业务范围内使用官方页面模式，保留真实接口和安全逻辑。新版后台定位、字段及审核顺序从[聚合方案](proposals/admin-make-rebuild.md)进入，设计按[统一规范](ADMIN_UI_GUIDELINES.md)，工程路线按[Umi迁移说明](proposals/admin-rebuild-implementation.md)。cece本轮建议完整官方Ant Design Pro工程迁入Umi Max，替代此前保留Vite只接组件的推荐；方案已通过并授权重建隔离原型，正式代码尚未切换。
 
 原始Make、旧Figma和当前长经营原型保留为历史参考，新版不再要求复刻其像素/容器或订单物流主线。Figma附件按实际页面需要提取，不整包覆盖源码、依赖、认证或后端。当前操作见[桌面管理端手册](ADMIN_DESKTOP.md)，状态只看[TODO](../TODO.md)。
 
 ## 独立交互原型与正式工程
 
-本次已授权的高保真交互原型位于[prototypes/admin-make](../prototypes/admin-make/README.md)，可下载[单HTML](../prototypes/admin-make/preview.html)离线核对；其中保留上一轮Make及长经营流程，尚未按新的收口稿调整。它使用浏览器合成数据，不调用真实API，不是正式后台，也不替代下表工程。原型的构建和业务路径检查不代表正式代码、后端、实卡或人工验收完成。产品和必要技术范围通过后，新预览直接采用官方Umi/Pro工程，并复用同套页面接真实服务；交互与正式能力分别验收，不再先重画旧Make再迁移。当前任务状态见TODO。
+本次已授权的高保真交互原型位于[prototypes/admin-make](../prototypes/admin-make/README.md)，可下载[单HTML](../prototypes/admin-make/preview.html)离线核对；当前版本已按收口方案以实际官方Umi/Pro工程重建，旧Make及长经营流程由Git保留。它使用浏览器合成数据，不调用真实API，不是正式后台，也不替代下表工程。原型的构建和业务路径检查不代表正式代码、后端、实卡或人工验收完成。产品和必要技术范围现已通过，新预览采用官方Umi/Pro工程，并复用同套页面接真实服务；交互与正式能力分别验收，不再先重画旧Make再迁移。当前任务状态见TODO。
 
 ## 当前页面放在哪里
 

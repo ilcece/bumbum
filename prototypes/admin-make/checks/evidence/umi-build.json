@@ -1,0 +1,13 @@
+{
+  "date": "2026-11-05T13:08:48.898875+00:00",
+  "strictInstall": "passed; no force or legacy-peer-deps",
+  "setup": "passed",
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "dev": "Umi Max compiled and HTTP 200; temporary server stopped",
+  "previewSHA256": "72e4a9ca3c7ae4a502653096bd702c5fa075b41b382b72abbd013a74a002a60a",
+  "officialSource": "ant-design/ant-design-pro@42f2cb1d303380909ea04c73b5e60679d09c321a",
+  "formalServices": "not connected",
+  "fileNavigation": "ERR_BLOCKED_BY_ADMINISTRATOR; identical single HTML tested over localhost HTTP",
+  "manualAcceptance": "pending cece"
+}

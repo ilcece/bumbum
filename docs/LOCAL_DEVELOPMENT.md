@@ -549,3 +549,29 @@ python -m pytest tests/test_admin_item_browser.py tests/test_admin_browser.py te
 ```
 
 独立MySQL和合成图覆盖物品连续创建/确切定位、同字段详情与编辑、关联/查询返回、普通保存/启停、真实Upload暂存/关联/移除/取消、未知回执核对及原登录/绑定/密钥/统计回归；不单独追加React19组件矩阵；业务行为仍不能只靠构建判断。不连接现有库、不启用生产上传；故障回执按测试明确合成，实际文件处理仍走真实接口。失败保留脱敏截图与测试提示，不上传秘密或完整浏览器网络记录。
+
+
+## 14. 隔离Umi管理原型
+
+此节仅用于当前任务分支的prototypes/admin-make，不启动真实API、数据库或芯片服务；根目录Windows日常入口仍运行正式frontend/admin。Node/npm沿用.mise.toml版本。
+
+在仓库根目录执行：
+
+```bash
+npm --prefix prototypes/admin-make ci --ignore-scripts
+npm --prefix prototypes/admin-make run setup
+npm --prefix prototypes/admin-make run typecheck
+npm --prefix prototypes/admin-make run dev
+```
+
+打开终端显示的本机地址，点击“使用演示身份进入”；页面与会话均为合成数据。首次setup会生成被Git忽略的src/.umi；失败先检查安装日志与锁文件，不使用force/legacy-peer-deps。
+
+构建和导出：
+
+```bash
+npm --prefix prototypes/admin-make run build
+python prototypes/admin-make/scripts/export-preview.py --output /tmp/bumbum-admin-preview
+node prototypes/admin-make/checks/domain.test.mjs
+```
+
+构建成功产生dist/index.html；导出生成单HTML、源码ZIP并更新preview.html。单HTML包含真实Umi路由块，无需安装依赖；下载后用桌面Chrome/Edge打开。交互步骤及验证范围见[原型说明](../prototypes/admin-make/README.md)。会话仅供产品审核；真实认证、所有权、密钥及API不能用演示替代。停止开发服务在终端按Ctrl+C。
