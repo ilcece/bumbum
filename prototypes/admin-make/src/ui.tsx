@@ -198,7 +198,10 @@ export function useDataTable() {
   const q = queryState();
   return {
     params: { rev: data.revision },
-    form: { initialValues: q },
+    size: "middle" as const,
+    scroll: { x: "max-content" },
+    cardProps: { size: "small" as const, variant: "outlined" as const },
+    form: { initialValues: q, layout: "vertical" as const },
     pagination: {
       defaultCurrent: Number(q.current) || 1,
       pageSize: 10,
@@ -208,7 +211,11 @@ export function useDataTable() {
       saveQuery({ tab: queryState().tab, ...v, current: 1 }),
     onReset: () => saveQuery({ tab: queryState().tab }),
     onChange: (p: any) => saveQuery({ ...queryState(), current: p.current }),
-    search: { labelWidth: "auto" as const },
+    search: {
+      layout: "vertical" as const,
+      labelWidth: "auto" as const,
+      span: { xs: 24, sm: 12, md: 8, lg: 8, xl: 6, xxl: 6 },
+    },
     options: { density: true, fullScreen: false, reload: true },
   };
 }

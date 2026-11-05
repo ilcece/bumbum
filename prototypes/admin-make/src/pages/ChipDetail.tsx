@@ -48,11 +48,16 @@ export default function ChipDetail() {
         ) : (
           <>
             <ProCard
+              size="small"
+              headerBordered
               variant="outlined"
               title="芯片信息"
               extra={<Button onClick={() => setBatch(true)}>维护批次</Button>}
             >
               <ProDescriptions
+                size="small"
+                bordered
+                style={{ marginBottom: 12 }}
                 column={2}
                 dataSource={c}
                 columns={[
@@ -100,7 +105,12 @@ export default function ChipDetail() {
               />
             </ProCard>
             {!i && !c.candidateFor && c.state === "pending" && (
-              <ProCard variant="outlined" title="首次关联">
+              <ProCard
+                size="small"
+                headerBordered
+                variant="outlined"
+                title="首次关联"
+              >
                 <Button type="primary" onClick={() => setBind(true)}>
                   绑定数字物品
                 </Button>
@@ -109,7 +119,12 @@ export default function ChipDetail() {
             {(i || c.candidateFor) && c.state !== "retired" && (
               <ProvisionPanel chipId={c.id} />
             )}
-            <ProCard variant="outlined" title="服务状态操作">
+            <ProCard
+              size="small"
+              headerBordered
+              variant="outlined"
+              title="服务状态操作"
+            >
               <Space wrap>
                 {["bound", "pending"].includes(c.state) && !c.candidateFor && (
                   <Button onClick={() => setState("disable")}>
@@ -146,6 +161,8 @@ export default function ChipDetail() {
               </Space>
             </ProCard>
             <ProCard
+              size="small"
+              headerBordered
               variant="outlined"
               title={`本芯片有效触碰 · ${events.length}次`}
               extra={

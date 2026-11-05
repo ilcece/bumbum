@@ -96,6 +96,8 @@ export default function ItemDetail() {
         ) : (
           <>
             <ProCard
+              size="small"
+              headerBordered
               variant="outlined"
               title="数字身份与发行"
               extra={
@@ -105,6 +107,9 @@ export default function ItemDetail() {
               }
             >
               <ProDescriptions
+                size="small"
+                bordered
+                style={{ marginBottom: 12 }}
                 column={2}
                 dataSource={i}
                 columns={[
@@ -159,6 +164,8 @@ export default function ItemDetail() {
               />
             </ProCard>
             <ProCard
+              size="small"
+              headerBordered
               variant="outlined"
               title="当前实体与芯片"
               extra={
@@ -175,6 +182,9 @@ export default function ItemDetail() {
             >
               {entity ? (
                 <ProDescriptions
+                  size="small"
+                  bordered
+                  style={{ marginBottom: 12 }}
                   column={2}
                   columns={[
                     { title: "实际实体规格", render: () => entity.spec },
@@ -210,6 +220,8 @@ export default function ItemDetail() {
               )}
             </ProCard>
             <ProCard
+              size="small"
+              headerBordered
               variant="outlined"
               title="持有人与接续"
               extra={
@@ -229,6 +241,9 @@ export default function ItemDetail() {
               }
             >
               <ProDescriptions
+                size="small"
+                bordered
+                style={{ marginBottom: 12 }}
                 column={2}
                 columns={[
                   { title: "当前持有人", render: () => userName(i.ownerId) },
@@ -294,6 +309,8 @@ export default function ItemDetail() {
               />
             </ProCard>
             <ProCard
+              size="small"
+              headerBordered
               variant="outlined"
               title="物品触碰统计"
               extra={
@@ -380,7 +397,12 @@ export default function ItemDetail() {
                 </Button>
               </Space>
             </ProCard>
-            <ProCard variant="outlined" title="关系历史">
+            <ProCard
+              size="small"
+              headerBordered
+              variant="outlined"
+              title="关系历史"
+            >
               <Tabs
                 items={[
                   {

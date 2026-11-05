@@ -25,6 +25,8 @@ export function ProvisionPanel({ chipId }: { chipId: number }) {
   if (!c) return null;
   return (
     <ProCard
+      size="small"
+      headerBordered
       variant="outlined"
       title="芯片准备与配置核验"
       extra={

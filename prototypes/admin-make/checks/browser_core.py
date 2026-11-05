@@ -15,7 +15,8 @@ async def main():
   def passed(s):checks.append(s);print('通过：'+s,flush=True)
   async def button(name,root=None):await (root or page).get_by_role('button',name=name,exact=True).click()
   async def choose(label,text,root=None):
-   root=root or page;await root.get_by_label(label,exact=True).click();await page.locator('.ant-select-dropdown:visible').get_by_text(text,exact=True).click()
+   root=root or page;field=root.get_by_label(label,exact=True);await field.click();await page.locator('.ant-select-dropdown:visible').get_by_text(text,exact=True).click()
+   if '芯片' in label:await expect(field.locator('xpath=ancestor::div[contains(@class, "ant-select ")][1]').get_by_title(text,exact=True)).to_be_visible()
   async def data():return await page.evaluate("JSON.parse(sessionStorage.getItem('bumbum-pro-prototype-v6'))")
   async def configure(root=None):
    root=root or page;await button('〔演示〕准备密钥标记',root)

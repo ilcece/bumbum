@@ -1,0 +1,31 @@
+{
+  "date": "2026-11-05T14:12:45.581280+00:00",
+  "reference": "用户提供：设计项目管理后台.zip；仅视觉参考",
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "unchangedFiles": [
+    "src/data/domain.ts",
+    "src/data/store.tsx",
+    "config/routes.ts",
+    "package.json",
+    "package-lock.json"
+  ],
+  "previewSHA256": "79cc6a5a302dc5fedefbd6776a77dd76df1c505020ead3a7d7007914fa904e3e",
+  "browser": {
+    "businessFlowChecks": 8,
+    "recoveryChecks": 10,
+    "visualChecks": 6,
+    "primaryRoutes": 5,
+    "externalResources": 0,
+    "pageErrors": 0
+  },
+  "earlierFailures": [
+    "布局高度配置的旧属性不被当前Pro类型支持，改用布局Token后通过",
+    "一轮1280换新选择未保留，被必填校验阻断；最小场景正常；下拉容器改为当前弹层并增加选中值断言后完整主线复跑通过"
+  ],
+  "limits": [
+    "合成数据原型，未接真实服务",
+    "本轮未重复file导航；沿用同单HTML经本机HTTP验证，直接打开仍待用户本机核对",
+    "未执行React19独立组件矩阵或正式后台/H5/实卡/生产验证"
+  ]
+}

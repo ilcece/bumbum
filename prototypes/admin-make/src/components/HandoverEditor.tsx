@@ -76,6 +76,8 @@ export default function HandoverEditor({
             ]}
           />
           <ProDescriptions
+            size="small"
+            bordered
             column={2}
             dataSource={w}
             columns={[
@@ -107,7 +109,12 @@ export default function HandoverEditor({
                 description={`当前芯片 ${oldChip?.uid || "待核对"}；候选芯片在确认接续前不能提供物品服务。关闭后可从物品详情继续。`}
               />
               {candidate && <ProvisionPanel chipId={candidate.id} />}
-              <ProCard variant="outlined" title="确认实际交付与接续">
+              <ProCard
+                size="small"
+                headerBordered
+                variant="outlined"
+                title="确认实际交付与接续"
+              >
                 <Form layout="vertical">
                   <Form.Item
                     label="实际交付核验依据"

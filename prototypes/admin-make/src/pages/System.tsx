@@ -66,13 +66,20 @@ export default function System() {
               key: "diagnostics",
               label: "连接与范围",
               children: (
-                <ProCard variant="outlined" title="原型诊断">
+                <ProCard
+                  size="small"
+                  headerBordered
+                  variant="outlined"
+                  title="原型诊断"
+                >
                   <Alert
                     type="info"
                     title="独立交互原型，全部为合成数据"
                     description="未连接正式后台、身份服务、真实芯片或电商平台。页面成功仅代表原型状态变更。"
                   />
                   <ProDescriptions
+                    size="small"
+                    bordered
                     column={1}
                     columns={[
                       {

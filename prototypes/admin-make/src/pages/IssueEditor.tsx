@@ -93,11 +93,15 @@ export default function IssueEditor() {
         {confirmed ? (
           <>
             <ProCard
+              size="small"
+              headerBordered
               variant="outlined"
               title={current.name}
               extra={issueText(current)}
             >
               <ProDescriptions
+                size="small"
+                bordered
                 column={2}
                 dataSource={current}
                 columns={[
@@ -153,7 +157,12 @@ export default function IssueEditor() {
               />
             </ProCard>
             {current.mode === "timed" && !current.sealedAt && (
-              <ProCard variant="outlined" title="确认最终发行结果">
+              <ProCard
+                size="small"
+                headerBordered
+                variant="outlined"
+                title="确认最终发行结果"
+              >
                 <Typography.Paragraph>
                   电商平台完成核对后，在这里登记最终数量与依据；不录订单或物流。已建
                   {refs.length}个身份，正式编号待封版。
@@ -171,6 +180,8 @@ export default function IssueEditor() {
               </ProCard>
             )}
             <ProCard
+              size="small"
+              headerBordered
               title={`引用数字物品 · ${refs.length}件`}
               variant="outlined"
             >
@@ -193,7 +204,7 @@ export default function IssueEditor() {
             </ProCard>
           </>
         ) : (
-          <ProCard variant="outlined">
+          <ProCard size="small" headerBordered variant="outlined">
             <ProForm
               formRef={form}
               initialValues={

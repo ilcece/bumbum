@@ -84,6 +84,8 @@ export default function Catalog() {
       subTitle="先维护共用商品，再确认数字发行承诺"
     >
       <Tabs
+        className="section-tabs"
+        size="small"
         activeKey={tab}
         onChange={(t) => {
           setTab(t);

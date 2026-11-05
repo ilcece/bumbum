@@ -1,7 +1,9 @@
+/* 只维护附件视觉所需的局部样式，布局、控件和滚动继续使用Pro及AntD组件。 */
 body {
   margin: 0;
   font-variant-numeric: tabular-nums;
   background: #f5f7fa;
+  -webkit-font-smoothing: antialiased;
 }
 .brand-mark {
   display: inline-flex;
@@ -9,108 +11,323 @@ body {
   justify-content: center;
   width: 32px;
   height: 32px;
+  flex-shrink: 0;
   border-radius: 8px;
   background: #1677ff;
   color: #fff;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: -1px;
+  letter-spacing: -0.5px;
+  box-shadow: 0 2px 4px #1677ff1c;
 }
-.ant-pro-page-container-children-content {
-  padding-block: 20px;
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 220px;
+  line-height: 1.5;
+}
+.brand-lockup strong {
+  display: block;
+  font-size: 14px;
+  color: #0f172a;
+  font-weight: 650;
+}
+.brand-lockup small {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+.header-context {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-left: 20px;
+  border-left: 1px solid #e2e8f0;
+  min-width: 0;
+}
+.header-context > .ant-typography:first-child {
+  font-size: 15px;
+  white-space: nowrap;
+}
+.header-context > .ant-typography:last-child {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.admin-profile {
+  padding: 4px 5px 4px 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 24px;
+  background: #f8fafc;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.admin-profile .ant-avatar {
+  background: #1677ff;
+}
+.admin-profile .ant-badge-status-text {
+  font-size: 11px;
+  color: #64748b;
+}
+.menu-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.menu-count {
+  margin-inline-end: 0;
+  font-size: 11px;
+  line-height: 20px;
+  color: #64748b;
+  border: 0;
+  background: #f1f5f9;
+}
+.sider-caption {
+  border-top: 1px solid #e2e8f0;
+  padding: 14px 16px;
+  color: #64748b;
+  font-size: 11px;
+  white-space: nowrap;
 }
 .page-stack {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 16px;
 }
 .muted {
-  color: rgba(0, 0, 0, 0.45);
+  color: #64748b;
 }
-.stat-link {
+.form-page {
+  width: 100%;
+  max-width: 1180px;
+}
+.two-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.preview-box {
+  line-height: 1.8;
+  position: sticky;
+  top: 78px;
+}
+.preview-box .ant-image {
+  width: 100%;
+}
+.preview-box img {
+  max-height: 320px;
+  object-fit: contain;
+  background: #f8fafc;
+  border-radius: 6px;
+}
+.section-tabs {
+  background: #fff;
+  border-radius: 8px;
+  padding-inline: 16px;
+  margin-bottom: 16px;
+}
+.section-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+}
+.inventory-card {
+  height: 100%;
   cursor: pointer;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+.inventory-card:hover {
+  border-color: #91caff;
+  box-shadow: 0 2px 8px #0f172a08;
+}
+.inventory-card:focus-visible,
+.trend-day:focus-visible {
+  outline: 2px solid #1677ff;
+  outline-offset: 3px;
+}
+.inventory-neutral {
+  background: #f8fafc;
+}
+.inventory-green {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.inventory-blue {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+}
+.inventory-amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+.inventory-green .ant-statistic-content {
+  color: #15803d;
+}
+.inventory-blue .ant-statistic-content {
+  color: #0369a1;
+}
+.inventory-amber .ant-statistic-content {
+  color: #b45309;
+}
+.inventory-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 11px;
+  color: #64748b;
+}
+.inventory-caption > .anticon {
+  color: #1677ff;
+}
+.filter-panel {
+  padding: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+.stats-filter-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(170px, 1.2fr) minmax(140px, 0.9fr) minmax(140px, 1fr)
+    minmax(160px, 1.1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+.stats-filter-grid .ant-form-item {
+  margin-bottom: 0;
+}
+.filter-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  color: #64748b;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.filter-summary .ant-tag {
+  margin-inline-end: 2px;
+}
+.data-asof {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.metric-card {
+  height: 100%;
+  background: #fff;
+}
+.metric-card .ant-statistic-content-suffix {
+  font-size: 12px;
+  color: #64748b;
+  margin-left: 6px;
 }
 .trend {
   display: flex;
+  gap: 8px;
   align-items: flex-end;
-  gap: 12px;
-  height: 160px;
-  padding-top: 20px;
+  height: 174px;
+  overflow-x: auto;
+  padding-top: 12px;
+  padding-bottom: 2px;
 }
 .trend-day {
   display: flex;
-  flex: 1;
-  min-width: 18px;
+  flex: 1 0 28px;
+  min-width: 28px;
+  height: 100%;
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  height: 100%;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
+  color: #64748b;
+  border-radius: 4px;
+}
+.trend-track {
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  height: 124px;
+  background: #f1f5f9;
+  border-radius: 4px 4px 0 0;
+  overflow: hidden;
 }
 .trend-bar {
   width: 100%;
-  max-width: 36px;
   min-height: 2px;
-  background: #1677ff;
+  background: #60a5fa;
   border-radius: 4px 4px 0 0;
+  transition: background 0.15s;
 }
-.form-page {
-  max-width: 1060px;
-}
-.preview-box {
-  background: #f5f7fa;
-  padding: 20px;
-  border-radius: 8px;
-  line-height: 1.8;
+.trend-day:hover .trend-bar,
+.trend-day:focus-visible .trend-bar,
+.trend-day:last-child .trend-bar {
+  background: #1677ff;
 }
 .ant-pro-layout .ant-pro-layout-content {
   min-width: 0;
 }
-.ant-modal-body .ant-form {
-  padding-top: 12px;
-}
 .ant-pro-table-list-toolbar-right {
   flex-wrap: wrap;
+}
+.ant-pro-table .ant-btn-link,
+.ant-pro-descriptions .ant-btn-link {
+  padding-inline: 0;
+  height: auto;
+  min-height: 24px;
+  white-space: normal;
+  text-align: left;
+}
+.ant-pro-table .ant-table-cell {
+  vertical-align: middle;
+}
+.ant-pro-page-container-warp-page-header {
+  background: transparent;
 }
 .login-frame {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #f0f5ff, #fafcff);
+  background: #f1f5f9;
+  padding: 24px;
 }
 .login-card {
-  width: 480px;
-  padding: 32px;
+  width: 440px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 12px 40px #0f172a0a;
 }
-.detail-id {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
-}
-.two-columns {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
-  gap: 24px;
+@media (max-width: 1350px) {
+  .header-context > .ant-typography:last-child {
+    display: none;
+  }
+  .admin-profile .ant-badge {
+    display: none;
+  }
 }
 @media (max-width: 1150px) {
   .two-columns {
     grid-template-columns: 1fr;
   }
-  .ant-pro-page-container-children-content {
-    margin-inline: 16px;
+  .preview-box {
+    position: static;
   }
-}
-.ant-pro-page-container-warp-page-header {
-  background: #fff;
-}
-.ant-form-item .ant-input-number {
-  min-width: 140px;
-}
-
-.trend {
-  overflow-x: auto;
-}
-.trend-day {
-  flex: 1 0 28px;
+  .stats-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .stats-filter-grid > button {
+    justify-self: start;
+  }
+  .data-asof {
+    margin-left: 0;
+  }
+  .header-context {
+    display: none;
+  }
 }

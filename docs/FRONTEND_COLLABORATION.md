@@ -4,7 +4,7 @@
 
 目的：在已确认业务范围内使用官方页面模式，保留真实接口和安全逻辑。新版后台定位、字段及审核顺序从[聚合方案](proposals/admin-make-rebuild.md)进入，设计按[统一规范](ADMIN_UI_GUIDELINES.md)，工程路线按[Umi迁移说明](proposals/admin-rebuild-implementation.md)。cece本轮建议完整官方Ant Design Pro工程迁入Umi Max，替代此前保留Vite只接组件的推荐；方案已通过并授权重建隔离原型，正式代码尚未切换。
 
-原始Make、旧Figma和当前长经营原型保留为历史参考，新版不再要求复刻其像素/容器或订单物流主线。Figma附件按实际页面需要提取，不整包覆盖源码、依赖、认证或后端。当前操作见[桌面管理端手册](ADMIN_DESKTOP.md)，状态只看[TODO](../TODO.md)。
+此前Make、旧Figma和旧长经营原型保留为历史参考。cece本轮提供《设计项目管理后台.zip》作为当前视觉参考，只提取布局、主题和控件交互，以Pro组件适配现有原型，不导入附件旧菜单/字段、登录或业务逻辑。Figma附件按实际页面需要提取，不整包覆盖源码、依赖、认证或后端。当前操作见[桌面管理端手册](ADMIN_DESKTOP.md)，状态只看[TODO](../TODO.md)。
 
 ## 独立交互原型与正式工程
 
