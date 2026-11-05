@@ -11,6 +11,7 @@
 | 芯片登记、首次来源、首次绑定、密钥与实卡配置核验 | [芯片生命周期规范](docs/product/chip-lifecycle.md) | 不把登记/绑定/配置当作所有权或可出厂证明 |
 | 用户真实触碰、验证、图片资料、持续查看与异常 | [服装用户体验规范](docs/product/fashion-touch.md) | 仅服装H5；共用验证不等于饰品新体验已交付 |
 | 后台改版、验证清理、纠错、挂失换新与转售 | [四工作流提案](#6-独立改动提案) | 已确认方向与待审细则分别标注 |
+| 三类商品如何共用首次销售与交付流程 | [通用首次销售与交付提案](docs/proposals/initial-sale-delivery.md) | 联合推演方法已确认；断点、删减及具体政策待审，不按品类定制 |
 | 手串数字体验或权益为什么值得做 | [探索说明](docs/BRACELET_NFC_EXPLORATION.md) | 新体验未定，不是新PRD；不关联婚礼机会 |
 | 旧祈愿、旧养成描述 | [祈愿归档](docs/archive/nfc-prayer-h5.md)、[养成候选归档](docs/archive/legacy-growth-candidate.md) | 历史追溯，不作为实施依据 |
 
