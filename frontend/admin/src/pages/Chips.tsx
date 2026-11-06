@@ -105,7 +105,15 @@ export default function Chips() {
         <Button key="view" type="link" onClick={() => setId(r.id)}>
           查看
         </Button>,
-        <Button key="keys" type="link" onClick={() => setKeyChip(r.id)}>
+        <Button
+          key="keys"
+          type="link"
+          disabled={
+            (!r.item_id && !r.candidate_id) ||
+            !["bound", "pending"].includes(r.chip_status)
+          }
+          onClick={() => setKeyChip(r.id)}
+        >
           密钥与配置
         </Button>,
       ],

@@ -6,6 +6,7 @@ import {
   Checkbox,
   Col,
   DatePicker,
+  Descriptions,
   Form,
   Input,
   InputNumber,
@@ -487,17 +488,82 @@ export default function Catalog() {
           onDone={done}
           submitText="已确认"
         >
-          <Typography.Paragraph>{editor.record.name}</Typography.Paragraph>
-          <Typography.Paragraph>
-            {editor.record.description}
-          </Typography.Paragraph>
-          <Typography.Paragraph>
-            核定规则：{editor.record.counting_rule || "不适用"}
-          </Typography.Paragraph>
-          <Typography.Paragraph>
-            确认时间：{time(editor.record.confirmed_at)}；最终总量：
-            {editor.record.total ?? "待核定"}
-          </Typography.Paragraph>
+          <ProCard
+            title="发行承诺与核定结果"
+            size="small"
+            headerBordered
+            variant="outlined"
+          >
+            <Descriptions size="small" bordered column={2}>
+              <Descriptions.Item label="发行名称">
+                {editor.record.name}
+              </Descriptions.Item>
+              <Descriptions.Item label="确认状态">
+                <State value="已确认" />
+              </Descriptions.Item>
+              <Descriptions.Item label="关联款式">
+                {editor.record.style_name}
+              </Descriptions.Item>
+              <Descriptions.Item label="物品类别">
+                {editor.record.project === "fashion" ? "服装" : "饰品"}
+              </Descriptions.Item>
+              <Descriptions.Item label="系列归类">
+                {editor.record.series || "未填写"}
+              </Descriptions.Item>
+              <Descriptions.Item label="发行方式">
+                <State value={statusNames[editor.record.mode]} />
+              </Descriptions.Item>
+              <Descriptions.Item label="发行说明与承诺" span={2}>
+                {editor.record.description || "未填写"}
+              </Descriptions.Item>
+              <Descriptions.Item label="适用权益" span={2}>
+                {editor.record.rights
+                  ?.map(
+                    (r: string) =>
+                      ({ renewal: "换新", resale: "转售" })[
+                        r as "renewal" | "resale"
+                      ] || r,
+                  )
+                  .join("、") || "未约定"}
+              </Descriptions.Item>
+              {editor.record.mode === "period" && (
+                <>
+                  <Descriptions.Item label="销售开始（北京时间）">
+                    {time(editor.record.starts_at)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="销售结束（北京时间）">
+                    {time(editor.record.ends_at)}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="有效数量核定规则" span={2}>
+                    {editor.record.counting_rule || "未填写"}
+                  </Descriptions.Item>
+                </>
+              )}
+              <Descriptions.Item label="最终总量">
+                {editor.record.mode === "unlimited" ? (
+                  "非限定"
+                ) : editor.record.mode === "period" &&
+                  !editor.record.sealed_at ? (
+                  <State value="待核定" />
+                ) : (
+                  editor.record.total
+                )}
+              </Descriptions.Item>
+              <Descriptions.Item label="引用物品">
+                {editor.record.item_count}
+              </Descriptions.Item>
+              <Descriptions.Item label="确认时间">
+                {time(editor.record.confirmed_at)}
+              </Descriptions.Item>
+              {editor.record.mode === "period" && (
+                <Descriptions.Item label="最终核定时间">
+                  {editor.record.sealed_at
+                    ? time(editor.record.sealed_at)
+                    : "尚未核定"}
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+          </ProCard>
           <Button onClick={close}>关闭</Button>
         </ActionForm>
       )}

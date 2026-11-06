@@ -40,7 +40,7 @@ def test_unknown_save_checks_receipt_without_duplicate_and_csrf_explicit_retry(d
 
 
 def test_unsaved_three_choices_and_expired_session_clears_management(desktop):
-    setup(desktop);p=desktop.page;desktop.navigate('款式与发行');button(p,'维护共用资料');d=p.get_by_role('dialog',name='维护款式共用资料');d.get_by_label('款式名称',exact=True).fill('尚未保存')
+    setup(desktop);p=desktop.page;desktop.navigate('款式与发行');button(p,'维护资料');d=p.get_by_role('dialog',name='维护款式共用资料');d.get_by_label('款式名称',exact=True).fill('尚未保存')
     p.get_by_role('link',name=re.compile('数字物品$')).evaluate('(el)=>el.click()');guard=p.get_by_role('dialog',name='有未保存修改',exact=True)
     button(guard,'继续编辑');expect(d.get_by_label('款式名称',exact=True)).to_have_value('尚未保存')
     p.route('**/api/admin/catalog/actions/style',lambda route:route.fulfill(status=401,json={'status':'error','code':'unauthorized','message':'合成过期'}))

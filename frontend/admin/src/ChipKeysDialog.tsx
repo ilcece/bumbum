@@ -4,14 +4,17 @@ import {
   App,
   Button,
   Checkbox,
-  Divider,
   Form,
   Input,
   Modal,
   Space,
+  Steps,
   Typography,
 } from "antd";
-import { ApiError, chipKeyRequest, listChips } from "./api";
+import { ApiError, chipKeyRequest, readConfigurationChip } from "./api";
+import { ProCard, ProDescriptions } from "@ant-design/pro-components";
+import { Copy, State } from "./components/CatalogUI";
+import { time } from "./catalog";
 import type { ChipKeys, ChipView, SunReading } from "./api";
 
 function parseReading(value: string): SunReading {
@@ -116,7 +119,7 @@ export function ChipKeysDialog({
     setBusy(true);
     onInteraction({ dirty: dirty || unknown, busy: true });
     setKeys(null);
-    setViewConfirmed(false);
+    if (action !== "keys") setViewConfirmed(false);
     setError("");
     setNotice("");
     try {
@@ -127,6 +130,8 @@ export function ChipKeysDialog({
         if (
           result.chip_uid !== chip.chip_uid ||
           !result.keys ||
+          result.sun_url_template !==
+            "https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}" ||
           Object.keys(result.keys).sort().join(",") !== "K0,K1,K2,K3,K4" ||
           Object.values(result.keys).some(
             (value) =>
@@ -134,21 +139,21 @@ export function ChipKeysDialog({
           )
         )
           throw new Error("密钥返回结果无法核对。");
-        if (mounted.current) setKeys(result);
+        if (mounted.current)
+          setKeys({
+            ...result,
+            sun_url_template: result.sun_url_template
+              .replace("{picc}", "0".repeat(32))
+              .replace("{cmac}", "0".repeat(16)),
+          });
       } else if (action === "query") {
-        const result = await listChips({
-          page: 1,
-          project: "",
-          status: "",
-          keyword: chip.chip_uid,
-        });
-        const actual = result.items.find(
-          (value) => value.id === chip.id && value.chip_uid === chip.chip_uid,
-        );
+        const actual = await readConfigurationChip(chip.id);
         if (
           !actual ||
           actual.item_id !== initialChip.item_id ||
-          actual.chip_status !== "bound"
+          actual.candidate_id !== initialChip.candidate_id ||
+          actual.candidate_item_id !== initialChip.candidate_item_id ||
+          !["bound", "pending"].includes(actual.chip_status)
         ) {
           setBlocked(true);
           throw new Error("芯片关联或状态已改变，请关闭弹窗并重新查询。");
@@ -196,7 +201,7 @@ export function ChipKeysDialog({
         )
           throw new Error("配置核验结果无法核对。");
         if (mounted.current) {
-          update(result);
+          update({ ...chip, ...result });
           setLinks(["", ""]);
           setManagement(false);
           setNotice(
@@ -238,7 +243,11 @@ export function ChipKeysDialog({
     }
   }
   const safe = Number.isSafeInteger(chip.id) && chip.id > 0;
-  const blockedActions = busy || blocked || unknown || !safe;
+  const eligible =
+    !!chip.project &&
+    ((!!chip.item_id && chip.chip_status === "bound") ||
+      (!!chip.candidate_id && chip.chip_status === "pending"));
+  const blockedActions = busy || blocked || unknown || !safe || !eligible;
   const blockedReadings =
     blockedActions || !chip.keys_generated || !!chip.provisioned_at;
   return (
@@ -248,123 +257,228 @@ export function ChipKeysDialog({
       onCancel={close}
       mask={{ closable: false }}
       closable={!busy}
-      width={720}
+      width={820}
+      styles={{
+        body: { maxHeight: "calc(100dvh - 210px)", overflowY: "auto" },
+      }}
       footer={
         <Button disabled={busy} onClick={close}>
           关闭
         </Button>
       }
+      destroyOnHidden
     >
-      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+      <div className="page-stack">
         <Alert
           type="info"
           showIcon
-          title="生成、工具配卡和配置核验是三个不同步骤；处理当前绑定或已保存整套准备中的配套芯片；候选核验不提前生效。"
+          title="生成、工具配卡和配置核验分别完成"
+          description="本窗口使用正式受控服务；候选芯片核验不会提前替换当前芯片，生成密钥不会自动启用物品。"
         />
-        <Typography.Text>
-          芯片：{chip.chip_uid}；关联物品：{chip.item_uid}
-        </Typography.Text>
-        <div role="status">
-          {chip.keys_generated ? "密钥已生成" : "密钥未生成"}；
-          {chip.provisioned_at ? "配置已核验" : "配置未核验"}
-        </div>
+        <ProDescriptions
+          size="small"
+          bordered
+          column={2}
+          columns={[
+            { title: "芯片 UID", render: () => <Copy value={chip.chip_uid} /> },
+            {
+              title: chip.candidate_id ? "候选关联数字物品" : "关联数字物品",
+              render: () => (
+                <Copy value={chip.item_uid || chip.candidate_item_uid} />
+              ),
+            },
+            {
+              title: "密钥状态",
+              render: () => (
+                <State value={chip.keys_generated ? "已生成" : "未准备"} />
+              ),
+            },
+            {
+              title: "配置状态",
+              render: () => (
+                <State value={chip.provisioned_at ? "配置已核验" : "待配置"} />
+              ),
+            },
+          ]}
+        />
+        <Steps
+          size="small"
+          current={
+            chip.provisioned_at ? 3 : !chip.keys_generated ? 0 : keys ? 2 : 1
+          }
+          items={[
+            { title: "生成密钥" },
+            { title: "受控查看与配卡" },
+            { title: "双链接核验" },
+          ]}
+        />
+        {!eligible && (
+          <Alert
+            type="warning"
+            title="当前关联或状态不允许配卡，请先核对物品与芯片状态。"
+          />
+        )}
         {!safe && (
           <Alert type="error" title="记录编号超出页面可处理范围，不能提交。" />
         )}
-        <Divider titlePlacement="start">1. 生成与受控查看</Divider>
-        <Button
-          disabled={blockedActions || chip.keys_generated}
-          onClick={() => void run("generate-keys")}
+        <ProCard
+          size="small"
+          headerBordered
+          variant="outlined"
+          title="1. 生成并保存芯片密钥"
         >
-          生成密钥
-        </Button>
-        <Checkbox
-          checked={viewConfirmed}
-          disabled={blockedActions}
-          onChange={(event) => setViewConfirmed(event.target.checked)}
+          <div className="page-stack">
+            <Typography.Text type="secondary">
+              生成不代表写卡完成，已有密钥不可覆盖。
+            </Typography.Text>
+            <div>
+              <Button
+                type="primary"
+                disabled={
+                  blockedActions || chip.keys_generated || !!chip.provisioned_at
+                }
+                onClick={() => void run("generate-keys")}
+              >
+                生成密钥
+              </Button>
+            </div>
+          </div>
+        </ProCard>
+        <ProCard
+          size="small"
+          headerBordered
+          variant="outlined"
+          title="2. 受控查看 K0–K4 与 SUN 模板"
         >
-          我确认查看密钥；K1 是同版本全局秘密，影响所有项目的对应芯片。
-        </Checkbox>
-        <Button
-          disabled={blockedActions || !chip.keys_generated || !viewConfirmed}
-          onClick={() => void run("keys")}
-        >
-          查看密钥
-        </Button>
-        {keys && (
-          <section data-private="true" aria-label="芯片密钥">
-            <Alert
-              type="warning"
-              title="仅用于核对这枚卡并按已确认步骤配置。关闭后清除，不下载或自动复制。"
-            />
-            {Object.entries(keys.keys).map(([name, value]) => (
-              <Form.Item key={name} label={name} htmlFor={`secret-${name}`}>
-                <Input
-                  id={`secret-${name}`}
-                  readOnly
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={value}
-                  onFocus={(event) => event.currentTarget.select()}
-                />
-              </Form.Item>
-            ))}
-            <Typography.Paragraph>
-              固定地址：https://nfc.bumbum.cc/tap；加密 SUN，元数据 Key 1，文件
-              Key 2。
-            </Typography.Paragraph>
-            <Button onClick={() => setKeys(null)}>隐藏并清除密钥</Button>
-          </section>
-        )}
-        <Divider titlePlacement="start">2. 实卡配置后核验</Divider>
-        <Typography.Paragraph>
-          按手册完成配卡后，通过系统触碰通知打开浏览器，依次复制两条新链接。无需计数恰好加一。
-        </Typography.Paragraph>
-        {links.map((value, index) => (
-          <Form.Item
-            key={index}
-            label={`第${index + 1}条触碰链接`}
-            htmlFor={`reading-${index}`}
-          >
-            <Input
-              id={`reading-${index}`}
-              data-private="true"
-              type="url"
-              autoComplete="off"
-              spellCheck={false}
-              maxLength={512}
-              value={value}
-              disabled={blockedReadings}
+          <div className="page-stack">
+            <Checkbox
+              checked={viewConfirmed}
+              disabled={blockedActions || !chip.keys_generated}
               onChange={(event) => {
-                setKeys(null);
-                setLinks((current) =>
-                  current.map((entry, i) =>
-                    i === index ? event.target.value : entry,
-                  ),
-                );
+                setViewConfirmed(event.target.checked);
+                if (!event.target.checked) setKeys(null);
               }}
+            >
+              我确认查看密钥；K1 是同版本全局秘密，影响所有项目的对应芯片。
+            </Checkbox>
+            <div>
+              <Button
+                disabled={
+                  blockedActions || !chip.keys_generated || !viewConfirmed
+                }
+                onClick={() => (keys ? setKeys(null) : void run("keys"))}
+              >
+                {keys ? "隐藏并清除密钥" : "查看密钥"}
+              </Button>
+            </div>
+            {keys && (
+              <section
+                className="key-values"
+                data-private="true"
+                aria-label="芯片密钥"
+              >
+                <Typography.Text>
+                  仅用于当前卡配卡，关闭后清除展示值。
+                </Typography.Text>
+                {Object.entries(keys.keys).map(([name, value]) => (
+                  <div className="key-row" key={name}>
+                    <Space>
+                      <strong style={{ color: "#93c5fd" }}>{name}</strong>
+                      {name === "K1" && <State value="全局共享" />}
+                      {name === "K2" && <State value="单卡独立" />}
+                    </Space>
+                    <Copy value={value} />
+                  </div>
+                ))}
+                <div className="template-value">
+                  <Typography.Text>固定 NDEF URL 模板</Typography.Text>
+                  <br />
+                  <Copy value={keys.sun_url_template} />
+                </div>
+              </section>
+            )}
+            <Typography.Text type="secondary">
+              按既定 NFC.cool 手册配置：SUN 加密、Meta Read Key 1、File Read Key
+              2；管理权限由 K0 控制。
+            </Typography.Text>
+          </div>
+        </ProCard>
+        <ProCard
+          size="small"
+          headerBordered
+          variant="outlined"
+          title="3. 配卡后双链接动态读数核验"
+        >
+          {chip.provisioned_at ? (
+            <Alert
+              type="success"
+              showIcon
+              title="配置已核验"
+              description={`核验时间：${time(chip.provisioned_at)}；不允许重复确认或重置计数基线。`}
             />
-          </Form.Item>
-        ))}
-        <Checkbox
-          checked={management}
-          disabled={blockedReadings}
-          onChange={(event) => setManagement(event.target.checked)}
-        >
-          我已人工核对新 K0 可以认证，文件权限符合手册。SUN 验签不替代这项检查。
-        </Checkbox>
-        <Button
-          type="primary"
-          disabled={
-            blockedReadings || !management || links.some((value) => !value)
-          }
-          onClick={() => void run("confirm-provisioning")}
-        >
-          确认配置核验
-        </Button>
-        <Button disabled={busy || !safe} onClick={() => void run("query")}>
-          查询实际记录
-        </Button>
+          ) : (
+            <div className="page-stack">
+              <Typography.Text type="secondary">
+                通过系统触碰通知打开浏览器，依次复制两条新链接；服务端核对目标
+                UID、验签和计数递增，无需恰好加一。
+              </Typography.Text>
+              <Form layout="vertical" className="key-inputs">
+                {links.map((value, index) => (
+                  <Form.Item
+                    key={index}
+                    label={`第${index + 1}条触碰链接`}
+                    htmlFor={`reading-${index}`}
+                  >
+                    <Input.TextArea
+                      id={`reading-${index}`}
+                      data-private="true"
+                      autoComplete="off"
+                      spellCheck={false}
+                      rows={2}
+                      maxLength={512}
+                      value={value}
+                      disabled={blockedReadings}
+                      onChange={(event) => {
+                        setKeys(null);
+                        setLinks((current) =>
+                          current.map((entry, i) =>
+                            i === index ? event.target.value : entry,
+                          ),
+                        );
+                      }}
+                    />
+                  </Form.Item>
+                ))}
+              </Form>
+              <Checkbox
+                checked={management}
+                disabled={blockedReadings}
+                onChange={(event) => setManagement(event.target.checked)}
+              >
+                我已人工核对新 K0 可以认证，文件权限符合手册。SUN
+                验签不替代这项检查。
+              </Checkbox>
+              <div>
+                <Button
+                  type="primary"
+                  disabled={
+                    blockedReadings ||
+                    !management ||
+                    links.some((value) => !value)
+                  }
+                  onClick={() => void run("confirm-provisioning")}
+                >
+                  确认配置核验
+                </Button>
+              </div>
+            </div>
+          )}
+        </ProCard>
+        <div>
+          <Button disabled={busy || !safe} onClick={() => void run("query")}>
+            查询实际记录
+          </Button>
+        </div>
         {busy && <div role="status">正在处理，请勿重复提交或关闭。</div>}
         {unknown && (
           <Alert
@@ -378,7 +492,7 @@ export function ChipKeysDialog({
           </div>
         )}
         {error && <Alert type="error" showIcon title={error} />}
-      </Space>
+      </div>
     </Modal>
   );
 }

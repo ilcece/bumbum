@@ -35,7 +35,7 @@ export function Copy({
   return value === null || value === undefined || value === "" ? (
     <Typography.Text type="secondary">未记录</Typography.Text>
   ) : (
-    <Space size={4}>
+    <Space size={4} className="copy-value">
       {onClick ? (
         <Button type="link" onClick={onClick}>
           {value}
@@ -48,6 +48,8 @@ export function Copy({
   );
 }
 const colors: Record<string, string> = {
+  已生成: "green",
+  配置已核验: "cyan",
   核验就绪: "cyan",
   草稿: "default",
   草案: "default",
@@ -275,10 +277,14 @@ export function useRecord(resource: string, id?: number) {
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
     [rev, setRev] = useState(0),
-    seq = useRef(0);
+    seq = useRef(0),
+    identity = useRef("");
   useEffect(() => {
     const n = ++seq.current;
-    setRecord(undefined);
+    const nextIdentity = `${resource}:${id}`;
+    // 同一对象后台刷新保留表单和弹窗；切换对象仍清除旧资料。
+    if (identity.current !== nextIdentity) setRecord(undefined);
+    identity.current = nextIdentity;
     setError("");
     if (id === undefined) return;
     if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) {
@@ -297,7 +303,14 @@ export function useRecord(resource: string, id?: number) {
         if (n === seq.current) setLoading(false);
       });
   }, [resource, id, rev]);
-  return { record, error, loading, reload: () => setRev((n) => n + 1) };
+  const shownRecord =
+    identity.current === `${resource}:${id}` ? record : undefined;
+  return {
+    record: shownRecord,
+    error,
+    loading: loading && !shownRecord,
+    reload: () => setRev((n) => n + 1),
+  };
 }
 export function Load({
   error,

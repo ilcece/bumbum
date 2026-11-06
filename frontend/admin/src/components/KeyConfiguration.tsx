@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Spin } from "antd";
+import { Alert, App, Button, Spin } from "antd";
 import { history } from "@umijs/max";
-import { readChip, ChipView, sessionIsExpired } from "../api";
+import { readConfigurationChip, ChipView, sessionIsExpired } from "../api";
 import { ChipKeysDialog } from "../ChipKeysDialog";
 export default function KeyConfiguration({
   id,
@@ -12,12 +12,15 @@ export default function KeyConfiguration({
   onClose: () => void;
   onUpdated: () => void;
 }) {
+  const { modal } = App.useApp();
   const [chip, setChip] = useState<ChipView>(),
     [error, setError] = useState(""),
     [interaction, setInteraction] = useState({ busy: false, dirty: false });
   useEffect(() => {
     let live = true;
-    readChip(id)
+    setChip(undefined);
+    setError("");
+    readConfigurationChip(id)
       .then((c) => {
         if (live) setChip(c);
       })
@@ -30,9 +33,21 @@ export default function KeyConfiguration({
   }, [id]);
   useEffect(() => {
     const unblock = history.block((tx: any) => {
-      if (sessionIsExpired()) {
+      if (sessionIsExpired() || (!interaction.busy && !interaction.dirty)) {
         unblock();
         tx.retry();
+      } else if (!interaction.busy) {
+        modal.confirm({
+          title: "放弃未提交的配置核验？",
+          content: "离开将清除展示值和输入，已保存记录保留。",
+          okText: "放弃并离开",
+          cancelText: "继续核验",
+          onOk: () => {
+            unblock();
+            onClose();
+            tx.retry();
+          },
+        });
       }
     });
     const unload = (e: BeforeUnloadEvent) => {

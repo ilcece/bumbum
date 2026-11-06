@@ -16,7 +16,7 @@ def test_whole_item_from_preparation_through_loss_renewal_resale(desktop,tmp_pat
     button(drawer,'准备首套物品');d=p.get_by_role('dialog',name='准备物品（实物＋芯片）')
     d.get_by_label('物品实际规格',exact=True).fill('L黑');choose(d,'物品所配芯片','04:00:00:00:00:00:C9');save_dialog(p,'准备物品（实物＋芯片）')
     button(drawer,'查看密钥与配置');key_configuration(desktop,chips[0])
-    button(drawer,'启用物品档案');save_dialog(p,'启用物品档案')
+    button(drawer,'启用物品');save_dialog(p,'启用物品档案')
     button(drawer,'维护售出事实');d=p.get_by_role('dialog',name='维护售出事实');d.get_by_label('核对依据',exact=True).fill('外部平台实际售出');save_dialog(p,'维护售出事实')
     a=owner(desktop.app,item,21);b=owner(desktop.app,None,22)
     button(p,'打开完整详情');p.reload(wait_until='networkidle')
@@ -45,7 +45,7 @@ def test_whole_item_from_preparation_through_loss_renewal_resale(desktop,tmp_pat
 def test_shared_images_real_upload_preview_and_save(desktop,tmp_path):
     from PIL import Image
     style,_,item,_=setup(desktop);desktop.app.config['MEDIA_ENABLED']=False;p=desktop.page
-    desktop.navigate('款式与发行');button(p,'维护共用资料');d=p.get_by_role('dialog',name='维护款式共用资料')
+    desktop.navigate('款式与发行');button(p,'维护资料');d=p.get_by_role('dialog',name='维护款式共用资料')
     image=BytesIO();Image.new('RGB',(32,24),'blue').save(image,format='PNG')
     d.locator('input[type=file]').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':image.getvalue()})
     expect(d.get_by_text('图片上传未启用。',exact=True)).to_be_visible();assert d.get_by_role('button',name='核对上传结果',exact=True).count()==0
@@ -60,10 +60,10 @@ def test_shared_images_real_upload_preview_and_save(desktop,tmp_path):
 
 def test_new_style_issue_and_identity_entirely_through_ui(desktop,tmp_path):
     desktop.login();p=desktop.page;p.set_viewport_size({'width':1440,'height':900});desktop.navigate('款式与发行')
-    button(p,'新建款式');d=p.get_by_role('dialog',name='维护款式共用资料');d.get_by_label('款式编号',exact=True).fill('UI-ALL');d.get_by_label('款式名称',exact=True).fill('从头创建帽子');save_dialog(p,'维护款式共用资料')
-    p.get_by_role('tab',name='发行约定',exact=True).click();button(p,'新增发行约定');d=p.get_by_role('dialog',name='发行约定草案');choose(d,'关联款式','从头创建帽子');d.get_by_label('发行名称',exact=True).fill('首个固定发行');d.get_by_label('数字身份发行总量',exact=True).fill('50');d.get_by_label('发行说明与承诺',exact=True).fill('仅限50个数字身份，实物换新不增发');d.get_by_role('checkbox',name='换新',exact=True).check();save_dialog(p,'发行约定草案')
+    button(p,'新建款式');expect(p.get_by_label('款式编号',exact=True)).to_be_visible();d=p;d.get_by_label('款式编号',exact=True).fill('UI-ALL');d.get_by_label('款式名称',exact=True).fill('从头创建帽子');button(p,'保存');p.wait_for_url(re.compile(r'/catalog/style/[0-9]+$'));desktop.navigate('款式与发行')
+    p.get_by_role('tab',name='发行约定',exact=True).click();button(p,'新增发行约定');expect(p.get_by_label('发行名称',exact=True)).to_be_visible();d=p;choose(d,'关联款式','从头创建帽子');d.get_by_label('发行名称',exact=True).fill('首个固定发行');d.get_by_label('数字身份发行总量',exact=True).fill('50');d.get_by_label('发行说明与承诺',exact=True).fill('仅限50个数字身份，实物换新不增发');d.get_by_role('checkbox',name='换新',exact=True).check();button(p,'保存');p.wait_for_url(re.compile(r'/catalog/issue/[0-9]+$'))
     button(p,'确认约定');save_dialog(p,'确认发行约定');expect(p.get_by_text('已确认',exact=True).first).to_be_visible()
-    desktop.navigate('数字物品');button(p,'新建数字物品');d=p.get_by_role('dialog',name='新建数字物品身份');choose(d,'发行约定','首个固定发行');d.get_by_label('系统物品编号',exact=True).fill('FASH-2026-888999');d.get_by_label('本件正式序号',exact=True).fill('1');save_dialog(p,'新建数字物品身份')
+    desktop.navigate('数字物品');button(p,'登记数字物品');d=p.get_by_role('dialog',name='新建数字物品身份');choose(d,'发行约定','首个固定发行');d.get_by_label('系统物品编号',exact=True).fill('FASH-2026-888999');d.get_by_label('本件正式序号',exact=True).fill('1');save_dialog(p,'新建数字物品身份')
     button(p,'打开刚创建的确切物品');d=p.get_by_role('dialog',name='数字物品详情');expect(d.get_by_text('#001/50',exact=True)).to_be_visible();expect(d.get_by_text('从头创建帽子',exact=True)).to_be_visible();p.screenshot(animations='disabled',path=str(tmp_path/'new-item-1440.png'))
     assert query(desktop.app,'SELECT COUNT(*) AS n FROM item')[0]['n']==1
 
@@ -71,5 +71,5 @@ def test_new_style_issue_and_identity_entirely_through_ui(desktop,tmp_path):
 def test_direct_style_detail_and_item_chip_return(desktop):
     style,_,item,chips=setup(desktop);p=desktop.page
     api(desktop,'bind',{'item_id':item,'chip_id':chips[0],'spec':'L黑'})
-    p.goto(f'http://localhost:5174/catalog/style/{style}',wait_until='networkidle');d=p.get_by_role('dialog',name='维护款式共用资料');expect(d.get_by_label('款式名称',exact=True)).to_have_value('浏览器共用帽子');button(d,'取消');d.wait_for(state='hidden')
+    p.goto(f'http://localhost:5174/catalog/style/{style}',wait_until='networkidle');expect(p.get_by_label('款式名称',exact=True)).to_have_value('浏览器共用帽子');button(p,'取消');expect(p).to_have_url(re.compile(r'/catalog(?:\?tab=styles)?$'))
     p.goto(f'http://localhost:5174/items/{item}',wait_until='networkidle');button(p,'04:00:00:00:00:00:C9');expect(p).to_have_url(re.compile(f'/chips/{chips[0]}\\?from='));p.get_by_role('button',name='back',exact=True).click();expect(p).to_have_url(re.compile(f'/items/{item}$'))

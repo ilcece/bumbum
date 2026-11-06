@@ -120,6 +120,9 @@ export async function signOut(): Promise<void> {
 }
 
 export type ChipView = {
+  candidate_id?: number | null;
+  candidate_item_id?: number | null;
+  candidate_item_uid?: string | null;
   registration_source: "unknown" | "manual" | "nfc_cool";
   id: number;
   chip_uid: string;
@@ -553,4 +556,17 @@ export async function uploadStyleImage(
       },
     ),
   );
+}
+
+// 配卡须同时识别当前关联和已保存的候选关联，不通过关键词猜测对象。
+export async function readConfigurationChip(id: number): Promise<ChipView> {
+  if (!safeRecordId(id)) throw new Error("芯片记录编号超出页面可处理范围。");
+  const chip = await request<ChipView>(`/admin/catalog/chips/${id}`);
+  if (chip.candidate_item_id) {
+    const item = await request<{ item_uid: string }>(
+      `/admin/catalog/items/${chip.candidate_item_id}`,
+    );
+    chip.candidate_item_uid = item.item_uid;
+  }
+  return chip;
 }
