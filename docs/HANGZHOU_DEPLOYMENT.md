@@ -380,7 +380,7 @@ cece接受本轮Workbench命令连接已验证、原生OSS文件收发未通过�
 
 ### 3.6.4 角色自动续期接续（当前方式）
 
-cece已选择专用RAM用户AccessKey配合受限角色长期接入，两个个人保险库变量为BUMBUM_WB_ACCESS_KEY_ID、BUMBUM_WB_ACCESS_KEY_SECRET；已报告发布更新后的bumbum_ECS环境。环境安装脚本生成公开role_setup.py，启动说明改用官方RamRoleArn及新profile。脚本语法与合成配置检查通过；真实注入、AssumeRole、ECS命令和到期刷新仍待新实例验证，不能据发布或官方机制声称现场已通过。当前会话实例仍为旧声明/旧脚本，不能读取保险库或以手动复制密钥绕过未注入状态。
+cece已选择专用RAM用户AccessKey配合受限角色长期接入，两个个人保险库变量为BUMBUM_WB_ACCESS_KEY_ID、BUMBUM_WB_ACCESS_KEY_SECRET；已报告发布更新后的bumbum_ECS环境。环境安装脚本生成公开role_setup.py，启动说明改用官方RamRoleArn及新profile。脚本语法与合成配置检查通过；真实注入、AssumeRole、ECS命令和到期刷新仍待新实例验证，不能据发布或官方机制声称现场已通过。此前实例为旧声明/旧脚本；2026-11-06新实例两个个人变量就绪，已从发布稿恢复公开role_setup.py并完成官方角色配置及固定实例只读连接。仍不得读取保险库或手动复制密钥绕过注入。
 
 新会话选最新bumbum_ECS及feat/admin-a-validation-gates，先按AGENTS恢复远端/本地基线并保护已有修改。检查环境状态及变量是否存在，不输出值。若role_setup.py缺失，核对实际环境版本及安装结果，不执行旧sts_provider.py/init_profile.py，不索取聊天密钥。变量和工具就绪后，先只检查：
 
@@ -396,7 +396,7 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 
 固定角色acs:ram::1541265267012164:role/bumbum-codex-hz-workbench，签发用户bumbum-codex-hz-issuer；profile为bumbum-hz-ramrole。命令显式--profile bumbum-hz-ramrole --region cn-hangzhou，目标只限i-bp1cj6pt88wbxmhlsp1n。保持原受限角色授权，不将签发用户升级管理员。原profile不自动删除或覆盖，同名新profile不一致先核对。CLI v1.0.4及官方文档已确认原生模式/ram_role_arn字段与自动获取刷新机制，不另造签名协议或凭据服务。
 
-只读身份/主机验证通过后，继续已批准的test数据重建，按第11/12节核对test实际部署和006/007结构，先备份再处理明确清单；真实测试卡及必要历代关系保留。本轮尚未对现有测试环境执行盘点、清理、灌入或更新部署；生产RDS、生产发布及main合并不在本轮授权。认证/授权拒绝停止，不循环创建会话；只定向清理自己创建的会话和进程，保留既有SSH/Tailscale。
+只读身份/主机验证通过后，继续已批准的test数据重建，按第11/12节核对test实际部署和006/007结构，先备份再处理明确清单；真实测试卡及必要历代关系保留。2026-11-06本轮已完成test盘点、备份升级、当前分支部署及验收包灌入，证据见第12.1节；生产RDS、生产发布及main合并不在本轮授权。认证/授权拒绝停止，不循环创建会话；只定向清理自己创建的会话和进程，保留既有SSH/Tailscale。
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
@@ -999,7 +999,25 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 首次认领仍未开放。已有单件持有人辅助命令不替代本数据包，也不能拿模拟账户作为真实用户验收。备份不上传Git或聊天；回退程序不能撤销已清理的数据，恢复必须另行核对后来写入，不自动整库覆盖。
 
 
-### 12.1 本轮test受控升级的已准备入口
+### 12.1 本轮test升级、部署与验收接续
+
+<a id="121-本轮test受控升级的已准备入口"></a>
+
+本轮005→006→007已由cece在隐藏输入密码的终端执行成功，初始化账号原锁定错误3118解锁后只读连接通过。AI随后复核35表及三个阶段SQL备份，另在停止写入窗口创建SQL/媒体配套备份并检查。**不要再次运行下方旧交互升级脚本或启动旧版；后续以当前部署及数据为准。**
+
+当前部署源代码为11d7698e5f1b9cea438db907a5b305f6a88f286d，后续同分支提交只更新记录。新版镜像通过原生归档/基础层的逐层SHA256校验传入，远端OCI镜像ID为sha256:f19e9149e4db99944b2f507901b71f53a6eb6076c2298e6de2dbd5f038d928de，对应镜像配置摘要sha256:70ff8571e66d3ecc9af0f016f522660db9bcc7431c8e61fa9fb476925ce180d8；Docker存储后端的ID展示不同，按远端实际ID写入公开Compose标签并由部署工具核对。固定清单仍为/opt/bumbum-hangzhou/test/compose.json，版本工具与产物在/opt/bumbum-hangzhou/admin-test-deploy-11d7698-v2。
+
+test媒体目录10001/700，非秘密MEDIA_ENABLED开启，其他runtime条目逐字保留。旧test公开清单/网关保存在该版本目录before-public-deploy，旧静态产物保存在/var/www/bumbum-hangzhou-test-releases/before-11d7698，新静态使用同目录完整源提交版本。005/006/007的SQL在原升级目录backups；灌入前完整SQL及媒体配套包在新版本目录pre-seed-backup（images-and-database-4c811555168f46258004f70deb62b996）。SQL结束标记、600权限及配套包检查通过；不上传备份，不以程序回退替代数据恢复。旧库无芯片/物品/密钥/用户/持有/触碰或历史图片，故没有对不明旧对象执行删除。
+
+现有管理员保留，验收包批次1、3款式/5发行/20身份/27虚拟芯片/2合成账户已准备，初始触碰生命周期18/售出后17/去重物品14。服务层统一筛选、详情/历代对应、清理预览通过；整批删除事务验证后回滚保留包。管理入口https://test.bumbum.cc/login，用户入口https://nfc-test.bumbum.cc/tap。杭州本机定向HTTPS验证用户页及JS/CSS为200，用户域名管理/ready为404，未登录管理API为401；管理白名单仍为111.192.247.76，本机与AI出口管理访问403符合原限制，未声称cece当前公网已登录。test/production容器均healthy，生产公开Compose/网关摘要未变，未改生产业务或main。人工验收从ADMIN_DESKTOP第8/9节进入。
+
+升级窗口结束后，由原维护负责人使用已有维护账号在安全终端重新锁定初始化登录，不改变其库级权限或密码：
+
+```sql
+ALTER USER 'bumbum_hz_test_init'@'%' ACCOUNT LOCK;
+```
+
+AI未持有维护密码，尚未执行此锁定；它不阻塞test应用DML服务及后台人工验收。下面保留本轮升级准备的准确参数和失败停止条件，仅供追溯，不是当前应重复执行的待办。
 
 2026-11-06核对：任务代码为feat/admin-a-validation-gates的11d7698e5f1b9cea438db907a5b305f6a88f286d；目标仍为杭州固定实例i-bp1cj6pt88wbxmhlsp1n、bumbum_hz_test，server_uuid为d8379dd3-cace-11f1-8fdd-00163e17e38a。实际test旧库24表且芯片/物品/密钥/持有/触碰/用户均为空，管理员保留；005/006/007及媒体目录缺失，不据此推断其他槽的数据状态。
 
