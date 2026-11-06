@@ -36,9 +36,9 @@ def test_login_restore_logout(desktop):
 def test_chip_registration_duplicate_and_real_batch(desktop):
     desktop.login();desktop.navigate('芯片管理');p=desktop.page
     for batch in ('新批次','不应覆盖'):
-        button(p,'手工登记芯片');dialog=p.get_by_role('dialog',name='登记芯片')
+        button(p,'手工登记芯片');dialog=p.get_by_role('dialog',name='手工登记芯片')
         dialog.get_by_label('芯片编号 UID',exact=True).fill('04000000000071')
-        dialog.get_by_label('批次',exact=True).fill(batch);button(dialog,'保存')
+        dialog.get_by_label('批次',exact=True).fill(batch);button(dialog,'登记并查看')
         dialog.wait_for(state='hidden');expect(p.get_by_text('新批次',exact=True).first).to_be_visible()
         p.locator('.ant-drawer-close').click();p.get_by_role('dialog').wait_for(state='hidden')
     assert query(desktop.app,"SELECT COUNT(*) AS n FROM chip WHERE chip_uid='04:00:00:00:00:00:71'")[0]['n']==1

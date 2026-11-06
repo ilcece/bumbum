@@ -86,6 +86,18 @@ def now():
     return utc_now()
 
 
+def sale_time(data):
+    """解析有依据的成交时间；操作审计仍独立记录后台处理时刻。"""
+    if data.get('first_sold_at') is None:return now()
+    try:
+        value=datetime.fromisoformat(data['first_sold_at'].replace('Z','+00:00'))
+        if value.tzinfo is None or value.year<1000:raise ValueError()
+        value=value.astimezone(timezone.utc).replace(tzinfo=None)
+    except (ValueError,TypeError,AttributeError,OverflowError):invalid('首次售出时间须为数据库支持范围内、带时区的有效时间。')
+    if value>now():invalid('首次售出时间不能晚于当前时间。')
+    return value
+
+
 def project_id(cursor, project):
     if not isinstance(project,str) or project not in {'fashion', 'jewelry'}:
         invalid('类别仅支持fashion或jewelry。')
@@ -118,7 +130,7 @@ def list_page(cursor, select, joined, conditions, values, *, order='id DESC', se
     return {'items':[view(x) for x in cursor.fetchall()], **paging}
 
 
-STYLE_SELECT = 'SELECT '+select_source('style','s')+',s.*,p.code AS project,(SELECT COUNT(*) FROM product_issue r WHERE r.style_id=s.id) AS issue_count,(SELECT COUNT(*) FROM digital_item d JOIN product_issue r ON r.id=d.issue_id WHERE r.style_id=s.id) AS item_count'
+STYLE_SELECT = 'SELECT '+select_source('style','s')+',s.*,p.code AS project,(SELECT COUNT(*) FROM product_issue r WHERE r.style_id=s.id) AS issue_count,(SELECT COUNT(*) FROM digital_item d JOIN product_issue r ON r.id=d.issue_id WHERE r.style_id=s.id) AS item_count,(SELECT COUNT(*) FROM digital_item d JOIN product_issue r ON r.id=d.issue_id JOIN item i ON i.id=d.item_id WHERE r.style_id=s.id AND i.status=\'active\') AS active_item_count'
 STYLE_JOIN = 'FROM product_style s JOIN project p ON p.id=s.project_id'
 ISSUE_SELECT = 'SELECT '+select_source('issue','r')+',r.*,s.name AS style_name,s.code AS style_code,p.code AS project,(SELECT COUNT(*) FROM digital_item d WHERE d.issue_id=r.id) AS item_count'
 ISSUE_JOIN = 'FROM product_issue r JOIN product_style s ON s.id=r.style_id JOIN project p ON p.id=s.project_id'
@@ -139,7 +151,7 @@ CHIP_JOIN = '''FROM chip c LEFT JOIN project p ON p.id=c.project_id LEFT JOIN it
 
 @blueprint.get('/<resource>')
 def listing(resource):
-    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner'},'chips':{'project','status','is_validation','available','configured','registration_source'},'users':set(),'audit':set()}
+    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner','bindable'},'chips':{'project','status','is_validation','available','configured','registration_source','compatible_project'},'users':{'exclude_id'},'audit':set()}
     if resource not in allowed:fail('未知查询资源。',404,'not_found')
     check_parameters({'page','page_size','keyword','data_scope','test_batch_id'}|allowed[resource])
     keyword = request.args.get('keyword','').strip()
@@ -174,6 +186,9 @@ def listing(resource):
             if name in request.args:
                 if request.args[name] not in {'true','false'}: invalid('布尔筛选须为true或false。')
                 conditions.append('COALESCE('+column+',0)=%s');values.append(request.args[name]=='true')
+        if 'bindable' in request.args:
+            if request.args['bindable']!='true':invalid('bindable仅接受true。')
+            conditions.extend(["i.status!='archived'",'d.issue_id IS NOT NULL','w.id IS NULL','c.id IS NULL'])
         state=request.args.get('whole_status')
         if state:
             if state not in {'lost','normal','missing'}: invalid('整套物品状态不支持。')
@@ -188,6 +203,9 @@ def listing(resource):
         if request.args.get('status'):
             if request.args['status'] not in {'pending','bound','disabled','lost','retired'}: invalid('芯片状态不支持。')
             conditions.append('c.chip_status=%s');values.append(request.args['status'])
+        if request.args.get('compatible_project'):
+            if request.args['compatible_project'] not in {'fashion','jewelry'}:invalid('类别不支持。')
+            conditions.append('(p.code=%s OR c.project_id IS NULL)');values.append(request.args['compatible_project'])
         if 'available' in request.args:
             if request.args['available']!='true': invalid('available仅接受true。')
             conditions.extend(["c.chip_status='pending'",'c.item_id IS NULL','w.id IS NULL'])
@@ -201,6 +219,8 @@ def listing(resource):
             if request.args['registration_source'] not in {'manual','nfc_cool','unknown'}:invalid('登记来源不支持。')
             conditions.append('c.registration_source=%s');values.append(request.args['registration_source'])
     elif resource == 'users':
+        if request.args.get('exclude_id'):
+            conditions.append('u.id<>%s');values.append(positive_integer('exclude_id',1,2147483647))
         select,joined,order='SELECT '+select_source('user','u')+',u.id,u.nickname,CONCAT(LEFT(u.phone,3),\'****\',RIGHT(u.phone,4)) AS phone,(SELECT COUNT(*) FROM ownership o WHERE o.user_id=u.id AND o.is_active=1) AS held_items','FROM user u','u.id DESC'
         held_filter,held_args=filter_source('item','o.item_id',request.args.get('data_scope','business'),request.args.get('test_batch_id'))
         select=select.replace('o.is_active=1)', 'o.is_active=1 AND '+held_filter+')');select_values=held_args
@@ -234,11 +254,23 @@ def detail(resource,ident):
     if not valid_id(ident) or ident>2147483647:invalid('记录ID超出当前页面可处理范围。')
     with consistent_read() as c:
         if resource=='styles': result=view(row(c,STYLE_SELECT+' '+STYLE_JOIN+' WHERE s.id=%s',(ident,)))
-        elif resource=='issues': result=view(row(c,ISSUE_SELECT+' '+ISSUE_JOIN+' WHERE r.id=%s',(ident,)))
+        elif resource=='issues':
+            result=view(row(c,ISSUE_SELECT+' '+ISSUE_JOIN+' WHERE r.id=%s',(ident,)))
+            # 建议不预占身份或序号，事务提交仍检查唯一性与数量。
+            c.execute('SELECT edition_number FROM digital_item WHERE issue_id=%s AND edition_number IS NOT NULL',(ident,))
+            occupied={x['edition_number'] for x in c.fetchall()};number=1
+            while number in occupied:number+=1
+            result['suggested_edition_number']=number
+            prefix=('FASH' if result['project']=='fashion' else 'JEW')+'-'+str((now()+timedelta(hours=8)).year)+'-'
+            c.execute('SELECT item_uid FROM item WHERE item_uid LIKE %s',(prefix+'%',))
+            used={x['item_uid'].casefold() for x in c.fetchall()};candidate=1
+            while (prefix+str(candidate).zfill(6)).casefold() in used:candidate+=1
+            while row(c,'SELECT id FROM item WHERE item_uid=%s',(prefix+str(candidate).zfill(6),)):candidate+=1
+            result['suggested_item_uid']=prefix+str(candidate).zfill(6)
         elif resource=='chips': result=view(row(c,CHIP_SELECT+' '+CHIP_JOIN+' WHERE c.id=%s',(ident,)))
         elif resource=='items':
             result=view(row(c,ITEM_SELECT+' '+ITEM_JOIN+' WHERE i.id=%s',(ident,)))
-            for key,sql in [('wholes','SELECT w.*,c.chip_uid,c.chip_status FROM whole_item w JOIN chip c ON c.id=w.chip_id WHERE w.item_id=%s ORDER BY w.generation DESC'),('handovers','SELECT w.*,c.chip_uid FROM item_handover w JOIN chip c ON c.id=w.chip_id WHERE w.item_id=%s ORDER BY w.id DESC'),('owners','SELECT o.id,o.user_id,o.bound_at,o.unbound_at,o.is_active,u.nickname FROM ownership o JOIN user u ON u.id=o.user_id WHERE o.item_id=%s ORDER BY o.id DESC')]:
+            for key,sql in [('wholes','SELECT w.*,c.chip_uid,c.chip_status FROM whole_item w JOIN chip c ON c.id=w.chip_id WHERE w.item_id=%s ORDER BY w.generation DESC'),('handovers','SELECT w.*,c.chip_uid,c.provisioned_at,(SELECT nickname FROM user WHERE id=w.owner_id) AS owner_name,(SELECT nickname FROM user WHERE id=w.recipient_id) AS recipient_name FROM item_handover w JOIN chip c ON c.id=w.chip_id WHERE w.item_id=%s ORDER BY w.id DESC'),('owners','SELECT o.id,o.user_id,o.bound_at,o.unbound_at,o.is_active,u.nickname FROM ownership o JOIN user u ON u.id=o.user_id WHERE o.item_id=%s ORDER BY o.id DESC')]:
                 c.execute(sql,(ident,));result[key]=[view(x) for x in c.fetchall()]
             if result['style_id']: result['style']=view(row(c,STYLE_SELECT+' '+STYLE_JOIN+' WHERE s.id=%s',(result['style_id'],)))
             if result['issue_id']: result['issue']=view(row(c,ISSUE_SELECT+' '+ISSUE_JOIN+' WHERE r.id=%s',(result['issue_id'],)))
@@ -342,7 +374,7 @@ def create_item(c,p):
     if not r['confirmed_at']:fail('请先确认发行约定。')
     s=locked(c,'product_style',r['style_id']);pid=s['project_id']
     project=row(c,'SELECT code FROM project WHERE id=%s',(pid,))['code'];uid=text(p,'item_uid',32,required=True)
-    if not re.fullmatch(('FASH' if project=='fashion' else 'JEW')+r'-[0-9]{4}-[0-9]{6}',uid):invalid('物品编号须符合所属类别的FASH/JEW-YYYY-NNNNNN格式。')
+    if any(ord(x)<32 or ord(x)==127 for x in uid):invalid('物品编号不能含控制字符。')
     number=integer(p,'edition_number',optional=True)
     if r['mode']=='period' and not r['sealed_at']:
         if number is not None:invalid('限时核定前正式编号待定，不能手填。')
@@ -394,8 +426,11 @@ def item_action(c,action,p):
         if r['total'] and row(c,'SELECT COUNT(*) AS n FROM digital_item WHERE issue_id=%s',(r['id'],))['n']>=r['total']:fail('发行身份上限已满。')
         c.execute('UPDATE digital_item SET issue_id=%s,edition_number=%s WHERE item_id=%s',(r['id'],number,ident));c.execute('UPDATE product_issue SET ever_used=1 WHERE id=%s',(r['id'],))
     elif action=='sale':
-        field_set(p,{'item_id','confirmed','evidence'});evidence=text(p,'evidence',1000,required=True)
-        c.execute('UPDATE digital_item SET sold=%s,first_sold_at=IF(%s,COALESCE(first_sold_at,%s),first_sold_at),sale_evidence=%s WHERE item_id=%s',(boolean(p,'confirmed'),boolean(p,'confirmed'),now(),evidence,ident))
+        field_set(p,{'item_id','confirmed','evidence'},{'first_sold_at'});evidence=text(p,'evidence',1000,required=True)
+        sold_at=sale_time(p)
+        if p.get('first_sold_at') is not None and d['first_sold_at'] and sold_at!=d['first_sold_at']:
+            fail('已有首次售出时间不能通过普通维护改写。')
+        c.execute('UPDATE digital_item SET sold=%s,first_sold_at=IF(%s,COALESCE(first_sold_at,%s),first_sold_at),sale_evidence=%s WHERE item_id=%s',(boolean(p,'confirmed'),boolean(p,'confirmed'),sold_at,evidence,ident))
     elif action=='toggleItem':
         field_set(p,{'item_id','status'})
         if not isinstance(p['status'],str) or p['status'] not in {'active','disabled'}:invalid('只支持启用或停用。')
@@ -405,13 +440,13 @@ def item_action(c,action,p):
         c.execute('UPDATE item SET status=%s WHERE id=%s',(p['status'],ident))
         if p['status']=='disabled':revoke(c,ident)
     elif action=='bind':
-        field_set(p,{'item_id','chip_id','spec'})
+        field_set(p,{'item_id','chip_id'},{'spec'})
         if current(c,ident,required=False):fail('已有当前整套物品，换新/转售请办理接续。')
         chip=locked(c,'chip',integer(p,'chip_id'));same_source(c,'item',ident,'chip',chip['id']);available_chip(c,chip,i['project_id'])
         if not d['issue_id']:fail('请先补齐发行约定。')
         generation=row(c,'SELECT COALESCE(MAX(generation),0)+1 AS n FROM whole_item WHERE item_id=%s',(ident,))['n']
         c.execute("UPDATE chip SET project_id=%s,item_id=%s,chip_status='bound' WHERE id=%s",(i['project_id'],ident,chip['id']))
-        c.execute('INSERT INTO whole_item(item_id,chip_id,generation,spec,started_at) VALUES (%s,%s,%s,%s,%s)',(ident,chip['id'],generation,text(p,'spec',256,required=True),now()))
+        c.execute('INSERT INTO whole_item(item_id,chip_id,generation,spec,started_at) VALUES (%s,%s,%s,%s,%s)',(ident,chip['id'],generation,text(p,'spec',256) or '',now()))
     elif action=='loseItem':
         field_set(p,{'item_id','whole_id','evidence'});e=current(c,ident)
         if integer(p,'whole_id')!=e['id']:fail('当前物品已变化，请重新核对。')
@@ -421,7 +456,7 @@ def item_action(c,action,p):
         c.execute("UPDATE chip SET chip_status='lost' WHERE id=%s",(chip['id'],))
         c.execute("UPDATE item_handover SET kind='loss' WHERE item_id=%s AND completed_at IS NULL AND kind='periodic'",(ident,));revoke(c,ident)
     elif action=='prepare':
-        field_set(p,{'item_id','kind','chip_id','spec','evidence'}, {'recipient_id'})
+        field_set(p,{'item_id','kind','chip_id','evidence'}, {'recipient_id','spec'})
         kind=p['kind'];e=current(c,ident)
         if not isinstance(kind,str) or kind not in KINDS:invalid('办理类型不支持。')
         if not d['issue_id']:fail('请先补齐发行。')
@@ -440,7 +475,7 @@ def item_action(c,action,p):
         if kind=='resale' and (recipient==owner['user_id'] or not row(c,'SELECT id FROM user WHERE id=%s',(recipient,))):fail('请选择已建立的其他接收账户。')
         same_source(c,'item',ident,'user',recipient)
         generation=row(c,'SELECT MAX(generation)+1 AS n FROM whole_item WHERE item_id=%s',(ident,))['n']
-        c.execute('INSERT INTO item_handover(item_id,source_id,chip_id,kind,generation,spec,owner_id,recipient_id,prepare_evidence,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',(ident,e['id'],chip['id'],kind,generation,text(p,'spec',256,required=True),owner['user_id'],recipient,text(p,'evidence',1000,required=True),now()))
+        c.execute('INSERT INTO item_handover(item_id,source_id,chip_id,kind,generation,spec,owner_id,recipient_id,prepare_evidence,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',(ident,e['id'],chip['id'],kind,generation,text(p,'spec',256) or '',owner['user_id'],recipient,text(p,'evidence',1000,required=True),now()))
         c.execute('UPDATE chip SET project_id=%s WHERE id=%s',(i['project_id'],chip['id']))
     else:fail('操作不支持。',404,'not_found')
     c.execute('UPDATE item SET updated_at=CURRENT_TIMESTAMP WHERE id=%s',(ident,))
@@ -553,12 +588,13 @@ def command(action):
                         mark(c,'chip',chip['id'],integer(p,'test_batch_id'))
                     result={'id':chip['id'],'is_new':is_new}
                 elif action=='saleBatch':
-                    field_set(p,{'item_ids','confirmed','evidence'})
+                    field_set(p,{'item_ids','confirmed','evidence'},{'first_sold_at'})
+                    sale_time(p)
                     ids=p['item_ids']
                     if not isinstance(ids,list) or not 1<=len(ids)<=100 or any(not valid_id(n) or n>2147483647 for n in ids) or len(set(ids))!=len(ids):invalid('请选择1至100个不同的有效物品。')
                     origins={source(c,'item',ident) for ident in ids}
                     if len(origins)!=1:fail('一次操作不能混用业务或不同测试批次对象。')
-                    for ident in sorted(ids):item_action(c,'sale',{'item_id':ident,'confirmed':p['confirmed'],'evidence':p['evidence']})
+                    for ident in sorted(ids):item_action(c,'sale',{'item_id':ident,'confirmed':p['confirmed'],'evidence':p['evidence'],**({'first_sold_at':p['first_sold_at']} if p.get('first_sold_at') is not None and not digital(c,ident)['first_sold_at'] else {})})
                     result={'ids':sorted(ids)}
                 elif action=='style':result=style_save(c,p)
                 elif action=='issue':result=issue_save(c,p)

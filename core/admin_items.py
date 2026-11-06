@@ -236,8 +236,8 @@ def create_item():
     project, uid, sku = data["project"], data["item_uid"], data.get("sku_code")
     if not isinstance(project, str) or project not in PROJECT_PREFIXES:
         invalid("请选择服装fashion或饰品jewelry项目。")
-    if not isinstance(uid, str) or not re.fullmatch(PROJECT_PREFIXES[project] + r"-[0-9]{4}-[0-9]{6}", uid.strip()):
-        invalid("物品编号须匹配所选项目：FASH-YYYY-NNNNNN或JEW-YYYY-NNNNNN；仅接受ASCII大写前缀、4位年份和6位序号。")
+    if not isinstance(uid, str) or not 1 <= len(uid.strip()) <= 32 or any(ord(x) < 32 or ord(x) == 127 for x in uid):
+        invalid("物品编号去首尾空白后须为1至32字符，不含控制字符，格式不限且全局唯一。")
     uid = uid.strip()
     if data.get("status", "draft") != "draft":
         invalid("本入口只创建草稿，status只能为draft或省略。")

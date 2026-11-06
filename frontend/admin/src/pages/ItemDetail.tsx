@@ -11,10 +11,12 @@ import {
   InputNumber,
   Modal,
   Space,
+  Steps,
   Switch,
   Table,
   Tabs,
   Typography,
+  Tooltip,
 } from "antd";
 import { history, useParams } from "@umijs/max";
 import {
@@ -24,6 +26,8 @@ import {
   statusNames,
   time,
   wholeStatus,
+  read,
+  validationHelp,
 } from "../catalog";
 import {
   ActionForm,
@@ -39,6 +43,7 @@ import {
   useRecord,
   returnPath,
 } from "../components/CatalogUI";
+import SaleFields from "../components/SaleFields";
 import KeyConfiguration from "../components/KeyConfiguration";
 export default function ItemDetail({
   id,
@@ -80,6 +85,11 @@ export default function ItemDetail({
     const deleted = action === "deleteItem";
     setAction(undefined);
     setWork(undefined);
+    if (action?.startsWith("prepare")) {
+      void read("items", r!.id).then((fresh) =>
+        setWork(fresh.handovers.find((x: Row) => !x.completed_at)),
+      );
+    }
     if (deleted) {
       onDeleted?.();
       if (!embedded) history.push("/items");
@@ -145,7 +155,13 @@ export default function ItemDetail({
               <Descriptions.Item label="类别">
                 {r.project === "fashion" ? "服装" : "饰品"}
               </Descriptions.Item>
-              <Descriptions.Item label="生产验证对象">
+              <Descriptions.Item
+                label={
+                  <Tooltip title={validationHelp}>
+                    <span tabIndex={0}>生产验证对象 ⓘ</span>
+                  </Tooltip>
+                }
+              >
                 <InlineCommand
                   action="validationItem"
                   payload={{ item_id: r.id, enabled: !r.is_validation }}
@@ -354,7 +370,7 @@ export default function ItemDetail({
                 {r.owner_id ? (
                   <Copy value={r.owner_id} />
                 ) : (
-                  <State value="未认领" />
+                  <State value="暂无持有人" />
                 )}
               </Descriptions.Item>
               <Descriptions.Item label="年度共享换新额度">
@@ -566,7 +582,17 @@ export default function ItemDetail({
               ? "确认挂失整套物品"
               : action === "deleteItem"
                 ? "直接删除"
-                : "保存"
+                : action === "sale"
+                  ? "保存售出确认"
+                  : action.startsWith("prepare")
+                    ? "保存新物品准备"
+                    : action === "bind"
+                      ? "保存首套准备"
+                      : action === "toggleItem"
+                        ? r.status === "active"
+                          ? "确认停用物品"
+                          : "确认启用物品"
+                        : "保存"
           }
         >
           {action === "legacyProfile" && (
@@ -599,7 +625,7 @@ export default function ItemDetail({
               </Form.Item>
               <Alert
                 type="warning"
-                title={`${r.item_uid} · 第${e?.generation}代 · ${e?.chip_uid}`}
+                title={`${r.item_uid} · 第${e?.generation}代 · ${e?.spec || "规格不适用"} · ${e?.chip_uid}`}
                 description="整套物品挂失并同步停用配套芯片；保留身份、持有人和历史。"
               />
               <Evidence />
@@ -607,13 +633,43 @@ export default function ItemDetail({
           )}
           {(action === "bind" || action.startsWith("prepare")) && (
             <>
+              <Alert
+                type="info"
+                showIcon
+                title={
+                  action === "bind"
+                    ? "准备首套实物＋芯片"
+                    : "准备一整套替换物品，尚未生效"
+                }
+                description={`${r.item_uid} · ${e ? `第${e.generation}代 · ${e.spec || "规格不适用"} · ${e.chip_uid}` : "尚无当前物品"}。${action === "bind" ? "配卡不等于认领。" : "沿用身份、发行编号和首次售出；准备不替换当前物品或持有人。费用及最终年度计次政策仍待定。"}`}
+              />
+              {action.startsWith("prepare") && (
+                <Descriptions size="small" column={1}>
+                  <Descriptions.Item label="业务类型">
+                    {action === "prepareResale"
+                      ? "后台转售"
+                      : e?.lost_at || e?.loss_evidence
+                        ? "挂失换新"
+                        : "定期换新"}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="当前持有人">
+                    {r.owner_name || "暂无持有人"}{" "}
+                    {r.owner_id && <Copy value={r.owner_id} />}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="年度核对">
+                    {r.quota_year || "待核对"}年 · 已核定使用
+                    {r.quota_used ?? "待核对"}次 ·{" "}
+                    {r.quota_review ? "有待核事项" : "无待核事项"}
+                  </Descriptions.Item>
+                </Descriptions>
+              )}
               <Form.Item name="kind" hidden>
                 <Input />
               </Form.Item>
               <Form.Item
                 name="spec"
                 label={action === "bind" ? "物品实际规格" : "新物品实际规格"}
-                rules={required}
+                extra="填写实际尺寸、颜色等；不适用可留空，不改变共用规格或发行承诺。"
               >
                 <Input maxLength={256} />
               </Form.Item>
@@ -622,7 +678,10 @@ export default function ItemDetail({
                 label={action === "bind" ? "物品所配芯片" : "新物品所配芯片"}
                 rules={required}
               >
-                <RemoteSelect resource="chips" params={{ available: true }} />
+                <RemoteSelect
+                  resource="chips"
+                  params={{ available: true, compatible_project: r.project }}
+                />
               </Form.Item>
               {action === "prepareResale" && (
                 <Form.Item
@@ -630,24 +689,16 @@ export default function ItemDetail({
                   label="已核对接收账户"
                   rules={required}
                 >
-                  <RemoteSelect resource="users" />
+                  <RemoteSelect
+                    resource="users"
+                    params={{ exclude_id: r.owner_id }}
+                  />
                 </Form.Item>
               )}
               {action.startsWith("prepare") && <Evidence />}
             </>
           )}
-          {action === "sale" && (
-            <>
-              <Form.Item
-                name="confirmed"
-                label="确认售出"
-                valuePropName="checked"
-              >
-                <Switch />
-              </Form.Item>
-              <Evidence />
-            </>
-          )}
+          {action === "sale" && <SaleFields firstSoldAt={r.first_sold_at} />}
           {action === "linkIssue" && (
             <>
               <Form.Item
@@ -673,6 +724,7 @@ export default function ItemDetail({
             <Form.Item
               name="enabled"
               label="生产验证标记"
+              extra={validationHelp}
               valuePropName="checked"
             >
               <Switch />
@@ -723,7 +775,7 @@ export default function ItemDetail({
 }
 function Handover({
   item,
-  work,
+  work: initialWork,
   onClose,
   onDone,
   onConfigure,
@@ -734,6 +786,8 @@ function Handover({
   onDone: () => void;
   onConfigure: (id: number) => void;
 }) {
+  const work =
+    item.handovers.find((x: Row) => x.id === initialWork.id) || initialWork;
   const old = item.wholes.find((e: Row) => e.id === work.source_id),
     target = item.wholes.find((e: Row) => e.id === work.target_id);
   return (
@@ -747,10 +801,16 @@ function Handover({
       onDone={onDone}
       onClose={onClose}
       submitText="确认交付并生效"
+      submitDisabled={!work.completed_at && !work.provisioned_at}
     >
       <Form.Item name="work_id" hidden>
         <InputNumber />
       </Form.Item>
+      <Steps
+        size="small"
+        current={work.completed_at ? 2 : 1}
+        items={[{ title: "准备替换物品" }, { title: "确认交付与生效" }]}
+      />
       <Typography.Paragraph>
         沿用数字身份 <Copy value={item.item_uid} /> · {edition(item)}
       </Typography.Paragraph>
@@ -760,7 +820,9 @@ function Handover({
             第{old?.generation || "待核对"}代 · {old?.spec}
           </Typography.Paragraph>
           <Copy value={old?.chip_uid} />
-          <p>原持有人：{work.owner_id}</p>
+          <p>
+            原持有人：{work.owner_name || "账户"} <Copy value={work.owner_id} />
+          </p>
           <State value={old ? wholeStatus(old) : "待核对"} />
           {old?.loss_evidence && <p>曾挂失：{old.loss_evidence}</p>}
         </ProCard>
@@ -769,7 +831,10 @@ function Handover({
             第{work.generation}代 · {work.spec}
           </Typography.Paragraph>
           <Copy value={work.chip_uid} />
-          <p>接收账户：{work.recipient_id}</p>
+          <p>
+            接收账户：{work.recipient_name || "账户"}{" "}
+            <Copy value={work.recipient_id} />
+          </p>
           <State
             value={
               work.completed_at
@@ -781,7 +846,9 @@ function Handover({
           />
         </ProCard>
       </ProCard>
-      <p>准备依据：{work.prepare_evidence}</p>
+      <p>
+        准备时间：{time(work.created_at)} · 准备依据：{work.prepare_evidence}
+      </p>
       {work.completed_at ? (
         <>
           <Alert
@@ -793,7 +860,18 @@ function Handover({
         </>
       ) : (
         <>
+          <Alert
+            type="info"
+            title="准备完成，尚未替换当前物品"
+            description="只有核对实际交付并明确生效，才切换新旧整套物品及必要持有人关系。"
+          />
           <ProCard title="新物品的芯片配置" variant="outlined">
+            <State value={work.provisioned_at ? "核验就绪" : "待配置核验"} />
+            {!work.provisioned_at && (
+              <Typography.Paragraph>
+                请先完成候选芯片的真实配置核验，再确认交付生效。
+              </Typography.Paragraph>
+            )}
             <Button onClick={() => onConfigure(work.chip_id)}>
               查看密钥与配置
             </Button>

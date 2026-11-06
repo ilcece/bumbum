@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PageContainer, ProColumns } from "@ant-design/pro-components";
 import { Button, Drawer, Form, Input, InputNumber, Select, Switch } from "antd";
 import { history } from "@umijs/max";
-import { Row, statusNames, time } from "../catalog";
+import { Row, statusNames, time, validationHelp } from "../catalog";
 import { ActionForm, Copy, State, required } from "../components/CatalogUI";
 import ServerTable from "../components/ServerTable";
 import KeyConfiguration from "../components/KeyConfiguration";
@@ -80,7 +80,11 @@ export default function Chips() {
         r.item_uid ? (
           <Copy
             value={r.item_uid}
-            onClick={() => history.push("/items/" + r.item_id)}
+            onClick={() =>
+              history.push(
+                `/items/${r.item_id}?from=${encodeURIComponent(location.pathname + location.search)}`,
+              )
+            }
           />
         ) : r.candidate_id ? (
           <State value="候选未生效" />
@@ -174,7 +178,8 @@ export default function Chips() {
       )}
       {create && (
         <ActionForm
-          title="登记芯片"
+          title="手工登记芯片"
+          submitText="登记并查看"
           action="register"
           initial={{ is_validation: false }}
           onClose={() => setCreate(false)}
@@ -187,21 +192,13 @@ export default function Chips() {
           <Form.Item name="chip_uid" label="芯片编号 UID" rules={required}>
             <Input maxLength={32} placeholder="7字节真实UID" />
           </Form.Item>
-          <Form.Item name="project" label="物品类别">
-            <Select
-              allowClear
-              options={[
-                { value: "fashion", label: "服装" },
-                { value: "jewelry", label: "饰品" },
-              ]}
-            />
-          </Form.Item>
           <Form.Item name="batch_no" label="批次">
             <Input maxLength={64} />
           </Form.Item>
           <Form.Item
             name="is_validation"
             label="生产验证对象"
+            extra={validationHelp}
             valuePropName="checked"
           >
             <Switch aria-label="芯片生产验证对象" />

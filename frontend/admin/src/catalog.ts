@@ -71,9 +71,12 @@ export const time = (v?: string | null) =>
     : "未记录";
 export const edition = (i: Row) =>
   i.edition_number
-    ? `#${String(i.edition_number).padStart(3, "0")}${i.issue_total ? "/" + i.issue_total : ""}`
+    ? `#${String(i.edition_number).padStart(i.issue_total ? String(i.issue_total).length : 3, "0")}${i.issue_total ? "/" + i.issue_total : ""}`
     : i.issue_id
       ? "正式编号待核定"
       : "未关联发行";
 export const wholeStatus = (w: Row) =>
   w.ended_at ? "已替换" : w.lost_at || w.loss_evidence ? "已挂失" : "正常";
+
+export const validationHelp =
+  "用于验证的对象标记，与设置中的验收数据开关独立。标记后可直接删除该对象，保留另一侧档案及操作审计；不表示实卡核验通过。";

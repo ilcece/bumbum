@@ -1,6 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PageContainer, ProColumns } from "@ant-design/pro-components";
 import {
+  Alert,
   Button,
   Drawer,
   Form,
@@ -12,7 +13,7 @@ import {
   Typography,
 } from "antd";
 import { history } from "@umijs/max";
-import { Row, edition, read, statusNames } from "../catalog";
+import { Row, edition, read, statusNames, validationHelp } from "../catalog";
 import {
   ActionForm,
   Copy,
@@ -23,38 +24,88 @@ import {
 } from "../components/CatalogUI";
 import ServerTable from "../components/ServerTable";
 import ItemDetail from "./ItemDetail";
+import SaleFields from "../components/SaleFields";
 function CreateFields() {
+  const form = Form.useFormInstance();
+  const id = Form.useWatch("issue_id", form);
   const [issue, setIssue] = useState<Row>();
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    setIssue(undefined);
+    setError("");
+    form.setFieldValue("edition_number", undefined);
+    if (id)
+      read("issues", id)
+        .then((r) => {
+          if (!live) return;
+          setIssue(r);
+          if (!form.getFieldValue("item_uid"))
+            form.setFieldValue("item_uid", r.suggested_item_uid);
+          if (!(r.mode === "period" && !r.sealed_at))
+            form.setFieldValue("edition_number", r.suggested_edition_number);
+        })
+        .catch((e) => {
+          if (live) setError(e.message);
+        });
+    return () => {
+      live = false;
+    };
+  }, [id]);
+  const pending = issue?.mode === "period" && !issue?.sealed_at;
   return (
     <>
-      <Form.Item name="issue_id" label="发行约定" rules={required}>
-        <RemoteSelect
-          resource="issues"
-          params={{ status: "confirmed" }}
-          onChange={(id) => void read("issues", id).then(setIssue)}
-        />
+      <Form.Item name="issue_id" label="关联发行约定" rules={required}>
+        <RemoteSelect resource="issues" params={{ status: "confirmed" }} />
       </Form.Item>
-      <Form.Item name="item_uid" label="系统物品编号" rules={required}>
-        <Input
-          maxLength={32}
-          placeholder={
-            issue?.project === "jewelry"
-              ? "JEW-2026-000001"
-              : "FASH-2026-000001"
+      {error && <Alert type="error" title={error} />}
+      {issue && (
+        <Alert
+          type="info"
+          title={`${issue.style_name} · ${statusNames[issue.project] || (issue.project === "fashion" ? "服装" : "饰品")} · 类别从款式引用`}
+          description={
+            issue.mode === "period" && !issue.sealed_at
+              ? "限时数量待核定，不以预估量作上限。"
+              : issue.total
+                ? `本发行最多${issue.total}个数字身份。`
+                : "非限定发行，正式序号仍须发行内唯一。"
           }
         />
-      </Form.Item>
-      {!(issue?.mode === "period" && !issue?.sealed_at) && (
-        <Form.Item name="edition_number" label="本件正式序号" rules={required}>
-          <InputNumber min={1} precision={0} max={issue?.total || undefined} />
-        </Form.Item>
       )}
+      <Form.Item
+        name="item_uid"
+        label="系统物品编号"
+        rules={required}
+        extra="建议使用易识别的唯一编号，例如FASH-2026-000001；格式不限，最多32字符，去首尾空白后全局唯一。"
+      >
+        <Input maxLength={32} placeholder="请输入或采用建议编号" />
+      </Form.Item>
       <Form.Item
         name="is_validation"
         label="生产验证对象"
         valuePropName="checked"
+        extra={validationHelp}
       >
         <Switch aria-label="物品生产验证对象" />
+      </Form.Item>
+      <Form.Item
+        name="edition_number"
+        label="本件正式序号"
+        rules={pending ? [] : required}
+        extra={
+          pending
+            ? "封版前正式编号待核定；先准备稳定身份，封版时确定。"
+            : "本次发行内唯一，不能超过已确认总量；建议值不预占编号。"
+        }
+      >
+        <InputNumber
+          prefix="#"
+          min={1}
+          precision={0}
+          disabled={!issue || pending}
+          max={issue?.total || undefined}
+          style={{ width: "100%" }}
+        />
       </Form.Item>
     </>
   );
@@ -149,7 +200,7 @@ export default function Items() {
     {
       title: "当前持有人",
       dataIndex: "owner",
-      valueEnum: { yes: "已认领", no: "未认领" },
+      valueEnum: { yes: "已有持有人", no: "暂无持有人" },
       render: (_, r) =>
         r.owner_id ? (
           <div>
@@ -159,7 +210,7 @@ export default function Items() {
             </div>
           </div>
         ) : (
-          <State value="未认领" />
+          <State value="暂无持有人" />
         ),
     },
     {
@@ -170,7 +221,11 @@ export default function Items() {
           <div>
             <Copy
               value={r.chip_uid}
-              onClick={() => history.push("/chips/" + r.chip_id)}
+              onClick={() =>
+                history.push(
+                  `/chips/${r.chip_id}?from=${encodeURIComponent(location.pathname + location.search)}`,
+                )
+              }
             />
             <div>
               <State value={r.provisioned_at ? "核验就绪" : "待配置"} />
@@ -252,6 +307,7 @@ export default function Items() {
       {sale && (
         <ActionForm
           title="批量售出确认"
+          submitText="保存售出确认"
           action="saleBatch"
           initial={{ item_ids: selected, confirmed: true }}
           onClose={() => setSale(false)}
@@ -268,22 +324,25 @@ export default function Items() {
             将维护已选择的{selected.length}
             件物品的售出事实，不改变持有人或历史。
           </Typography.Paragraph>
-          <Form.Item name="confirmed" label="售出确认" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-          <Form.Item name="evidence" label="外部核对依据" rules={required}>
-            <Input.TextArea maxLength={1000} />
-          </Form.Item>
+          <SaleFields />
         </ActionForm>
       )}
       {create && (
         <ActionForm
-          title="新建数字物品身份"
+          title="登记数字物品"
+          submitText="登记并查看物品"
+          width={800}
           action="item"
-          initial={{ is_validation: false }}
+          initial={{
+            is_validation: false,
+            issue_id:
+              Number(new URLSearchParams(location.search).get("issue_id")) ||
+              undefined,
+          }}
           onClose={() => setCreate(false)}
           onDone={(r) => {
-            setCreated(r.id);
+            setCreated(undefined);
+            setId(r.id);
             setCreate(false);
             setRev((n) => n + 1);
           }}

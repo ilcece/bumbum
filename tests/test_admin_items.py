@@ -100,9 +100,7 @@ def test_optional_sku_normalization_and_reuse(auth_app, drafts, sku):
 
 @pytest.mark.parametrize("changes", [
     {"project": None}, {"project": "unassigned"}, {"project": []}, {"item_uid": None},
-    {"item_uid": "fash-2026-000001"}, {"item_uid": "FASH-026-000001"},
-    {"item_uid": "FASH-2026-00001"}, {"item_uid": "FASH-２０２６-000001"},
-    {"item_uid": "FASH-2026-٠٠٠٠٠١"}, {"item_uid": "JEW-2026-000001"},
+    {"item_uid": ""}, {"item_uid": " "}, {"item_uid": "x" * 33},
     {"item_uid": "FASH-2026-000001\nx"}, {"sku_code": "a" * 65}, {"sku_code": 42},
     {"status": "active"}, {"status": None}, {"profile": None}, {"chip_id": 1},
 ])

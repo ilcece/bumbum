@@ -10,9 +10,10 @@ import {
   Space,
   Switch,
   Typography,
+  Tooltip,
 } from "antd";
 import { history, useParams } from "@umijs/max";
-import { Row, statistics, statusNames, time } from "../catalog";
+import { Row, statistics, statusNames, time, validationHelp } from "../catalog";
 import {
   ActionForm,
   InlineCommand,
@@ -40,9 +41,13 @@ export default function ChipDetail({
     { record: r, error, loading, reload } = useRecord("chips", ident),
     [action, setAction] = useState<string>(),
     [keys, setKeys] = useState(false),
-    [stats, setStats] = useState<Row>();
+    [stats, setStats] = useState<Row>(),
+    [statsError, setStatsError] = useState(""),
+    [statsRevision, setStatsRevision] = useState(0);
   useEffect(() => {
     let active = true;
+    setStats(undefined);
+    setStatsError("");
     statistics({
       chip_id: ident,
       range: "all",
@@ -51,11 +56,13 @@ export default function ChipDetail({
       .then((x) => {
         if (active) setStats(x);
       })
-      .catch(() => setStats(undefined));
+      .catch((e) => {
+        if (active) setStatsError(e.message);
+      });
     return () => {
       active = false;
     };
-  }, [ident, r]);
+  }, [ident, r, statsRevision]);
   const done = () => {
     if (action === "deleteChip") {
       onDeleted?.();
@@ -89,7 +96,13 @@ export default function ChipDetail({
                   unknown: "历史未知",
                 }[r.registration_source as string] || "历史未知"}
               </Descriptions.Item>
-              <Descriptions.Item label="生产验证对象">
+              <Descriptions.Item
+                label={
+                  <Tooltip title={validationHelp}>
+                    <span tabIndex={0}>生产验证对象 ⓘ</span>
+                  </Tooltip>
+                }
+              >
                 <InlineCommand
                   action="validationChip"
                   payload={{ chip_id: r.id, enabled: !r.is_validation }}
@@ -181,7 +194,17 @@ export default function ChipDetail({
             </Button>
           </ProCard>
           <ProCard title="芯片有效触碰" headerBordered>
-            {stats ? (
+            {statsError ? (
+              <Alert
+                type="error"
+                title={statsError}
+                action={
+                  <Button onClick={() => setStatsRevision((x) => x + 1)}>
+                    重试统计
+                  </Button>
+                }
+              />
+            ) : stats ? (
               <Typography.Title level={3}>{stats.total}次</Typography.Title>
             ) : (
               <Typography.Text type="secondary">
@@ -224,6 +247,7 @@ export default function ChipDetail({
             <Form.Item
               name="enabled"
               label="生产验证标记"
+              extra={validationHelp}
               valuePropName="checked"
             >
               <Switch />
@@ -238,9 +262,19 @@ export default function ChipDetail({
           {action === "bind" && (
             <>
               <Form.Item name="item_id" label="目标数字身份" rules={required}>
-                <RemoteSelect resource="items" />
+                <RemoteSelect
+                  resource="items"
+                  params={{
+                    bindable: true,
+                    ...(r.project ? { project: r.project } : {}),
+                  }}
+                />
               </Form.Item>
-              <Form.Item name="spec" label="物品实际规格" rules={required}>
+              <Form.Item
+                name="spec"
+                label="物品实际规格"
+                extra="不适用尺寸、颜色等规格时可留空。"
+              >
                 <Input maxLength={256} />
               </Form.Item>
             </>

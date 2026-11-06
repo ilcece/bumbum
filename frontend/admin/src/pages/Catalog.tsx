@@ -1,8 +1,15 @@
 import React, { useState } from "react";
-import { PageContainer, ProCard, ProColumns } from "@ant-design/pro-components";
+import {
+  PageContainer,
+  ProCard,
+  ProColumns,
+  ProForm,
+} from "@ant-design/pro-components";
 import {
   Alert,
   Button,
+  Col,
+  Row as GridRow,
   Checkbox,
   DatePicker,
   Descriptions,
@@ -16,7 +23,7 @@ import {
 } from "antd";
 import { history, useLocation, useParams } from "@umijs/max";
 import dayjs from "dayjs";
-import { Row, read, statusNames, time } from "../catalog";
+import { Row, read, statusNames, time, edition } from "../catalog";
 import {
   ActionForm,
   Copy,
@@ -25,7 +32,9 @@ import {
   RemoteSelect,
   State,
   required,
+  returnPath,
 } from "../components/CatalogUI";
+import { inputDate, inputISO } from "../businessTime";
 import ServerTable from "../components/ServerTable";
 import StyleEditor from "../components/StyleEditor";
 function IssueFields() {
@@ -35,44 +44,69 @@ function IssueFields() {
       <Form.Item name="id" hidden>
         <InputNumber />
       </Form.Item>
-      <Form.Item name="style_id" label="关联款式" rules={required}>
-        <RemoteSelect resource="styles" />
-      </Form.Item>
       <Form.Item name="name" label="发行名称" rules={required}>
-        <Input maxLength={128} />
+        <Input autoFocus placeholder="请输入" maxLength={128} />
       </Form.Item>
-      <Form.Item name="series" label="系列归类">
-        <Input maxLength={128} />
+      <Form.Item name="style_id" label="关联款式" rules={required}>
+        <RemoteSelect resource="styles" placeholder="请选择" />
       </Form.Item>
-      <Form.Item name="mode" label="发行方式" rules={required}>
-        <Select
-          options={["fixed", "period", "unlimited"].map((v) => ({
-            value: v,
-            label: statusNames[v],
-          }))}
-        />
-      </Form.Item>
+      <ProForm.Group>
+        <Form.Item
+          name="series"
+          label="系列归类（选填）"
+          style={{ width: 328 }}
+        >
+          <Input maxLength={128} />
+        </Form.Item>
+        <Form.Item
+          name="mode"
+          label="发行方式"
+          rules={required}
+          style={{ width: 328 }}
+        >
+          <Select
+            options={["fixed", "period", "unlimited"].map((v) => ({
+              value: v,
+              label: statusNames[v],
+            }))}
+          />
+        </Form.Item>
+      </ProForm.Group>
       {mode === "fixed" && (
-        <Form.Item name="total" label="数字身份发行总量" rules={required}>
-          <InputNumber min={1} precision={0} />
+        <Form.Item name="total" label="固定发行总量" rules={required}>
+          <InputNumber min={1} precision={0} style={{ width: "100%" }} />
         </Form.Item>
       )}
       {mode === "period" && (
         <>
-          <Form.Item
-            name="starts_at"
-            label="销售开始（北京时间）"
-            rules={required}
-          >
-            <DatePicker showTime />
-          </Form.Item>
-          <Form.Item
-            name="ends_at"
-            label="销售结束（北京时间）"
-            rules={required}
-          >
-            <DatePicker showTime />
-          </Form.Item>
+          <GridRow gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="starts_at"
+                label="销售开始（北京时间）"
+                getValueProps={(v) => ({
+                  value: typeof v === "string" ? inputDate(v) : v,
+                })}
+                normalize={(v) => (v ? inputISO(v) : undefined)}
+                rules={required}
+              >
+                <DatePicker showTime style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="ends_at"
+                label="销售结束（北京时间）"
+                getValueProps={(v) => ({
+                  value: typeof v === "string" ? inputDate(v) : v,
+                })}
+                normalize={(v) => (v ? inputISO(v) : undefined)}
+                rules={required}
+              >
+                <DatePicker showTime style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+          </GridRow>
           <Form.Item
             name="counting_rule"
             label="有效数量核定规则"
@@ -85,11 +119,18 @@ function IssueFields() {
           </Form.Item>
         </>
       )}
-      <Form.Item name="description" label="发行说明与承诺" rules={required}>
+      <Form.Item
+        name="description"
+        label="发行说明与规格承诺"
+        rules={required}
+        extra="说明限量、规格/颜色限制及允许的例外；确认后普通维护不可追改。"
+      >
         <Input.TextArea rows={3} maxLength={4000} />
       </Form.Item>
       <Form.Item name="rights" label="适用权益">
-        <Checkbox.Group
+        <Select
+          mode="multiple"
+          placeholder="请选择"
           options={[
             { value: "renewal", label: "换新" },
             { value: "resale", label: "转售" },
@@ -107,7 +148,8 @@ export default function Catalog() {
   const q = new URLSearchParams(location.search),
     [editor, setEditor] = useState<{ kind: string; record?: Row }>(),
     [rev, setRev] = useState(0),
-    [action, setAction] = useState<{ type: string; r: Row }>();
+    [action, setAction] = useState<{ type: string; r: Row }>(),
+    [issueDirty, setIssueDirty] = useState(false);
   React.useEffect(() => {
     let live = true;
     setRouteError("");
@@ -135,10 +177,13 @@ export default function Catalog() {
       setEditor(undefined);
       if (routeId)
         history.replace(
-          "/catalog?tab=" + (routeKind === "style" ? "styles" : "issues"),
+          returnPath(
+            "/catalog?tab=" + (routeKind === "style" ? "styles" : "issues"),
+          ),
         );
     },
     done = (result?: Row) => {
+      setIssueDirty(false);
       if (
         routeId &&
         editor &&
@@ -149,7 +194,9 @@ export default function Catalog() {
         void read(resource, result.id).then((record) =>
           setEditor({ kind: editor.kind, record }),
         );
-        history.replace(`/catalog/${editor.kind}/${result.id}`);
+        history.replace(
+          `/catalog/${editor.kind}/${result.id}${q.get("from") ? "?from=" + encodeURIComponent(q.get("from")!) : ""}`,
+        );
         setAction(undefined);
         setRev((x) => x + 1);
         return;
@@ -245,7 +292,11 @@ export default function Catalog() {
         <Button
           key="view"
           type="link"
-          onClick={() => setEditor({ kind: "issue", record: r })}
+          onClick={() =>
+            history.push(
+              `/catalog/issue/${r.id}?from=${encodeURIComponent(location.pathname + location.search)}`,
+            )
+          }
         >
           {r.confirmed_at ? "查看约定" : "编辑草案"}
         </Button>,
@@ -255,12 +306,18 @@ export default function Catalog() {
             type="link"
             onClick={() => setAction({ type: "confirmIssue", r })}
           >
-            确认约定
+            确认发行约定
           </Button>
         ),
         r.confirmed_at && r.mode === "period" && !r.sealed_at && (
           <Button
             key="seal"
+            disabled={Date.parse(r.ends_at) > Date.now()}
+            title={
+              Date.parse(r.ends_at) > Date.now()
+                ? "尚未到约定销售期满"
+                : undefined
+            }
             type="link"
             onClick={() => setAction({ type: "seal", r })}
           >
@@ -288,25 +345,14 @@ export default function Catalog() {
             ? editor?.record
               ? "维护共用款式"
               : "新建款式"
-            : "发行约定"
+            : editor?.record?.confirmed_at
+              ? "发行约定详情"
+              : editor?.record
+                ? "维护发行草案"
+                : "新建发行约定"
           : false
       }
       onBack={routeId ? close : undefined}
-      extra={
-        routeId &&
-        editor?.kind === "issue" &&
-        editor.record &&
-        !editor.record.confirmed_at ? (
-          <Button
-            type="primary"
-            onClick={() =>
-              setAction({ type: "confirmIssue", r: editor.record! })
-            }
-          >
-            确认约定
-          </Button>
-        ) : undefined
-      }
     >
       {routeError && <Alert type="error" title={routeError} />}
       {!routeId && (
@@ -333,8 +379,8 @@ export default function Catalog() {
                 onClick={() =>
                   history.push(
                     tab === "styles"
-                      ? "/catalog/style/new"
-                      : "/catalog/issue/new",
+                      ? `/catalog/style/new?from=${encodeURIComponent(location.pathname + location.search)}`
+                      : `/catalog/issue/new?from=${encodeURIComponent(location.pathname + location.search)}`,
                   )
                 }
               >
@@ -354,36 +400,65 @@ export default function Catalog() {
         />
       )}
       {editor?.kind === "issue" && !editor.record?.confirmed_at && (
-        <ActionForm
-          key={String(editor.record?.id || "new")}
-          page={!!routeId}
-          title="发行约定草案"
-          action="issue"
-          width={780}
-          initial={
-            editor.record
-              ? {
-                  ...editor.record,
-                  starts_at: editor.record.starts_at
-                    ? dayjs(editor.record.starts_at)
-                    : undefined,
-                  ends_at: editor.record.ends_at
-                    ? dayjs(editor.record.ends_at)
-                    : undefined,
-                }
-              : {
-                  mode: "fixed",
-                  rights: [],
-                  style_id: q.get("style_id")
-                    ? Number(q.get("style_id"))
-                    : undefined,
-                }
-          }
-          onDone={done}
-          onClose={close}
-        >
-          <IssueFields />
-        </ActionForm>
+        <div className="page-stack form-page">
+          <ProCard variant="outlined">
+            <ActionForm
+              key={String(editor.record?.id || "new")}
+              page={!!routeId}
+              title="发行约定草案"
+              submitText="保存发行草案"
+              onDirtyChange={setIssueDirty}
+              action="issue"
+              width={780}
+              initial={
+                editor.record
+                  ? {
+                      ...editor.record,
+                      starts_at: editor.record.starts_at
+                        ? editor.record.starts_at
+                        : undefined,
+                      ends_at: editor.record.ends_at
+                        ? editor.record.ends_at
+                        : undefined,
+                    }
+                  : {
+                      mode: "fixed",
+                      rights: [],
+                      style_id: q.get("style_id")
+                        ? Number(q.get("style_id"))
+                        : undefined,
+                    }
+              }
+              onDone={done}
+              onClose={close}
+            >
+              <IssueFields />
+            </ActionForm>
+          </ProCard>
+          {editor.record && (
+            <Alert
+              type="info"
+              showIcon
+              title="草案已保存，确认约定后即可登记物品"
+              description={
+                issueDirty
+                  ? "存在未保存修改，请先保存草案。"
+                  : "确认后锁定本次款式、数量规则及权益承诺。"
+              }
+              action={
+                <Button
+                  type="primary"
+                  disabled={issueDirty}
+                  onClick={() =>
+                    setAction({ type: "confirmIssue", r: editor.record! })
+                  }
+                >
+                  确认发行约定
+                </Button>
+              }
+            />
+          )}
+        </div>
       )}
       {editor?.record?.confirmed_at && editor.kind === "issue" && (
         <ActionForm
@@ -472,6 +547,80 @@ export default function Catalog() {
               )}
             </Descriptions>
           </ProCard>
+          {editor.record.mode === "period" && (
+            <ProCard title="最终发行结果" size="small" headerBordered>
+              <Descriptions size="small" column={1}>
+                <Descriptions.Item label="核定依据">
+                  {editor.record.seal_evidence || "尚未核定"}
+                </Descriptions.Item>
+              </Descriptions>
+              {!editor.record.sealed_at && (
+                <>
+                  <Typography.Paragraph>
+                    已建{editor.record.item_count}
+                    个身份；期满后按外部核定结果登记最终数量与依据，不录订单或物流。
+                  </Typography.Paragraph>
+                  <Button
+                    type="primary"
+                    disabled={Date.parse(editor.record.ends_at) > Date.now()}
+                    onClick={() =>
+                      setAction({ type: "seal", r: editor.record! })
+                    }
+                  >
+                    核对并确认最终数量
+                  </Button>
+                  {Date.parse(editor.record.ends_at) > Date.now() && (
+                    <p>尚未到约定销售期满，不能提前核定。</p>
+                  )}
+                </>
+              )}
+            </ProCard>
+          )}
+          <ProCard
+            title={`引用数字物品 · ${editor.record.item_count}件`}
+            size="small"
+            headerBordered
+          >
+            <Button
+              type="primary"
+              onClick={() =>
+                history.push(`/items?create=1&issue_id=${editor.record!.id}`)
+              }
+            >
+              登记该发行物品
+            </Button>
+            <ServerTable
+              resource="items"
+              filters={{ issue_id: editor.record.id }}
+              columns={[
+                {
+                  title: "系统物品编号",
+                  dataIndex: "item_uid",
+                  search: false,
+                  render: (_, x) => (
+                    <Copy
+                      value={x.item_uid}
+                      onClick={() =>
+                        history.push(
+                          `/items/${x.id}?from=${encodeURIComponent(location.pathname + location.search)}`,
+                        )
+                      }
+                    />
+                  ),
+                },
+                {
+                  title: "正式序号",
+                  search: false,
+                  render: (_, x) => edition(x),
+                },
+                {
+                  title: "状态",
+                  search: false,
+                  render: (_, x) => <State value={statusNames[x.status]} />,
+                },
+              ]}
+            />
+          </ProCard>
           <Button onClick={close}>关闭</Button>
         </ActionForm>
       )}
@@ -485,6 +634,13 @@ export default function Catalog() {
                 : "确认发行约定"
           }
           action={action.type}
+          submitText={
+            action.type === "seal"
+              ? "确认最终发行结果"
+              : action.type === "deleteIssue"
+                ? "确认删除约定"
+                : "确认发行约定"
+          }
           initial={{ issue_id: action.r.id }}
           onDone={done}
           onClose={() => setAction(undefined)}
@@ -497,10 +653,31 @@ export default function Catalog() {
           </Typography.Paragraph>
           {action.type === "seal" ? (
             <>
+              <Alert
+                type="warning"
+                title={`已建${action.r.item_count}个身份；核定后不能普通改写总量及历史编号。`}
+                description={`销售结束：${time(action.r.ends_at)}。请核对外部有效数量及已有身份冲突。`}
+              />
               <Form.Item name="total" label="最终数字身份总量" rules={required}>
-                <InputNumber min={1} precision={0} />
+                <InputNumber min={1} precision={0} style={{ width: "100%" }} />
               </Form.Item>
               <Evidence />
+              <Form.Item
+                name="seal_checked"
+                valuePropName="checked"
+                rules={[
+                  {
+                    validator: (_, v) =>
+                      v
+                        ? Promise.resolve()
+                        : Promise.reject("请确认最终数量与依据"),
+                  },
+                ]}
+              >
+                <Checkbox>
+                  已核对最终数量、已有身份和外部依据，确认本次不可普通修改的发行结果
+                </Checkbox>
+              </Form.Item>
             </>
           ) : (
             <Typography.Paragraph>

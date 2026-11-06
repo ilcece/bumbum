@@ -43,6 +43,8 @@ class BrowserSession:
 
     def login(self):
         page = self.page
+        # 页面时钟与临时服务时钟一致，日期录入不使用宿主真实时间。
+        page.clock.set_fixed_time(self.app.test_clock[0].replace(tzinfo=timezone.utc))
         page.goto('http://localhost:5174', wait_until='networkidle')
         page.get_by_label('账号', exact=True).fill(self._account['username'])
         page.get_by_label('密码', exact=True).fill(self._account['password'])

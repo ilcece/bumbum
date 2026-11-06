@@ -3,7 +3,6 @@ import {
   Alert,
   App,
   Button,
-  Checkbox,
   Col,
   Form,
   Image,
@@ -18,7 +17,7 @@ import {
 import { PlusOutlined } from "@ant-design/icons";
 import { ProCard } from "@ant-design/pro-components";
 import { ApiError, request, uploadStyleImage } from "../api";
-import { command, Row, unknown } from "../catalog";
+import { command, read, Row, unknown } from "../catalog";
 import { ActionForm, Gallery, State, required } from "./CatalogUI";
 
 type Draft = { file: File; id: string; url?: string; uncertain?: boolean };
@@ -72,7 +71,10 @@ function Pictures({
           return true;
         }}
         onPreview={(file) =>
-          modal.info({ title: "图片预览", content: <Image src={file.url} /> })
+          modal.info({
+            title: "图片预览",
+            content: <Image src={file.url} alt={file.name || "商品参考图片"} />,
+          })
         }
       >
         {value.length < 20 && (
@@ -116,7 +118,16 @@ function Fields({ record, drafts }: { record?: Row; drafts: Drafts }) {
             <InputNumber />
           </Form.Item>
           <Col xs={24} md={12}>
-            <Form.Item name="code" label="款式编号" rules={required}>
+            <Form.Item
+              name="code"
+              label="款式编号"
+              rules={required}
+              extra={
+                record?.issue_count
+                  ? "已有发行引用，款式编号不能普通修改。"
+                  : undefined
+              }
+            >
               <Input
                 autoFocus={!record}
                 placeholder="请输入"
@@ -126,7 +137,16 @@ function Fields({ record, drafts }: { record?: Row; drafts: Drafts }) {
             </Form.Item>
           </Col>
           <Col xs={24} md={12}>
-            <Form.Item name="project" label="物品类别" rules={required}>
+            <Form.Item
+              name="project"
+              label="物品类别"
+              rules={required}
+              extra={
+                record?.issue_count
+                  ? "已有发行引用，类别固定；共用资料维护不改变历史分类。"
+                  : undefined
+              }
+            >
               <Select
                 disabled={!!record?.issue_count}
                 options={[
@@ -170,30 +190,10 @@ function Fields({ record, drafts }: { record?: Row; drafts: Drafts }) {
             </Form.Item>
           </Col>
           <Col span={24}>
-            <Typography.Paragraph>参考图片</Typography.Paragraph>
-            <Form.Item name="image_urls" noStyle>
+            <Form.Item name="image_urls" label="参考图片">
               <Pictures drafts={drafts} />
             </Form.Item>
           </Col>
-          {!!record?.item_count && (
-            <Col span={24}>
-              <Form.Item
-                name="shared_confirmed"
-                valuePropName="checked"
-                rules={[
-                  {
-                    validator: (_, v) =>
-                      v ? Promise.resolve() : Promise.reject("请确认共用影响"),
-                  },
-                ]}
-              >
-                <Checkbox>
-                  我确认保存将影响该款式的{record.item_count}
-                  件数字物品，不修改发行与物品历史。
-                </Checkbox>
-              </Form.Item>
-            </Col>
-          )}
         </GridRow>
       </ProCard>
       <div className="style-editor-preview">
@@ -250,6 +250,7 @@ export default function StyleEditor({
   onClose: () => void;
   onDone: (r: Row) => void;
 }) {
+  const { modal } = App.useApp();
   const drafts = useRef<Drafts>(new Map()).current;
   const [savedId, setSavedId] = useState(record?.id);
   const [partial, setPartial] = useState(false);
@@ -346,6 +347,23 @@ export default function StyleEditor({
       }
       submitText="保存共用资料"
       initial={record || { project: "fashion", specs: [], image_urls: [] }}
+      beforeSubmit={async (values) => {
+        if (!savedId) return true;
+        const impact = await read("styles", savedId);
+        if (!impact.item_count) return true;
+        const accepted = await new Promise<boolean>((resolve) =>
+          modal.confirm({
+            title: "确认同步共用商品资料？",
+            content: `将影响${impact.item_count}件引用该款式的物品，其中${impact.active_item_count}件已启用，不修改发行与物品历史。`,
+            okText: "确认同步保存",
+            cancelText: "取消",
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          }),
+        );
+        if (accepted) values.shared_confirmed = true;
+        return accepted;
+      }}
       execute={execute}
       onReceipt={(result) => {
         setSavedId(result.id);

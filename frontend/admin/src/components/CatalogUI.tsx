@@ -69,8 +69,8 @@ const colors: Record<string, string> = {
   已确认: "green",
   已确认售出: "blue",
   未确认售出: "default",
-  已认领: "green",
-  未认领: "default",
+  已有持有人: "green",
+  暂无持有人: "default",
   已完成: "green",
   待确认接续: "gold",
   候选准备: "purple",
@@ -213,6 +213,22 @@ export function RemoteSelect({
     [total, setTotal] = useState(0),
     [error, setError] = useState(""),
     seq = useRef(0);
+  const [selectedOption, setSelectedOption] = useState<Row>();
+  useEffect(() => {
+    let live = true;
+    setSelectedOption(undefined);
+    if (value && ["styles", "issues", "items", "chips"].includes(resource))
+      read(resource, Number(value))
+        .then((r) => {
+          if (live) setSelectedOption(r);
+        })
+        .catch((e) => {
+          if (live) setError(e.message);
+        });
+    return () => {
+      live = false;
+    };
+  }, [resource, value]);
   const key = JSON.stringify(params);
   useEffect(() => {
     const n = ++seq.current;
@@ -252,12 +268,20 @@ export function RemoteSelect({
           setQ(v);
           setPage(1);
         }}
-        options={options.map((r) => ({
+        options={(selectedOption &&
+        !options.some((r) => r.id === selectedOption.id)
+          ? [selectedOption, ...options]
+          : options
+        ).map((r) => ({
           value: r.id,
           label:
             r.chip_uid ||
             r.item_uid ||
-            `${r.name || r.nickname || "账户"}${r.code ? " · " + r.code : ""}${r.phone ? " · " + r.phone : ""} · ID ${r.id}`,
+            (resource === "styles"
+              ? `${r.code} · ${r.name}`
+              : resource === "issues"
+                ? `${r.name} · ${r.mode === "period" && !r.sealed_at ? "限时待核定" : r.total ? `总量${r.total}个身份` : "非限定"}`
+                : `${r.nickname || "账户"}${r.phone ? " · " + r.phone : ""} · ID ${r.id}`),
         }))}
         onPopupScroll={(e) => {
           const el = e.currentTarget;
@@ -355,6 +379,9 @@ export function ActionForm({
   onReceipt,
   footerNote,
   className,
+  beforeSubmit,
+  onDirtyChange,
+  submitDisabled = false,
 }: {
   title: string;
   action: string;
@@ -371,6 +398,9 @@ export function ActionForm({
   onReceipt?: (r: Row) => boolean;
   footerNote?: React.ReactNode;
   className?: string;
+  beforeSubmit?: (values: Record<string, any>) => Promise<boolean>;
+  onDirtyChange?: (dirty: boolean) => void;
+  submitDisabled?: boolean;
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -382,16 +412,26 @@ export function ActionForm({
     submitted = useRef<Record<string, any> | undefined>(undefined),
     form = useRef<ProFormInstance | undefined>(undefined);
   const { modal } = App.useApp();
+  const ordinary = [
+    "style",
+    "issue",
+    "item",
+    "register",
+    "legacyProfile",
+    "chipBatch",
+  ].includes(action);
   const submit = async (v: Record<string, any>) => {
     setBusy(true);
     setError("");
     try {
+      if (beforeSubmit && !(await beforeSubmit(v))) return false;
       submitted.current ??= pickPayload(action, v);
       const r = await (execute
         ? execute(submitted.current, token.current)
         : command(action, submitted.current, token.current));
       success.current = true;
       setDirty(false);
+      onDirtyChange?.(false);
       onDone(r);
       return true;
     } catch (e) {
@@ -414,18 +454,50 @@ export function ActionForm({
       setBusy(false);
     }
   };
-  const close = () => {
+  const leave = (next: () => void) => {
     if (busy) return;
-    if (dirty || uncertain)
+    if (!dirty && !uncertain) {
+      next();
+      return;
+    }
+    const continueLeaving = () => {
+      success.current = true;
+      setDirty(false);
+      onDirtyChange?.(false);
+      next();
+    };
+    if (!ordinary || uncertain) {
       modal.confirm({
-        title: "有未保存修改或待核对结果",
-        content: "关闭将清除输入；已提交的操作不会被撤销。",
-        okText: "放弃并关闭",
-        cancelText: "继续编辑",
-        onOk: onClose,
+        title: uncertain ? "操作结果待核对" : "离开未完成的业务确认？",
+        content: "不会代为提交本次操作。已提交的结果不会因离开而撤销。",
+        okText: "放弃输入并离开",
+        cancelText: "返回核对",
+        onOk: continueLeaving,
       });
-    else onClose();
+      return;
+    }
+    const prompt = modal.confirm({
+      title: "有未保存修改",
+      okText: "保存后继续",
+      cancelText: "继续编辑",
+      content: (
+        <Button
+          danger
+          onClick={() => {
+            prompt.destroy();
+            continueLeaving();
+          }}
+        >
+          放弃并继续
+        </Button>
+      ),
+      onOk: async () => {
+        if (await form.current?.validateFields().then(submit))
+          continueLeaving();
+      },
+    });
   };
+  const close = () => leave(onClose);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
       if (!sessionIsExpired() && (dirty || busy || uncertain)) {
@@ -444,30 +516,11 @@ export function ActionForm({
         tx.retry();
         return;
       }
-      if (busy) return;
-      modal.confirm({
-        title: "有未保存修改",
-        okText: "保存后继续",
-        cancelText: "继续编辑",
-        content: (
-          <Button
-            danger
-            onClick={() => {
-              setDirty(false);
-              unblock();
-              onClose();
-              tx.retry();
-            }}
-          >
-            放弃并继续
-          </Button>
-        ),
-        onOk: async () => {
-          if (await form.current?.validateFields().then(submit)) {
-            unblock();
-            tx.retry();
-          }
-        },
+      leave(() => {
+        setDirty(false);
+        unblock();
+        onClose();
+        tx.retry();
       });
     });
     return () => {
@@ -489,6 +542,7 @@ export function ActionForm({
       onValuesChange={() => {
         success.current = false;
         setDirty(true);
+        onDirtyChange?.(true);
       }}
       onFinish={submit}
       modalProps={{
@@ -505,7 +559,10 @@ export function ActionForm({
           ? false
           : {
               searchConfig: { submitText },
-              submitButtonProps: { disabled: uncertain, loading: busy },
+              submitButtonProps: {
+                disabled: uncertain || submitDisabled,
+                loading: busy,
+              },
               resetButtonProps: { style: { display: "none" } },
               render: (_: unknown, dom: React.ReactNode[]) => {
                 const controls = (
@@ -641,8 +698,8 @@ const fields: Record<string, string[]> = {
     "test_batch_id",
   ],
   bind: ["item_id", "chip_id", "spec"],
-  sale: ["item_id", "confirmed", "evidence"],
-  saleBatch: ["item_ids", "confirmed", "evidence"],
+  sale: ["item_id", "confirmed", "evidence", "first_sold_at"],
+  saleBatch: ["item_ids", "confirmed", "evidence", "first_sold_at"],
   toggleItem: ["item_id", "status"],
   loseItem: ["item_id", "whole_id", "evidence"],
   linkIssue: ["item_id", "issue_id", "edition_number", "evidence"],
@@ -785,7 +842,10 @@ export function InlineCommand({
 
 export function returnPath(fallback: string) {
   const value = new URLSearchParams(window.location.search).get("from");
-  return value && /^\/(items|chips)(\/[1-9][0-9]*)?(\?[^#]*)?$/.test(value)
+  return value &&
+    /^\/(?:items|chips|overview|catalog(?:\/(?:style|issue))?)(\/[1-9][0-9]*)?(\?[^#]*)?$/.test(
+      value,
+    )
     ? value
     : fallback;
 }

@@ -61,7 +61,7 @@ export default function TestBatches() {
           type="info"
           showIcon
           title="测试数据仅用于验收"
-          description="开启后，各页面统一显示验收数据；关闭后恢复业务数据。不会删除数据或改变生产验证标记。合成样本不能证明实卡、认领或真实交付。"
+          description="仅影响当前浏览器标签页，各页面统一显示验收数据；关闭后恢复业务数据，不改变其他标签页或管理员的选择。不会删除数据或改变生产验证标记。合成样本不能证明实卡、认领或真实交付。"
         />
         {error && <Alert type="error" title={error} />}
         {!loading && !error && writable && !active && (
@@ -86,18 +86,15 @@ export default function TestBatches() {
             aria-label="开启测试数据"
             checked={!!testBatch()}
             disabled={
-              !testBatch() &&
-              (loading || !!error || !writable || !active)
+              !testBatch() && (loading || !!error || !writable || !active)
             }
             onChange={(enabled) =>
-              setTestBatch(
-                enabled
-                  ? active?.id
-                  : undefined,
-              )
+              setTestBatch(enabled ? active?.id : undefined)
             }
           />
-          <Button loading={loading} onClick={() => setRevision((x) => x + 1)}>刷新数据</Button>
+          <Button loading={loading} onClick={() => setRevision((x) => x + 1)}>
+            刷新数据
+          </Button>
         </Space>
         <Table<Row>
           rowKey="id"
@@ -120,7 +117,9 @@ export default function TestBatches() {
                 <Space wrap>
                   <Button
                     danger
-                    disabled={loading || !!error || !writable || r.status !== "active"}
+                    disabled={
+                      loading || !!error || !writable || r.status !== "active"
+                    }
                     onClick={async () => {
                       try {
                         setPreview(
@@ -168,7 +167,11 @@ export default function TestBatches() {
                       <ul>
                         {r.manifest.photos.map((photo: any) => (
                           <li key={photo.sha256}>
-                            <a href={photo.page} target="_blank" rel="noreferrer">
+                            <a
+                              href={photo.page}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
                               {photo.style_name}
                             </a>
                             {` · ${photo.artist} · ${photo.license}`}

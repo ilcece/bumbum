@@ -27,7 +27,10 @@ def test_style_source_layout_and_staged_picture_save(desktop):
         for selector in ('.style-editor-grid','.mobile-preview','.editor-footer'):
             actual=p.locator(selector).bounding_box();expected=reference.locator(selector).bounding_box()
             assert actual and expected
-            for axis in ('x','y','width','height'):assert abs(actual[axis]-expected[axis])<8,(selector,axis,actual,expected)
+            for axis in ('x','y','width','height'):
+                # 本轮明确将参考图片段落改为标准表单标签，容器增高10px；其余定位继续对照冻结原型。
+                tolerance=16 if selector=='.style-editor-grid' and axis=='height' else 8
+                assert abs(actual[axis]-expected[axis])<tolerance,(selector,axis,actual,expected)
         expect(p.get_by_label('适用规格（每行一项）',exact=True)).to_have_attribute('rows','3')
     reference_context.close()
     p.get_by_label('款式编号',exact=True).fill('SOURCE-STYLE')

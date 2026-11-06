@@ -11,8 +11,9 @@ def choose(page,label,needle):
     root.locator('.ant-select-dropdown:visible .ant-select-item-option').filter(has_text=needle).first.click()
 
 
-def save_dialog(page,title,submit='保存'):
-    dialog=page.get_by_role('dialog',name=title,exact=True);button(dialog,submit);dialog.wait_for(state='hidden')
+def save_dialog(page,title,submit=None):
+    labels={'准备物品（实物＋芯片）':'保存首套准备','启用物品档案':'确认启用物品','停用物品档案':'确认停用物品','维护售出事实':'保存售出确认','准备替换物品':'保存新物品准备','准备转售的新整套物品':'保存新物品准备','确认发行约定':'确认发行约定','登记数字物品':'登记并查看物品'}
+    dialog=page.get_by_role('dialog',name=title,exact=True);button(dialog,submit or labels.get(title,'保存'));dialog.wait_for(state='hidden')
 
 
 def api(desktop,action,payload):

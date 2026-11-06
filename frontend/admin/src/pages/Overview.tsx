@@ -28,7 +28,14 @@ import {
   SearchOutlined,
 } from "@ant-design/icons";
 import { history, useLocation } from "@umijs/max";
-import { list, statistics, Row as CatalogRow, edition, time } from "../catalog";
+import {
+  list,
+  statistics,
+  Row as CatalogRow,
+  edition,
+  time,
+  read,
+} from "../catalog";
 import {
   Copy as CopyValue,
   State as StatusTag,
@@ -46,7 +53,10 @@ export default function Overview() {
     [page, setPage] = useState(1),
     [data, setData] = useState<CatalogRow>(),
     [error, setError] = useState(""),
-    [loading, setLoading] = useState(false);
+    [loading, setLoading] = useState(false),
+    [filterDirty, setFilterDirty] = useState(false),
+    [applied, setApplied] = useState<Record<string, any>>({}),
+    [appliedNames, setAppliedNames] = useState<Record<string, string>>({});
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -54,6 +64,7 @@ export default function Overview() {
       .then((result) => {
         if (live) {
           setData(result);
+          setApplied({ ...filter });
           setError("");
         }
       })
@@ -67,6 +78,24 @@ export default function Overview() {
       live = false;
     };
   }, [filter, page]);
+  useEffect(() => {
+    let live = true;
+    setAppliedNames({});
+    for (const [key, resource] of [
+      ["style_id", "styles"],
+      ["issue_id", "issues"],
+    ]) {
+      if (applied[key])
+        read(resource, Number(applied[key]))
+          .then((r) => {
+            if (live) setAppliedNames((v) => ({ ...v, [key]: r.name }));
+          })
+          .catch(() => {});
+    }
+    return () => {
+      live = false;
+    };
+  }, [applied]);
   const go = (path: string) => history.push(path);
   const saveQuery = (values: Record<string, any>) => {
     const q = new URLSearchParams();
@@ -198,10 +227,12 @@ export default function Overview() {
             <div className="filter-panel">
               <ProForm
                 initialValues={filter}
+                onValuesChange={() => setFilterDirty(true)}
                 layout="vertical"
                 onFinish={async (v: any) => {
                   setPage(1);
                   setFilter(v);
+                  setFilterDirty(false);
                   saveQuery({ ...v, view });
                 }}
                 submitter={false}
@@ -242,6 +273,17 @@ export default function Overview() {
               </ProForm>
               <div className="filter-summary">
                 <Tag color="blue">已生效</Tag>
+                {filterDirty && <Tag color="orange">筛选已修改，尚未应用</Tag>}
+                <span>
+                  款式：
+                  {applied.style_id
+                    ? appliedNames.style_id || `款式 ${applied.style_id}`
+                    : "全部"}{" "}
+                  · 发行：
+                  {applied.issue_id
+                    ? appliedNames.issue_id || `发行 ${applied.issue_id}`
+                    : "全部"}
+                </span>
                 <span>
                   {data?.scope === "sold"
                     ? "已确认售出身份，且触碰时间不早于首次售出"
@@ -282,7 +324,7 @@ export default function Overview() {
             <Row gutter={[12, 12]}>
               {[
                 ["已确认售出物品", s.sold, "件"],
-                ["已认领物品", s.claimed, "件"],
+                ["已有持有人物品", s.claimed, "件"],
                 ["当前持有人", s.owners, "人"],
               ].map(([title, value, unit]) => (
                 <Col flex="1 1 160px" key={title}>
@@ -413,7 +455,7 @@ export default function Overview() {
                           <CopyValue value={r.owner_id} />
                         </Space>
                       ) : (
-                        <StatusTag value="未认领" />
+                        <StatusTag value="暂无持有人" />
                       ),
                   },
                   { title: "有效触碰", dataIndex: "tap_count" },

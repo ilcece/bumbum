@@ -221,12 +221,12 @@ def test_real_mysql_verified_tls_wrong_identity_ca_and_guarded_initialization(tl
         with pytest.raises(RdsPreparationError, match="只允许"):
             normalize_empty_collation(connection, "bumbum_hz_production", report["server_uuid"])
         result = initialize_empty(connection, "bumbum_hz_test", report["server_uuid"], (ROOT / "db/schema.sql").read_text())
-        assert result["tables_complete"] and result["table_count"] == 25
+        assert result["tables_complete"] and result["table_count"] == 35
         with pytest.raises(RdsPreparationError, match="不是空库"):
             initialize_empty(connection, "bumbum_hz_test", report["server_uuid"], (ROOT / "db/schema.sql").read_text())
         with pytest.raises(RdsPreparationError, match="不是空库"):
             normalize_empty_collation(connection, "bumbum_hz_test", report["server_uuid"])
-        assert inspect_target(connection, "bumbum_hz_test")["table_count"] == 25
+        assert inspect_target(connection, "bumbum_hz_test")["table_count"] == 35
         with connection.cursor() as cursor:
             cursor.execute("SELECT code FROM project ORDER BY id")
             assert cursor.fetchall() == (("fashion",), ("jewelry",))
