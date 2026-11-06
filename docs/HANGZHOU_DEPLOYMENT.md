@@ -989,7 +989,7 @@ python -m core.testdata_cleanup --apply --plan /私有绝对路径/清理清单.
 
 命令核对清单未过期、目标和管理员，使用MySQL8.0 mysqldump完整转储，再生成并核对SQL+私有图片配套备份；任一步失败不继续数据库删除。新批次已有活动数据则拒绝旧图片全清理，避免抹掉新样本。数据库事务清理引用/元数据后，仅删除与备份同摘要、合法命名的旧文件；未知文件保留，文件异常单列需核对，不能将其当全部成功。图片目录必须可读且私有；目录缺失或图片损坏先核对，不跳过备份。
 
-旧清理完成后，准备新场景。必须使用本轮提交的core/acceptance_data.py及完整core/acceptance_assets目录；当前仍运行的旧后端镜像内置的是旧包，不能直接裸跑旧模块冒充新版。将已核验的新模块和照片目录只读挂载进test维护容器后，以下命令默认预览，apply才创建；本次实际路径与结果见第12.1节：
+旧清理完成后，准备新场景。必须使用本轮提交的core/acceptance_data.py及完整core/acceptance_assets目录；维护前先核对实际镜像内模块与照片摘要，不能用旧包冒充新版；旧镜像缺失当前模块时，才将已核验模块和照片目录只读挂载进test维护容器。以下命令默认预览，apply才创建；当前验收包已保留，本轮整改不重复执行apply，实际状态见第12.1节：
 
 ```bash
 python -m core.acceptance_data --admin-username 你的测试管理员
@@ -1005,9 +1005,17 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 <a id="121-本轮test受控升级的已准备入口"></a>
 
-**最新发布及验收包：641c6d4962b3f5790c55fbd628170005f544a472，活动批次2，acceptance-v2。** cece明确仅test新建真实照片、更丰富且贴合业务的模拟数据，已完整备份后灌入6款式/10发行/84身份/114虚拟芯片/6账户，初始生命周期138、售出后132；不是恢复旧业务。当前业务统计仍剔除本批样例。固定UUID、test35表、设置writable和活动批次可用、六张DB图片SHA256、统计与剔除、整批预览无外部冲突通过；网页整批清理未提交，数据完整保留供验收。
+**当前test发布：28b1e748132a9c441de4b238b0cd039c9e983491，后台原型对照整改。** 已先更新分支规范，再实施33项整改并发布；手机公开字段/预览范围随H5暂缓，类别及改码规则不变。镜像为bumbum-hangzhou-backend:28b1e748132a9c441de4b238b0cd039c9e983491，远端内容ID为sha256:47bf507c1806ecf4a38e46fe6f60f74c8facdc66b3ce824245ce88433b7298de；管理端静态为/var/www/bumbum-hangzhou-test-releases/28b1e748132a9c441de4b238b0cd039c9e983491/admin，35文件与最终浏览器复验产物逐一匹配。用户端保持原静态及代码，不改生产或main。
 
-本轮版本目录/opt/bumbum-hangzhou/admin-acceptance-v2-641c6d4962b3，管理端静态位于/var/www/bumbum-hangzhou-test-releases/641c6d4962b3f5790c55fbd628170005f544a472/admin，35文件逐一匹配最终复验包。旧管理端目标在admin-before.txt。维护源模块及六张照片在tooling/core/，9文件摘要在tooling-manifest.json；只在一次性test维护容器只读挂载新版模块及照片，原服务后端镜像和用户端仍保持3292c13版本，不直接复用旧镜像内置的v1数据包命令。
+本次只短暂停test做备份和代码切换，**未执行清理、重灌、迁移或账户/权限修改**。当前85件物品、114枚芯片、9条图片记录、138条触碰记录，以及持有/历代/办理、管理员、密钥、项目与审计摘要前后一致。固定test库/UUID/35表及VERIFY_IDENTITY连接保持；两槽ready200、新test镜像healthy、未登录管理API401、用户站200及管理API隔离404通过。生产容器/镜像、两槽runtime/CA/Nginx与生产及test用户端静态摘要不变，原管理白名单保留。
+
+本轮目录为/opt/bumbum-hangzhou/admin-review-28b1e748132a。完整私有SQL/媒体配套备份位于/opt/bumbum-hangzhou/admin-review-28b1e748132a/before-update/images-and-database-26434cccbed747dfb7ced2a8466c75ed，转储结束标记和配套自校验通过，未做本次恢复演练，不上传备份。compose-before.json与admin-before.txt保存代码/静态回退基线；protected-before.json、before-update/data-before.json、loaded-image.json及verified.json只在该私有目录保留保护摘要和发布证据。代码回退须同时核对旧镜像与管理静态，不自动恢复SQL或覆盖后来数据。
+
+非浏览器回归759通过、5跳过；随后使用本轮实际镜像补过其中3项独立Nginx/TLS/Gunicorn网关检查，剩余2项仅适用Windows。受影响真实认证浏览器18项及基础219项（包含于回归，2平台跳过）、构建与文档检查通过；[本轮证据](../tests/evidence/admin-review.md)与[云端摘要](../tests/evidence/admin-review-cloud.json)分别记录。页面截图为本机隔离数据，不等同白名单内线上管理员浏览器登录或人工验收，实卡及未交付认领等仍需各自证据。
+
+**以下为验收数据包初始准备记录：641c6d4962b3f5790c55fbd628170005f544a472，活动批次2，acceptance-v2。** cece明确仅test新建真实照片、更丰富且贴合业务的模拟数据，已完整备份后灌入6款式/10发行/84身份/114虚拟芯片/6账户，初始生命周期138、售出后132；不是恢复旧业务。当前业务统计仍剔除本批样例。固定UUID、test35表、设置writable和活动批次可用、六张DB图片SHA256、统计与剔除、整批预览无外部冲突通过；网页整批清理未提交，数据完整保留供验收。
+
+验收包当时的版本目录/opt/bumbum-hangzhou/admin-acceptance-v2-641c6d4962b3，管理端静态位于/var/www/bumbum-hangzhou-test-releases/641c6d4962b3f5790c55fbd628170005f544a472/admin，35文件逐一匹配最终复验包。旧管理端目标在admin-before.txt。维护源模块及六张照片在tooling/core/，9文件摘要在tooling-manifest.json；只在一次性test维护容器只读挂载新版模块及照片，原服务后端镜像和用户端仍保持3292c13版本，不直接复用旧镜像内置的v1数据包命令。
 
 新私有SQL/媒体配套备份在before-seed/images-and-database-fa577982347b4a0d9f9acfc143a2d983（均相对本轮版本目录），完整转储结束标记与配套包自校验通过；不上传备份，未做本次恢复演练。只暂停test完成备份与新增后恢复原容器；before-seed/protected-before.json与seed-verified.json保留系统/既有业务及旧审计摘要核对，pack-result.json为新批次结果；根目录final-verification.json为恢复后服务层记录。管理员、认证、会话、项目字典、密钥表和旧审计不变；新虚拟卡不生成密钥，登记来源/配置/持有/交付和触碰均为明确模拟事实，实卡/认领及最终年度计次不冒称通过。两槽Compose/runtime/Nginx、原容器/镜像及生产与test用户端静态摘要保持，双方ready200；本轮不写生产，不合并main。
 
@@ -1015,7 +1023,7 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 本轮005→006→007已由cece在隐藏输入密码的终端执行成功，初始化账号原锁定错误3118解锁后只读连接通过。AI随后复核35表及三个阶段SQL备份，另在停止写入窗口创建SQL/媒体配套备份并检查。**不要再次运行下方旧交互升级脚本或启动旧版；后续以当前部署及数据为准。**
 
-**此前业务重置记录：2026-11-06 cece曾授权清空test和production业务，保留系统数据重新验证。** 当时两库业务均为0，旧活动模拟批次已删除；随后cece明确仅test新建真实照片丰富模拟包，当前状态以下方最新发布记录为准。test仍为35表，production仍为24表；未改表或重置自增编号。两边各1个启用验证器的管理员、认证资料、原会话、原审计、项目字典、任务/奖励定义及芯片密钥表均保留。清理前两库每卡密钥表本来均为0；运行密钥配置、算法代码、容器和镜像均未更换。原两卡和旧业务恢复仍取消；新独立虚拟样本不是原卡恢复。
+**此前业务重置记录：2026-11-06 cece曾授权清空test和production业务，保留系统数据重新验证。** 当时两库业务均为0，旧活动模拟批次已删除；随后cece明确仅test新建真实照片丰富模拟包，当前状态以本节开头的最新发布记录为准。test仍为35表，production仍为24表；未改表或重置自增编号。两边各1个启用验证器的管理员、认证资料、原会话、原审计、项目字典、任务/奖励定义及芯片密钥表均保留。清理前两库每卡密钥表本来均为0；运行密钥配置、算法代码、容器和镜像均未更换。原两卡和旧业务恢复仍取消；新独立虚拟样本不是原卡恢复。
 
 本次私有备份与维护记录位于/opt/bumbum-hangzhou/business-reset-20261106-user-authorized/{test,production}/：database.sql为600权限完整转储，含结束标记及全表结构数量校验；test的media.tar保存空媒体目录（test款图原为数据库二进制，随SQL保留）；production当时无媒体目录且无媒体记录，backup.json记录该检查结果，故没有media.tar。before.json/after.json/backup.json/complete.json仅在私有目录保存计数与摘要。备份各在删除前完成；管理员等系统表逐表内容摘要一致，旧审计前缀摘要一致，每库仅追加1条maintenance.business_reset审计。按外键顺序在各自事务内DELETE业务行，未用TRUNCATE、禁用外键或删库重建；不自动整库恢复、覆盖后来写入或上传备份。本次未进行备份恢复演练。
 
@@ -1027,9 +1035,9 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 实际发布前通过13条独立MySQL真实认证浏览器回归；最后仅补文件名后最终包再过2条受影响流程；1440/1920实际截图及局部审查见[款式页证据](../tests/evidence/admin-style-review.md)。切换后固定test库/UUID/35表、原管理员和15类计数保持，双方原容器/镜像healthy/ready200，两个槽的Compose/runtime/Nginx摘要、生产与test用户端静态内容不变。管理域名本机403仍符合既有白名单，用户页200及用户域名管理API404通过；未完成白名单内线上管理员浏览器登录，未验证实卡或后台所有页面视觉，不以静态一致代替cece验收。首轮只读预检误要求生产静态目录必须为符号链接，按实际目录修正后通过，失败阶段未切换或写数据。
 
-以下为继续运行的后端/上一轮静态完整发布记录；新管理端静态版本以上段为准。
+以下为旧后端及静态发布历史，已由本节开头的新发布替代，仅保留回退与历史取证依据。
 
-当前test部署源代码为3292c13428179689459534950bc66f6c14373c7a，包含密钥三步窗口、受控查看/复制/清除、候选查询恢复、同对象刷新保留输入及完整发行只读详情修复。远端OCI镜像ID为sha256:bd500542918d43badf2d72b266d118536455a3627a121152ddef39d6093cd220，镜像配置摘要为sha256:dc3cf972267b7ac0890a746b6d11a34c8166ebc61080b35b5312a63660648b64。固定清单仍为/opt/bumbum-hangzhou/test/compose.json，不改Nginx或白名单。
+上一轮后端源代码为3292c13428179689459534950bc66f6c14373c7a（已被本节开头的新版本替代，仅保留回退依据），包含密钥三步窗口、受控查看/复制/清除、候选查询恢复、同对象刷新保留输入及完整发行只读详情修复。远端OCI镜像ID为sha256:bd500542918d43badf2d72b266d118536455a3627a121152ddef39d6093cd220，镜像配置摘要为sha256:dc3cf972267b7ac0890a746b6d11a34c8166ebc61080b35b5312a63660648b64。固定清单仍为/opt/bumbum-hangzhou/test/compose.json，不改Nginx或白名单。
 
 本次版本目录为/opt/bumbum-hangzhou/admin-key-review-3292c13，旧清单compose-before.json和admin-before.txt/user-before.txt保存前版程序/静态回退目标；当前静态位于/var/www/bumbum-hangzhou-test-releases/3292c13428179689459534950bc66f6c14373c7a。停写窗口完整SQL/图片配套备份在before-update/images-and-database-94cee794395243c5870c7713af750f7b，SQL结束标记和配套包自校验通过，未进行本次恢复演练；不上传备份或自动恢复整库。复用并核对现有公开MySQL8.0客户端，无改表、账号权限或运行变量改写。
 
