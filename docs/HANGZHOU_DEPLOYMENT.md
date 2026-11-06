@@ -259,6 +259,8 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
 
 授权就绪后先固定profile和cn-hangzhou，核对实例ID/公开身份，用无秘密的id/hostname/ready只读命令验收；通过后再用归属可核验的新公开文件做上传/下载哈希检查，拒绝覆盖已有文件。文件收发经OSS，不传真实运行配置、私钥、数据库备份或芯片秘密。不把关闭现有Tailscale或切换运维通道作为安装步骤；真实命令、文件传输、网络与凭据续用分别验证。
 
+当前接续已由cece确认改用官方RamRoleArn自动续期，见[第3.6.4节](#364-角色自动续期接续当前方式)。第3.6.1节是首轮一小时STS的历史步骤，其“长期AK拒绝/不创建AK/每次手填STS”等限制不再作为当前接入要求；不重新创建已存在身份或放宽角色权限。
+
 ### 3.6.1 首轮短期授权接入步骤
 
 使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。既有Tailnet SSH保留；Workbench远程命令、文件收发与凭据续用分别验收，真实结果见CHANGELOG；仅识别角色或返回授权拒绝不等于ECS会话建立。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
@@ -375,6 +377,26 @@ cece接受本轮Workbench命令连接已验证、原生OSS文件收发未通过�
 已定位的OSS代理原因、既有真实连接及文件失败/清理证据见CHANGELOG。此前完整技术提案仅作[历史备查](https://github.com/ilcece/bumbum/blob/8996fd4eb6e8cfef22e91b041136d736ab8692e6/docs/HANGZHOU_DEPLOYMENT.md#363-oss代理兼容与无人值守续期提案待cece确认后构建)，不作为当前实施清单。
 
 </details>
+
+### 3.6.4 角色自动续期接续（当前方式）
+
+cece已选择专用RAM用户AccessKey配合受限角色长期接入，两个个人保险库变量为BUMBUM_WB_ACCESS_KEY_ID、BUMBUM_WB_ACCESS_KEY_SECRET；已报告发布更新后的bumbum_ECS环境。环境安装脚本生成公开role_setup.py，启动说明改用官方RamRoleArn及新profile。脚本语法与合成配置检查通过；真实注入、AssumeRole、ECS命令和到期刷新仍待新实例验证，不能据发布或官方机制声称现场已通过。当前会话实例仍为旧声明/旧脚本，不能读取保险库或以手动复制密钥绕过未注入状态。
+
+新会话选最新bumbum_ECS及feat/admin-a-validation-gates，先按AGENTS恢复远端/本地基线并保护已有修改。检查环境状态及变量是否存在，不输出值。若role_setup.py缺失，核对实际环境版本及安装结果，不执行旧sts_provider.py/init_profile.py，不索取聊天密钥。变量和工具就绪后，先只检查：
+
+```bash
+python3 /workspace/work/tools/workbench-cli/role_setup.py --check
+```
+
+再初始化新profile；此步骤会在运行时写入Workbench私有配置中的AK，文件600、目录700、仓库外，不在安装阶段读取密钥，不进源码、命令参数、日志或公开工件：
+
+```bash
+python3 /workspace/work/tools/workbench-cli/role_setup.py
+```
+
+固定角色acs:ram::1541265267012164:role/bumbum-codex-hz-workbench，签发用户bumbum-codex-hz-issuer；profile为bumbum-hz-ramrole。命令显式--profile bumbum-hz-ramrole --region cn-hangzhou，目标只限i-bp1cj6pt88wbxmhlsp1n。保持原受限角色授权，不将签发用户升级管理员。原profile不自动删除或覆盖，同名新profile不一致先核对。CLI v1.0.4及官方文档已确认原生模式/ram_role_arn字段与自动获取刷新机制，不另造签名协议或凭据服务。
+
+只读身份/主机验证通过后，继续已批准的test数据重建，按第11/12节核对test实际部署和006/007结构，先备份再处理明确清单；真实测试卡及必要历代关系保留。本轮尚未对现有测试环境执行盘点、清理、灌入或更新部署；生产RDS、生产发布及main合并不在本轮授权。认证/授权拒绝停止，不循环创建会话；只定向清理自己创建的会话和进程，保留既有SSH/Tailscale。
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
