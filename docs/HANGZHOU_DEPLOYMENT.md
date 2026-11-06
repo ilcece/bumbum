@@ -997,3 +997,22 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 成功输出batch_id和manifest，包含约20身份、场景索引与初始预期统计。活动数据包重复执行复用；整批清理后重新执行创建新批次。虚拟UID随机生成并拒绝覆盖既有记录，合成配置不导入密钥、不通过真实验签；真实测试卡单独验证。恢复测试写入后按[三组验收](ADMIN_DESKTOP.md#9-验收数据包与整批清理)操作。
 
 首次认领仍未开放。已有单件持有人辅助命令不替代本数据包，也不能拿模拟账户作为真实用户验收。备份不上传Git或聊天；回退程序不能撤销已清理的数据，恢复必须另行核对后来写入，不自动整库覆盖。
+
+
+### 12.1 本轮test受控升级的已准备入口
+
+2026-11-06核对：任务代码为feat/admin-a-validation-gates的11d7698e5f1b9cea438db907a5b305f6a88f286d；目标仍为杭州固定实例i-bp1cj6pt88wbxmhlsp1n、bumbum_hz_test，server_uuid为d8379dd3-cace-11f1-8fdd-00163e17e38a。实际test旧库24表且芯片/物品/密钥/持有/触碰/用户均为空，管理员保留；005/006/007及媒体目录缺失，不据此推断其他槽的数据状态。
+
+宿主mysqldump为8.4.11，不用于本次升级。已在构建环境用现有固定MySQL8.0.46镜像提取转储客户端，在Python3.12维护运行时验证；杭州仅挂载公开维护包，不安装替换系统客户端、不构建镜像。公开源码/客户端/脚本位于/opt/bumbum-hangzhou/admin-upgrade-11d7698，56个文件SHA256逐项核对通过。运行时复用已存在的固定test旧镜像，只执行当前提交的迁移模块，不启动旧应用。维护容器不加载应用runtime.env，根目录只读、能力清空，仅挂载公开CA及私有备份目录。
+
+公开CA为/opt/bumbum-hangzhou/test/public/rds-ca.pem，SHA256为2dc6de20eab8451cc779001466f42b5ed05e554bbf479de6f194c35a1bfbc436，有效期截至2036-04-30；连接继续使用VERIFY_IDENTITY和固定RDS内网主机名。维护工具mysqldump --version及Python迁移入口在杭州无网络只读容器中通过；没有提前登录初始化账号或声称DDL已通过。
+
+由cece在该杭州实例的阿里云Workbench交互终端，以root完整执行下列命令；不使用管道、密码环境变量、参数、密码文件或终端录屏。脚本先验证归档/56个公开文件/CA、当前test镜像、实例UUID及空数据前提，状态变化则停止。密码由既有迁移模块的getpass隐藏输入，不传给AI：
+
+```bash
+bash /opt/bumbum-hangzhou/admin-upgrade-11d7698/upgrade-test-interactive.sh
+```
+
+预计提示四次bumbum_hz_test_init密码：第一次只读检查，随后005、006、007各一次。只读检查应显示正确库/UUID、media_assets=missing及TLS信息；通过后仅停止test后端并等待在途请求，生产不停止。各升级先以MySQL8.0.46完整转储并核对结束标记、再次TLS核对实例，再执行已实现迁移；成功依次显示media_assets=ready、digital_catalog=ready、test_batches=ready及changed=true。备份位于/opt/bumbum-hangzhou/admin-upgrade-11d7698/backups/005、006、007，目录700、SQL文件600。没有旧媒体表和目录，本轮不存在待配套复制的历史图片；状态变化时脚本拒绝继续，由AI重新盘点，不跳过图片备份。
+
+首次只读检查失败时不停止服务；若初始化账号仍锁定或密码/权限不符，反馈脱敏错误，由原账号负责人处理既有账号，不扩大应用权限、不重置或索取密码。停写后任一步失败保持test停止及备份现场，不自行重跑部分DDL、启动旧版或整库恢复。全部升级成功后同样保持test停止，反馈三个脱敏JSON，AI继续当前分支正式后台test部署、数据包灌入和核心流程检查；不能以升级或数据包成功代替后台人工验收。初始化账号的后续锁定沿既有账号维护流程由原负责人处理，不把密码交给AI。
