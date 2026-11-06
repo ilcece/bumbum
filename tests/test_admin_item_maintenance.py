@@ -19,7 +19,7 @@ def test_atomic_sku_profile_preserves_size_identity_and_noop(auth_app, drafts):
     query(auth_app, "INSERT INTO fashion_item_profile(item_id,name,size_chart,image_urls) VALUES (%s,'旧名称',JSON_OBJECT('S',80),JSON_ARRAY())", (item['id'],))
     query(auth_app, "UPDATE item SET updated_at='2020-01-01' WHERE id=%s", (item['id'],))
     original = query(auth_app, "SELECT * FROM item WHERE id=%s", (item['id'],))[0]
-    profile = {"name": " 新名称 ", "description": " 新介绍 ", "image_urls": ["https://example.com/a.webp"]}
+    profile = {"name": " 新名称 ", "description": " 新介绍 ", "image_urls": []}
     response = client.patch(path, json={"sku_code": " 新款式 ", "profile": profile}, headers=headers)
     assert response.status_code == 200
     found = response.json['data']
@@ -33,7 +33,7 @@ def test_atomic_sku_profile_preserves_size_identity_and_noop(auth_app, drafts):
     assert len(audit) == 1
     detail = json.loads(audit[0]['detail'])
     assert detail['project'] == 'fashion' and detail['sku_code'] == {'from': '旧款式', 'to': '新款式'}
-    assert set(detail['fields']) == {'sku_code', 'profile.name', 'profile.description', 'profile.image_urls'}
+    assert set(detail['fields']) == {'sku_code', 'profile.name', 'profile.description'}
     assert '新介绍' not in audit[0]['detail'] and 'example.com' not in audit[0]['detail']
     assert client.patch(path, json={"sku_code": "新款式", "profile": profile}, headers=headers).status_code == 200
     assert query(auth_app, "SELECT * FROM item WHERE id=%s", (item['id'],))[0] == after
@@ -107,8 +107,10 @@ def test_new_save_permissions_size_and_archived(auth_app, drafts):
     assert auth_app.test_client().patch(path, json={'sku_code': 'x'}, headers=ORIGIN).status_code == 401
     assert client.patch(path + '?extra=1', json={'sku_code': 'x'}, headers=headers).status_code == 400
     # 资料分支可超过旧8KiB限制；启停及创建仍保留各自限制。
-    large = {'name': '😀' * 128, 'description': '中' * 4000, 'image_urls': ['https://example.com/' + 'x' * 1900] * 20}
+    large = {'name': '😀' * 128, 'description': '中' * 4000, 'image_urls': []}
     assert client.patch(path, json={'sku_code': None, 'profile': large}, headers=headers).status_code == 200
+    # 旧单件外链已退役；拒绝写入，不能为了通过旧检查恢复该能力。
+    assert client.patch(path,json={'profile':{'name':'不可写旧图','image_urls':['https://example.com/retired.webp']}},headers=headers).status_code==400
     assert client.patch(path, data=' ' * 9000 + '{"status":"active"}', content_type='application/json', headers=headers).status_code == 400
     assert client.patch(path, data='x' * (256 * 1024 + 1), content_type='application/json', headers=headers).status_code == 400
     query(auth_app, "UPDATE item SET status='archived' WHERE id=%s", (item['id'],))
