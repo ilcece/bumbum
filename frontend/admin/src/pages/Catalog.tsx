@@ -4,13 +4,11 @@ import {
   Alert,
   Button,
   Checkbox,
-  Col,
   DatePicker,
   Descriptions,
   Form,
   Input,
   InputNumber,
-  Row as GridRow,
   Select,
   Space,
   Tabs,
@@ -23,111 +21,13 @@ import {
   ActionForm,
   Copy,
   Evidence,
-  Gallery,
   Product,
   RemoteSelect,
   State,
   required,
 } from "../components/CatalogUI";
 import ServerTable from "../components/ServerTable";
-import StyleImages from "../components/StyleImages";
-function StyleFields({ record }: { record?: Row }) {
-  const [imageBusy, setImageBusy] = useState(false);
-  const form = Form.useFormInstance();
-  const v = Form.useWatch([], form) || {};
-  return (
-    <GridRow gutter={24}>
-      <Col span={15}>
-        <Form.Item name="id" hidden>
-          <InputNumber />
-        </Form.Item>
-        <Form.Item name="project" label="物品类别" rules={required}>
-          <Select
-            disabled={!!record?.issue_count}
-            options={[
-              { value: "fashion", label: "服装" },
-              { value: "jewelry", label: "饰品" },
-            ]}
-          />
-        </Form.Item>
-        <Form.Item name="code" label="款式编号" rules={required}>
-          <Input maxLength={64} disabled={!!record?.issue_count} />
-        </Form.Item>
-        <Form.Item name="name" label="款式名称" rules={required}>
-          <Input maxLength={128} />
-        </Form.Item>
-        <Form.Item name="description" label="商品介绍">
-          <Input.TextArea rows={3} maxLength={4000} />
-        </Form.Item>
-        <Form.Item name="material" label="材质">
-          <Input maxLength={256} />
-        </Form.Item>
-        <Form.Item name="care_instructions" label="养护或寓意">
-          <Input.TextArea rows={2} maxLength={2000} />
-        </Form.Item>
-        <Form.Item name="specs" label="适用规格">
-          <Select mode="tags" tokenSeparators={["、", ","]} />
-        </Form.Item>
-        <Form.Item name="image_urls" label="参考图片">
-          <StyleImages styleId={record?.id} onStatusChange={setImageBusy} />
-        </Form.Item>
-        <Form.Item
-          name="image_upload_ready"
-          style={{ marginBottom: 0 }}
-          rules={[
-            {
-              validator: () =>
-                imageBusy
-                  ? Promise.reject("请先完成图片上传并核对结果。")
-                  : Promise.resolve(),
-            },
-          ]}
-        >
-          <Input type="hidden" />
-        </Form.Item>
-        {!!record?.item_count && (
-          <Form.Item
-            name="shared_confirmed"
-            valuePropName="checked"
-            rules={[
-              {
-                validator: (_, v) =>
-                  v ? Promise.resolve() : Promise.reject("请确认共用影响"),
-              },
-            ]}
-          >
-            <Checkbox>
-              我确认保存将影响该款式的{record.item_count}
-              件数字物品，不修改发行与物品历史。
-            </Checkbox>
-          </Form.Item>
-        )}
-      </Col>
-      <Col span={9}>
-        <div className="mobile-preview">
-          <div className="mobile-preview-header">手机展示预览 · 未保存</div>
-          <Gallery urls={v.image_urls || []} />
-          <div className="mobile-preview-content">
-            <Typography.Title level={4}>
-              {v.name || "商品名称"}
-            </Typography.Title>
-            {[
-              ["介绍", v.description],
-              ["材质", v.material],
-              ["养护或寓意", v.care_instructions],
-              ["规格", v.specs?.join("、")],
-            ].map(([k, x]) => (
-              <div className="preview-section" key={k}>
-                <div className="cell-secondary">{k}</div>
-                {x || "暂未填写"}
-              </div>
-            ))}
-          </div>
-        </div>
-      </Col>
-    </GridRow>
-  );
-}
+import StyleEditor from "../components/StyleEditor";
 function IssueFields() {
   const mode = Form.useWatch("mode");
   return (
@@ -383,7 +283,13 @@ export default function Catalog() {
   return (
     <PageContainer
       title={
-        routeId ? (routeKind === "style" ? "款式资料" : "发行约定") : false
+        routeId
+          ? routeKind === "style"
+            ? editor?.record
+              ? "维护共用款式"
+              : "新建款式"
+            : "发行约定"
+          : false
       }
       onBack={routeId ? close : undefined}
       extra={
@@ -438,13 +344,22 @@ export default function Catalog() {
           />
         </>
       )}
-      {editor && (!editor.record?.confirmed_at || editor.kind === "style") && (
-        <ActionForm
-          key={editor.kind + String(editor.record?.id || "new")}
+      {editor?.kind === "style" && (
+        <StyleEditor
+          key={String(editor.record?.id || "new")}
+          record={editor.record}
           page={!!routeId}
-          title={editor.kind === "style" ? "维护款式共用资料" : "发行约定草案"}
-          action={editor.kind}
-          width={editor.kind === "style" ? 1120 : 780}
+          onClose={close}
+          onDone={done}
+        />
+      )}
+      {editor?.kind === "issue" && !editor.record?.confirmed_at && (
+        <ActionForm
+          key={String(editor.record?.id || "new")}
+          page={!!routeId}
+          title="发行约定草案"
+          action="issue"
+          width={780}
           initial={
             editor.record
               ? {
@@ -457,9 +372,6 @@ export default function Catalog() {
                     : undefined,
                 }
               : {
-                  project: "fashion",
-                  specs: [],
-                  image_urls: [],
                   mode: "fixed",
                   rights: [],
                   style_id: q.get("style_id")
@@ -470,11 +382,7 @@ export default function Catalog() {
           onDone={done}
           onClose={close}
         >
-          {editor.kind === "style" ? (
-            <StyleFields record={editor.record} />
-          ) : (
-            <IssueFields />
-          )}
+          <IssueFields />
         </ActionForm>
       )}
       {editor?.record?.confirmed_at && editor.kind === "issue" && (

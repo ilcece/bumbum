@@ -48,11 +48,13 @@ def test_shared_images_real_upload_preview_and_save(desktop,tmp_path):
     desktop.navigate('款式与发行');button(p,'维护资料');d=p.get_by_role('dialog',name='维护款式共用资料')
     image=BytesIO();Image.new('RGB',(32,24),'blue').save(image,format='PNG')
     d.locator('input[type=file]').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':image.getvalue()})
-    expect(d.get_by_text('图片上传未启用。',exact=True)).to_be_visible();assert d.get_by_role('button',name='核对上传结果',exact=True).count()==0
+    expect(d.get_by_alt_text('商品图片 1',exact=True)).to_be_visible()
+    assert query(desktop.app,'SELECT COUNT(*) AS n FROM style_image')[0]['n']==0
+    d.get_by_label('款式名称',exact=True).fill('已保存共用帽子');d.get_by_role('checkbox').check();button(d,'保存共用资料')
+    expect(d.get_by_text('款式资料已保存，仍有图片待保存；请继续完成或明确放弃未保存部分。',exact=True)).to_be_visible()
+    assert query(desktop.app,'SELECT COUNT(*) AS n FROM style_image')[0]['n']==0
     desktop.app.config['MEDIA_ENABLED']=True
-    d.locator('input[type=file]').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':image.getvalue()})
-    expect(d.get_by_alt_text('已上传款图').first).to_be_visible()
-    d.get_by_label('款式名称',exact=True).fill('已保存共用帽子');d.get_by_role('checkbox').check();button(d,'保存');d.wait_for(state='hidden')
+    button(d,'保存共用资料');d.wait_for(state='hidden')
     p.goto(f'http://localhost:5174/items/{item}',wait_until='networkidle');expect(p.get_by_text('已保存共用帽子',exact=True)).to_be_visible()
     p.screenshot(animations='disabled',path=str(tmp_path/'shared-style-item.png'))
     assert query(desktop.app,'SELECT COUNT(*) AS n FROM style_image WHERE style_id=%s',(style,))[0]['n']==1
@@ -60,7 +62,7 @@ def test_shared_images_real_upload_preview_and_save(desktop,tmp_path):
 
 def test_new_style_issue_and_identity_entirely_through_ui(desktop,tmp_path):
     desktop.login();p=desktop.page;p.set_viewport_size({'width':1440,'height':900});desktop.navigate('款式与发行')
-    button(p,'新建款式');expect(p.get_by_label('款式编号',exact=True)).to_be_visible();d=p;d.get_by_label('款式编号',exact=True).fill('UI-ALL');d.get_by_label('款式名称',exact=True).fill('从头创建帽子');button(p,'保存');p.wait_for_url(re.compile(r'/catalog/style/[0-9]+$'));desktop.navigate('款式与发行')
+    button(p,'新建款式');expect(p.get_by_label('款式编号',exact=True)).to_be_visible();d=p;d.get_by_label('款式编号',exact=True).fill('UI-ALL');d.get_by_label('款式名称',exact=True).fill('从头创建帽子');button(p,'保存共用资料');p.wait_for_url(re.compile(r'/catalog/style/[0-9]+$'));desktop.navigate('款式与发行')
     p.get_by_role('tab',name='发行约定',exact=True).click();button(p,'新增发行约定');expect(p.get_by_label('发行名称',exact=True)).to_be_visible();d=p;choose(d,'关联款式','从头创建帽子');d.get_by_label('发行名称',exact=True).fill('首个固定发行');d.get_by_label('数字身份发行总量',exact=True).fill('50');d.get_by_label('发行说明与承诺',exact=True).fill('仅限50个数字身份，实物换新不增发');d.get_by_role('checkbox',name='换新',exact=True).check();button(p,'保存');p.wait_for_url(re.compile(r'/catalog/issue/[0-9]+$'))
     button(p,'确认约定');save_dialog(p,'确认发行约定');expect(p.get_by_text('已确认',exact=True).first).to_be_visible()
     desktop.navigate('数字物品');button(p,'登记数字物品');d=p.get_by_role('dialog',name='新建数字物品身份');choose(d,'发行约定','首个固定发行');d.get_by_label('系统物品编号',exact=True).fill('FASH-2026-888999');d.get_by_label('本件正式序号',exact=True).fill('1');save_dialog(p,'新建数字物品身份')

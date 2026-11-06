@@ -558,7 +558,7 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 
 ### 11.3 共用图片与统计
 
-POST /api/admin/catalog/styles/{id}/images/{asset_id}为精确multipart入口，只收一个file；asset_id为32位小写随机十六进制。样式先保存后上传，JPEG/PNG/WebP和大小/解码边界沿第4.1节，复用重编码；返回url。GET同地址由管理会话读取，GET后缀/status核对上传是否已提交，未知先核对、明确重试同一文件/标识，不盲目换ID。保存款式才关联图片，最多20张；服务不接受dataURL或其他物品私有图片作为共用图片。
+POST /api/admin/catalog/styles/{id}/images/{asset_id}为精确multipart入口，只收一个file；asset_id为32位小写随机十六进制。上传API要求款式已保存并取得id；界面允许先在浏览器选图预览，明确保存时依次保存资料、上传并关联，部分失败不冒称全部完成。JPEG/PNG/WebP和大小/解码边界沿第4.1节，复用重编码；返回url。GET同地址由管理会话读取，GET后缀/status核对上传是否已提交，未知先核对、明确重试同一文件/标识，不盲目换ID。保存款式才关联图片，最多20张；服务不接受dataURL或其他物品私有图片作为共用图片。
 
 当前共用图以受控二进制保存于style_image并随数据库转储，容量与到期暂存受限；旧图片已停止在线服务，清理前仍须原生SQL与文件配套备份；清理后新增款图仅依赖数据库。用户GET /api/tap/items/{item_id}/style-images/{asset_id}复用同一有效view Cookie、物品/芯片/配置检查，且图片必须属于当前已保存共用款式；旧持有者/失效资格不能读取，不返回内部备注或账户。兼容GET /api/fashion/items/{item_id}/style-images/{asset_id}使用原X-Tap-Token短资格；返回图片地址按对应资格族映射，不要求旧短资格客户端持有view Cookie。用户资料只按原公开白名单读取共用字段，旧未关联档案仅保留文字资料，图片为空。
 

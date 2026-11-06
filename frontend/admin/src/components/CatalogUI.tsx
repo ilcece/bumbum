@@ -17,6 +17,7 @@ import {
   Typography,
 } from "antd";
 import {
+  FooterToolbar,
   ModalForm,
   ProForm,
   ProFormInstance,
@@ -48,6 +49,7 @@ export function Copy({
   );
 }
 const colors: Record<string, string> = {
+  有未保存修改: "gold",
   已生成: "green",
   配置已核验: "cyan",
   核验就绪: "cyan",
@@ -349,6 +351,10 @@ export function ActionForm({
   width = 680,
   readOnly = false,
   page = false,
+  execute,
+  onReceipt,
+  footerNote,
+  className,
 }: {
   title: string;
   action: string;
@@ -361,6 +367,10 @@ export function ActionForm({
   width?: number;
   readOnly?: boolean;
   page?: boolean;
+  execute?: (payload: Record<string, any>, token: string) => Promise<Row>;
+  onReceipt?: (r: Row) => boolean;
+  footerNote?: React.ReactNode;
+  className?: string;
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -377,7 +387,9 @@ export function ActionForm({
     setError("");
     try {
       submitted.current ??= pickPayload(action, v);
-      const r = await command(action, submitted.current, token.current);
+      const r = await (execute
+        ? execute(submitted.current, token.current)
+        : command(action, submitted.current, token.current));
       success.current = true;
       setDirty(false);
       onDone(r);
@@ -472,8 +484,12 @@ export function ActionForm({
       title={page ? undefined : title}
       width={width}
       formRef={form}
+      className={className}
       initialValues={initial}
-      onValuesChange={() => setDirty(true)}
+      onValuesChange={() => {
+        success.current = false;
+        setDirty(true);
+      }}
       onFinish={submit}
       modalProps={{
         onCancel: close,
@@ -481,6 +497,7 @@ export function ActionForm({
         keyboard: !busy,
         closable: !busy,
         destroyOnHidden: true,
+        className: action === "style" ? "editor-modal" : undefined,
       }}
       disabled={busy || uncertain}
       submitter={
@@ -490,14 +507,31 @@ export function ActionForm({
               searchConfig: { submitText },
               submitButtonProps: { disabled: uncertain, loading: busy },
               resetButtonProps: { style: { display: "none" } },
-              render: (_: unknown, dom: React.ReactNode[]) => (
-                <Space>
-                  <Button disabled={busy} onClick={close}>
-                    {cancelText}
-                  </Button>
-                  {dom}
-                </Space>
-              ),
+              render: (_: unknown, dom: React.ReactNode[]) => {
+                const controls = (
+                  <Space>
+                    <Button disabled={busy} onClick={close}>
+                      {cancelText}
+                    </Button>
+                    {footerNote ? dom.slice(-1) : dom}
+                  </Space>
+                );
+                const footer = footerNote ? (
+                  <div className="editor-footer">
+                    <Typography.Text type="secondary">
+                      {footerNote}
+                    </Typography.Text>
+                    {controls}
+                  </div>
+                ) : (
+                  controls
+                );
+                return page && footerNote ? (
+                  <FooterToolbar>{footer}</FooterToolbar>
+                ) : (
+                  footer
+                );
+              },
             }
       }
     >
@@ -522,6 +556,16 @@ export function ActionForm({
                   { request_id: token.current },
                   crypto.randomUUID(),
                 );
+                if (onReceipt && !onReceipt(r)) {
+                  setUncertain(false);
+                  setDirty(true);
+                  token.current = crypto.randomUUID();
+                  submitted.current = undefined;
+                  setError(
+                    "已核对款式保存记录，仍有待保存图片，请继续保存共用资料。",
+                  );
+                  return;
+                }
                 success.current = true;
                 onDone(r);
               } catch (e) {

@@ -62,7 +62,7 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     p.screenshot(path=str(evidence/'restored-style-new.png'),full_page=True,animations='disabled')
     p.get_by_label('款式编号',exact=True).fill('BROWSER-REAL-STYLE')
     p.get_by_label('款式名称',exact=True).fill('接口保存款式')
-    button(p,'保存')
+    button(p,'保存共用资料')
     p.wait_for_url(__import__('re').compile(r'/catalog/style/[0-9]+$'))
     p.wait_for_load_state('networkidle')
     created=query(desktop.app,"SELECT id FROM product_style WHERE code='BROWSER-REAL-STYLE'")[0]['id']

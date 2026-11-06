@@ -44,4 +44,4 @@ def test_unsaved_three_choices_and_expired_session_clears_management(desktop):
     p.get_by_role('link',name=re.compile('数字物品$')).evaluate('(el)=>el.click()');guard=p.get_by_role('dialog',name='有未保存修改',exact=True)
     button(guard,'继续编辑');expect(d.get_by_label('款式名称',exact=True)).to_have_value('尚未保存')
     p.route('**/api/admin/catalog/actions/style',lambda route:route.fulfill(status=401,json={'status':'error','code':'unauthorized','message':'合成过期'}))
-    d.get_by_role('checkbox').check();button(d,'保存');expect(p.get_by_role('heading',name='管理员登录')).to_be_visible();assert not p.locator('.ant-pro-layout').count()
+    d.get_by_role('checkbox').check();button(d,'保存共用资料');expect(p.get_by_role('heading',name='管理员登录')).to_be_visible();assert not p.locator('.ant-pro-layout').count()
