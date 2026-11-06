@@ -97,7 +97,7 @@ python -m core.catalog_testdata --item-id 123 --admin-username 你的测试管�
 整批清理预览无外部冲突，AI在数据库事务内验证删除后已回滚，批次完整保留供验收；尚未替cece提交网页清理。先完成资料/整套/统计验收，再按第3组清理并反馈，AI可用原命令重建。测试入口沿用原IP限制，不因AI侧公网/本机管理请求403而放宽；遇403先反馈当前访问情况，不发送密码、Cookie或密钥。
 
 
-本机验证与局限见[脱敏检查摘要](../tests/evidence/testdata-rebuild.json)，界面见[测试统计](../tests/evidence/testdata-test-statistics.png)与[清理确认](../tests/evidence/testdata-test-cleanup.png)；截图均为临时库合成样本。
+数据包初轮验证与局限见[脱敏检查摘要](../tests/evidence/testdata-rebuild.json)。本轮正式页面按原型源码还原后的实际截图：[工作台](../tests/evidence/admin-prototype-overview.png)、[数字物品](../tests/evidence/admin-prototype-items.png)、[款式列表](../tests/evidence/admin-prototype-catalog.png)；均为隔离临时库、真实认证与接口下的合成样本，不代表cece页面验收或实卡验证。
 
 先完成007升级，并按[杭州第12节](HANGZHOU_DEPLOYMENT.md#12-验收批次007与测试数据重建)准备数据。在“系统管理→设置”统一开启测试数据；默认业务数据为空是正常结果，不代表灌入失败。
 
