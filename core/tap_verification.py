@@ -122,8 +122,14 @@ def public_detail(cursor, item, chip):
     project = chip['project']
     fields = ('name', 'description', 'material', 'care_instructions', 'size_chart', 'image_urls') if project == 'fashion' else ('name', 'description', 'material', 'meaning', 'image_urls')
     table = 'fashion_item_profile' if project == 'fashion' else 'jewelry_item_profile'
-    cursor.execute('SELECT ' + ','.join(fields) + ' FROM ' + table + ' WHERE item_id=%s FOR SHARE', (item['id'],))
+    cursor.execute('SELECT s.name,s.description,s.material,s.care_instructions,s.image_urls FROM digital_item d JOIN product_issue r ON r.id=d.issue_id JOIN product_style s ON s.id=r.style_id WHERE d.item_id=%s FOR SHARE', (item['id'],))
     profile = cursor.fetchone()
+    if profile:
+        if project == 'fashion': profile['size_chart'] = None
+        else: profile['meaning'] = profile.pop('care_instructions')
+    else:
+        cursor.execute('SELECT ' + ','.join(fields) + ' FROM ' + table + ' WHERE item_id=%s FOR SHARE', (item['id'],))
+        profile = cursor.fetchone()
     if not profile or not isinstance(profile['name'], str) or not profile['name'].strip():
         return None
     for name in ('image_urls', 'size_chart'):
@@ -131,6 +137,8 @@ def public_detail(cursor, item, chip):
             profile[name] = json.loads(profile[name]) if isinstance(profile[name], (str, bytes)) else profile[name]
     if profile['image_urls'] is None:
         profile['image_urls'] = []
+    import re
+    profile['image_urls'] = [f"/api/tap/items/{item['id']}/style-images/{match[1]}" if (match := re.fullmatch(r'/api/admin/catalog/styles/[1-9][0-9]*/images/([a-f0-9]{32})', url)) else url for url in profile['image_urls']]
     if project == 'fashion':
         # 维护入口未开放的扩展内容先返回契约空值，不公开未知来源字段。
         profile.update(trace=[], story=None, channel=[])

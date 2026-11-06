@@ -105,6 +105,15 @@ def write_item(item_id, profile=None, status=None, sku=MISSING, *, profile_only=
             lock_admin_session(cursor)
             item = locked_fashion_item(cursor, item_id) if profile is not None or status is not None else locked_item(cursor, item_id)
             editable_item(item)
+            cursor.execute("SELECT issue_id FROM digital_item WHERE item_id=%s", (item_id,))
+            digital = cursor.fetchone()
+            if digital and digital['issue_id']:
+                if profile is not None:
+                    raise AuthRequestError(409,"invalid_state","此物品引用共用款式，请从款式维护资料。")
+                if status == 'active':
+                    cursor.execute("SELECT w.id FROM whole_item w JOIN chip c ON c.id=w.chip_id WHERE w.current_item_id=%s AND w.lost_at IS NULL AND w.loss_evidence IS NULL AND c.chip_status='bound' AND c.item_id=%s AND c.provisioned_at IS NOT NULL", (item_id,item_id))
+                    if not cursor.fetchone():
+                        raise AuthRequestError(409,"invalid_state","请先准备整套物品并完成有效配置核验。")
             changed = []
             if profile is not None:
                 cursor.execute("SELECT * FROM fashion_item_profile WHERE item_id=%s FOR UPDATE", (item_id,))

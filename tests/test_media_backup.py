@@ -54,10 +54,18 @@ def media_recovery(auth_database, auth_app, admin_account, drafts, tmp_path):
             pytest.fail('专属临时数据库转储/恢复失败；未显示凭证或业务SQL')
         return result.stdout
 
+    # 共用款图随数据库一起恢复，文件图仍独立配套；不调用任何上传服务。
+    shared_id=uuid.uuid4().hex
+    shared_bytes=(root/(asset_ids[0]+'.webp')).read_bytes()
+    with source.cursor() as cursor:
+        cursor.execute("INSERT INTO product_style(project_id,code,name,specs,image_urls) VALUES (1,%s,'恢复验证款式',JSON_ARRAY(),JSON_ARRAY())",('RESTORE-'+shared_id,))
+        shared_style=cursor.lastrowid
+        cursor.execute('INSERT INTO style_image(asset_id,style_id,created_by,source_sha256,content) VALUES (%s,%s,%s,%s,%s)',(shared_id,shared_style,admin_account['id'],hashlib.sha256(shared_bytes).hexdigest(),shared_bytes))
+        cursor.execute('UPDATE product_style SET image_urls=%s WHERE id=%s',(json.dumps([f'/api/admin/catalog/styles/{shared_style}/images/{shared_id}']),shared_style))
     target_name = 'bumbum_media_restore_' + uuid.uuid4().hex[:12]
     docker('MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "CREATE DATABASE ' + target_name + '; GRANT ALL ON ' + target_name + '.* TO \'bumbum_auth_test\'@\'%\';"')
     dump = tmp_path / 'database.sql'
-    dump.write_bytes(docker('MYSQL_PWD="$MYSQL_PASSWORD" mysqldump --user="$MYSQL_USER" --single-transaction --no-tablespaces --set-gtid-purged=OFF --skip-comments bumbum_digital'))
+    dump.write_bytes(docker('MYSQL_PWD="$MYSQL_PASSWORD" mysqldump --user="$MYSQL_USER" --single-transaction --no-tablespaces --set-gtid-purged=OFF --hex-blob --skip-comments bumbum_digital'))
     dump.chmod(0o600)
     assert b'USE `bumbum_digital`' not in dump.read_bytes()
     bundle = tmp_path / 'bundle'
@@ -74,6 +82,9 @@ def media_recovery(auth_database, auth_app, admin_account, drafts, tmp_path):
                 cursor.execute('DELETE FROM media_asset WHERE item_id=%s', (item_id,))
                 cursor.execute('DELETE FROM fashion_item_profile WHERE item_id=%s', (item_id,))
                 cursor.execute('DELETE FROM item WHERE id=%s', (item_id,))
+        with source.cursor() as cursor:
+            cursor.execute('DELETE FROM style_image WHERE style_id=%s',(shared_style,))
+            cursor.execute('DELETE FROM product_style WHERE id=%s',(shared_style,))
         source.close()
 
 

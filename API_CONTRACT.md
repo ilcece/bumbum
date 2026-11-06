@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-新增后台维护、清理、纠错及挂失换新需求见[独立提案](PRD.md#6-独立改动提案)，精确接口及数据升级待技术方案；实现范围以[第0.4节](#04-当前能做到哪一步)为准，预留所有权接口不等于交付，现有首次绑定接口不能用于换新。
+当前分支按已确认原型构建正式数字档案服务，新增接口见第11节；人工验收与环境部署另计。实现范围以[第0.4节](#04-当前能做到哪一步)为准，预留首次认领接口不等于交付，既有首次绑定接口不能用于换新。
 
 **接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义地址、字段和返回；业务看[PRD](PRD.md)，流程看[TECH_SPEC](TECH_SPEC.md)，精确安全参数看[技术附录](docs/IMPLEMENTATION_DETAILS.md)，任务和历史分别见[TODO](TODO.md)、[CHANGELOG](CHANGELOG.md)。
 
@@ -10,16 +10,16 @@
 
 ### 0.1 地址和字段
 
-前端基础地址 VITE_API_BASE_URL 已含 /api，调用时只补后面的部分，不能重复拼出 /api/api。
+管理端Umi使用同源/api；用户端原VITE_API_BASE_URL仍含/api。调用时只补后面的部分，不能重复拼出/api/api。
 
 | 环境 | 基础地址 | 补上的部分 | 最终请求 |
 |---|---|---|---|
-| 本机开发 | /api | /health | http://localhost:5174/api/health（Vite 转给5000端口） |
+| 本机开发 | /api | /health | http://localhost:5174/api/health（Umi开发代理转给5000端口） |
 | 杭州测试管理端（域名可用性另验收） | /api | /admin/chips | https://test.bumbum.cc/api/admin/chips（部署后） |
 | 生产管理端 | /api | /admin/chips | https://admin.bumbum.cc/api/admin/chips |
 | 生产用户端 | /api | /tap/verify | https://nfc.bumbum.cc/api/tap/verify |
 
-提交内容默认用JSON，标明Content-Type:application/json；唯一例外为第4.1节精确图片上传入口的multipart/form-data。只接受声明过的字段；多传、漏传必填或格式不对，返回 400 invalid_param。id 是正整数，项目只用 fashion/jewelry；时间为 ISO 8601 UTC。可空字段用 null，不拿空字符串代替；长度不超过 [schema](db/schema.sql)，必填文本不能只有空格。
+提交内容默认用JSON，标明Content-Type:application/json；图片上传例外仅为第4.1节及第11节声明的精确multipart/form-data入口。只接受声明过的字段；多传、漏传必填或格式不对，返回 400 invalid_param。id 是正整数，项目只用 fashion/jewelry；时间为 ISO 8601 UTC。可空字段用 null，不拿空字符串代替；长度不超过 [schema](db/schema.sql)，必填文本不能只有空格。
 
 列表每页默认 20 条：page 从 1 开始，page_size 最多 100，keyword 最长 128 字符。开发管理网页只能用 ADMIN_ORIGIN，浏览器须允许携带登录 Cookie（credentials）；生产同域调用。不把用户网页加入管理端允许来源，详见技术规格第 4、6 节。
 
@@ -48,7 +48,7 @@
 | 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
 | 用户发短信/绑定（预留未实现） | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
 
-所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第4.1节的精确上传入口仅接受multipart/form-data。除login外，还必须有有效Cookie和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
+所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第4.1及第11节的精确上传入口仅接受multipart/form-data。除login外，还必须有有效Cookie和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
 
 ### 0.4 当前能做到哪一步
 
@@ -66,8 +66,9 @@
 | 持续查看 | POST /api/tap/verify可选browser_view模式、GET /api/tap/items/{id}/view | 第9节 |
 | 私有图片 | POST /api/admin/items/{id}/images、GET同路径/{asset_id}及/{asset_id}/status；GET /api/tap/items/{id}/images/{asset_id}、GET /api/fashion/items/{id}/images/{asset_id} | 第4.1节；状态仅管理端，用户读取复用对应资格 |
 | 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
+| 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；当前分支构建，验收/部署见TODO |
 
-第10节集中保留短信/认领、所有权、芯片状态/解绑、详情所有权扩展、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用能力。A的物品扩展查询、普通保存及图片后端已接入，管理端Upload和同字段物品编辑页面已接入，人工验收见TODO；B数据清理、C纠错、D接续仍独立待审，媒体到期技术资源维护不替代B。
+第10节集中保留短信/认领、所有权、芯片状态/解绑、详情所有权扩展、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用能力。A的物品扩展查询、普通保存及图片后端已接入，管理端Upload和同字段物品编辑页面已接入，人工验收见TODO；生产验证清理与整套物品接续已按确认范围在第11节提供；C纠错及未定政策不因此开放，媒体到期技术资源维护不替代B。
 
 未注册地址返回404；已有地址的不支持方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，当前使用物品详情。未来若注册但未开放的业务可按明确契约返回501，不能据旧预留文字声称当前已返回501。扫描配置缺失/非法或密钥配置/密文无法核对时503，不以空密码、默认秘密或假成功凑通过。
 
@@ -526,3 +527,56 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | 饰品详情：GET /api/jewelry/items/{item_id}/detail | item_uid、profile 对象、owner_bound |
 
 饰品详情预留白名单不包含芯片UID、读取序号、手机号、订单号或成长进度。旧progress/touch接口候选及权限风险已移入[历史归档](docs/archive/legacy-growth-candidate.md#旧接口候选与权限风险)，当前未注册，不作为获批需求或可用接口。新体验须从探索重新评审，不能从旧契约恢复开发。
+
+## 11. 数字档案管理与整套物品（当前分支）
+
+当前正式管理端使用此服务。复用管理Cookie/Origin/CSRF和禁缓存，任何写入先重查管理员与会话。没有原型会话导入、演示触碰、演示认领、默认持有人或模拟成功入口。旧认证、密钥、图片及用户触碰契约继续适用；数据库先升级006，工具默认只检查，缺失/部分结构时ready拒绝。
+
+### 11.1 分页与详情
+
+GET /api/admin/catalog/{resource}，resource为styles/issues/items/chips/users/audit。page默认1，page_size默认10、最大100，实际页面每页10条；keyword最多128字符。服务端在同一只读快照计算过滤、总数和本页，越界页收回最后有效页，返回items/total/page/page_size/total_pages/page_adjusted。默认按内部ID倒序。物品关键词覆盖编号/款式名/当前芯片，芯片覆盖UID/物品编号/批次；查询不是前端截取本页后再过滤。
+
+| 资源 | 筛选与返回补充 |
+|---|---|
+| styles | project；返回code/name/description/material/care_instructions/specs/image_urls及引用计数 |
+| issues | project/style_id/status=confirmed；返回mode/total/starts_at/ends_at/counting_rule/rights/confirmed_at/sealed_at/ever_used |
+| items | project/status/issue_id/is_validation/sold/whole_status；whole_status为normal/lost/missing，布尔筛选仅true/false；返回稳定身份、发行序号、当前整套/芯片、售出、归属与验证摘要 |
+| chips | project/status/is_validation/available=true；available只取未占用且可准备的pending芯片，不将候选当当前；status新增retired，lost表示随整套挂失停用 |
+| users | keyword按昵称或ID；仅真实账户，联系方式脱敏，返回持有数量，不是CRM或认领接口 |
+| audit | keyword按动作/对象ID；管理操作及必要依据只向管理员开放 |
+
+GET /api/admin/catalog/{styles,issues,items,chips}/{id}读取确切记录；id为页面可安全处理的正整数（当前新增服务上限2147483647），缺失404。items详情另外返回style/issue、wholes、handovers、owners及缺发行时的legacy_profile。所有者只读；无所有者显示未认领，不猜购买人/碰卡人。旧单件资料不自动归并到款式，已有正确发行不允许普通更换。
+
+### 11.2 事务操作与字段
+
+POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_id是36位小写UUID，payload为下表声明的字段对象；未知/漏必填字段400，资格或状态冲突409，缺失404。新建成功返回真实id；不伪造业务成功。所有普通文本边界继续原契约，新增核对依据最多1000字符、实际规格256字符、款式编号64字符，发行/款式名称128字符。
+
+| action | payload及关键条件 |
+|---|---|
+| style | project/code/name/specs/image_urls必填；id、description/material/care_instructions/shared_confirmed选填。specs最多100项，每项128字符；引用后类别/编号保护，共用保存须明确确认影响 |
+| issue | style_id/name/mode/description/rights；id/series/total/starts_at/ends_at/counting_rule可选或按模式必填。mode=fixed/period/unlimited；固定总量正整数，限时提供带时区的起止时间及核定规则；rights仅renewal/resale |
+| confirmIssue/deleteIssue/seal | issue_id；seal另需total/evidence，必须窗口已结束、已确认、未封版且不小于已建身份/已有序号。删除仅从未引用约定并留快照审计 |
+| item | issue_id/item_uid；edition_number按模式要求、is_validation默认false。必须已确认发行，项目由款式确定，身份格式沿既有FASH/JEW规则；固定/封版总量与发行内编号唯一由服务端及数据库保护 |
+| register | chip_uid，project/batch_no/is_validation可选。复用真实登记与UID规范，重复返回原id/is_new=false，不改批次/来源/验证标记 |
+| linkIssue | item_id/issue_id/edition_number/evidence；只补确实缺失的同类别发行，不改稳定编号、实体、归属和年度事实 |
+| bind | item_id/chip_id/spec；准备首套或补齐当前物品，不用于换新。有效发行、未占用可用芯片及类别校验后追加当代，配置仍独立 |
+| sale | item_id/confirmed/evidence；显式维护售出事实，首次确认时间只记一次；撤销不删除首次时间、持有人及触碰历史 |
+| toggleItem | item_id/status，status仅active/disabled；新档案启用检查发行、当前整套、有效芯片与真实核验；停用永久撤销现有查看资格 |
+| loseItem | item_id/whole_id/evidence；固定本次当代ID，挂失写入当代并同步停芯片、撤销资格；准备中的普通换新转为挂失换新，已准备的新整套保留 |
+| prepare | item_id/kind/chip_id/spec/evidence，转售另需recipient_id；kind=periodic/loss/resale。检查真实持有人、已约定权益、年度/待核事实、接收账户及芯片占用；保存原代ID与新代规格/芯片，尚不切换归属/授权 |
+| complete | work_id/evidence/checked=true；重查原代及当前持有人，候选必须真实核验。一起结束旧代、退役旧卡、追加新代、必要转移持有人、保存历史并撤销旧短许可/持续查看。新代正常，不继承旧代挂失；身份/编号/首次售出保留，换新计次待核，转售不重置余额 |
+| chipBatch/chipState | chip_id/batch_no；或chip_id/state/evidence，state仅disabled/restore；挂失、退役或候选不可普通恢复，芯片页无独立挂失 |
+| validationItem/validationChip | item_id或chip_id及enabled布尔值；标记不改变统计 |
+| deleteItem/deleteChip | item_id或chip_id；必须已标生产验证，此后不按启用/绑定/配置/持有人/触碰/历史设资格。只删除目标及对应触碰、办理和关联，另一侧、审计保留；事件清理后退出统计。内部ID不复用；旧单件图片文件不在此立即覆盖或清盘 |
+| legacyProfile | item_id/profile；仅缺发行的历史服装档案保留原资料/私有图片维护，复用原白名单/暂存保存机制；已引用共用款式时此入口拒绝 |
+| receipt | payload仅原request_id；同一管理员读取已提交回执，未查到404，不因此断言原请求永远不会提交 |
+
+请求和payload摘要、业务结果与审计在同一事务提交。相同管理员、action、payload与request_id重试返回原结果；编号已用于其他请求则409。网络/503/坏响应时页面冻结写入并查询回执，仍须明确重试相同输入/编号，不自动重发，不允许改输入复用旧编号。普通4xx保留输入并由人修正。提交回执不含密钥或会话凭证。
+
+### 11.3 共用图片与统计
+
+POST /api/admin/catalog/styles/{id}/images/{asset_id}为精确multipart入口，只收一个file；asset_id为32位小写随机十六进制。样式先保存后上传，JPEG/PNG/WebP和大小/解码边界沿第4.1节，复用重编码；返回url。GET同地址由管理会话读取，GET后缀/status核对上传是否已提交，未知先核对、明确重试同一文件/标识，不盲目换ID。保存款式才关联图片，最多20张；服务不接受dataURL或其他物品私有图片作为共用图片。
+
+当前共用图以受控二进制保存于style_image并随数据库转储，容量与到期暂存受限；旧私有图片仍按原目录及配套备份。用户GET /api/tap/items/{item_id}/style-images/{asset_id}复用同一有效view Cookie、物品/芯片/配置检查，且图片必须属于当前已保存共用款式；旧持有者/失效资格不能读取，不返回内部备注或账户。兼容GET /api/fashion/items/{item_id}/style-images/{asset_id}使用原X-Tap-Token短资格；返回图片地址按对应资格族映射，不要求旧短资格客户端持有view Cookie。用户资料只按原公开白名单读取共用字段，旧未关联档案保留原资料。
+
+GET /api/admin/catalog/statistics支持scope=sold/all、range=7d/30d/all及project/item_id/chip_id。仅统计可信pass事件；sold额外要求显式售出、首次售出时间及事件不早于首次售出，不按owner是否存在推算售出。按稳定item_id跨历代芯片聚合，返回total/touched_items/daily/by_chip及真实档案/账户/持有counts、as_of和Asia/Shanghai。核验读数、失败、重放和普通查看均不新增事件。首次认领服务未开放须明示，不以空模拟用户统计冒充已接入。

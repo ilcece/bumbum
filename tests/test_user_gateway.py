@@ -119,6 +119,7 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
         for path in ('/api/admin/chips','/api/admin/auth/login','/api/health','/api/ready','/api/webhook/admin/scan','/api/public/bind','/api/fashion/items/1/detail'):
             assert call(path)[0]==404
         assert call('/api/admin/chips',headers={'Host':'test.bumbum.cc'})[0]==403
+        assert call(f"/api/tap/items/{item_id}/style-images/"+'a'*32)[0]==403
         payload={**reading(ready[1],ready[0][1]['chip_uid'],9),'browser_view':True}
         status,headers,body=call('/api/tap/verify','POST',payload,{'Origin':'https://nfc.bumbum.cc'})
         assert status==200 and json.loads(body)['data']['verified']

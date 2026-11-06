@@ -16,7 +16,7 @@ from core.admin_queries import (boolean_parameter, check_parameters, consistent_
 
 blueprint = Blueprint("admin_chips", __name__, url_prefix="/api/admin/chips")
 PROJECTS = {"fashion", "jewelry"}
-STATUSES = {"pending", "bound", "disabled", "lost"}
+STATUSES = {"pending", "bound", "disabled", "lost", "retired"}
 ITEM_NAME = "CASE ip.code WHEN 'fashion' THEN fp.name WHEN 'jewelry' THEN jp.name END"
 READ_JOINS = CHIP_JOINS + """ LEFT JOIN project ip ON ip.id=i.project_id
 LEFT JOIN fashion_item_profile fp ON fp.item_id=i.id AND ip.code='fashion'

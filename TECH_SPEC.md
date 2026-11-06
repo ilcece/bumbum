@@ -221,3 +221,9 @@ Windows本机准备、启动和停止工具已由cece验收并合入main。工�
 | 按需优化 | KMS价格/地域/规格/日期，Passkey与容量优化按实际需要评估，不提前采购或改栈 |
 
 已有设备/工具信息不重复收集；新型号或新工具可沿用[真实卡核验准备第1节](docs/NFC_CARD_VERIFICATION.md#1-cece先回复这一批信息)模板。参数与测试方案由AI整理，不要求cece自行计算；新写卡、轮换及部署仍单独确认。
+
+## 10. 数字档案后台重构的正式实现边界
+
+本分支按已认可原型在frontend/admin迁入Umi Max/Ant Design Pro，用户端继续独立Vite；实际新增接口与状态规则以[API第11节](API_CONTRACT.md#11-数字档案管理与整套物品当前分支)为准，产品原则与字段由[重构主方案](docs/proposals/admin-make-rebuild.md)承接。技术适配、升级/回退与共用图片存储选择见[实施第8节](docs/proposals/admin-rebuild-implementation.md#8-正式构建的实际技术范围)。此变更不替换密钥算法、会话、CSRF或触碰重放机制，不接入演示认领。
+
+所有新业务状态放MySQL持久化并在事务内核对，整套物品挂失/交付时永久撤销既有tap_grant。chip.item_id仅当前物品，退役卡置空并保持retired、密钥及计数；whole_item保留历代关联。新旧物品对应固定于办理记录，不从最新chip.item_id猜历史。准备中的新配套芯片可真实核验，但尚不授予触碰或持有资格。现有库先备份升级006；不以启动时自动建表替代迁移。

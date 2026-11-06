@@ -917,3 +917,23 @@ sudo python scripts/hangzhou.py prepare-media --slot test
 6. 网关继续继承管理IP/来源限制：仅精确图片上传入口9MiB、合并PATCH及原profile入口256KiB，其余JSON沿用原限制；应用status请求仍8KiB。用户站仅增加精确tap图片GET，独立20次/秒和burst40，支持20张首屏图；仍拒绝管理接口、旧fashion入口和目录列表。启用Nginx前按原步骤nginx -t，不直接复制生产模板覆盖在用配置。
 
 回退先关闭上传并保留本版本受控读取；已经保存新图时，不切换到不认识媒体的旧后端。必要时先回退管理UI或准备含读取能力的兼容版本，保留表和文件。真正整库/文件恢复、窗口内后来写入的处理另行确认；不因有备份直接覆盖业务库。媒体到期技术资源命令见[本地手册第14节](LOCAL_DEVELOPMENT.md#14-物品与私有图片后端升级)，生产执行须明确范围，不能替代B清理审批。
+
+## 11. 数字档案006与新版后台测试交付
+
+当前重构分支迁入正式Umi后台并新增数字档案006。代码构建或推送不代表杭州测试环境已部署；按本手册原镜像/运行清单流程单独更新test，不直接改生产。frontend/admin仍产出dist，由原管理网关交付；用户端独立构建、API域名隔离、Cookie/Origin/CSRF和原密钥配置保持。
+
+已有RDS先完成第10节媒体005，再核对test目标与实例。使用当前分支工具，默认只检查，不执行DDL：
+
+```bash
+python -m core.rds_media_migration --digital-catalog --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem
+```
+
+确认报告属于test，按本手册暂停test槽全部应用写入（管理、触碰验证与上传，其他槽不受影响）并准备私有备份目录后，执行升级的操作者才使用apply；初始化账号密码仍隐藏输入，不贴进聊天、命令或日志：
+
+```bash
+python -m core.rds_media_migration --digital-catalog --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem --apply --confirm-database bumbum_hz_test --confirm-server-uuid 核对所得实例UUID --writes-stopped --backup-dir /私有绝对路径/升级备份
+```
+
+升级前先完整原生转储，保留--hex-blob；共用款图的受控二进制随数据库一起备份。旧单件私有图仍须原目录与同窗口媒体配套备份，不能只留SQL。006失败或部分结构保留现场、不自动重跑删表，ready未通过前不恢复管理写入。006后新增retired与历代关系，回退程序不能代替数据恢复；不覆盖后来数据，不把旧程序直接当作兼容回退。
+
+测试步骤见[管理端四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)。旧档案发行/款式待人工核对补齐；迁移不重新生成密钥、不重置计数或授予持有人。真实芯片配置/手机触碰、公网和Windows结果由cece按实际环境验证，本轮云端临时MySQL/Chromium不替代它们。

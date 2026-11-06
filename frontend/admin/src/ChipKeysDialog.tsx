@@ -259,7 +259,7 @@ export function ChipKeysDialog({
         <Alert
           type="info"
           showIcon
-          title="生成、工具配卡和配置核验是三个不同步骤；只处理已绑定芯片。"
+          title="生成、工具配卡和配置核验是三个不同步骤；处理当前绑定或已保存整套准备中的配套芯片；候选核验不提前生效。"
         />
         <Typography.Text>
           芯片：{chip.chip_uid}；关联物品：{chip.item_uid}

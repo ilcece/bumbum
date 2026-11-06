@@ -575,3 +575,32 @@ node prototypes/admin-make/checks/domain.test.mjs
 ```
 
 构建成功产生dist/index.html；导出生成单HTML、源码ZIP并更新preview.html。单HTML包含真实Umi路由块，无需安装依赖；下载后用桌面Chrome/Edge打开。交互步骤及验证范围见[原型说明](../prototypes/admin-make/README.md)。会话仅供产品审核；真实认证、所有权、密钥及API不能用演示替代。停止开发服务在终端按Ctrl+C。
+
+## 15. 正式Umi后台与数字档案006测试
+
+适用于当前重构分支的正式frontend/admin，隔离原型仍在prototypes/admin-make，不把原型会话、演示账户或故障开关导入真实后台。管理员、芯片密钥和现有资料继续原配置，用户页仍独立Vite。先在对应分支更新依赖和构建：
+
+```bash
+npm --prefix frontend/admin ci
+npm --prefix frontend/admin run build
+```
+
+管理端实际为Umi Max/Ant Design Pro。默认npm ci可能提示官方未启用Dva/Utoo插件的peer告警，不能把它写成严格peer检查通过；不使用force/legacy-peer-deps。实际启用的Webpack构建和本页业务检查须通过。Node版本沿项目约定；Windows启动工具已改为管理端自己的跨平台Umi脚本，用户端不变。手动管理端使用`npm --prefix frontend/admin run dev`，只监听127.0.0.1:5174，API代理5000；原VITE_API_BASE_URL不再控制管理端，用户端仍沿用。
+
+已有本机测试库先停止对应应用写入（管理、触碰验证与上传），按第7节的同库/容器核对和私有备份前提运行。默认只检查，apply会先完整备份再做006：
+
+```bash
+python scripts/migrate_local.py --digital-catalog
+python scripts/migrate_local.py --digital-catalog --apply
+```
+
+工具仅接受原本机测试目标，不用于RDS。升级不修改原账户、密钥、计数和事件；不从SKU猜共用款式、不推断售出/发行/持有人。原绑定补第一代整套，历史规格和关联时间未知时保持待核对/未记录。缺少或部分006时ready拒绝，不重新运行schema.sql，不删库重建。DDL无法承诺事务回滚，失败保留备份与现场；已有新业务写入后不能直接恢复整库覆盖后来数据。
+
+AI本地验证应先构建，再按第9节开启临时MySQL和浏览器参数。新版管理端浏览器检查直接使用dist和同源真实API，用户端检查继续启动原Vite；不会连接现有本机测试库。受影响UI脚本已更新为新菜单/整套流程，不运行取消的React19独立组件矩阵：
+
+```bash
+python -m pytest tests/test_admin_catalog.py --auth-db -q
+python -m pytest tests/test_admin_browser.py tests/test_admin_item_browser.py tests/test_admin_maintenance_browser.py tests/test_tap_stats_browser.py --auth-db --browser -q
+```
+
+人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。首次用户认领、解除挂失及未定计次/费用不通过测试数据冒充开放；更换芯片仍须按原真实配卡手册实际配置，不把服务端生成密钥当作写卡完成。

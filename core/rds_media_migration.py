@@ -15,6 +15,7 @@ import uuid
 
 import pymysql
 
+from core.catalog_migration import TABLES as CATALOG_TABLES, catalog_schema, migrate as migrate_catalog, CatalogMigrationError
 from core.db import TARGET_TABLES, database_tls_options, media_asset_schema
 from core.media_migration import MediaMigrationError, migrate
 from core.rds_database import RdsPreparationError, inspect_target
@@ -27,7 +28,8 @@ def inspect_media(connection, database, expected_uuid=None):
         cursor.execute('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()')
         tables = {row[0] for row in cursor.fetchall()}
         state = media_asset_schema(cursor)
-    if report['other_object_count'] or tables not in (TARGET_TABLES, TARGET_TABLES - {'media_asset'}) or state == 'unknown':
+    base=TARGET_TABLES-set(CATALOG_TABLES)
+    if report['other_object_count'] or tables not in (TARGET_TABLES, TARGET_TABLES-{'media_asset'},base,base-{'media_asset'}) or state == 'unknown':
         raise MediaMigrationError('已有库结构无法完整识别，未升级；先核对旧版本及005。')
     if expected_uuid is not None and report['server_uuid'] != expected_uuid:
         raise MediaMigrationError('实际实例标识与确认值不同，未升级。')
@@ -35,7 +37,7 @@ def inspect_media(connection, database, expected_uuid=None):
     return report
 
 
-def native_backup(config, password, connection, expected_uuid, directory):
+def native_backup(config, password, connection, expected_uuid, directory, purpose="media-assets"):
     """凭证只进入子进程环境；不自动恢复、覆盖文件或输出原生错误。"""
     program = shutil.which('mysqldump')
     if not program:
@@ -51,7 +53,7 @@ def native_backup(config, password, connection, expected_uuid, directory):
         raise MediaMigrationError('备份目录须为当前操作者持有且仅本人可访问，未自动改权限。')
     inspect_media(connection, config['DB_NAME'], expected_uuid)
     stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    destination = directory / f'before-media-assets-{stamp}-{uuid.uuid4().hex}.sql'
+    destination = directory / f'before-{purpose}-{stamp}-{uuid.uuid4().hex}.sql'
     partial = destination.with_suffix('.partial')
     flags = [program,'--no-defaults','--host='+config['DB_HOST'],'--port=3306','--user='+config['DB_USER'],
              '--ssl-mode=VERIFY_IDENTITY','--ssl-ca='+config['DB_SSL_CA'],'--single-transaction',
@@ -89,6 +91,7 @@ def connect(config, password):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='杭州已有库媒体005检查；显式apply在停止写入并备份后升级，不启用上传。')
+    parser.add_argument('--digital-catalog',action='store_true',help='改为检查/升级数字档案006，仍须先完成媒体005')
     parser.add_argument('--slot',required=True,choices=SLOTS)
     parser.add_argument('--ca',required=True)
     parser.add_argument('--apply',action='store_true')
@@ -114,12 +117,18 @@ def main(argv=None):
             raise MediaMigrationError('未输入密码，未连接。')
         with connect(config,password) as connection:
             report = inspect_media(connection,config['DB_NAME'],args.confirm_server_uuid if args.apply else None)
-            if args.apply:
+            if args.digital_catalog:
+                with connection.cursor() as cursor: report['digital_catalog']=catalog_schema(cursor)
+                if report['media_assets']!='ready':raise CatalogMigrationError('先完成媒体005，再升级数字档案006。')
+            if args.apply and args.digital_catalog:
+                report['changed']=migrate_catalog(connection,lambda:native_backup(config,password,connection,args.confirm_server_uuid,args.backup_dir,purpose='digital-catalog'))
+                with connection.cursor() as cursor:report['digital_catalog']=catalog_schema(cursor)
+            elif args.apply:
                 report['changed'] = migrate(connection,lambda: native_backup(config,password,connection,args.confirm_server_uuid,args.backup_dir))
                 report['media_assets'] = inspect_media(connection,config['DB_NAME'],args.confirm_server_uuid)['media_assets']
             print(json.dumps(report,ensure_ascii=False))
         return 0
-    except (MediaMigrationError,RdsPreparationError) as error:
+    except (MediaMigrationError,RdsPreparationError,CatalogMigrationError) as error:
         print('未完成：'+str(error),file=sys.stderr)
     except Exception:
         print('未完成：目标、认证、TLS、转储或结构检查失败；未显示秘密或SQL，保留现场，不自动恢复或重跑。',file=sys.stderr)

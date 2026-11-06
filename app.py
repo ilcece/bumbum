@@ -30,6 +30,8 @@ def create_app(test_config=None):
     init_media(app)
     from core.admin_stats import blueprint as stats_blueprint
     app.register_blueprint(stats_blueprint)
+    from core.admin_catalog import blueprint as catalog_blueprint
+    app.register_blueprint(catalog_blueprint)
 
     @app.after_request
     def prevent_cache(response):
@@ -51,7 +53,7 @@ def create_app(test_config=None):
             return jsonify(
                 status="error",
                 code="service_unavailable",
-                message="测试数据库尚未就绪；更新代码后请按运行手册检查项目可空、登记来源、触碰日志、持续查看资格及媒体005升级。",
+                message="测试数据库尚未就绪；更新代码后请按运行手册检查项目可空、登记来源、触碰日志、持续查看资格、媒体005及数字档案006升级。",
                 **({"error_id": g.diagnostic_error_id} if g.get("diagnostic_error_id") else {}),
             ), 503
         return jsonify(status="ok", data={"database": "ready"})

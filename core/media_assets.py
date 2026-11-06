@@ -161,6 +161,10 @@ def asset_for_read(cursor, item_id, asset_id, *, admin_id=None):
 
 def map_profile_images(cursor, profiles, *, context='admin'):
     """跨一页资料批量映射，旧外部URL原样保留；不按当前域名前缀猜归属。"""
+    if context in {'tap','fashion'}:
+        for item_id,profile in profiles.items():
+            prefix=f'/api/tap/items/{item_id}/style-images/'
+            profile['image_urls']=[f"{origin(context)}/api/{context}/items/{item_id}/style-images/{url[len(prefix):]}" if isinstance(url,str) and url.startswith(prefix) and ASSET_ID.fullmatch(url[len(prefix):]) else url for url in profile.get('image_urls',[])]
     ids = [item_id for item_id, profile in profiles.items() if any(managed_path(url) for url in profile.get('image_urls', []))]
     if not ids:
         return

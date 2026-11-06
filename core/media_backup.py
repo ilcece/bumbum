@@ -39,6 +39,13 @@ def snapshot(connection):
             cursor.execute('START TRANSACTION WITH CONSISTENT SNAPSHOT, READ ONLY')
             cursor.execute('SELECT * FROM media_asset ORDER BY asset_id')
             assets = cursor.fetchall()
+            cursor.execute("SELECT COUNT(*) AS n FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='style_image'")
+            shared_images, shared_styles = [], []
+            if cursor.fetchone()['n']:
+                cursor.execute('SELECT asset_id,style_id,source_sha256,SHA2(content,256) AS sha256,OCTET_LENGTH(content) AS byte_size FROM style_image ORDER BY asset_id')
+                shared_images = cursor.fetchall()
+                cursor.execute('SELECT id,image_urls FROM product_style ORDER BY id')
+                shared_styles = [{'id': r['id'], 'image_urls': json.loads(r['image_urls']) if isinstance(r['image_urls'],str) else r['image_urls']} for r in cursor.fetchall()]
             cursor.execute('SELECT i.id,i.project_id,i.item_uid,p.code AS project FROM item i JOIN project p ON p.id=i.project_id ORDER BY i.id')
             items = cursor.fetchall()
             profiles = []
@@ -46,13 +53,19 @@ def snapshot(connection):
                 cursor.execute(f'SELECT item_id,image_urls FROM {project}_item_profile ORDER BY item_id')
                 for row in cursor.fetchall():
                     profiles.append({'project': project, 'item_id': row['item_id'], 'image_urls': json.loads(row['image_urls']) if row['image_urls'] else []})
-        return json.loads(json.dumps({'assets': assets, 'items': items, 'profiles': profiles}, default=lambda value: value.isoformat() if isinstance(value, (date, datetime)) else value))
+        return json.loads(json.dumps({'assets': assets, 'items': items, 'profiles': profiles, **({'shared_images':shared_images,'shared_styles':shared_styles} if shared_images or shared_styles else {})}, default=lambda value: value.isoformat() if isinstance(value, (date, datetime)) else value))
     finally:
         connection.rollback()
 
 
 def required_files(data):
     """核对稳定引用、归属及发布状态，明确哪些完整文件必须存在。"""
+    shared={x['asset_id']:x for x in data.get('shared_images',[])}
+    for style in data.get('shared_styles',[]):
+        for url in style['image_urls']:
+            match=re.fullmatch(r'/api/admin/catalog/styles/([1-9][0-9]*)/images/([a-f0-9]{32})',url)
+            if not match or int(match[1])!=style['id'] or match[2] not in shared or shared[match[2]]['style_id']!=style['id']:
+                raise MediaBackupError('共用款图的引用与数据库元数据不一致。')
     assets, references, items = {}, {}, {row['id']: row for row in data['items']}
     required = {}
     for asset in data['assets']:

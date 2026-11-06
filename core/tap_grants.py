@@ -1,6 +1,7 @@
 """用户触碰路由及按物品核对的临时查看凭证，不提供认领接口。"""
 
 import os
+import re
 from datetime import timedelta
 from urllib.parse import urlsplit
 
@@ -112,8 +113,12 @@ def read_detail(item_id, *, view=False, image_id=None):
                 invalid_token(view)
             profile, owner_bound = detail
             if image_id is not None:
-                from core.media_assets import asset_for_read
-                data = asset_for_read(cursor, item_id, image_id)
+                if image_id.startswith('style:'):
+                    from core.admin_catalog import shared_image
+                    data = shared_image(cursor, item_id, image_id[6:])
+                else:
+                    from core.media_assets import asset_for_read
+                    data = asset_for_read(cursor, item_id, image_id)
                 connection.commit()
                 return data
             from core.media_assets import map_profile_images
@@ -162,6 +167,26 @@ def read_image(item_id, asset_id, *, view):
         raise AuthRequestError(400, 'invalid_param', '图片读取只接收有效物品ID，不接受正文。')
     from core.admin_media import image_response
     return image_response(read_detail(item_id, view=view, image_id=asset_id))
+
+
+@blueprint.get('/api/tap/items/<int:item_id>/style-images/<asset_id>')
+def style_image(item_id, asset_id):
+    return shared_image_response(item_id,asset_id,view=True)
+
+
+@blueprint.get('/api/fashion/items/<int:item_id>/style-images/<asset_id>')
+def fashion_style_image(item_id,asset_id):
+    return shared_image_response(item_id,asset_id,view=False)
+
+
+def shared_image_response(item_id,asset_id,*,view):
+    from flask import Response
+    if not valid_id(item_id) or request.content_length or not re.fullmatch(r'[a-f0-9]{32}', asset_id):
+        raise AuthRequestError(404,'not_found','图片不存在。')
+    data = read_detail(item_id, view=view, image_id='style:'+asset_id)
+    response = Response(data['content'],mimetype='image/webp')
+    response.headers['X-Content-Type-Options']='nosniff'
+    return response
 
 
 def public_settings(*, require_origin=False):

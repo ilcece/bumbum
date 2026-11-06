@@ -84,17 +84,21 @@ def audit(cursor, action, chip, extra=None):
 
 def lock_chip(cursor, chip_id):
     # 先查关联以确定锁目标，再按物品→芯片锁定重查，防止关联变化后使用旧项目。
-    cursor.execute("SELECT item_id FROM chip WHERE id=%s", (chip_id,))
+    cursor.execute("SELECT c.item_id,w.item_id AS candidate_item_id FROM chip c LEFT JOIN item_handover w ON w.pending_chip_id=c.id WHERE c.id=%s", (chip_id,))
     initial = cursor.fetchone()
     if initial is None:
         raise AuthRequestError(404, "not_found", "芯片不存在。")
-    if initial["item_id"] is None:
+    target_id = initial["item_id"] or initial["candidate_item_id"]
+    if target_id is None:
         raise AuthRequestError(409, "invalid_state", "请先绑定物品并确定项目。")
-    cursor.execute("SELECT id,project_id,status FROM item WHERE id=%s FOR UPDATE", (initial["item_id"],))
+    cursor.execute("SELECT id,project_id,status FROM item WHERE id=%s FOR UPDATE", (target_id,))
     item = cursor.fetchone()
     cursor.execute("SELECT * FROM chip WHERE id=%s FOR UPDATE", (chip_id,))
     chip = cursor.fetchone()
-    if not chip or not item or chip["item_id"] != item["id"] or chip["project_id"] != item["project_id"] or chip["chip_status"] != "bound" or item["status"] == "archived":
+    cursor.execute("SELECT item_id FROM item_handover WHERE pending_chip_id=%s FOR UPDATE", (chip_id,))
+    candidate = cursor.fetchone()
+    related = chip and item and ((chip["item_id"] == item["id"] and chip["chip_status"] == "bound") or (candidate and candidate["item_id"] == item["id"] and chip["item_id"] is None and chip["chip_status"] == "pending"))
+    if not related or chip["project_id"] != item["project_id"] or item["status"] == "archived":
         raise AuthRequestError(409, "invalid_state", "芯片关联或状态已改变，请重新查询。")
     cursor.execute("SELECT code FROM project WHERE id=%s", (chip["project_id"],))
     chip["project"] = cursor.fetchone()["code"]

@@ -1,483 +1,75 @@
-"""Ant Design物品完整流程，真实API/文件/隔离MySQL，故障回执明确合成。"""
-
+"""按获认可原型更新的数字身份、整套换新转售及共用款图实际页面检查。"""
 from io import BytesIO
-import json
 import re
-
-from PIL import Image
 import pytest
-
+from tests.test_admin_browser import browser_gate,desktop,button,expect
+from tests.admin_ui_helpers import choose,save_dialog,setup,api,key_configuration
 from tests.test_admin_auth import query
-from tests.test_admin_browser import browser_gate, desktop
-
-pytestmark = [pytest.mark.auth_database, pytest.mark.browser]
-
-
-def sample(desktop, *, project='fashion', status='draft'):
-    prefix = 'FASH' if project == 'fashion' else 'JEW'
-    query(desktop.app,'INSERT INTO item(project_id,item_uid,sku_code,status) VALUES (%s,%s,%s,%s)',(1 if project=='fashion' else 2,prefix+'-2026-920001','原款式',status))
-    item = query(desktop.app,'SELECT id FROM item')[0]['id']
-    if project=='fashion':
-        query(desktop.app,"INSERT INTO fashion_item_profile(item_id,name,description,material,size_chart) VALUES (%s,'原名称','原介绍','棉',JSON_OBJECT('S',80))",(item,))
-    else:
-        query(desktop.app,"INSERT INTO jewelry_item_profile(item_id,name,meaning) VALUES (%s,'既有饰品','既有寓意')",(item,))
-    return item
+from tests.test_admin_catalog import owner
+pytestmark=[pytest.mark.auth_database,pytest.mark.browser]
 
 
-def open_item(desktop, edit=False):
-    desktop.login(); desktop.navigate('物品管理')
-    page=desktop.page
-    page.get_by_role('button',name='查看详情',exact=True).click()
-    page.get_by_role('heading',name='物品详情',exact=True).wait_for()
-    page.get_by_text('原名称',exact=True).or_(page.get_by_text('既有饰品',exact=True)).first.wait_for()
-    if edit:
-        page.get_by_role('button',name='编辑物品',exact=True).click()
-        page.get_by_label('款式编号',exact=True).wait_for()
-    return page
+def test_whole_item_from_preparation_through_loss_renewal_resale(desktop,tmp_path):
+    _,_,item,chips=setup(desktop);p=desktop.page
+    desktop.navigate('数字物品');button(p,'查看')
+    drawer=p.get_by_role('dialog',name='数字物品详情',exact=True)
+    button(drawer,'准备首套物品');d=p.get_by_role('dialog',name='准备物品（实物＋芯片）')
+    d.get_by_label('物品实际规格',exact=True).fill('L黑');choose(d,'物品所配芯片','04:00:00:00:00:00:C9');save_dialog(p,'准备物品（实物＋芯片）')
+    button(drawer,'查看密钥与配置');key_configuration(desktop,chips[0])
+    button(drawer,'启用物品档案');save_dialog(p,'启用物品档案')
+    button(drawer,'维护售出事实');d=p.get_by_role('dialog',name='维护售出事实');d.get_by_label('核对依据',exact=True).fill('外部平台实际售出');save_dialog(p,'维护售出事实')
+    a=owner(desktop.app,item,21);b=owner(desktop.app,None,22)
+    button(p,'打开完整详情');p.reload(wait_until='networkidle')
+    button(p,'办理换新');d=p.get_by_role('dialog',name='准备替换物品');d.get_by_label('新物品实际规格',exact=True).fill('新实物L黑');choose(d,'新物品所配芯片','04:00:00:00:00:00:CA');d.get_by_label('核对依据',exact=True).fill('核对年度资格');save_dialog(p,'准备替换物品')
+    button(p,'继续办理换新');w=p.get_by_role('dialog',name='定期换新 · 整套物品办理');button(w,'查看密钥与配置');key_configuration(desktop,chips[1]);button(w,'关闭，保留办理记录');w.wait_for(state='hidden')
+    button(p,'挂失物品');d=p.get_by_role('dialog',name='挂失物品',exact=True);d.get_by_label('核对依据',exact=True).fill('整套丢失，已核对原持有人');save_dialog(p,'挂失物品','确认挂失整套物品')
+    expect(p.get_by_text('当前整套物品已挂失',exact=True)).to_be_visible()
+    button(p,'继续办理换新');w=p.get_by_role('dialog',name='挂失换新 · 整套物品办理');w.get_by_label('实际交付核对依据',exact=True).fill('已交付新实物及配套芯片');w.get_by_role('checkbox').check()
+    p.screenshot(animations='disabled',path=str(tmp_path/'whole-renewal-1280.png'))
+    button(w,'确认交付并生效');w.wait_for(state='hidden');expect(p.get_by_text('第2代物品',exact=True)).to_be_visible()
+    button(p,'办理转售');d=p.get_by_role('dialog',name='准备转售的新整套物品');d.get_by_label('新物品实际规格',exact=True).fill('转售新整套');choose(d,'新物品所配芯片','04:00:00:00:00:00:CB');choose(d,'已核对接收账户','临时账户22');d.get_by_label('核对依据',exact=True).fill('核对新接收账户');save_dialog(p,'准备转售的新整套物品')
+    button(p,'继续办理转售');w=p.get_by_role('dialog',name='后台转售 · 整套物品办理');button(w,'查看密钥与配置');key_configuration(desktop,chips[2]);w.get_by_label('实际交付核对依据',exact=True).fill('转售新整套已交付');w.get_by_role('checkbox').check();button(w,'确认交付并生效');w.wait_for(state='hidden')
+    expect(p.get_by_text('第3代物品',exact=True)).to_be_visible()
+    actual=query(desktop.app,'SELECT i.item_uid,d.edition_number,o.user_id FROM item i JOIN digital_item d ON d.item_id=i.id JOIN ownership o ON o.active_item_id=i.id WHERE i.id=%s',(item,))[0]
+    assert actual=={'item_uid':'FASH-2026-880001','edition_number':1,'user_id':b}
+    assert len(query(desktop.app,'SELECT * FROM whole_item WHERE item_id=%s',(item,)))==3
+    p.get_by_role('button',name=re.compile('物品办理记录')).click()
+    row=p.locator('.ant-table-tbody tr').filter(has_text='挂失换新').first
+    button(row,'查看');historic=p.get_by_role('dialog',name='挂失换新 · 整套物品办理')
+    expect(historic.get_by_text('04:00:00:00:00:00:C9',exact=True)).to_be_visible();expect(historic.get_by_text('04:00:00:00:00:00:CA',exact=True)).to_be_visible();assert historic.get_by_text('04:00:00:00:00:00:CB',exact=True).count()==0
+    p.screenshot(animations='disabled',path=str(tmp_path/'whole-history-correspondence.png'))
+    button(historic,'关闭，保留办理记录');historic.wait_for(state='hidden')
+    p.screenshot(animations='disabled',path=str(tmp_path/'whole-resale-completed.png'),full_page=True)
 
 
-def png():
-    out=BytesIO();Image.new('RGBA',(24,16),(30,120,70,100)).save(out,'PNG');return out.getvalue()
+def test_shared_images_real_upload_preview_and_save(desktop,tmp_path):
+    from PIL import Image
+    style,_,item,_=setup(desktop);desktop.app.config['MEDIA_ENABLED']=False;p=desktop.page
+    desktop.navigate('款式与发行');button(p,'维护共用资料');d=p.get_by_role('dialog',name='维护款式共用资料')
+    image=BytesIO();Image.new('RGB',(32,24),'blue').save(image,format='PNG')
+    d.locator('input[type=file]').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':image.getvalue()})
+    expect(d.get_by_text('图片上传未启用。',exact=True)).to_be_visible();assert d.get_by_role('button',name='核对上传结果',exact=True).count()==0
+    desktop.app.config['MEDIA_ENABLED']=True
+    d.locator('input[type=file]').set_input_files({'name':'synthetic.png','mimeType':'image/png','buffer':image.getvalue()})
+    expect(d.get_by_alt_text('已上传款图').first).to_be_visible()
+    d.get_by_label('款式名称',exact=True).fill('已保存共用帽子');d.get_by_role('checkbox').check();button(d,'保存');d.wait_for(state='hidden')
+    p.goto(f'http://localhost:5174/items/{item}',wait_until='networkidle');expect(p.get_by_text('已保存共用帽子',exact=True)).to_be_visible()
+    p.screenshot(animations='disabled',path=str(tmp_path/'shared-style-item.png'))
+    assert query(desktop.app,'SELECT COUNT(*) AS n FROM style_image WHERE style_id=%s',(style,))[0]['n']==1
 
 
-def enable_upload(desktop,tmp_path):
-    root=tmp_path/'private-media';root.mkdir(mode=0o700)
-    desktop.app.config.update(MEDIA_ROOT=str(root),MEDIA_ENABLED=True,MEDIA_MAX_TOTAL_BYTES=2*1024**3,PUBLIC_ORIGIN='http://127.0.0.1:5175')
-    return root
+def test_new_style_issue_and_identity_entirely_through_ui(desktop,tmp_path):
+    desktop.login();p=desktop.page;p.set_viewport_size({'width':1440,'height':900});desktop.navigate('款式与发行')
+    button(p,'新建款式');d=p.get_by_role('dialog',name='维护款式共用资料');d.get_by_label('款式编号',exact=True).fill('UI-ALL');d.get_by_label('款式名称',exact=True).fill('从头创建帽子');save_dialog(p,'维护款式共用资料')
+    p.get_by_role('tab',name='发行约定',exact=True).click();button(p,'新增发行约定');d=p.get_by_role('dialog',name='发行约定草案');choose(d,'关联款式','从头创建帽子');d.get_by_label('发行名称',exact=True).fill('首个固定发行');d.get_by_label('数字身份发行总量',exact=True).fill('50');d.get_by_label('发行说明与承诺',exact=True).fill('仅限50个数字身份，实物换新不增发');d.get_by_role('checkbox',name='换新',exact=True).check();save_dialog(p,'发行约定草案')
+    button(p,'确认约定');save_dialog(p,'确认发行约定');expect(p.get_by_text('已确认',exact=True).first).to_be_visible()
+    desktop.navigate('数字物品');button(p,'新建数字物品');d=p.get_by_role('dialog',name='新建数字物品身份');choose(d,'发行约定','首个固定发行');d.get_by_label('系统物品编号',exact=True).fill('FASH-2026-888999');d.get_by_label('本件正式序号',exact=True).fill('1');save_dialog(p,'新建数字物品身份')
+    button(p,'打开刚创建的确切物品');d=p.get_by_role('dialog',name='数字物品详情');expect(d.get_by_text('#001/50',exact=True)).to_be_visible();expect(d.get_by_text('从头创建帽子',exact=True)).to_be_visible();p.screenshot(animations='disabled',path=str(tmp_path/'new-item-1440.png'))
+    assert query(desktop.app,'SELECT COUNT(*) AS n FROM item')[0]['n']==1
 
 
-def select_image(page,name='synthetic.png'):
-    page.locator('input[type=file]').set_input_files({'name':name,'mimeType':'image/png','buffer':png()})
-
-
-def test_item_fields_relation_atomic_save_and_noop(desktop):
-    from playwright.sync_api import expect
-    item=sample(desktop)
-    query(desktop.app,"INSERT INTO chip(chip_uid,project_id,item_id,chip_status) VALUES ('04:00:00:00:00:00:71',1,%s,'bound')",(item,))
-    chip=query(desktop.app,'SELECT id FROM chip')[0]['id']
-    page=open_item(desktop)
-    labels=page.locator('.ant-descriptions-item-label').all_text_contents()
-    page.get_by_role('link',name='04:00:00:00:00:00:71',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/chips/{chip}$'))
-    page.get_by_role('button',name='返回来源',exact=True).click()
-    page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_label('名称',exact=True).wait_for()
-    for label in labels:
-        expect(page.locator('.ant-form-item-label').filter(has_text=re.compile('^'+re.escape(label)+'$'))).to_have_count(1)
-    assert page.get_by_text('80').count()>0
-    writes=[]
-    page.on('request',lambda req:writes.append(req.post_data_json) if req.method=='PATCH' and req.url.endswith('/items/'+str(item)) else None)
-    page.get_by_label('款式编号',exact=True).fill('新款式')
-    page.get_by_label('名称',exact=True).fill('新名称')
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{item}$'))
-    page.get_by_text('新名称',exact=True).wait_for()
-    assert len(writes)==1 and set(writes[0])=={'sku_code','profile'}
-    assert json.loads(query(desktop.app,'SELECT size_chart FROM fashion_item_profile')[0]['size_chart'])=={'S':80}
-    page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_label('款式编号',exact=True).wait_for()
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{item}$'))
-    assert len(writes)==1
-
-
-def test_continuous_create_preserves_query_and_exact_record(desktop):
-    from playwright.sync_api import expect
-    desktop.login();desktop.navigate('物品管理');page=desktop.page
-    page.get_by_label('关键词',exact=True).fill('原筛选无匹配')
-    page.get_by_role('button',name=re.compile(r'查\s*询$')).click()
-    expect(page).to_have_url(re.compile('keyword='));source=page.url
-    page.get_by_role('button',name='创建物品',exact=True).click()
-    dialog=page.get_by_role('dialog',name='创建物品草稿',exact=True)
-    for number in (920011,920012):
-        dialog.get_by_label('物品编号',exact=True).fill('FASH-2026-'+str(number))
-        dialog.get_by_label('款式编号',exact=True).fill('可重复款式')
-        dialog.get_by_role('button',name='创建并继续',exact=True).evaluate('(button)=>{button.click();button.click()}')
-        dialog.get_by_text(re.compile('已取得物品 FASH-2026-'+str(number))).wait_for()
-        expect(dialog.get_by_label('物品编号',exact=True)).to_have_value('')
-        expect(dialog.get_by_label('款式编号',exact=True)).to_have_value('')
-        expect(dialog.locator('.ant-select-content')).to_have_text('服装')
-    assert len(query(desktop.app,'SELECT id FROM item'))==2
-    target=query(desktop.app,"SELECT id FROM item WHERE item_uid='FASH-2026-920012'")[0]['id']
-    dialog.get_by_role('button',name='完善该物品',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{target}/edit$'))
-    page.get_by_label('款式编号',exact=True).wait_for()
-    page.get_by_role('dialog',name=re.compile('编辑物品')).get_by_role('button',name='返回来源',exact=True).click()
-    expect(page).to_have_url(source)
-    expect(page.get_by_label('关键词',exact=True)).to_have_value('原筛选无匹配')
-    expect(page.get_by_role('dialog',name='创建物品草稿',exact=True)).to_have_count(0)
-
-
-def test_upload_pending_save_read_remove_retire(desktop,tmp_path):
-    from playwright.sync_api import expect
-    item=sample(desktop);root=enable_upload(desktop,tmp_path)
-    page=open_item(desktop,True);select_image(page)
-    expect(page.locator('.ant-upload-list-item-done')).to_have_count(1)
-    page.locator('.ant-upload-list-item-name').click()
-    expect(page.locator('.ant-image-preview')).to_be_visible()
-    expect(page.locator('.ant-image-preview')).to_have_css('opacity','1')
-    page.keyboard.press('Escape')
-    expect(page.locator('.ant-image-preview')).not_to_be_visible()
-    expect(page.get_by_role('dialog',name=re.compile('编辑物品'))).to_be_visible()
-    asset=query(desktop.app,'SELECT * FROM media_asset')[0]
-    assert asset['state']=='pending' and not json.loads(query(desktop.app,'SELECT image_urls FROM fashion_item_profile')[0]['image_urls'] or '[]')
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{item}$'))
-    page.get_by_alt_text('物品图片1',exact=True).wait_for()
-    assert query(desktop.app,'SELECT state FROM media_asset')[0]['state']=='attached'
-    page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.locator('.ant-upload-list-item .anticon-delete').click()
-    expect(page.locator('.ant-upload-list-item')).to_have_count(0)
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{item}$'))
-    assert query(desktop.app,'SELECT state FROM media_asset')[0]['state']=='retired'
-    assert (root/(asset['asset_id']+'.webp')).exists()
-
-
-def test_upload_lost_response_queries_status_without_replay(desktop,tmp_path):
-    from playwright.sync_api import expect
-    item=sample(desktop);enable_upload(desktop,tmp_path);page=open_item(desktop,True)
-    writes=[]
-    def lose(route):
-        writes.append(1);response=route.fetch();assert response.status==200
-        route.fulfill(status=503,content_type='application/json',body=json.dumps({'status':'error','code':'service_unavailable','message':'合成上传回执丢失'}))
-    page.route(f'**/api/admin/items/{item}/images',lose)
-    select_image(page)
-    page.get_by_text('上传结果尚未确认',exact=True).wait_for()
-    expect(page.get_by_role('button',name='保存修改',exact=True)).to_be_disabled()
-    page.get_by_role('button',name='核对上传结果',exact=True).click()
-    expect(page.locator('.ant-upload-list-item-done')).to_have_count(1)
-    assert writes==[1]
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{item}$'))
-    assert query(desktop.app,'SELECT state FROM media_asset')[0]['state']=='attached'
-
-
-def test_save_lost_response_reads_id_and_keeps_input(desktop):
-    from playwright.sync_api import expect
-    item=sample(desktop);page=open_item(desktop,True);writes=[]
-    def lose(route):
-        if route.request.method!='PATCH':route.continue_();return
-        writes.append(1);response=route.fetch();assert response.status==200
-        route.fulfill(status=503,content_type='application/json',body=json.dumps({'status':'error','code':'service_unavailable','message':'合成资料回执丢失'}))
-    page.route(f'**/api/admin/items/{item}',lose)
-    page.get_by_label('名称',exact=True).fill('回执丢失但已保存')
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    page.get_by_text('保存结果尚未确认，请先按物品ID核对；不会自动重发。',exact=True).wait_for()
-    expect(page.get_by_role('button',name='保存修改',exact=True)).to_be_disabled()
-    page.get_by_role('button',name='核对保存结果',exact=True).click()
-    page.get_by_text('已确认服务器当前资料与本次提交一致。',exact=True).wait_for()
-    expect(page.get_by_label('名称',exact=True)).to_have_value('回执丢失但已保存')
-    assert writes==[1]
-
-
-def test_unsaved_three_choices_and_separate_status_confirmation(desktop):
-    from playwright.sync_api import expect
-    item=sample(desktop);page=open_item(desktop,True)
-    page.get_by_label('名称',exact=True).fill('离开前保存')
-    desktop.navigate('芯片管理')
-    guard=page.get_by_role('dialog',name='有未保存修改',exact=True)
-    guard.get_by_role('button',name=re.compile(r'^取\s*消$')).click()
-    expect(page.get_by_label('名称',exact=True)).to_have_value('离开前保存')
-    desktop.navigate('芯片管理');guard.get_by_role('button',name='保存后继续',exact=True).click()
-    expect(page).to_have_url(re.compile('/chips$'))
-    assert query(desktop.app,'SELECT name FROM fashion_item_profile')[0]['name']=='离开前保存'
-    desktop.navigate('物品管理');page.get_by_role('button',name='查看详情',exact=True).click()
-    page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_label('名称',exact=True).fill('应放弃的名称')
-    page.get_by_role('button',name='启用物品',exact=True).click()
-    guard.get_by_role('button',name='放弃继续',exact=True).click()
-    confirm=page.get_by_role('dialog',name='启用此物品？',exact=True)
-    assert query(desktop.app,'SELECT status FROM item WHERE id=%s',(item,))[0]['status']=='draft'
-    confirm.get_by_role('button',name='确认启用',exact=True).click()
-    page.get_by_role('status').filter(has_text='物品已启用。').wait_for()
-    expect(page.get_by_label('名称',exact=True)).to_have_value('离开前保存')
-    page.get_by_role('button',name='停用物品',exact=True).click()
-    page.get_by_role('dialog',name='停用此物品？',exact=True).get_by_role('button',name='确认停用',exact=True).click()
-    page.get_by_role('status').filter(has_text='物品已停用').wait_for()
-    assert query(desktop.app,'SELECT status FROM item WHERE id=%s',(item,))[0]['status']=='disabled'
-
-
-def test_cancel_upload_ignores_late_success_and_never_attaches(desktop,tmp_path):
-    from playwright.sync_api import expect
-    item=sample(desktop);enable_upload(desktop,tmp_path);page=open_item(desktop,True);held=[]
-    def delay(route):
-        response=route.fetch();assert response.status==200
-        held.append((route,response))
-        page.evaluate('window.__testUploadFinished=true')
-    page.route(f'**/api/admin/items/{item}/images',delay)
-    page.get_by_label('款式编号',exact=True).fill('取消上传后仅改款式')
-    select_image(page)
-    expect(page.locator('.ant-upload-list-item-uploading')).to_have_count(1)
-    page.wait_for_function('window.__testUploadFinished===true')
-    expect(page.get_by_role('button',name='保存修改',exact=True)).to_be_disabled()
-    page.locator('.ant-upload-list-item .anticon-delete').click()
-    expect(page.locator('.ant-upload-list-item')).to_have_count(0)
-    assert held
-    from playwright.sync_api import Error
-    try:held[0][0].fulfill(response=held[0][1])
-    except Error:pass
-    expect(page.locator('.ant-upload-list-item')).to_have_count(0)
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{item}$'))
-    assert query(desktop.app,'SELECT state FROM media_asset')[0]['state']=='pending'
-    assert not json.loads(query(desktop.app,'SELECT image_urls FROM fashion_item_profile')[0]['image_urls'] or '[]')
-
-
-def test_upload_csrf_explicit_retry_and_invalid_type(desktop,tmp_path):
-    from playwright.sync_api import expect
-    item=sample(desktop);enable_upload(desktop,tmp_path);page=open_item(desktop,True);writes=[]
-    def deny(route):
-        writes.append(1);route.fulfill(status=403,content_type='application/json',body=json.dumps({'status':'error','code':'csrf_failed','message':'合成口令失效'}))
-    page.route(f'**/api/admin/items/{item}/images',deny)
-    page.locator('input[type=file]').set_input_files({'name':'bad.svg','mimeType':'image/svg+xml','buffer':b'<svg/>'})
-    page.get_by_text('请选择不超过8MiB的静态JPEG、PNG或WebP；实际格式由服务端校验。',exact=True).wait_for()
-    assert not writes
-    select_image(page)
-    page.get_by_text('登录状态已更新，请明确重试本张上传；未自动重发。',exact=True).wait_for()
-    assert writes==[1] and not query(desktop.app,'SELECT * FROM media_asset')
-    page.unroute(f'**/api/admin/items/{item}/images')
-    page.get_by_role('button',name='重试上传',exact=True).click()
-    expect(page.locator('.ant-upload-list-item-done')).to_have_count(1)
-    assert len(query(desktop.app,'SELECT * FROM media_asset'))==1
-    page.get_by_label('名称',exact=True).fill('上传后丢弃')
-    page.get_by_role('button',name='返回来源',exact=True).click()
-    page.get_by_role('dialog',name='有未保存修改',exact=True).get_by_role('button',name='放弃继续',exact=True).click()
-    assert query(desktop.app,'SELECT name FROM fashion_item_profile')[0]['name']=='原名称'
-    assert query(desktop.app,'SELECT state FROM media_asset')[0]['state']=='pending'
-
-
-@pytest.mark.parametrize('archived',[False,True])
-def test_jewelry_and_archived_keep_readonly_fields(desktop,archived):
-    from playwright.sync_api import expect
-    item=sample(desktop,project='jewelry',status='archived' if archived else 'draft')
-    page=open_item(desktop)
-    labels=page.locator('.ant-descriptions-item-label').all_text_contents()
-    if archived:
-        assert page.get_by_role('button',name='编辑物品',exact=True).count()==0
-        page.goto(f'http://localhost:5174/items/{item}/edit',wait_until='networkidle')
-    else:
-        page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_text('既有寓意',exact=True).wait_for()
-    for label in labels:
-        expect(page.locator('.ant-form-item-label').filter(has_text=re.compile('^'+re.escape(label)+'$'))).to_have_count(1)
-    expect(page.locator('input[type=file]')).to_have_count(0)
-    expect(page.get_by_role('textbox')).to_have_count(0 if archived else 1)
-    if not archived:
-        page.get_by_label('款式编号',exact=True).fill('饰品新款式')
-        page.get_by_role('button',name='保存修改',exact=True).click()
-        expect(page).to_have_url(re.compile(f'/items/{item}$'))
-        assert query(desktop.app,'SELECT meaning FROM jewelry_item_profile')[0]['meaning']=='既有寓意'
-    else:expect(page.get_by_role('button',name='保存修改',exact=True)).to_have_count(0)
-
-
-def test_new_item_sku_only_and_profile_name_validation(desktop):
-    from playwright.sync_api import expect
-    query(desktop.app,"INSERT INTO item(project_id,item_uid) VALUES (1,'FASH-2026-920021')")
-    desktop.login();desktop.navigate('物品管理');page=desktop.page
-    page.get_by_role('button',name='查看详情',exact=True).click()
-    page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_label('款式编号',exact=True).fill('仅维护款式')
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    page.get_by_role('heading',name='物品详情',exact=True).wait_for()
-    assert not query(desktop.app,'SELECT * FROM fashion_item_profile')
-    page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_label('介绍',exact=True).fill('未填写名称的资料')
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    page.get_by_text('修改服装资料时须填写名称。',exact=True).wait_for()
-    assert not query(desktop.app,'SELECT * FROM fashion_item_profile')
-
-
-def test_create_lost_response_and_duplicate_never_overwrite(desktop):
-    from playwright.sync_api import expect
-    desktop.login();desktop.navigate('物品管理');page=desktop.page;writes=[]
-    def lose(route):
-        if route.request.method!='POST':route.continue_();return
-        writes.append(1);response=route.fetch();assert response.status==200
-        route.fulfill(status=503,content_type='application/json',body=json.dumps({'status':'error','code':'service_unavailable','message':'合成创建回执丢失'}))
-    page.route('**/api/admin/items',lose)
-    page.get_by_role('button',name='创建物品',exact=True).click()
-    dialog=page.get_by_role('dialog',name='创建物品草稿',exact=True)
-    dialog.get_by_label('物品编号',exact=True).fill('FASH-2026-920031')
-    dialog.get_by_label('款式编号',exact=True).fill('原输入款式')
-    dialog.get_by_role('button',name='创建并继续',exact=True).click()
-    page.get_by_text('创建结果尚未确认，请先按本次完整物品编号查询；不会自动重发。',exact=True).wait_for()
-    expect(dialog.get_by_role('button',name='创建并继续',exact=True)).to_be_disabled()
-    dialog.get_by_role('button',name='按本次编号核对结果',exact=True).click()
-    dialog.get_by_text(re.compile('已取得物品 FASH-2026-920031')).wait_for()
-    assert writes==[1]
-    page.unroute('**/api/admin/items')
-    dialog.get_by_label('物品编号',exact=True).fill('FASH-2026-920031')
-    dialog.get_by_label('款式编号',exact=True).fill('不能覆盖款式')
-    dialog.get_by_role('button',name='创建并继续',exact=True).click()
-    dialog.get_by_role('alert').filter(has_text='已存在').wait_for()
-    assert query(desktop.app,'SELECT sku_code FROM item')[0]['sku_code']=='原输入款式'
-
-
-def test_item_query_advanced_date_page_return_and_reset(desktop):
-    from playwright.sync_api import expect
-    for number in range(25):
-        query(desktop.app,"INSERT INTO item(project_id,item_uid,sku_code,created_at) VALUES (1,%s,'范围款式','2026-11-02 16:00:00')",('FASH-2026-'+str(921000+number),))
-    query(desktop.app,"INSERT INTO item(project_id,item_uid,sku_code,created_at) VALUES (1,'FASH-2026-929999','不匹配款式','2026-10-01 00:00:00')")
-    desktop.login();desktop.navigate('物品管理');page=desktop.page
-    page.get_by_label('关键词',exact=True).fill('范围款式')
-    page.get_by_text('展开',exact=True).click()
-    dates=page.locator('.ant-form-item').filter(has_text='创建日期（北京时间）').locator('.ant-picker-range input')
-    dates.nth(0).fill('2026-11-03');dates.nth(0).press('Tab');dates.nth(1).fill('2026-11-03');dates.nth(1).press('Enter')
-    page.get_by_role('button',name=re.compile(r'查\s*询$')).click()
-    expect(page).to_have_url(re.compile('created_from=2026-11-03'))
-    expect(page.get_by_text('命中：款式编号',exact=True)).to_have_count(20)
-    expect(page.locator('.ant-table-tbody .ant-table-row')).to_have_count(20)
-    page.locator('.ant-pagination-next button').click()
-    expect(page.locator('.ant-table-tbody .ant-table-row')).to_have_count(5)
-    source=page.url
-    page.get_by_role('button',name='查看详情',exact=True).first.click()
-    page.get_by_role('button',name='返回来源',exact=True).click()
-    expect(page).to_have_url(source)
-    expect(page.locator('.ant-table-tbody .ant-table-row')).to_have_count(5)
-    page.reload(wait_until='networkidle');expect(page.get_by_label('关键词',exact=True)).to_have_value('范围款式')
-    page.get_by_role('button',name=re.compile(r'重\s*置$')).click()
-    expect(page.get_by_label('关键词',exact=True)).to_have_value('')
-
-
-def test_twenty_existing_images_limit_and_desktop_layout(desktop,tmp_path):
-    from playwright.sync_api import expect
-    item=sample(desktop);enable_upload(desktop,tmp_path)
-    urls=['https://images.example.test/'+str(number)+'.png' for number in range(20)]
-    query(desktop.app,'UPDATE fashion_item_profile SET image_urls=%s WHERE item_id=%s',(json.dumps(urls),item))
-    page=desktop.page;page.route('https://images.example.test/**',lambda route:route.fulfill(status=200,content_type='image/png',body=png()))
-    page=open_item(desktop,True);writes=[]
-    page.on('request',lambda req:writes.append(1) if req.method=='POST' and req.url.endswith('/images') else None)
-    expect(page.locator('.ant-upload-list-item-done')).to_have_count(20)
-    expect(page.get_by_role('button',name='选择图片上传',exact=True)).to_have_count(0)
-    for width,height in [(1280,720),(1440,900)]:
-        page.set_viewport_size({'width':width,'height':height})
-        page.get_by_role('button',name='保存修改',exact=True).scroll_into_view_if_needed()
-        expect(page.get_by_role('button',name='保存修改',exact=True)).to_be_in_viewport()
-        assert page.evaluate('document.documentElement.scrollWidth<=window.innerWidth')
-        if width==1440:
-            import tempfile
-            from pathlib import Path
-            folder=Path(tempfile.mkdtemp(prefix='item-preview-',dir=Path(__file__).resolve().parents[1]/'.local-run'))
-            page.screenshot(path=str(folder/'edit.png'),full_page=True)
-            (Path(__file__).resolve().parents[1]/'.local-run/item-preview-path').write_text(str(folder/'edit.png'))
-    assert not writes
-    page.locator('.ant-upload-list-item .anticon-delete').first.click()
-    expect(page.locator('.ant-upload-list-item')).to_have_count(19)
-    select_image(page)
-    expect(page.locator('.ant-upload-list-item-done')).to_have_count(20)
-    assert len(writes)==1
-
-
-def test_save_csrf_preserves_draft_then_manual_retry_and_upload_401_hides(desktop,tmp_path):
-    from playwright.sync_api import expect
-    item=sample(desktop);enable_upload(desktop,tmp_path);page=open_item(desktop,True);writes=[]
-    def denied(route):
-        if route.request.method!='PATCH':route.continue_();return
-        writes.append(1);route.fulfill(status=403,content_type='application/json',body=json.dumps({'status':'error','code':'csrf_failed','message':'合成保存口令失效'}))
-    page.route(f'**/api/admin/items/{item}',denied)
-    page.get_by_label('名称',exact=True).fill('口令更新保留输入')
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    page.get_by_text('登录状态已更新，输入已保留，请再次明确提交；未自动重发。',exact=True).wait_for()
-    expect(page.get_by_label('名称',exact=True)).to_have_value('口令更新保留输入')
-    assert writes==[1] and query(desktop.app,'SELECT name FROM fashion_item_profile')[0]['name']=='原名称'
-    page.unroute(f'**/api/admin/items/{item}')
-    page.get_by_role('button',name='保存修改',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{item}$'))
-    page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_label('名称',exact=True).wait_for()
-    page.route(f'**/api/admin/items/{item}/images',lambda route:route.fulfill(status=401,content_type='application/json',body=json.dumps({'status':'error','code':'unauthorized','message':'合成会话失效'})))
-    select_image(page)
-    page.get_by_role('button',name=re.compile(r'^登\s*录$')).wait_for()
-    expect(page.get_by_role('heading',name='编辑物品',exact=True)).to_have_count(0)
-    assert not query(desktop.app,'SELECT * FROM media_asset')
-
-
-def test_late_item_read_never_overwrites_other_record(desktop):
-    from playwright.sync_api import expect
-    item=sample(desktop)
-    query(desktop.app,"INSERT INTO item(project_id,item_uid) VALUES (1,'FASH-2026-920099')")
-    other=query(desktop.app,"SELECT id FROM item WHERE item_uid='FASH-2026-920099'")[0]['id']
-    held=[];page=desktop.page
-    def delay(route):
-        result=route.fetch();held.append((route,result));page.evaluate('window.__testItemReadHeld=true')
-    page.route(f'**/api/admin/items/{item}',delay)
-    desktop.login();desktop.navigate('物品管理')
-    page.get_by_role('row').filter(has_text='FASH-2026-920001').get_by_role('button',name='查看详情',exact=True).click()
-    page.wait_for_function('window.__testItemReadHeld===true')
-    desktop.navigate('物品管理')
-    page.get_by_role('row').filter(has_text='FASH-2026-920099').get_by_role('button',name='查看详情',exact=True).click()
-    expect(page).to_have_url(re.compile(f'/items/{other}$'))
-    page.get_by_text('此物品尚未填写资料；可单独维护款式编号。',exact=True).wait_for()
-    from playwright.sync_api import Error
-    try:held[0][0].fulfill(response=held[0][1])
-    except Error:pass
-    expect(page.get_by_role('dialog',name=re.compile('物品详情')).get_by_text('原名称',exact=True)).to_have_count(0)
-    expect(page).to_have_url(re.compile(f'/items/{other}$'))
-
-
-def test_item_list_return_restores_scroll(desktop):
-    from playwright.sync_api import expect
-    for number in range(25):
-        query(desktop.app,"INSERT INTO item(project_id,item_uid) VALUES (1,%s)",('FASH-2026-'+str(922000+number),))
-    desktop.login();desktop.navigate('物品管理');page=desktop.page
-    expect(page.locator('.ant-table-tbody .ant-table-row')).to_have_count(20)
-    target=page.get_by_role('button',name='查看详情',exact=True).last
-    target.scroll_into_view_if_needed();position=page.evaluate('window.scrollY')
-    assert position>300
-    target.click();page.get_by_role('heading',name='物品详情',exact=True).wait_for()
-    page.get_by_role('button',name='返回来源',exact=True).click()
-    expect(page.locator('.ant-table-tbody .ant-table-row')).to_have_count(20)
-    page.wait_for_function('(expected)=>Math.abs(window.scrollY-expected)<50',arg=position)
-
-
-def test_jewelry_create_changes_project_and_retains_selection(desktop):
-    from playwright.sync_api import expect
-    desktop.login();desktop.navigate('物品管理');page=desktop.page
-    page.get_by_role('button',name='创建物品',exact=True).click()
-    dialog=page.get_by_role('dialog',name='创建物品草稿',exact=True)
-    dialog.locator('.ant-select-content').click()
-    page.locator('.ant-select-item-option-content').filter(has_text=re.compile('^饰品$')).click()
-    dialog.get_by_label('物品编号',exact=True).fill('FASH-2026-923001')
-    dialog.get_by_role('button',name='创建并继续',exact=True).click()
-    dialog.get_by_text('请输入JEW-YYYY-NNNNNN格式的半角大写编号。',exact=True).wait_for()
-    assert not query(desktop.app,'SELECT * FROM item')
-    for number in (923001,923002):
-        dialog.get_by_label('物品编号',exact=True).fill('JEW-2026-'+str(number))
-        dialog.get_by_role('button',name='创建并继续',exact=True).click()
-        dialog.get_by_text(re.compile('已取得物品 JEW-2026-'+str(number))).wait_for()
-        expect(dialog.locator('.ant-select-content')).to_have_text('饰品')
-        expect(dialog.get_by_label('物品编号',exact=True)).to_have_value('')
-    assert len(query(desktop.app,'SELECT * FROM item WHERE project_id=2'))==2
-
-
-def test_modal_close_keeps_or_saves_real_input(desktop):
-    from playwright.sync_api import expect
-    item=sample(desktop);page=open_item(desktop,True)
-    editor=page.get_by_role('dialog',name=re.compile('编辑物品'))
-    page.get_by_label('名称',exact=True).fill('关闭前的输入')
-    editor.get_by_role('button',name=re.compile(r'^取\s*消$')).click()
-    guard=page.get_by_role('dialog',name='有未保存修改',exact=True)
-    guard.get_by_role('button',name=re.compile(r'^取\s*消$')).click()
-    expect(page.get_by_label('名称',exact=True)).to_have_value('关闭前的输入')
-    editor.get_by_role('button',name=re.compile(r'^取\s*消$')).click()
-    guard.get_by_role('button',name='保存后继续',exact=True).click()
-    expect(page).to_have_url(re.compile('/items$'))
-    assert query(desktop.app,'SELECT name FROM fashion_item_profile WHERE item_id=%s',(item,))[0]['name']=='关闭前的输入'
-    page.get_by_role('button',name='查看详情',exact=True).click();page.get_by_role('button',name='编辑物品',exact=True).click()
-    page.get_by_label('名称',exact=True).fill('要丢弃的输入')
-    editor.get_by_role('button',name='关闭',exact=True).click()
-    guard.get_by_role('button',name='放弃继续',exact=True).click()
-    expect(page).to_have_url(re.compile('/items$'))
-    assert query(desktop.app,'SELECT name FROM fashion_item_profile WHERE item_id=%s',(item,))[0]['name']=='关闭前的输入'
-
-
-def test_disabled_upload_is_known_failure_and_never_written(desktop):
-    from playwright.sync_api import expect
-    sample(desktop);desktop.app.config['MEDIA_ENABLED']=False
-    page=open_item(desktop,True)
-    select_image(page)
-    expect(page.get_by_role('alert')).to_contain_text('图片尚未上传成功')
-    expect(page.get_by_role('alert')).to_contain_text('图片上传未启用。')
-    expect(page.get_by_role('button',name='核对上传结果',exact=True)).to_have_count(0)
-    assert not query(desktop.app,'SELECT asset_id FROM media_asset')
+def test_direct_style_detail_and_item_chip_return(desktop):
+    style,_,item,chips=setup(desktop);p=desktop.page
+    api(desktop,'bind',{'item_id':item,'chip_id':chips[0],'spec':'L黑'})
+    p.goto(f'http://localhost:5174/catalog/style/{style}',wait_until='networkidle');d=p.get_by_role('dialog',name='维护款式共用资料');expect(d.get_by_label('款式名称',exact=True)).to_have_value('浏览器共用帽子');button(d,'取消');d.wait_for(state='hidden')
+    p.goto(f'http://localhost:5174/items/{item}',wait_until='networkidle');button(p,'04:00:00:00:00:00:C9');expect(p).to_have_url(re.compile(f'/chips/{chips[0]}\\?from='));p.get_by_role('button',name='back',exact=True).click();expect(p).to_have_url(re.compile(f'/items/{item}$'))

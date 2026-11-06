@@ -87,7 +87,9 @@ def reserve(item_id, asset_id, digest):
             if cursor.fetchone()['n'] >= 20:
                 raise AuthRequestError(409, 'media_quota_exceeded', '未完成或暂存图片已达20张，请先保存或按维护步骤处理到期暂存。')
             cursor.execute('SELECT COALESCE(SUM(GREATEST(byte_size,reserved_bytes)),0) AS total FROM media_asset')
-            if int(cursor.fetchone()['total']) + MAX_FILE > maximum:
+            used=int(cursor.fetchone()['total'])
+            cursor.execute('SELECT COALESCE(SUM(OCTET_LENGTH(content)),0) AS total FROM style_image')
+            if used + int(cursor.fetchone()['total']) + MAX_FILE > maximum:
                 raise AuthRequestError(409, 'media_quota_exceeded', '图片容量不足，未接收新文件。')
             if shutil.disk_usage(root).free < MAX_FILE:
                 raise MediaUnavailable('图片磁盘可用空间不足。')

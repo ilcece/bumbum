@@ -11,11 +11,11 @@
 - **基础管理已验收并合入main：** 管理员登录、本机运行、芯片登记、物品建档、服装资料维护与桌面后台可用，操作见[管理端手册](docs/ADMIN_DESKTOP.md)。
 - **芯片接入与服装触碰闭环已验收并合入main：** 首次绑定、密钥及配置核验、动态验证、有效触碰统计和手机资料持续查看已有交付；[登记与实卡的验收边界](docs/product/chip-lifecycle.md)、[手机体验规则](docs/product/fashion-touch.md)分别查阅。
 - **杭州正式入口基础接管已验收：** 香港ECS已释放，生产与测试隔离；[最后已知部署版本及运维验证边界](docs/HANGZHOU_DEPLOYMENT.md#62-杭州基础接管完成范围与后续运维验证)单独记录，合入main不代表服务器已更新。
-- **第一阶段尚未整体完成：** 短信认领、试用准备及扩展实卡验证等仍有待办；后台改版方案已通过，精简官方Umi/Pro原型已重建待人工验收；正式后台尚未迁移，手串数字体验处于探索阶段，范围见[产品导航](PRD.md)，进度见TODO。
+- **第一阶段尚未整体完成：** 短信认领、试用准备及扩展实卡验证等仍有待办；后台原型已获认可，当前分支正在落实正式Umi/Pro后台与数字档案服务，待测试环境验收，手串数字体验处于探索阶段，范围见[产品导航](PRD.md)，进度见TODO。
 
 当前任务、分支和待反馈只看[TODO](TODO.md)；验收日期、提交和历史证据查[CHANGELOG](CHANGELOG.md)；逐接口实现范围集中在[接口实现概览](API_CONTRACT.md#04-当前能做到哪一步)。
 
-产品入口已按“共用规则→现行模块→独立提案→历史归档”整理，先读[PRD导航](PRD.md)。后台相关提案已聚合到[管理后台重构方案](docs/proposals/admin-make-rebuild.md)，字段、设计及Umi工程说明从同一入口查阅，已批准隔离原型重建；原已确认原则保留，清理/纠错/接续未定政策分别定稿。整理文档不代表新增能力已实现、验收或部署。
+产品入口已按“共用规则→现行模块→独立提案→历史归档”整理，先读[PRD导航](PRD.md)。后台相关提案已聚合到[管理后台重构方案](docs/proposals/admin-make-rebuild.md)，字段、设计及Umi工程说明从同一入口查阅，原型获认可并已授权同分支正式构建；原已确认原则保留，清理/纠错/接续未定政策分别定稿。整理文档不代表新增能力已实现、验收或部署。
 
 <a name="先启动这一小步"></a>
 
@@ -36,7 +36,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 | 部分 | 使用什么 | 负责什么 |
 |---|---|---|
-| 用户页、管理页 | React + Vite + TypeScript | 浏览器中看到和操作的页面 |
+| 用户页、管理页 | React + TypeScript；用户端Vite、管理端Umi Max/Ant Design Pro | 浏览器中看到和操作的页面 |
 | 后端 | Python 3 + Flask | 接收页面请求，检查身份，处理业务 |
 | 数据库 | MySQL 8.0 | 保存芯片、物品、用户和操作记录 |
 | 正式运行 | Gunicorn + Nginx | 分别运行后端、接收网站访问并转交请求 |
@@ -71,7 +71,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 ## 代码和配置在哪里
 
-后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py，触碰入口在core/tap_grants.py，验证事务在core/tap_verification.py，共用验签在core/sdm_verification.py，管理统计入口在core/admin_stats.py，快照聚合在core/tap_statistics.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py，管理前端在frontend/admin/，手机用户前端在frontend/user/，各自构建并使用独立样式。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库；触碰记录升级见[本地运行第11节](docs/LOCAL_DEVELOPMENT.md#11-已有测试库升级触碰记录及后端验收)，持续查看资格004及用户页预览见[第12节](docs/LOCAL_DEVELOPMENT.md#12-已有测试库升级及手机资料页本机验收)。
+后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py，触碰入口在core/tap_grants.py，验证事务在core/tap_verification.py，共用验签在core/sdm_verification.py，管理统计入口在core/admin_stats.py，快照聚合在core/tap_statistics.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py及数字档案服务core/admin_catalog.py，006升级在core/catalog_migration.py，管理前端在frontend/admin/，手机用户前端在frontend/user/，各自构建并使用独立样式。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库；触碰记录升级见[本地运行第11节](docs/LOCAL_DEVELOPMENT.md#11-已有测试库升级触碰记录及后端验收)，持续查看资格004及用户页预览见[第12节](docs/LOCAL_DEVELOPMENT.md#12-已有测试库升级及手机资料页本机验收)。
 
 云测试部署依赖在requirements-deploy.in/txt，通过容器固定版本，不替换Ubuntu系统Python。Python 的本机直接依赖在 `requirements.in`，完整固定版本在 `requirements.txt`；开发检查对应 `requirements-dev.in` 和 `requirements-dev.txt`。前端依赖与固定版本在 `package.json`、`package-lock.json`。更新依赖时同步对应清单，不手工改锁文件凑版本。
 
