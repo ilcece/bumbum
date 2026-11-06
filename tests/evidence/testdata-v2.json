@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-06",
+  "source_revision": "641c6d4962b3f5790c55fbd628170005f544a472",
+  "scope": "test only",
+  "pack": "acceptance-v2",
+  "batch_id": 2,
+  "expected_initial": {
+    "styles": 6,
+    "issues": 10,
+    "items": 84,
+    "chips": 114,
+    "users": 6,
+    "lifecycle_taps": 138,
+    "sold_taps": 132
+  },
+  "local": {
+    "base_passed": 219,
+    "base_skipped": 2,
+    "data_integration_passed": 7,
+    "related_browser_passed": 3,
+    "final_ui_browser_recheck_passed": 2,
+    "note": "浏览器组有重叠，不相加为独立路径总数。"
+  },
+  "cloud": {
+    "settings_writable": true,
+    "active_batch_available": true,
+    "six_photo_hashes_match": true,
+    "statistics_and_business_exclusion": true,
+    "cleanup_preview_conflicts": 0,
+    "protected_system_and_existing_business": true,
+    "new_virtual_chip_keys": 0,
+    "ready_test": 200,
+    "ready_production": 200,
+    "production_unchanged": true,
+    "browser_login_verified": false
+  },
+  "backup_restore_drill": false,
+  "web_cleanup_submitted": false,
+  "real_card_or_claim_verified": false
+}
