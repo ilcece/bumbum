@@ -567,7 +567,7 @@ GET /api/admin/catalog/statistics支持scope=sold/all、range=7d/30d/all及proje
 
 ### 11.4 验收批次与数据范围
 
-007新增test_batch、test_batch_object，来源不可由生产验证开关重写。正式后台只在“系统管理→设置”提供一个“开启测试数据”开关，默认关闭；开启后使用活动验收批次，列表、统计、候选和新增对象统一继承，关闭回业务数据，不删除样本。该偏好仅存当前浏览器标签页，不是权限或后端业务状态；切换重新读取页面，URL旧筛选不能覆盖它。普通页面不提供测试范围/批次筛选、来源列或手填批次。后端参数保留用于受控工具和兼容，并不要求日常页面暴露。发行列表另支持mode=fixed/period/unlimited及status=draft/confirmed；物品支持style_id和owner=yes/no；芯片支持configured=yes/no及registration_source=manual/nfc_cool/unknown。styles/issues/items/chips/users及statistics支持data_scope=business/test/all（默认business）、test_batch_id可选正整数；business与指定批次冲突400。各列表/指标/趋势/明细应用相同来源，详情返回test_batch_id；历史未标记对象属于业务范围。发行继承款式、身份继承发行，新配芯片/接收账户须同来源，不允许业务/测试或跨批次混用。
+007新增test_batch、test_batch_object，来源不可由生产验证开关重写。正式后台只在“系统管理→设置”提供一个“开启测试数据”开关，默认关闭；开启后使用活动验收批次，列表、统计、候选和新增对象统一继承，关闭回业务数据，不删除样本。无活动批次时明确说明并禁用开启，开关不自动生成样例；读取失败单独报错，不能当作空库。完整批次清单确认旧选择已不存在或被清理时，提示关闭失效模式，不自动换到其他批次。该偏好仅存当前浏览器标签页，不是权限或后端业务状态；切换重新读取页面，URL旧筛选不能覆盖它。普通页面不提供测试范围/批次筛选、来源列或手填批次。后端参数保留用于受控工具和兼容，并不要求日常页面暴露。发行列表另支持mode=fixed/period/unlimited及status=draft/confirmed；物品支持style_id和owner=yes/no；芯片支持configured=yes/no及registration_source=manual/nfc_cool/unknown。styles/issues/items/chips/users及statistics支持data_scope=business/test/all（默认business）、test_batch_id可选正整数；business与指定批次冲突400。各列表/指标/趋势/明细应用相同来源，详情返回test_batch_id；历史未标记对象属于业务范围。发行继承款式、身份继承发行，新配芯片/接收账户须同来源，不允许业务/测试或跨批次混用。
 
 GET /api/admin/catalog/test-batches返回分页批次，manifest含场景/合成说明/初始预期统计，writable表示当前配置是否允许测试写入。GET /api/admin/catalog/test-batches/{id}/preview在明确测试环境返回counts/objects/conflicts；POST actions/clearTestBatch采用第11.2节相同request_id+payload，payload={batch_id,confirmed:true}。写入口及预览只允许固定杭州test或原本机开发目标，生产/未知配置403；没有公开seed接口。
 

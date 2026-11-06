@@ -1,123 +1,213 @@
-"""仅测试目标的验收数据包：默认预览，重复执行复用，清理后可新建同一套场景。"""
+"""仅测试目标的真实照片验收包；默认预览，清理后可重建，不改既有业务。"""
 import argparse
 from datetime import timedelta
-from io import BytesIO
 import hashlib
 import json
+from pathlib import Path
 import sys
 import uuid
 
-from flask import current_app
-from PIL import Image,ImageDraw
 import pymysql
 
 from core.catalog_testdata import validate_test_target
 from core.test_batches import mark
 
-PACK='acceptance-v1'
-SCENARIOS=['待配套','待配置','已准备','已启用','售出未认领','已有持有人','整套挂失','换新准备中','换新完成','转售完成','零触碰','售出前后触碰','草稿留作操作','非限定样本','限时待核定','限时最终137','待绑定芯片']
+PACK = 'acceptance-v2'
+SCENARIOS = ['待配套', '待配置', '已准备未启用', '启用未售出', '售出未认领',
+             '已有持有人', '整套挂失', '换新准备中', '换新完成', '转售完成',
+             '零触碰', '售出前后触碰', '物品与芯片已停用', '挂失换新准备中']
 
-def seed(connection,username,*,apply=False):
-    from core.admin_catalog import style_save,issue_save,issue_action,create_item,item_action,complete,now,row
+
+def catalog():
+    """只读取已查看并固定摘要的公开照片，灌入过程不联网。"""
+    folder = Path(__file__).with_name('acceptance_assets')
+    result = json.loads((folder / 'catalog.json').read_text())
+    for record in result:
+        photo = record['photo']
+        path = folder / photo['file']
+        if path.parent != folder or path.is_symlink() or hashlib.sha256(path.read_bytes()).hexdigest() != photo['sha256']:
+            raise ValueError('验收照片缺失或摘要不符，未灌入。')
+    return result
+
+
+def seed(connection, username, *, apply=False):
+    from core.admin_catalog import style_save, issue_save, issue_action, create_item, item_action, chip_action, complete, now, row
+    records = catalog()
     connection.begin()
     try:
         with connection.cursor(pymysql.cursors.DictCursor) as c:
             c.execute("SELECT GET_LOCK('bumbum.acceptance-seed',5) AS n")
-            if c.fetchone()['n']!=1:raise ValueError('另一验收数据命令正在执行。')
-            c.execute("SELECT id FROM admin_user WHERE username=%s AND status='active' AND totp_enabled=1 FOR UPDATE",(username,));admin=c.fetchone()
-            if not admin:raise ValueError('请使用已有且启用验证器的管理员。')
-            c.execute("SELECT * FROM test_batch WHERE JSON_UNQUOTE(JSON_EXTRACT(manifest,'$.pack'))=%s AND status='active' ORDER BY id DESC LIMIT 1 FOR UPDATE",(PACK,));existing=c.fetchone()
+            if c.fetchone()['n'] != 1:
+                raise ValueError('另一验收数据命令正在执行。')
+            c.execute("SELECT id FROM admin_user WHERE username=%s AND status='active' AND totp_enabled=1 FOR UPDATE", (username,))
+            admin = c.fetchone()
+            if not admin:
+                raise ValueError('请使用已有且启用验证器的管理员。')
+            c.execute("SELECT * FROM test_batch WHERE JSON_UNQUOTE(JSON_EXTRACT(manifest,'$.pack'))=%s AND status='active' ORDER BY id DESC LIMIT 1 FOR UPDATE", (PACK,))
+            existing = c.fetchone()
             if existing:
-                connection.rollback();return {'reused':True,'batch_id':existing['id'],'manifest':json.loads(existing['manifest'])}
+                connection.rollback()
+                return {'reused': True, 'batch_id': existing['id'], 'manifest': json.loads(existing['manifest'])}
             if not apply:
-                connection.rollback();return {'apply':False,'pack':PACK,'scenarios':SCENARIOS,'note':'将创建三类款式、20身份、专用虚拟芯片和合成账户；不会写真实芯片。'}
-            c.execute('INSERT INTO test_batch(code,name,manifest) VALUES (%s,%s,%s)',('acceptance-'+uuid.uuid4().hex[:12],'后台核心流程验收',json.dumps({'pack':PACK},ensure_ascii=False)));batch=c.lastrowid
-            def tag(kind,ident):mark(c,kind,ident,batch);return ident
-            stamp=now();entries=[];styles=[];issues=[];users=[]
-            for role in ('A','B'):
-                c.execute('INSERT INTO user(phone,nickname) VALUES (%s,%s)',('TEST'+role+uuid.uuid4().hex[:12],f'验收{batch}持有人{role}'));users.append(tag('user',c.lastrowid))
-            for index,(name,project,mode) in enumerate([('紫檀手串','jewelry','fixed'),('T恤','fashion','unlimited'),('棒球帽','fashion','period')]):
-                style=style_save(c,{'project':project,'code':f'TEST-{batch}-{index}','name':'验收·'+name,'description':'合成验收样本，可按批次剔除或清理。','material':'测试材质','care_instructions':'测试说明','specs':['标准款','大号'],'image_urls':[]})['id'];tag('style',style);styles.append(style)
-                image=Image.new('RGB',(720,480),['#a57248','#4069ad','#447b66'][index]);draw=ImageDraw.Draw(image);draw.rounded_rectangle((150,120,570,360),radius=50,fill='white');draw.text((245,220),['BRACELET','T-SHIRT','CAP'][index],fill='#172339');out=BytesIO();image.save(out,format='WEBP');content=out.getvalue();asset=uuid.uuid4().hex
-                c.execute('INSERT INTO style_image(asset_id,style_id,created_by,source_sha256,content) VALUES (%s,%s,%s,%s,%s)',(asset,style,admin['id'],hashlib.sha256(content).hexdigest(),content))
-                c.execute('UPDATE product_style SET image_urls=%s WHERE id=%s',(json.dumps([f'/api/admin/catalog/styles/{style}/images/{asset}']),style))
-                p={'style_id':style,'name':f'验收·{name}发行','mode':mode,'description':'换新与转售交付新整套，身份延续。','rights':['renewal','resale']}
-                if mode=='fixed':p['total']=50
-                if mode=='period':p.update(counting_rule='按销售窗口内外部渠道有效售出数量人工核定',total=100,starts_at=(stamp-timedelta(days=35)).isoformat()+'Z',ends_at=(stamp-timedelta(days=5)).isoformat()+'Z')
-                issue=issue_save(c,p)['id'];issues.append(issue);tag('issue',issue);issue_action(c,'confirmIssue',{'issue_id':issue})
-            def chip(project):
-                # 随机专用虚拟UID；不为真实卡生成、覆盖密钥或计数。
-                from core.chip_registry import save_chip,normalize_uid
-                uid='04'+uuid.uuid4().hex[:12].upper()
-                r,is_new=save_chip(c,normalize_uid(uid),project=project,batch=f'验收-{batch}',admin_id=admin['id'],source='manual')
-                if not is_new:raise ValueError('虚拟UID冲突，事务已撤销。')
-                ident=tag('chip',r['id']);c.execute('INSERT INTO chip_validation(chip_id,is_validation) VALUES (%s,1)',(ident,));return ident
+                connection.rollback()
+                return {'apply': False, 'pack': PACK, 'scenarios': SCENARIOS, 'styles': len(records), 'items': len(records) * len(SCENARIOS), 'note': '将创建真实照片款式、独立虚拟芯片和合成账户；不恢复旧业务、不写真实芯片。'}
+            c.execute('INSERT INTO test_batch(code,name,manifest) VALUES (%s,%s,%s)', ('acceptance-' + uuid.uuid4().hex[:12], '真实照片·后台全流程验收', json.dumps({'pack': PACK})))
+            batch = c.lastrowid
+
+            def tag(kind, ident):
+                mark(c, kind, ident, batch)
+                return ident
+
+            stamp = now()
+            entries, styles, issues, users, photos = [], [], [], [], []
+            for name in ('林澄', '周予', '许禾', '陈屿', '宋岚', '陆遥'):
+                c.execute('INSERT INTO user(phone,nickname) VALUES (%s,%s)', ('TEST' + uuid.uuid4().hex[:16], f'模拟·{name}'))
+                users.append(tag('user', c.lastrowid))
+            for index, record in enumerate(records):
+                style = style_save(c, {'project': record['project'], 'code': f'SIM-{batch}-{record["slug"].upper()}', 'name': '验收·' + record['name'], 'description': record['description'], 'material': record['material'], 'care_instructions': record['care'], 'specs': record['specs'], 'image_urls': []})['id']
+                styles.append(tag('style', style))
+                photo = record['photo']
+                content = (Path(__file__).with_name('acceptance_assets') / photo['file']).read_bytes()
+                asset = uuid.uuid4().hex
+                c.execute('INSERT INTO style_image(asset_id,style_id,created_by,source_sha256,content) VALUES (%s,%s,%s,%s,%s)', (asset, style, admin['id'], photo['sha256'], content))
+                c.execute('UPDATE product_style SET image_urls=%s WHERE id=%s', (json.dumps([f'/api/admin/catalog/styles/{style}/images/{asset}']), style))
+                photos.append({**photo, 'style_id': style, 'style_name': record['name']})
+                p = {'style_id': style, 'name': record['name'] + ' · 秋冬发行', 'series': '2026秋冬·日常佩戴', 'mode': record['mode'], 'description': '模拟发行：数字身份及发行编号延续；换新或转售交付新整套实物与芯片，不新增身份。不录入订单和物流。', 'rights': ['renewal', 'resale']}
+                if p['mode'] == 'fixed':
+                    p['total'] = 50
+                if p['mode'] == 'period':
+                    p.update(counting_rule='按窗口内外部渠道有效售出汇总人工核定，退款剔除', total=100, starts_at=(stamp - timedelta(days=35)).isoformat() + 'Z', ends_at=(stamp - timedelta(days=5)).isoformat() + 'Z')
+                issue = issue_save(c, p)['id']
+                issues.append(tag('issue', issue))
+                issue_action(c, 'confirmIssue', {'issue_id': issue})
+
+            def chip(project, number):
+                from core.chip_registry import save_chip, normalize_uid
+                uid = normalize_uid('04' + uuid.uuid4().hex[:12].upper())
+                r, is_new = save_chip(c, uid, project=project, batch=f'SIM-{batch}-{project or "待分类"}-{number % 3 + 1}', admin_id=admin['id'], source='manual' if number % 2 else 'nfc_cool')
+                if not is_new:
+                    raise ValueError('虚拟UID冲突，事务已撤销。')
+                ident = tag('chip', r['id'])
+                c.execute('INSERT INTO chip_validation(chip_id,is_validation) VALUES (%s,%s)', (ident, number % 2 == 0))
+                return ident
+
             def configured(ident):
-                # 显式合成配置事实，仅供后台状态/售后验收；没有chip_key，不能通过真实用户验签。
-                c.execute('UPDATE chip SET provisioned_at=%s,last_verified_counter=2 WHERE id=%s',(stamp,ident))
-            def owner(ident):
-                c.execute("INSERT INTO ownership(item_id,user_id,bind_source,bound_at) VALUES (%s,%s,'import',%s)",(ident,users[0],stamp-timedelta(days=4)))
-                c.execute("INSERT INTO ownership_history(item_id,to_user_id,action,note) VALUES (%s,%s,'bind','合成验收导入，不是真实认领')",(ident,users[0]))
-            def event(ident,ch,at):
-                c.execute('SELECT chip_uid,project_id FROM chip WHERE id=%s',(ch,));r=c.fetchone()
-                c.execute("SELECT COALESCE(MAX(scan_counter),2)+1 AS n FROM scan_log WHERE chip_id=%s",(ch,));n=c.fetchone()['n']
-                c.execute("INSERT INTO scan_log(chip_uid,project_id,chip_id,item_id,scan_counter,verify_result,user_agent,created_at) VALUES (%s,%s,%s,%s,%s,'pass','SYNTHETIC_ACCEPTANCE_IMPORT',%s)",(r['chip_uid'],r['project_id'],ch,ident,n,at));tag('scan',c.lastrowid)
-            for n in range(20):
-                index=0 if n<12 else 1 if n<16 else 2;project='jewelry' if index==0 else 'fashion'
-                number=n+1 if index==0 else n-11 if index==1 else None
-                uid=('JEW' if project=='jewelry' else 'FASH')+f'-{stamp.year}-{batch*100+n+1:06d}'
-                ident=create_item(c,{'issue_id':issues[index],'item_uid':uid,'edition_number':number,'is_validation':True})['id']
-                scenario=SCENARIOS[n] if n<12 else '从草稿开始操作' if n==12 else '非限定样本' if index==1 else '限时待核定'
-                ch=None
-                if n!=0 and n!=12:
-                    ch=chip(project);item_action(c,'bind',{'item_id':ident,'chip_id':ch,'spec':'合成实物·标准款'})
-                    if n!=1:configured(ch)
-                    if n>=3:item_action(c,'toggleItem',{'item_id':ident,'status':'active'})
-                    if n>=4 and n!=12:
-                        item_action(c,'sale',{'item_id':ident,'confirmed':True,'evidence':'合成验收售出，非实际订单'})
-                        c.execute('UPDATE digital_item SET first_sold_at=%s WHERE item_id=%s',(stamp-timedelta(days=4),ident))
-                    if 5<=n<=9:owner(ident)
-                    if n in (6,7,8,9):
-                        if n==6:
-                            whole=row(c,'SELECT id FROM whole_item WHERE item_id=%s',(ident,))['id'];item_action(c,'loseItem',{'item_id':ident,'whole_id':whole,'evidence':'合成整套挂失'})
-                        else:
-                            target=chip(project);kind='resale' if n==9 else 'periodic'
-                            payload={'item_id':ident,'chip_id':target,'kind':kind,'spec':'合成新整套','evidence':'合成准备'}
-                            if n==9:payload['recipient_id']=users[1]
-                            event(ident,ch,stamp-timedelta(days=3));item_action(c,'prepare',payload)
-                            if n in (8,9):
-                                configured(target);w=row(c,'SELECT id FROM item_handover WHERE item_id=%s',(ident,))['id'];complete(c,{'work_id':w,'checked':True,'evidence':'合成导入交付，不代表实物已寄送'});ch=target
-                    if n==11:event(ident,ch,stamp-timedelta(days=6))
-                    if n>=4 and n!=10:event(ident,ch,stamp-timedelta(days=1))
-                entries.append({'item_id':ident,'uid':uid,'scenario':scenario,'chip_id':ch})
-            # 同一帽子款式保留待核定案例，并另外提供已核定137的发行，不虚构137件身份。
-            extra=issue_save(c,{'style_id':styles[2],'name':'验收·最终核定137','counting_rule':'按有效售出数量核定','mode':'period','total':100,'starts_at':(stamp-timedelta(days=40)).isoformat()+'Z','ends_at':(stamp-timedelta(days=10)).isoformat()+'Z','description':'销售预估100，期末实际137。','rights':['renewal','resale']})['id'];tag('issue',extra);issue_action(c,'confirmIssue',{'issue_id':extra});issue_action(c,'seal',{'issue_id':extra,'total':137,'evidence':'合成多渠道汇总137'})
-            draft=issue_save(c,{'style_id':styles[1],'name':'验收·留作确认的草稿','mode':'fixed','total':20,'description':'留给验收者确认发行','rights':['renewal','resale']})['id'];tag('issue',draft)
-            for project in ('fashion','jewelry'):
-                for _ in range(3):chip(project)
-            c.execute("SELECT COUNT(*) AS total FROM scan_log s JOIN test_batch_object tb ON tb.kind='item' AND tb.object_id=s.item_id WHERE tb.batch_id=%s",(batch,));lifecycle=c.fetchone()['total']
-            c.execute("SELECT COUNT(*) AS total FROM scan_log s JOIN digital_item d ON d.item_id=s.item_id JOIN test_batch_object tb ON tb.kind='item' AND tb.object_id=s.item_id WHERE tb.batch_id=%s AND d.sold=1 AND s.created_at>=d.first_sold_at",(batch,));sold=c.fetchone()['total']
-            manifest={'pack':PACK,'synthetic':True,'warning':'配置、持有、交付、触碰为合成导入，不是真实卡/认领证据；虚拟芯片没有密钥，不能通过真实验签。','items':entries,'expected_initial':{'items':20,'users':2,'lifecycle_taps':lifecycle,'sold_taps':sold},'real_cards':[]}
-            c.execute('UPDATE test_batch SET manifest=%s WHERE id=%s',(json.dumps(manifest,ensure_ascii=False),batch))
-            c.execute("INSERT INTO admin_audit(admin_id,action,target_type,target_id,detail) VALUES (%s,'catalog.test_seed','test_batch',%s,%s)",(admin['id'],str(batch),json.dumps({'origin':'test_command','batch_id':batch,'pack':PACK},ensure_ascii=False)))
-        connection.commit();return {'batch_id':batch,'manifest':manifest,'applied':True}
-    except Exception:connection.rollback();raise
+                # 仅导入显式合成配置事实；不生成chip_key，不能通过真实验签。
+                c.execute('UPDATE chip SET provisioned_at=%s,last_verified_counter=2 WHERE id=%s', (stamp, ident))
+
+            def owner(ident, account):
+                c.execute("INSERT INTO ownership(item_id,user_id,bind_source,bound_at) VALUES (%s,%s,'import',%s)", (ident, account, stamp - timedelta(days=4)))
+                c.execute("INSERT INTO ownership_history(item_id,to_user_id,action,note) VALUES (%s,%s,'bind','模拟持有关系，不代表首次认领已交付')", (ident, account))
+
+            def event(ident, ch, at):
+                r = row(c, 'SELECT chip_uid,project_id FROM chip WHERE id=%s', (ch,))
+                count = row(c, 'SELECT COALESCE(MAX(scan_counter),2)+1 AS n FROM scan_log WHERE chip_id=%s', (ch,))['n']
+                c.execute("INSERT INTO scan_log(chip_uid,project_id,chip_id,item_id,scan_counter,verify_result,user_agent,created_at) VALUES (%s,%s,%s,%s,%s,'pass','SYNTHETIC_ACCEPTANCE_IMPORT',%s)", (r['chip_uid'], r['project_id'], ch, ident, count, at))
+                tag('scan', c.lastrowid)
+
+            # 交错创建，让默认第一页就能看到不同商品与状态，而非连续同款。
+            for turn in range(len(SCENARIOS)):
+                for index, record in enumerate(records):
+                    phase = (turn + index * 3) % len(SCENARIOS)
+                    scenario = SCENARIOS[phase]
+                    n = index * len(SCENARIOS) + phase
+                    project = record['project']
+                    uid = ('JEW' if project == 'jewelry' else 'FASH') + f'-{stamp.year}-{batch * 100 + n + 1:06d}'
+                    number = None if record['mode'] == 'period' else phase + 1
+                    ident = create_item(c, {'issue_id': issues[index], 'item_uid': uid, 'edition_number': number, 'is_validation': phase in (0, 1, 12)})['id']
+                    spec = record['specs'][phase % len(record['specs'])]
+                    ch = None
+                    if phase:
+                        ch = chip(project, n)
+                        item_action(c, 'bind', {'item_id': ident, 'chip_id': ch, 'spec': spec})
+                        if phase != 1:
+                            configured(ch)
+                        if phase >= 3:
+                            item_action(c, 'toggleItem', {'item_id': ident, 'status': 'active'})
+                        if phase >= 4:
+                            item_action(c, 'sale', {'item_id': ident, 'confirmed': True, 'evidence': '模拟已核对外部售出事实，非实际订单'})
+                            c.execute('UPDATE digital_item SET first_sold_at=%s WHERE item_id=%s', (stamp - timedelta(days=4), ident))
+                        if phase >= 5:
+                            owner(ident, users[index])
+                        if phase in (6, 13):
+                            whole = row(c, 'SELECT id FROM whole_item WHERE item_id=%s', (ident,))['id']
+                            item_action(c, 'loseItem', {'item_id': ident, 'whole_id': whole, 'evidence': '模拟原持有人报告整套丢失，历史关系保留'})
+                        if phase in (7, 8, 9, 13):
+                            target = chip(project, n + 100)
+                            kind = 'resale' if phase == 9 else 'loss' if phase == 13 else 'periodic'
+                            payload = {'item_id': ident, 'chip_id': target, 'kind': kind, 'spec': record['specs'][(phase + 1) % len(record['specs'])], 'evidence': '模拟已核对整套替换资格及实际规格'}
+                            if phase == 9:
+                                payload['recipient_id'] = users[(index + 1) % len(users)]
+                            event(ident, ch, stamp - timedelta(days=3))
+                            item_action(c, 'prepare', payload)
+                            if phase in (8, 9):
+                                configured(target)
+                                work = row(c, 'SELECT id FROM item_handover WHERE item_id=%s', (ident,))['id']
+                                complete(c, {'work_id': work, 'checked': True, 'evidence': '模拟核对新实物及芯片已交付，不代表真实发货'})
+                                ch = target
+                        if phase == 11:
+                            event(ident, ch, stamp - timedelta(days=6))
+                        if phase >= 4 and phase != 10:
+                            for step in range(1 + index % 3):
+                                event(ident, ch, stamp - timedelta(days=step + 1, hours=phase))
+                        if phase == 12:
+                            item_action(c, 'toggleItem', {'item_id': ident, 'status': 'disabled'})
+                            chip_action(c, 'chipState', {'chip_id': ch, 'state': 'disabled', 'evidence': '模拟技术停用，与挂失及退役区分'})
+                    entries.append({'item_id': ident, 'uid': uid, 'style_id': styles[index], 'style_name': record['name'], 'scenario': scenario, 'spec': spec, 'chip_id': ch})
+
+            # 已核定发行不虚构137件身份；草案留给验收者确认。
+            for index, record in enumerate(records):
+                if record['mode'] == 'period':
+                    extra = issue_save(c, {'style_id': styles[index], 'name': record['name'] + ' · 最终核定137', 'series': '2026夏季·已结束', 'counting_rule': '按有效售出数量核定，退款不计入', 'mode': 'period', 'total': 100, 'starts_at': (stamp - timedelta(days=70)).isoformat() + 'Z', 'ends_at': (stamp - timedelta(days=40)).isoformat() + 'Z', 'description': '模拟销售预估100，最终137；不凭空新增身份。', 'rights': ['renewal', 'resale']})['id']
+                    tag('issue', extra)
+                    issue_action(c, 'confirmIssue', {'issue_id': extra})
+                    issue_action(c, 'seal', {'issue_id': extra, 'total': 137, 'evidence': '模拟有效售出汇总137'})
+            for index in (0, 1):
+                draft = issue_save(c, {'style_id': styles[index], 'name': records[index]['name'] + ' · 留作确认草案', 'series': '下一季·准备中', 'mode': 'fixed', 'total': 20, 'description': '留给验收者确认发行后从零建档，不自动生效。', 'rights': ['renewal', 'resale']})['id']
+                tag('issue', draft)
+            for index, project in enumerate(('fashion', 'jewelry', None)):
+                for state in range(4):
+                    ident = chip(project, 200 + index * 4 + state)
+                    if state == 2 and project is not None:
+                        configured(ident)
+                    if state == 3:
+                        chip_action(c, 'chipState', {'chip_id': ident, 'state': 'disabled', 'evidence': '模拟未绑定芯片暂停使用'})
+            c.execute("UPDATE chip c JOIN (SELECT s.chip_id,MAX(s.scan_counter) AS counter FROM scan_log s JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=s.id WHERE tb.batch_id=%s GROUP BY s.chip_id) x ON x.chip_id=c.id SET c.last_verified_counter=GREATEST(COALESCE(c.last_verified_counter,0),x.counter)", (batch,))
+            lifecycle = row(c, "SELECT COUNT(*) AS n FROM scan_log s JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=s.id WHERE tb.batch_id=%s", (batch,))['n']
+            sold = row(c, "SELECT COUNT(*) AS n FROM scan_log s JOIN digital_item d ON d.item_id=s.item_id JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=s.id WHERE tb.batch_id=%s AND d.sold=1 AND s.created_at>=d.first_sold_at", (batch,))['n']
+            manifest = {'pack': PACK, 'synthetic': True, 'warning': '照片为网上真实实物照片；业务资料、配置、持有、交付及触碰为独立模拟导入。虚拟芯片没有密钥，不能证明实卡、首次认领、真实销售或交付通过。', 'items': entries, 'photos': photos, 'expected_initial': {'styles': len(records), 'issues': 10, 'items': len(entries), 'chips': 114, 'users': len(users), 'lifecycle_taps': lifecycle, 'sold_taps': sold}, 'real_cards': []}
+            c.execute('UPDATE test_batch SET manifest=%s WHERE id=%s', (json.dumps(manifest, ensure_ascii=False), batch))
+            c.execute("INSERT INTO admin_audit(admin_id,action,target_type,target_id,detail) VALUES (%s,'catalog.test_seed','test_batch',%s,%s)", (admin['id'], str(batch), json.dumps({'origin': 'test_command', 'batch_id': batch, 'pack': PACK})))
+        connection.commit()
+        return {'batch_id': batch, 'manifest': manifest, 'applied': True}
+    except Exception:
+        connection.rollback()
+        raise
     finally:
-        with connection.cursor() as c:c.execute("SELECT RELEASE_LOCK('bumbum.acceptance-seed')")
+        with connection.cursor() as c:
+            c.execute("SELECT RELEASE_LOCK('bumbum.acceptance-seed')")
 
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description='仅明确测试目标：后台验收数据包，默认预览。')
-    parser.add_argument('--admin-username',required=True);parser.add_argument('--apply',action='store_true')
-    args=parser.parse_args(argv)
+    parser = argparse.ArgumentParser(description='仅明确测试目标：真实照片验收包，默认预览。')
+    parser.add_argument('--admin-username', required=True)
+    parser.add_argument('--apply', action='store_true')
+    args = parser.parse_args(argv)
     try:
         from app import create_app
         from core.db import get_database
-        app=create_app();validate_test_target(app.config)
-        with app.test_request_context():result=seed(get_database(),args.admin_username,apply=args.apply)
-        print(json.dumps(result,ensure_ascii=False));return 0
-    except ValueError as error:print('未执行：'+str(error),file=sys.stderr)
-    except Exception:print('未完成：验收数据事务失败；未输出配置、SQL或秘密。请核对原批次后重试。',file=sys.stderr)
+        app = create_app()
+        validate_test_target(app.config)
+        with app.test_request_context():
+            result = seed(get_database(), args.admin_username, apply=args.apply)
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+    except ValueError as error:
+        print('未执行：' + str(error), file=sys.stderr)
+    except Exception:
+        print('未完成：验收数据事务失败；未输出配置、SQL或秘密。请核对原批次后重试。', file=sys.stderr)
     return 1
 
-if __name__=='__main__':sys.exit(main())
+
+if __name__ == '__main__':
+    sys.exit(main())

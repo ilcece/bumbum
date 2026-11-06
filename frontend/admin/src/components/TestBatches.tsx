@@ -19,26 +19,41 @@ import { ActionForm } from "./CatalogUI";
 export default function TestBatches() {
   const [rows, setRows] = useState<Row[]>([]),
     [error, setError] = useState(""),
+    [loading, setLoading] = useState(true),
+    [selectionMissing, setSelectionMissing] = useState(false),
     [writable, setWritable] = useState(false),
     [revision, setRevision] = useState(0),
     [preview, setPreview] = useState<Row>();
   useEffect(() => {
     let live = true;
+    setLoading(true);
+    setError("");
     list("test-batches", { page_size: 100 })
       .then((r) => {
         if (live) {
           setRows(r.items);
           setWritable(!!(r as any).writable);
+          setSelectionMissing(
+            !!testBatch() &&
+              r.total <= r.items.length &&
+              !r.items.some(
+                (row) => row.id === testBatch() && row.status === "active",
+              ),
+          );
           setError("");
         }
       })
       .catch((e) => {
         if (live) setError(e.message);
+      })
+      .finally(() => {
+        if (live) setLoading(false);
       });
     return () => {
       live = false;
     };
   }, [revision]);
+  const active = rows.find((r) => r.status === "active");
   return (
     <Card title="测试数据">
       <Space orientation="vertical" style={{ width: "100%" }}>
@@ -49,6 +64,22 @@ export default function TestBatches() {
           description="开启后，各页面统一显示验收数据；关闭后恢复业务数据。不会删除数据或改变生产验证标记。合成样本不能证明实卡、认领或真实交付。"
         />
         {error && <Alert type="error" title={error} />}
+        {!loading && !error && writable && !active && (
+          <Alert
+            type="info"
+            showIcon
+            title="尚无可用的验收数据"
+            description="请先准备一套独立验收数据，再刷新并开启。这个开关只切换显示范围，不会自动生成数据，也不会恢复已清理的数据。"
+          />
+        )}
+        {!loading && !error && selectionMissing && (
+          <Alert
+            type="warning"
+            showIcon
+            title="当前标签页仍开启着已失效的验收批次"
+            description="原批次已不存在或已清理。请关闭下方测试数据开关，返回业务数据；旧选择不会自动切换到其他批次。"
+          />
+        )}
         <Space>
           <Typography.Text strong>开启测试数据</Typography.Text>
           <Switch
@@ -56,20 +87,21 @@ export default function TestBatches() {
             checked={!!testBatch()}
             disabled={
               !testBatch() &&
-              (!writable || !rows.some((r) => r.status === "active"))
+              (loading || !!error || !writable || !active)
             }
             onChange={(enabled) =>
               setTestBatch(
                 enabled
-                  ? rows.find((r) => r.status === "active")?.id
+                  ? active?.id
                   : undefined,
               )
             }
           />
-          <Button onClick={() => setRevision((x) => x + 1)}>刷新数据</Button>
+          <Button loading={loading} onClick={() => setRevision((x) => x + 1)}>刷新数据</Button>
         </Space>
         <Table<Row>
           rowKey="id"
+          loading={loading}
           dataSource={rows}
           columns={[
             { title: "批次", dataIndex: "name" },
@@ -88,7 +120,7 @@ export default function TestBatches() {
                 <Space wrap>
                   <Button
                     danger
-                    disabled={!writable || r.status !== "active"}
+                    disabled={loading || !!error || !writable || r.status !== "active"}
                     onClick={async () => {
                       try {
                         setPreview(
@@ -130,12 +162,27 @@ export default function TestBatches() {
                       </li>
                     ))}
                   </ul>
+                  {!!r.manifest?.photos?.length && (
+                    <details>
+                      <summary>图片来源与许可</summary>
+                      <ul>
+                        {r.manifest.photos.map((photo: any) => (
+                          <li key={photo.sha256}>
+                            <a href={photo.page} target="_blank" rel="noreferrer">
+                              {photo.style_name}
+                            </a>
+                            {` · ${photo.artist} · ${photo.license}`}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
                 </details>
               ),
             },
           ]}
         />
-        {!writable && (
+        {!loading && !error && !writable && (
           <Typography.Text type="secondary">
             当前环境不允许测试数据写操作。
           </Typography.Text>

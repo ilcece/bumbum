@@ -33,6 +33,11 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     desktop.navigate('数字物品')
     p.wait_for_load_state('networkidle')
     p.screenshot(path=str(evidence/'restored-items.png'),full_page=True,animations='disabled')
+    images=p.locator('.ant-table-tbody img')
+    assert images.count()>0 and images.evaluate_all('(images)=>images.every(image=>image.complete && image.naturalWidth>0)')
+    import re
+    for text in p.locator('.ant-table-tbody tr.ant-table-row td:nth-child(2)').all_inner_texts():
+        assert re.fullmatch(r'(?:JEW|FASH)-\d{4}-\d{6}(?:\s*生产验证对象)?',text.strip())
     desktop.navigate('芯片管理')
     expect(p.get_by_role('button',name='密钥与配置',exact=True).first).to_be_visible()
     expect(p.get_by_label('数据范围',exact=True)).to_have_count(0)
@@ -84,3 +89,29 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     p.screenshot(path=str(tmp_path/'test-cleanup.png'),animations='disabled');button(d,'确认清理本批数据');d.wait_for(state='hidden')
     expect(p.get_by_text('已清理',exact=True)).to_be_visible()
     assert query(desktop.app,'SELECT COUNT(*) AS n FROM test_batch WHERE status=\'deleted\'')[0]['n']==1
+
+
+def test_empty_acceptance_and_deleted_tab_choice_are_explained_without_seeding(desktop,monkeypatch):
+    """空库、已删除标签页偏好与读取失败分别显示，不静默创建数据。"""
+    monkeypatch.setattr('core.test_batches.validate_test_target',lambda _:None)
+    p=desktop.page;desktop.login()
+    p.goto('http://localhost:5174/system?tab=settings',wait_until='networkidle')
+    expect(p.get_by_text('尚无可用的验收数据',exact=True)).to_be_visible()
+    expect(p.get_by_role('switch',name='开启测试数据',exact=True)).to_be_disabled()
+    expect(p.get_by_text('当前环境不允许测试数据写操作。',exact=True)).to_have_count(0)
+    p.evaluate("sessionStorage.setItem('bumbum-admin-test-batch','987654')")
+    p.reload(wait_until='networkidle')
+    expect(p.get_by_text('当前标签页仍开启着已失效的验收批次',exact=True)).to_be_visible()
+    switch=p.get_by_role('switch',name='开启测试数据',exact=True)
+    expect(switch).to_be_checked();expect(switch).to_be_enabled();switch.uncheck()
+    p.wait_for_load_state('networkidle')
+    expect(p.get_by_role('switch',name='开启测试数据',exact=True)).not_to_be_checked()
+    assert p.evaluate("sessionStorage.getItem('bumbum-admin-test-batch')") is None
+    p.screenshot(animations='disabled',path='test-results/acceptance-empty-state.png')
+    p.route('**/api/admin/catalog/test-batches?*',lambda route:route.fulfill(status=503,json={'status':'error','code':'service_unavailable','message':'隔离模拟批次读取失败'}))
+    button(p,'刷新数据')
+    expect(p.get_by_role('alert').filter(has_text='隔离模拟批次读取失败')).to_be_visible()
+    expect(p.get_by_text('尚无可用的验收数据',exact=True)).to_have_count(0)
+    expect(p.get_by_role('switch',name='开启测试数据',exact=True)).to_be_disabled()
+    assert query(desktop.app,'SELECT COUNT(*) AS n FROM test_batch')[0]['n']==0
+    assert query(desktop.app,'SELECT COUNT(*) AS n FROM item')[0]['n']==0

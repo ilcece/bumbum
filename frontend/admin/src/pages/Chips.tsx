@@ -26,7 +26,7 @@ export default function Chips() {
       render: (_, r) => (
         <div>
           <Copy value={r.chip_uid} onClick={() => setId(r.id)} />
-          {r.is_validation && (
+          {!!r.is_validation && (
             <div>
               <State value="生产验证对象" />
             </div>

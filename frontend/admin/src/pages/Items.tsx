@@ -82,7 +82,7 @@ export default function Items() {
       render: (_, r) => (
         <div>
           <Copy value={r.item_uid} onClick={() => setId(r.id)} />
-          {r.is_validation && (
+          {!!r.is_validation && (
             <div>
               <State value="生产验证对象" />
             </div>
