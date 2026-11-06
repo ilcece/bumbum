@@ -268,7 +268,7 @@ ItemView保留id、project、item_uid、sku_code、status、created_at、updated
 | PATCH /api/admin/items/{id} | 普通分支接受sku_code/profile中至少一项，返回ItemSummary；status单独提交时保留原服装启停和ItemView返回，不能混合 |
 | PUT /api/admin/items/{id}/profile | 保留原服装五项资料整份替换，返回profile；与普通PATCH复用同一校验和写事务 |
 
-创建编号去首尾空白后严格匹配ASCII FASH-YYYY-NNNNNN或JEW-YYYY-NNNNNN并对应项目，不自动编号，不接受小写/Unicode数字；允许0000/000000。编号重复409 already_exists且不覆盖。sku_code创建和普通保存均最多64字符，可重复，省略创建为空，null/空串/纯空白表示清空；普通PATCH省略表示不改。项目、物品编号、关联、时间及其他只读字段不能写入。饰品可单独改款式，不接受服装profile或启停；归档物品不可维护。
+创建编号去首尾空白后为1至32字符、不含控制字符、全局唯一，不限制格式，FASH/JEW-YYYY-NNNNNN仅为建议；项目独立选择，不按编号推断。编号重复409 already_exists且不覆盖。sku_code创建和普通保存均最多64字符，可重复，省略创建为空，null/空串/纯空白表示清空；普通PATCH省略表示不改。项目、物品编号、关联、时间及其他只读字段不能写入。饰品可单独改款式，不接受服装profile或启停；归档物品不可维护。
 
 列表只接受page/page_size/project/status/keyword/unbound_only/has_chip，以及created_from/created_to/updated_from/updated_to；未知和重复参数400。分页默认20、上限100，page为1–2147483647；project仅fashion/jewelry，status为draft/active/disabled/archived。布尔仅小写true/false；has_chip判断实际关联，disabled/lost芯片仍占用。unbound_only=true用于绑定候选并排除所有占用，与has_chip=true同时使用400；候选不预占目标，最终绑定仍独立重查。
 
@@ -522,12 +522,12 @@ GET /api/admin/catalog/{resource}，resource为styles/issues/items/chips/users/a
 |---|---|
 | styles | project；返回code/name/description/material/care_instructions/specs/image_urls及引用计数 |
 | issues | project/style_id/status=confirmed；返回mode/total/starts_at/ends_at/counting_rule/rights/confirmed_at/sealed_at/ever_used |
-| items | project/status/issue_id/is_validation/sold/whole_status；whole_status为normal/lost/missing，布尔筛选仅true/false；返回稳定身份、发行序号、当前整套/芯片、售出、归属与验证摘要 |
-| chips | project/status/is_validation/available=true；available只取未占用且可准备的pending芯片，不将候选当当前；status新增retired，lost表示随整套挂失停用 |
-| users | keyword按昵称或ID；仅真实账户，联系方式脱敏，返回持有数量，不是CRM或认领接口 |
+| items | project/status/issue_id/is_validation/sold/whole_status/bindable=true；bindable仅未归档、已关联发行且未准备整套的对象；whole_status为normal/lost/missing，布尔筛选仅true/false；返回稳定身份、发行序号、当前整套/芯片、售出、归属与验证摘要 |
+| chips | project/status/is_validation/available=true/compatible_project；compatible_project只筛该类别或未预设类别；available只取未占用且可准备的pending芯片，不将候选当当前；status新增retired，lost表示随整套挂失停用 |
+| users | keyword按昵称或ID，exclude_id可排除当前持有人；仅真实账户，联系方式脱敏，返回持有数量，不是CRM或认领接口 |
 | audit | keyword按动作/对象ID；管理操作及必要依据只向管理员开放 |
 
-GET /api/admin/catalog/{styles,issues,items,chips}/{id}读取确切记录；id为页面可安全处理的正整数（当前新增服务上限2147483647），缺失404。items详情另外返回style/issue、wholes、handovers、owners及缺发行时的legacy_profile。所有者只读；无所有者显示未认领，不猜购买人/碰卡人。旧单件资料不自动归并到款式，已有正确发行不允许普通更换。
+GET /api/admin/catalog/{styles,issues,items,chips}/{id}读取确切记录；issues另返回suggested_item_uid与suggested_edition_number，仅作未预占的建议；items.handovers另带owner_name/recipient_name及候选provisioned_at只读核对摘要；id为页面可安全处理的正整数（当前新增服务上限2147483647），缺失404。items详情另外返回style/issue、wholes、handovers、owners及缺发行时的legacy_profile。所有者只读；无所有者显示暂无持有人，有当前关系显示已有持有人，不推断首次认领，不猜购买人/碰卡人。旧单件资料不自动归并到款式，已有正确发行不允许普通更换。
 
 ### 11.2 事务操作与字段
 
@@ -535,18 +535,18 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 
 | action | payload及关键条件 |
 |---|---|
-| style | project/code/name/specs/image_urls必填；id、description/material/care_instructions/shared_confirmed选填。specs最多100项，每项128字符；引用后类别/编号保护，共用保存须明确确认影响 |
+| style | project/code/name/specs/image_urls必填；id、description/material/care_instructions/shared_confirmed选填。specs最多100项，每项128字符；引用后类别/编号保护，共用保存须明确确认影响；读取返回item_count与active_item_count，保存前展示引用总数及已启用数 |
 | issue | style_id/name/mode/description/rights；id/series/total/starts_at/ends_at/counting_rule可选或按模式必填。mode=fixed/period/unlimited；固定总量正整数，限时提供带时区的起止时间及核定规则；rights仅renewal/resale |
 | confirmIssue/deleteIssue/seal | issue_id；seal另需total/evidence，必须窗口已结束、已确认、未封版且不小于已建身份/已有序号。删除仅从未引用约定并留快照审计 |
-| item | issue_id/item_uid；edition_number按模式要求、is_validation默认false。必须已确认发行，项目由款式确定，身份格式沿既有FASH/JEW规则；固定/封版总量与发行内编号唯一由服务端及数据库保护 |
+| item | issue_id/item_uid；edition_number按模式要求、is_validation默认false。必须已确认发行，项目由款式确定，item_uid去首尾空白后1–32字符、不含控制字符、全局唯一，不限制格式，FASH/JEW仅作建议；固定/封版总量与发行内编号唯一由服务端及数据库保护 |
 | register | chip_uid，project/batch_no/is_validation可选。复用真实登记与UID规范，重复返回原id/is_new=false，不改批次/来源/验证标记 |
 | linkIssue | item_id/issue_id/edition_number/evidence；只补确实缺失的同类别发行，不改稳定编号、实体、归属和年度事实 |
-| bind | item_id/chip_id/spec；准备首套或补齐当前物品，不用于换新。有效发行、未占用可用芯片及类别校验后追加当代，配置仍独立 |
-| saleBatch | item_ids/confirmed/evidence；1–100个不同物品，不能跨数据来源；固定顺序锁定，在同一事务内维护售出事实、审计和回执，任一失败整体回滚 |
-| sale | item_id/confirmed/evidence；显式维护售出事实，首次确认时间只记一次；撤销不删除首次时间、持有人及触碰历史 |
+| bind | item_id/chip_id，spec选填（不适用时空）；准备首套或补齐当前物品，不用于换新。有效发行、未占用可用芯片及类别校验后追加当代，配置仍独立 |
+| saleBatch | item_ids/confirmed/evidence，first_sold_at可选（带时区ISO8601、不晚于当前）；1–100个不同物品，不能跨数据来源；固定顺序锁定，在同一事务内维护售出事实、审计和回执，任一失败整体回滚 |
+| sale | item_id/confirmed/evidence，first_sold_at可选（带时区ISO8601、不晚于当前）；首次登记使用所填成交时间或当前时间，已有首次时间拒绝不同值；显式维护售出事实，操作时间与依据留审计，首次成交时间只记一次；撤销不删除首次时间、持有人及触碰历史 |
 | toggleItem | item_id/status，status仅active/disabled；新档案启用检查发行、当前整套、有效芯片与真实核验；停用永久撤销现有查看资格 |
 | loseItem | item_id/whole_id/evidence；固定本次当代ID，挂失写入当代并同步停芯片、撤销资格；准备中的普通换新转为挂失换新，已准备的新整套保留 |
-| prepare | item_id/kind/chip_id/spec/evidence，转售另需recipient_id；kind=periodic/loss/resale。检查真实持有人、已约定权益、年度/待核事实、接收账户及芯片占用；保存原代ID与新代规格/芯片，尚不切换归属/授权 |
+| prepare | item_id/kind/chip_id/evidence，spec选填（不适用时空），转售另需recipient_id；kind=periodic/loss/resale。检查真实持有人、已约定权益、年度/待核事实、接收账户及芯片占用；保存原代ID与新代规格/芯片，尚不切换归属/授权 |
 | complete | work_id/evidence/checked=true；重查原代及当前持有人，候选必须真实核验。一起结束旧代、退役旧卡、追加新代、必要转移持有人、保存历史并撤销旧短许可/持续查看。新代正常，不继承旧代挂失；身份/编号/首次售出保留，换新计次待核，转售不重置余额 |
 | chipBatch/chipState | chip_id/batch_no；或chip_id/state/evidence，state仅disabled/restore；挂失、退役或候选不可普通恢复，芯片页无独立挂失 |
 | validationItem/validationChip | item_id或chip_id及enabled布尔值；标记不改变统计 |
