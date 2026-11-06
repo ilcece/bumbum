@@ -47,23 +47,66 @@ export function Copy({
     </Space>
   );
 }
+const colors: Record<string, string> = {
+  核验就绪: "cyan",
+  草稿: "default",
+  草案: "default",
+  启用: "green",
+  停用: "orange",
+  归档: "default",
+  待绑定: "blue",
+  已绑定: "green",
+  临时停用: "orange",
+  已挂失: "red",
+  已退役: "default",
+  待配置: "gold",
+  "待准备/核验": "gold",
+  演示核验就绪: "cyan",
+  已确认: "green",
+  已确认售出: "blue",
+  未确认售出: "default",
+  已认领: "green",
+  未认领: "default",
+  已完成: "green",
+  待确认接续: "gold",
+  候选准备: "purple",
+  候选未生效: "purple",
+  未关联: "default",
+  待封版: "gold",
+  待核对计次: "gold",
+  暂无待核对: "default",
+  旧版记录待核对: "orange",
+  当前关联: "green",
+  当前持有人: "green",
+  未准备: "gold",
+  已准备演示标记: "blue",
+  未连接: "default",
+  未执行: "default",
+  待核对: "gold",
+  未分配: "default",
+  已保存内容: "green",
+  未保存预览: "gold",
+  全局共享: "red",
+  单卡独立: "cyan",
+  正式编号待封版: "gold",
+  未关联发行: "gold",
+  生产验证对象: "orange",
+  正常: "green",
+  已替换: "default",
+  待准备: "gold",
+  随物品挂失停用: "red",
+  曾挂失: "red",
+  待生效: "gold",
+  已生效: "green",
+};
 export function State({ value }: { value: string }) {
   return (
-    <Tag
-      color={
-        /挂失/.test(value)
-          ? "red"
-          : /启用|正常|已确认|已完成|核验就绪|已售出/.test(value)
-            ? "green"
-            : /待|停用|验证/.test(value)
-              ? "orange"
-              : "default"
-      }
-    >
+    <Tag color={colors[value] || "default"} className="status-tag">
       {value}
     </Tag>
   );
 }
+
 export function Gallery({
   urls = [],
   compact = false,

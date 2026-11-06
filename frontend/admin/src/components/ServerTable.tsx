@@ -23,7 +23,7 @@ export default function ServerTable({
     q = new URLSearchParams(location.search),
     ref = useRef<ActionType | undefined>(undefined);
   const saved = Object.fromEntries(
-    [...q.entries()].filter(([k]) => !["tab", "from"].includes(k)),
+    [...q.entries()].filter(([k]) => !["tab", "from", "create"].includes(k)),
   );
   const update = (params: Record<string, any>) => {
     const next = new URLSearchParams();
