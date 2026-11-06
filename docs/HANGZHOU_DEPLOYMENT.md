@@ -1013,6 +1013,14 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 一次性维护片段maintenance.py及其SHA256保留在该版本目录；先通过2项独立MySQL验证。首轮备份因RDS聚合数值的JSON序列化失败，仅产生不完整元数据、未执行业务删除；定向修复并重验后两库完整备份通过。服务恢复核验首次受宿主依赖影响，改用标准库解析范围后只读核对通过。两个原后端均healthy/ready200，原容器ID/镜像、Compose、Nginx及私有runtime文件摘要未变；原管理入口与白名单保持。重新验证前刷新后台；若旧标签页仍开启测试数据模式，先在设置关闭，因为原批次已删除。新建数据、实卡配置/计数核验及业务验收分别留证，不把业务清空当作原型视觉验收通过。
 
+**最新管理端静态版本：c54b61feb884b4b4e5a6d7bc0f59b160a53a58e6，款式编辑原型还原修复。** 本轮仅有管理端前端变化，直接发布本机最终复验的35个静态文件，不重建或切换后端镜像、不停服务、不写数据库。静态目录为/var/www/bumbum-hangzhou-test-releases/c54b61feb884b4b4e5a6d7bc0f59b160a53a58e6/admin，原子切换/var/www/bumbum-hangzhou-test-admin；test用户端仍指向原3292c13版本。线上35文件逐一SHA256与通过复验的发布包一致，不能再用后端镜像标签推断当前管理端页面版本。
+
+本轮静态回退和公开产物记录在/opt/bumbum-hangzhou/admin-style-review-c54b61feb884：admin-before.txt保留上一管理端目标，before.json保存配置/服务/未变静态及业务计数摘要，admin.tar.gz为已校验公开构建包，verified.json为切换后通过记录。回退仅恢复该管理端符号链接，不改数据库、后端或用户端，不自动恢复SQL。没有执行新的数据清理或灌入；此前两库私有备份仍在上文业务重置目录，本次不宣称新增SQL备份或恢复演练。
+
+实际发布前通过13条独立MySQL真实认证浏览器回归；最后仅补文件名后最终包再过2条受影响流程；1440/1920实际截图及局部审查见[款式页证据](../tests/evidence/admin-style-review.md)。切换后固定test库/UUID/35表、原管理员和15类计数保持，双方原容器/镜像healthy/ready200，两个槽的Compose/runtime/Nginx摘要、生产与test用户端静态内容不变。管理域名本机403仍符合既有白名单，用户页200及用户域名管理API404通过；未完成白名单内线上管理员浏览器登录，未验证实卡或后台所有页面视觉，不以静态一致代替cece验收。首轮只读预检误要求生产静态目录必须为符号链接，按实际目录修正后通过，失败阶段未切换或写数据。
+
+以下为继续运行的后端/上一轮静态完整发布记录；新管理端静态版本以上段为准。
+
 当前test部署源代码为3292c13428179689459534950bc66f6c14373c7a，包含密钥三步窗口、受控查看/复制/清除、候选查询恢复、同对象刷新保留输入及完整发行只读详情修复。远端OCI镜像ID为sha256:bd500542918d43badf2d72b266d118536455a3627a121152ddef39d6093cd220，镜像配置摘要为sha256:dc3cf972267b7ac0890a746b6d11a34c8166ebc61080b35b5312a63660648b64。固定清单仍为/opt/bumbum-hangzhou/test/compose.json，不改Nginx或白名单。
 
 本次版本目录为/opt/bumbum-hangzhou/admin-key-review-3292c13，旧清单compose-before.json和admin-before.txt/user-before.txt保存前版程序/静态回退目标；当前静态位于/var/www/bumbum-hangzhou-test-releases/3292c13428179689459534950bc66f6c14373c7a。停写窗口完整SQL/图片配套备份在before-update/images-and-database-94cee794395243c5870c7713af750f7b，SQL结束标记和配套包自校验通过，未进行本次恢复演练；不上传备份或自动恢复整库。复用并核对现有公开MySQL8.0客户端，无改表、账号权限或运行变量改写。
