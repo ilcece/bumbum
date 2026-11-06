@@ -130,7 +130,7 @@ def test_selected_schema_keeps_only_current_database_and_all_tables():
     source = (ROOT / "db/schema.sql").read_text(encoding="utf-8")
     result = schema_for_selected_database(source)
     assert "CREATE DATABASE" not in result and "USE bumbum_digital" not in result
-    assert result.count("CREATE TABLE ") == len(TARGET_TABLES) == 25
+    assert result.count("CREATE TABLE ") == len(TARGET_TABLES) == 35
     assert "CREATE TABLE media_asset" in result
     with pytest.raises(RdsPreparationError):
         schema_for_selected_database(source.replace("USE bumbum_digital;", "USE another_database;"))

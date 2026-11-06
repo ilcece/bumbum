@@ -2,7 +2,7 @@
 
 <a name="页面与-figma-怎么协作"></a>
 
-目的：在已确认业务范围内使用官方页面模式，保留真实接口和安全逻辑。新版后台定位、字段及审核顺序从[聚合方案](proposals/admin-make-rebuild.md)进入，设计按[统一规范](ADMIN_UI_GUIDELINES.md)，工程路线按[Umi迁移说明](proposals/admin-rebuild-implementation.md)。cece本轮建议完整官方Ant Design Pro工程迁入Umi Max，替代此前保留Vite只接组件的推荐；方案已通过并授权重建隔离原型，正式代码尚未切换。
+目的：在已确认业务范围内使用官方页面模式，保留真实接口和安全逻辑。新版后台定位、字段及审核顺序从[聚合方案](proposals/admin-make-rebuild.md)进入，设计按[统一规范](ADMIN_UI_GUIDELINES.md)，工程路线按[Umi迁移说明](proposals/admin-rebuild-implementation.md)。cece本轮建议完整官方Ant Design Pro工程迁入Umi Max，替代此前保留Vite只接组件的推荐；方案已通过并授权重建隔离原型，当前分支正式代码已切换，当前整改以已验收原型源码为基准。
 
 此前Make、旧Figma和旧长经营原型保留为历史参考。cece本轮提供《设计项目管理后台.zip》作为当前视觉参考，只提取布局、主题和控件交互，以Pro组件适配现有原型，不导入附件旧菜单/字段、登录或业务逻辑。Figma附件按实际页面需要提取，不整包覆盖源码、依赖、认证或后端。当前操作见[桌面管理端手册](ADMIN_DESKTOP.md)，状态只看[TODO](../TODO.md)。
 
@@ -18,23 +18,16 @@
 
 | 文件 | 负责什么 |
 |---|---|
-| `frontend/admin/src/main.tsx` | 管理端入口，加载桌面样式和登录门禁 |
-| `frontend/admin/src/LoginPanel.tsx` | 密码/验证码登录、会话恢复与退出，复用既有认证 |
-| `frontend/admin/src/AdminLayout.tsx` | Layout/Menu桌面框架、真实库存/快捷操作、统计入口及已交付菜单，不列所有权占位 |
-| `frontend/admin/src/TapStatisticsPanel.tsx`、`TapDailyChart.tsx` | 全项目有效触碰查询、卡片/明细、SVG日柱图及加载/失败状态；不写业务记录 |
-| `frontend/admin/src/RuntimeChecks.tsx` | 真实后端/数据库检查，供登录页、顶栏和系统状态复用 |
-| `frontend/admin/src/ChipPanel.tsx`、`CreateChip.tsx` | 官方查询表格、独立详情/批次编辑、登记并继续和精确关联返回；保留受控绑定与密钥规则 |
-| `frontend/admin/src/ItemPanel.tsx` | Table物品列表、完整筛选分页、详情/编辑路由 |
-| `frontend/admin/src/ItemDetailPage.tsx`、`itemFields.tsx` | 同字段详情/编辑、普通资料原子保存及独立启停；尺码只读保留 |
-| `frontend/admin/src/CreateItem.tsx`、`ItemImages.tsx` | 连续创建及确切ID定位、受控Upload暂存/取消/未知结果，不重写上传列表 |
-| `frontend/admin/src/MakeSurfaces.tsx`、`InventorySearch.tsx`、`make.css` | 从本次Make提取页面标题、详情/编辑容器、业务筛选分组与布局，不含模拟数据或权限 |
-| `frontend/admin/src/NavigationGuard.tsx`、`adminNavigation.ts` | 官方路由阻断及安全返回位置，普通离开三选项 |
-| `frontend/admin/src/AdminUI.tsx` | 共享反馈使用官方Alert，不保留旧弹窗/按钮封装 |
-| `frontend/admin/src/style.css` | 保留的SVG图表局部样式；当前实现使用官方reset与主题；后续按新规范调整应用壳/内容独立滚动 |
-| `frontend/admin/src/api.ts` | 唯一接口调用层，保留Cookie、内存CSRF及失败处理 |
-| `frontend/admin/vite.config.ts` | 保留本机地址和/api代理，接入Tailwind 4编译本次Make样式 |
+| `frontend/admin/src/app.tsx`、`config/` | Umi运行时、真实会话、路由、官方布局及原型主题；没有演示登录 |
+| `frontend/admin/src/pages/` | 工作台、款式/发行、物品/芯片及完整详情、系统设置；以同名原型源码恢复结构 |
+| `frontend/admin/src/components/CatalogUI.tsx` | 复用原型图片、编号、详情容器，保留真实表单、离开/未知结果及回执保护 |
+| `frontend/admin/src/components/ServerTable.tsx`、`catalog.ts` | 服务端查询/总数/分页和业务操作；不把原型数组复制进正式查询 |
+| `frontend/admin/src/testDataMode.ts`、`components/TestBatches.tsx` | 仅设置中的全局验收数据开关、统一请求范围及批次维护 |
+| `frontend/admin/src/api.ts`、`ChipKeysDialog.tsx` | 真实Cookie/内存CSRF、登录/退出、密钥/配置安全流程 |
+| `frontend/admin/src/global.css` | 原型的必要局部样式，布局/控件继续复用官方组件 |
+| `prototypes/admin-make/src/`、`preview.html` | 已验收原型源码及独立HTML，只作还原基准，不带入模拟认证/业务 |
 
-当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。现有正式管理端仍为React + Vite + TypeScript，下一目标推荐完整官方Umi Max/Ant Design Pro工程，迁移落在frontend/admin。具体路由、请求/会话、构建和启动脚本适配见工程说明，不把组件安装等同完整迁入。用户工程frontend/user保持独立Vite，后端与NFC安全方案保留。未实施前不改现行启动命令；实施时用npm锁定核定版本并更新原本地运行说明，不复制官方无关示例/假接口/外部分析或演示发布脚本。
+当前功能范围见[接口实现概览](../API_CONTRACT.md#04-当前能做到哪一步)。Figma 调整时保留 LoginPanel 的状态处理及 api.ts 的认证逻辑，不把登录凭证搬到浏览器本地存储。当前分支正式管理端已为Umi Max/Ant Design Pro，落在frontend/admin。具体路由、请求/会话、构建和启动脚本适配见工程说明，不把组件安装等同完整迁入。用户工程frontend/user保持独立Vite，后端与NFC安全方案保留。未实施前不改现行启动命令；实施时用npm锁定核定版本并更新原本地运行说明，不复制官方无关示例/假接口/外部分析或演示发布脚本。
 
 字段展示按[业务字段表](proposals/admin-rebuild-fields.md)承接：界面称“实体”，共用发行约定、数字身份和每次实体交付分开；目标为共用资料统一维护并同步引用，实体交付信息独立保留；当前正式应用仍逐件保存，迁移须另审。重构的物品类别只在款式维护，其他页面按引用展示/筛选，不能保留多处独立“所属项目”输入；隔离原型已按批准架构落实来源与文案；现有正式project接口/数据仍需技术适配。未交付字段在技术实施前补齐契约，不从原型假定后端支持。
 

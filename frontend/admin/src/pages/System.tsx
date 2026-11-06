@@ -4,16 +4,23 @@ import { Tabs } from "antd";
 import { RuntimeChecks } from "../RuntimeChecks";
 import { Copy } from "../components/CatalogUI";
 import ServerTable from "../components/ServerTable";
+import { useLocation, history } from "@umijs/max";
 import { time } from "../catalog";
 export default function System() {
   return (
     <PageContainer title={false}>
       <Tabs
+        className="section-tabs"
+        size="small"
+        activeKey={
+          new URLSearchParams(useLocation().search).get("tab") || "audit"
+        }
+        onChange={(tab) => history.replace("/system?tab=" + tab)}
         items={[
-          { key: "test-data", label: "测试数据", children: <TestBatches /> },
+          { key: "settings", label: "设置", children: <TestBatches /> },
           {
             key: "audit",
-            label: "操作日志",
+            label: "操作审计",
             children: (
               <ServerTable
                 resource="audit"

@@ -101,7 +101,7 @@ def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", c
         dist=ROOT/'frontend/admin/dist'
         def fallback(environ,start_response):
             path=environ.get('PATH_INFO','/')
-            if path=='/' or re.fullmatch(r'/(?:login|overview|catalog(?:/(?:style|issue)/[0-9]+)?|items(?:/[0-9]+)?|chips(?:/[0-9]+)?|system)',path):
+            if path=='/' or re.fullmatch(r'/(?:login|overview|catalog(?:/(?:style|issue)/(?:[0-9]+|new))?|items(?:/[0-9]+)?|chips(?:/[0-9]+)?|system)',path):
                 return Response((dist/'index.html').read_bytes(),mimetype='text/html',headers={'Cache-Control':'no-store'})(environ,start_response)
             return app(environ,start_response)
         # 静态文件与API同源，模拟正式网关；API未知地址继续由后端返回JSON 404。

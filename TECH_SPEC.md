@@ -4,7 +4,7 @@
 
 ## 1. 各部分负责什么
 
-管理后台组件库已确定为Ant Design，采用antd 6官方组件、本次Make展示组合及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前任务分支已迁移，人工验收与main/部署状态见TODO。锁定版本、React兼容性及依赖调整见技术方案；现有React/Vite/TypeScript工程与认证保留，用户H5独立设计。
+管理后台组件库已确定为Ant Design，采用antd 6官方组件、本次Make展示组合及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前任务分支已迁移，人工验收与main/部署状态见TODO。锁定版本、React兼容性及依赖调整见技术方案；正式管理端使用Umi Max/Ant Design Pro，既有认证保留，用户H5独立设计。
 
 组件版本和A完整范围见[批准技术方案](docs/proposals/admin-management-implementation.md)，图片恢复门槛保留，固定React19独立组件矩阵已按cece决定取消；历史验证证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品列表、同字段详情/编辑、连续创建及Upload已接入；人工验收、合并与部署进度见TODO。
 
@@ -14,7 +14,7 @@
 
 | 部分 | 使用的工具 | 大白话解释 |
 |---|---|---|
-| 用户页和管理页 | React、Vite、TypeScript | 用户和管理员在浏览器里看到、操作的页面 |
+| 用户页和管理页 | React、TypeScript；用户端Vite、管理端Umi Max/Ant Design Pro | 用户和管理员在浏览器里看到、操作的页面 |
 | 后端 | Python、Flask | 接收请求，检查身份，执行绑定和查询等业务 |
 | 数据库 | MySQL 8.0，至少 8.0.16 | 保存芯片、物品、用户和操作记录，并拦住不合法的数据 |
 | 网站入口 | Nginx | 接收浏览器访问，返回页面或转交给后端 |

@@ -1,4 +1,3 @@
-import { TestSource } from "../components/TestDataScope";
 import React, { useEffect, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import {
@@ -28,6 +27,7 @@ import {
 } from "../catalog";
 import {
   ActionForm,
+  DetailContainer,
   InlineCommand,
   Copy,
   Evidence,
@@ -62,7 +62,7 @@ export default function ItemDetail({
   useEffect(() => {
     let active = true;
     setStats(undefined);
-    statistics({ data_scope: "all", item_id: ident, scope, range })
+    statistics({ item_id: ident, scope, range })
       .then((x) => {
         if (active) {
           setStats(x);
@@ -87,40 +87,48 @@ export default function ItemDetail({
   };
   const e = r?.wholes?.find((x: Row) => !x.ended_at),
     pending = r?.handovers?.find((x: Row) => !x.completed_at);
-  const container = (content: React.ReactNode) =>
-    embedded ? (
-      <div className="embedded-detail">{content}</div>
-    ) : (
-      <PageContainer
-        title={r?.item_uid || "数字物品"}
-        onBack={() => {
-          history.push(returnPath("/items"));
-        }}
-      >
-        {content}
-      </PageContainer>
-    );
+  const container = (content: React.ReactNode) => (
+    <DetailContainer
+      embedded={embedded}
+      title={<Copy value={r?.item_uid} />}
+      subTitle={`${r?.style?.name || "款式待核对"} · ${r ? edition(r) : ""}`}
+      onBack={() => history.push(returnPath("/items"))}
+      extra={
+        r && (
+          <Space>
+            {!embedded && (
+              <Button onClick={() => history.push(returnPath("/items"))}>
+                返回来源
+              </Button>
+            )}
+            <Button onClick={() => setAction("sale")}>维护售出确认</Button>
+            <Button
+              danger={r.status === "active"}
+              type={r.status === "active" ? "default" : "primary"}
+              disabled={!r.issue_id || r.status === "archived"}
+              onClick={() => setAction("toggleItem")}
+            >
+              {r.status === "active" ? "停用物品" : "启用物品"}
+            </Button>
+          </Space>
+        )
+      }
+    >
+      {content}
+    </DetailContainer>
+  );
   return container(
     <Load error={error} loading={loading} retry={reload}>
       {r && (
         <div className="page-stack">
-          <TestSource record={r} />
           <ProCard
+            size="small"
+            variant="outlined"
             title="数字身份与发行"
             headerBordered
-            extra={
-              <Space>
-                <State value={statusNames[r.status]} />
-                <Button
-                  disabled={!r.issue_id || r.status === "archived"}
-                  onClick={() => setAction("toggleItem")}
-                >
-                  {r.status === "active" ? "停用物品档案" : "启用物品档案"}
-                </Button>
-              </Space>
-            }
+            extra={<State value={statusNames[r.status]} />}
           >
-            <Descriptions column={2}>
+            <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="系统物品编号">
                 <Copy value={r.item_uid} />
               </Descriptions.Item>
@@ -170,6 +178,8 @@ export default function ItemDetail({
             </Descriptions>
           </ProCard>
           <ProCard
+            size="small"
+            variant="outlined"
             title="共用商品资料"
             headerBordered
             extra={
@@ -191,29 +201,31 @@ export default function ItemDetail({
                 维护历史单件资料
               </Button>
             )}
-            <Gallery urls={r.style?.image_urls || []} />
-            <Descriptions column={1}>
-              <Descriptions.Item label="商品名称">
-                {r.style?.name || r.legacy_profile?.name || "待补齐"}
-              </Descriptions.Item>
-              <Descriptions.Item label="介绍">
-                {r.style?.description ||
-                  r.legacy_profile?.description ||
-                  "未填写"}
-              </Descriptions.Item>
-              <Descriptions.Item label="材质">
-                {r.style?.material || r.legacy_profile?.material || "未填写"}
-              </Descriptions.Item>
-              <Descriptions.Item label="养护或寓意">
-                {r.style?.care_instructions ||
-                  r.legacy_profile?.care_instructions ||
-                  r.legacy_profile?.meaning ||
-                  "未填写"}
-              </Descriptions.Item>
-              <Descriptions.Item label="适用规格">
-                {r.style?.specs?.join("、") || "未填写"}
-              </Descriptions.Item>
-            </Descriptions>
+            <div className="product-profile">
+              <Gallery urls={r.style?.image_urls || []} />
+              <Descriptions size="small" bordered column={1}>
+                <Descriptions.Item label="商品名称">
+                  {r.style?.name || r.legacy_profile?.name || "待补齐"}
+                </Descriptions.Item>
+                <Descriptions.Item label="介绍">
+                  {r.style?.description ||
+                    r.legacy_profile?.description ||
+                    "未填写"}
+                </Descriptions.Item>
+                <Descriptions.Item label="材质">
+                  {r.style?.material || r.legacy_profile?.material || "未填写"}
+                </Descriptions.Item>
+                <Descriptions.Item label="养护或寓意">
+                  {r.style?.care_instructions ||
+                    r.legacy_profile?.care_instructions ||
+                    r.legacy_profile?.meaning ||
+                    "未填写"}
+                </Descriptions.Item>
+                <Descriptions.Item label="适用规格">
+                  {r.style?.specs?.join("、") || "未填写"}
+                </Descriptions.Item>
+              </Descriptions>
+            </div>
             {!r.issue_id && (
               <Alert
                 type="warning"
@@ -222,6 +234,8 @@ export default function ItemDetail({
             )}
           </ProCard>
           <ProCard
+            size="small"
+            variant="outlined"
             title="当前物品（实物＋芯片）"
             headerBordered
             extra={
@@ -272,7 +286,7 @@ export default function ItemDetail({
           >
             {e ? (
               <>
-                <Descriptions column={2}>
+                <Descriptions size="small" bordered column={2}>
                   <Descriptions.Item label="物品代次">
                     第{e.generation}代物品
                   </Descriptions.Item>
@@ -335,7 +349,7 @@ export default function ItemDetail({
             )}
           </ProCard>
           <ProCard title="持有人与权益" headerBordered>
-            <Descriptions column={2}>
+            <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="当前持有人">
                 {r.owner_id ? (
                   <Copy value={r.owner_id} />
@@ -402,7 +416,12 @@ export default function ItemDetail({
               ]}
             />
           </ProCard>
-          <ProCard title="物品历程（实物＋芯片）" headerBordered>
+          <ProCard
+            size="small"
+            variant="outlined"
+            title="物品历程（实物＋芯片）"
+            headerBordered
+          >
             <Table<Row>
               rowKey="id"
               dataSource={r.wholes}
@@ -456,6 +475,8 @@ export default function ItemDetail({
             />
           </ProCard>
           <ProCard
+            size="small"
+            variant="outlined"
             title="物品触碰统计"
             headerBordered
             extra={

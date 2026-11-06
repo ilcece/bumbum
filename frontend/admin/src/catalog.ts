@@ -1,3 +1,4 @@
+import { dataScope, testBatch } from "./testDataMode";
 import { request, ApiError } from "./api";
 export type Row = { id: number; [key: string]: any };
 export type Page = {
@@ -11,7 +12,11 @@ export async function list(
   params: Record<string, any> = {},
 ): Promise<Page> {
   const q = new URLSearchParams();
-  for (const [k, v] of Object.entries(params))
+  for (const [k, v] of Object.entries(
+    ["styles", "issues", "items", "chips", "users"].includes(resource)
+      ? { ...params, ...dataScope() }
+      : params,
+  ))
     if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
   return request(`/admin/catalog/${resource}?${q}`);
 }
@@ -24,11 +29,14 @@ export const command = (
 ): Promise<Row> =>
   request(`/admin/catalog/actions/${action}`, {
     request_id: requestId,
-    payload,
+    payload:
+      testBatch() && ["style", "register"].includes(action) && !payload.id
+        ? { ...payload, test_batch_id: testBatch() }
+        : payload,
   });
 export const statistics = (params: Record<string, any>): Promise<Row> => {
   const q = new URLSearchParams(
-    Object.entries(params)
+    Object.entries({ ...params, ...dataScope() })
       .filter(([, v]) => v !== undefined)
       .map(([k, v]) => [k, String(v)]),
   );

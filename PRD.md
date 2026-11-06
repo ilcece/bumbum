@@ -81,7 +81,7 @@ P0指现有核心流程阻断或可能产生错误数据等必须先修的问题
 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 定位、范围、信息/功能架构、核心流程、统计及待审选择 | 数字物品、芯片、持有人及核心数据；不建设订单/工厂/物流后台 |
 | [业务字段表](docs/proposals/admin-rebuild-fields.md) | 档案、操作表单及只读视图的字段/含义/录入边界 | 不是DDL或已可用API清单 |
 | [设计与交互规范](docs/ADMIN_UI_GUIDELINES.md) | 官方页面/组件、布局、容器、查询/保存/返回及视觉验收 | 新版优先官方Pro模式，旧Make只作历史参考 |
-| [Umi工程迁移说明](docs/proposals/admin-rebuild-implementation.md) | 完整官方工程路线、真实能力保留、版本冲突及实施前提 | 当前正式工程仍为Vite；未安装/迁移，用户H5和后端不随之重写 |
+| [Umi工程迁移说明](docs/proposals/admin-rebuild-implementation.md) | 完整官方工程路线、真实能力保留、版本冲突及实施前提 | 当前分支正式工程已迁入Umi/Pro；按已验收源码恢复页面，用户H5和后端安全边界不随之重写 |
 
 B验证清理、C纠错和D未定政策在主方案相应章节集中审核，分别按实际批准范围实施，不因聚合捆绑发布。旧路径、S01–S30与历史批准/测试记录从[主方案来源表](docs/proposals/admin-make-rebuild.md#sources)查阅；归档不改变真实已实现状态，也不把旧53项原型检查当作新版或Umi验收。
 

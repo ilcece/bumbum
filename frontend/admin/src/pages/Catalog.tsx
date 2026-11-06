@@ -28,7 +28,6 @@ import {
   State,
   required,
 } from "../components/CatalogUI";
-import { BatchSelect, TestSource } from "../components/TestDataScope";
 import ServerTable from "../components/ServerTable";
 import StyleImages from "../components/StyleImages";
 function StyleFields({ record }: { record?: Row }) {
@@ -37,22 +36,10 @@ function StyleFields({ record }: { record?: Row }) {
   const v = Form.useWatch([], form) || {};
   return (
     <GridRow gutter={24}>
-      <Col span={24}>
-        <TestSource record={record} />
-      </Col>
       <Col span={15}>
         <Form.Item name="id" hidden>
           <InputNumber />
         </Form.Item>
-        {!record && (
-          <Form.Item
-            name="test_batch_id"
-            label="测试批次"
-            extra="留空为业务数据；已生成来源不能通过生产验证开关改写。"
-          >
-            <BatchSelect />
-          </Form.Item>
-        )}
         <Form.Item name="project" label="物品类别" rules={required}>
           <Select
             disabled={!!record?.issue_count}
@@ -250,7 +237,22 @@ export default function Catalog() {
           "/catalog?tab=" + (routeKind === "style" ? "styles" : "issues"),
         );
     },
-    done = () => {
+    done = (result?: Row) => {
+      if (
+        routeId &&
+        editor &&
+        result?.id &&
+        ["style", "issue"].includes(editor.kind)
+      ) {
+        const resource = editor.kind === "style" ? "styles" : "issues";
+        void read(resource, result.id).then((record) =>
+          setEditor({ kind: editor.kind, record }),
+        );
+        history.replace(`/catalog/${editor.kind}/${result.id}`);
+        setAction(undefined);
+        setRev((x) => x + 1);
+        return;
+      }
       close();
       setAction(undefined);
       setRev((x) => x + 1);
@@ -273,13 +275,19 @@ export default function Catalog() {
       title: "商品款式",
       dataIndex: "name",
       search: false,
-      render: (_, r) => <Product row={r} />,
+      render: (_, r) => (
+        <Product
+          row={r}
+          onClick={() => setEditor({ kind: "style", record: r })}
+        />
+      ),
     },
     {
-      title: "类别",
+      title: "物品类别",
       dataIndex: "project",
       valueEnum: { fashion: "服装", jewelry: "饰品" },
     },
+    { title: "关联发行", dataIndex: "issue_count", search: false },
     { title: "引用物品", dataIndex: "item_count", search: false },
     {
       title: "操作",
@@ -290,7 +298,14 @@ export default function Catalog() {
           key="edit"
           onClick={() => setEditor({ kind: "style", record: r })}
         >
-          维护共用资料
+          维护资料
+        </Button>,
+        <Button
+          type="link"
+          key="issue"
+          onClick={() => history.push("/catalog/issue/new?style_id=" + r.id)}
+        >
+          建立发行约定
         </Button>,
       ],
     },
@@ -302,7 +317,11 @@ export default function Catalog() {
     {
       title: "发行方式",
       dataIndex: "mode",
-      search: false,
+      valueEnum: {
+        fixed: "固定总量",
+        period: "限时按销量定量",
+        unlimited: "非限定",
+      },
       render: (_, r) => <State value={statusNames[r.mode]} />,
     },
     {
@@ -313,7 +332,8 @@ export default function Catalog() {
     },
     {
       title: "确认状态",
-      search: false,
+      dataIndex: "status",
+      valueEnum: { draft: "草案", confirmed: "已确认" },
       render: (_, r) => <State value={r.confirmed_at ? "已确认" : "草案"} />,
     },
     { title: "引用", dataIndex: "item_count", search: false },
@@ -360,35 +380,67 @@ export default function Catalog() {
     },
   ];
   return (
-    <PageContainer title={false}>
-      {routeError && <Alert type="error" title={routeError} />}
-      <Tabs
-        activeKey={tab}
-        onChange={(tab) => history.push("/catalog?tab=" + tab)}
-        items={[
-          { key: "styles", label: "款式资料" },
-          { key: "issues", label: "发行约定" },
-        ]}
-      />
-      <ServerTable
-        key={tab}
-        resource={tab}
-        refresh={rev}
-        columns={tab === "styles" ? styles : issues}
-        extra={[
+    <PageContainer
+      title={
+        routeId ? (routeKind === "style" ? "款式资料" : "发行约定") : false
+      }
+      onBack={routeId ? close : undefined}
+      extra={
+        routeId &&
+        editor?.kind === "issue" &&
+        editor.record &&
+        !editor.record.confirmed_at ? (
           <Button
-            key="create"
             type="primary"
             onClick={() =>
-              setEditor({ kind: tab === "styles" ? "style" : "issue" })
+              setAction({ type: "confirmIssue", r: editor.record! })
             }
           >
-            {tab === "styles" ? "新建款式" : "新增发行约定"}
-          </Button>,
-        ]}
-      />
+            确认约定
+          </Button>
+        ) : undefined
+      }
+    >
+      {routeError && <Alert type="error" title={routeError} />}
+      {!routeId && (
+        <>
+          <Tabs
+            className="section-tabs"
+            size="small"
+            activeKey={tab}
+            onChange={(tab) => history.push("/catalog?tab=" + tab)}
+            items={[
+              { key: "styles", label: "款式资料" },
+              { key: "issues", label: "发行约定" },
+            ]}
+          />
+          <ServerTable
+            key={tab}
+            resource={tab}
+            refresh={rev}
+            columns={tab === "styles" ? styles : issues}
+            extra={[
+              <Button
+                key="create"
+                type="primary"
+                onClick={() =>
+                  history.push(
+                    tab === "styles"
+                      ? "/catalog/style/new"
+                      : "/catalog/issue/new",
+                  )
+                }
+              >
+                {tab === "styles" ? "新建款式" : "新增发行约定"}
+              </Button>,
+            ]}
+          />
+        </>
+      )}
       {editor && (!editor.record?.confirmed_at || editor.kind === "style") && (
         <ActionForm
+          key={editor.kind + String(editor.record?.id || "new")}
+          page={!!routeId}
           title={editor.kind === "style" ? "维护款式共用资料" : "发行约定草案"}
           action={editor.kind}
           width={editor.kind === "style" ? 1120 : 780}
@@ -409,6 +461,9 @@ export default function Catalog() {
                   image_urls: [],
                   mode: "fixed",
                   rights: [],
+                  style_id: q.get("style_id")
+                    ? Number(q.get("style_id"))
+                    : undefined,
                 }
           }
           onDone={done}
@@ -424,6 +479,7 @@ export default function Catalog() {
       {editor?.record?.confirmed_at && editor.kind === "issue" && (
         <ActionForm
           title="已确认发行约定"
+          page={!!routeId}
           readOnly
           action="confirmIssue"
           initial={{ issue_id: editor.record.id }}

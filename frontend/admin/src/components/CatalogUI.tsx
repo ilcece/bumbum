@@ -16,7 +16,12 @@ import {
   Tag,
   Typography,
 } from "antd";
-import { ModalForm, ProFormInstance } from "@ant-design/pro-components";
+import {
+  ModalForm,
+  ProForm,
+  ProFormInstance,
+  PageContainer,
+} from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
 import { command, list, read, Row, unknown } from "../catalog";
 import { ApiError, readSession, sessionIsExpired } from "../api";
@@ -66,41 +71,80 @@ export function Gallery({
   urls?: string[];
   compact?: boolean;
 }) {
-  return urls.length ? (
-    <Image.PreviewGroup>
-      {urls.map((url, n) => (
-        <Image
-          key={url}
-          src={url}
-          alt={`商品参考图${n + 1}`}
-          width={compact ? 56 : 160}
-          height={compact ? 56 : 160}
-          style={{ objectFit: "contain", marginRight: 8 }}
+  const [active, setActive] = useState(0);
+  if (!urls.length)
+    return (
+      <div
+        className={
+          compact ? "product-thumb placeholder-thumb" : "gallery-empty"
+        }
+      >
+        <Empty
+          image={Empty.PRESENTED_IMAGE_SIMPLE}
+          description={compact ? "暂无款图" : "暂无商品图片"}
         />
-      ))}
-    </Image.PreviewGroup>
-  ) : (
-    <div style={{ width: compact ? 56 : undefined }}>
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={compact ? "暂无款图" : "暂无图片"}
+      </div>
+    );
+  if (compact)
+    return (
+      <Image
+        className="product-thumb"
+        src={urls[0]}
+        alt="商品款图"
+        width={56}
+        height={56}
       />
+    );
+  const current = Math.min(active, urls.length - 1);
+  return (
+    <div className="product-gallery">
+      <Image.PreviewGroup items={urls}>
+        <Image
+          src={urls[current]}
+          alt={`商品图片 ${current + 1}`}
+          className="gallery-main"
+        />
+      </Image.PreviewGroup>
+      <div className="gallery-thumbnails" aria-label="商品图片切换">
+        {urls.map((url, n) => (
+          <button
+            key={n}
+            type="button"
+            className={current === n ? "selected" : ""}
+            aria-label={`查看商品图片 ${n + 1}`}
+            aria-pressed={current === n}
+            onClick={() => setActive(n)}
+          >
+            <img src={url} alt={`缩略图 ${n + 1}`} />
+          </button>
+        ))}
+        <Typography.Text type="secondary">共 {urls.length} 张</Typography.Text>
+      </div>
     </div>
   );
 }
-export function Product({ row }: { row: Row }) {
+
+export function Product({ row, onClick }: { row: Row; onClick?: () => void }) {
   return (
-    <Space>
-      <Gallery compact urls={row.image_urls?.slice(0, 1) || []} />
+    <div className="style-cell">
+      <Gallery compact urls={row?.image_urls} />
       <div>
-        <strong>{row.name || "款式待核对"}</strong>
+        {onClick ? (
+          <Button type="link" onClick={onClick}>
+            {row?.name || "款式待核对"}
+          </Button>
+        ) : (
+          <Typography.Text strong>{row?.name || "款式待核对"}</Typography.Text>
+        )}
         <div className="cell-secondary">
-          {row.material || "材质未填写"} · 图片 {row.image_urls?.length || 0} 张
+          {row?.material || "材质未填写"} · 图片 {row?.image_urls?.length || 0}{" "}
+          张
         </div>
       </div>
-    </Space>
+    </div>
   );
 }
+
 export function RemoteSelect({
   id,
   resource,
@@ -126,7 +170,6 @@ export function RemoteSelect({
   useEffect(() => {
     const n = ++seq.current;
     list(resource, {
-      data_scope: "all",
       ...params,
       page,
       page_size: 20,
@@ -249,6 +292,7 @@ export function ActionForm({
   cancelText = "取消",
   width = 680,
   readOnly = false,
+  page = false,
 }: {
   title: string;
   action: string;
@@ -260,6 +304,7 @@ export function ActionForm({
   cancelText?: string;
   width?: number;
   readOnly?: boolean;
+  page?: boolean;
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -362,10 +407,13 @@ export function ActionForm({
       window.removeEventListener("beforeunload", unload);
     };
   }, [dirty, busy, uncertain]);
+  const FormContainer = (
+    page ? ProForm : ModalForm
+  ) as React.ComponentType<any>;
   return (
-    <ModalForm
-      open
-      title={title}
+    <FormContainer
+      open={page ? undefined : true}
+      title={page ? undefined : title}
       width={width}
       formRef={form}
       initialValues={initial}
@@ -386,7 +434,7 @@ export function ActionForm({
               searchConfig: { submitText },
               submitButtonProps: { disabled: uncertain, loading: busy },
               resetButtonProps: { style: { display: "none" } },
-              render: (_, dom) => (
+              render: (_: unknown, dom: React.ReactNode[]) => (
                 <Space>
                   <Button disabled={busy} onClick={close}>
                     {cancelText}
@@ -441,7 +489,7 @@ export function ActionForm({
           )}
         </Space>
       )}
-    </ModalForm>
+    </FormContainer>
   );
 }
 export const required = [{ required: true, message: "请填写此项" }];
@@ -494,6 +542,7 @@ const fields: Record<string, string[]> = {
   ],
   bind: ["item_id", "chip_id", "spec"],
   sale: ["item_id", "confirmed", "evidence"],
+  saleBatch: ["item_ids", "confirmed", "evidence"],
   toggleItem: ["item_id", "status"],
   loseItem: ["item_id", "whole_id", "evidence"],
   linkIssue: ["item_id", "issue_id", "edition_number", "evidence"],
@@ -639,4 +688,25 @@ export function returnPath(fallback: string) {
   return value && /^\/(items|chips)(\/[1-9][0-9]*)?(\?[^#]*)?$/.test(value)
     ? value
     : fallback;
+}
+
+export function DetailContainer({
+  embedded,
+  children,
+  ...props
+}: React.ComponentProps<typeof PageContainer> & { embedded?: boolean }) {
+  return embedded ? (
+    <div className="embedded-detail">
+      <div className="detail-heading">
+        <Typography.Title level={4}>{props.title}</Typography.Title>
+        {props.subTitle}
+      </div>
+      <Space wrap className="detail-actions">
+        {props.extra}
+      </Space>
+      {children}
+    </div>
+  ) : (
+    <PageContainer {...props}>{children}</PageContainer>
+  );
 }

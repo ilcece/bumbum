@@ -4,10 +4,11 @@ import { Button, Drawer, Form, Input, InputNumber, Select, Switch } from "antd";
 import { history } from "@umijs/max";
 import { Row, statusNames, time } from "../catalog";
 import { ActionForm, Copy, State, required } from "../components/CatalogUI";
-import { BatchSelect } from "../components/TestDataScope";
 import ServerTable from "../components/ServerTable";
+import KeyConfiguration from "../components/KeyConfiguration";
 import ChipDetail from "./ChipDetail";
 export default function Chips() {
+  const [keyChip, setKeyChip] = useState<number>();
   const [id, setId] = useState<number>(),
     [create, setCreate] = useState(false),
     [rev, setRev] = useState(0);
@@ -22,7 +23,16 @@ export default function Chips() {
       title: "芯片编号",
       dataIndex: "chip_uid",
       search: false,
-      render: (_, r) => <Copy value={r.chip_uid} />,
+      render: (_, r) => (
+        <div>
+          <Copy value={r.chip_uid} onClick={() => setId(r.id)} />
+          {r.is_validation && (
+            <div>
+              <State value="生产验证对象" />
+            </div>
+          )}
+        </div>
+      ),
     },
     {
       title: "批次",
@@ -31,9 +41,9 @@ export default function Chips() {
       render: (_, r) => <Copy value={r.batch_no} />,
     },
     {
-      title: "类别",
-      dataIndex: "project",
-      valueEnum: { unassigned: "未分配", fashion: "服装", jewelry: "饰品" },
+      title: "首次来源",
+      dataIndex: "registration_source",
+      valueEnum: { manual: "手工", nfc_cool: "NFC.cool", unknown: "未记录" },
     },
     {
       title: "服务状态",
@@ -48,8 +58,9 @@ export default function Chips() {
       render: (_, r) => <State value={statusNames[r.chip_status]} />,
     },
     {
-      title: "配置",
-      search: false,
+      title: "配置状态",
+      dataIndex: "configured",
+      valueEnum: { yes: "已核验", no: "待核验" },
       render: (_, r) => (
         <State
           value={
@@ -66,11 +77,20 @@ export default function Chips() {
       title: "物品关联",
       search: false,
       render: (_, r) =>
-        r.item_uid ||
-        (r.candidate_id ? <State value="候选未生效" /> : "未关联"),
+        r.item_uid ? (
+          <Copy
+            value={r.item_uid}
+            onClick={() => history.push("/items/" + r.item_id)}
+          />
+        ) : r.candidate_id ? (
+          <State value="候选未生效" />
+        ) : (
+          <State value="未关联" />
+        ),
     },
     {
-      title: "生产验证",
+      title: "数据性质",
+      hideInTable: true,
       dataIndex: "is_validation",
       valueEnum: { true: "生产验证", false: "正常业务" },
       render: (_, r) =>
@@ -80,9 +100,13 @@ export default function Chips() {
     {
       title: "操作",
       valueType: "option",
+      fixed: "right",
       render: (_, r) => [
         <Button key="view" type="link" onClick={() => setId(r.id)}>
           查看
+        </Button>,
+        <Button key="keys" type="link" onClick={() => setKeyChip(r.id)}>
+          密钥与配置
         </Button>,
       ],
     },
@@ -95,7 +119,7 @@ export default function Chips() {
         refresh={rev}
         extra={[
           <Button key="create" type="primary" onClick={() => setCreate(true)}>
-            登记芯片
+            手工登记芯片
           </Button>,
         ]}
       />
@@ -131,6 +155,15 @@ export default function Chips() {
           />
         )}
       </Drawer>
+      {keyChip && (
+        <KeyConfiguration
+          id={keyChip}
+          onClose={() => setKeyChip(undefined)}
+          onUpdated={() => {
+            setRev((n) => n + 1);
+          }}
+        />
+      )}
       {create && (
         <ActionForm
           title="登记芯片"
@@ -157,9 +190,6 @@ export default function Chips() {
           </Form.Item>
           <Form.Item name="batch_no" label="批次">
             <Input maxLength={64} />
-          </Form.Item>
-          <Form.Item name="test_batch_id" label="测试批次">
-            <BatchSelect />
           </Form.Item>
           <Form.Item
             name="is_validation"

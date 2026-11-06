@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Alert, Button, Card, Collapse, Form, Input, Typography } from "antd";
+import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { history, useModel } from "@umijs/max";
 import { readSession, signIn } from "../api";
 import { RuntimeChecks } from "../RuntimeChecks";
@@ -9,15 +9,11 @@ export default function Login() {
     [error, setError] = useState("");
   const { refresh } = useModel("@@initialState");
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: 24,
-      }}
-    >
-      <Card style={{ width: 460, maxWidth: "100%" }}>
+    <main className="login-frame">
+      <Card className="login-card">
+        <div className="brand-lockup">
+          <span className="brand-mark">BB</span>
+        </div>
         <Typography.Title level={3}>BUMBUM</Typography.Title>
         <Typography.Title level={4}>管理员登录</Typography.Title>
         <Form
@@ -61,16 +57,6 @@ export default function Login() {
           </Button>
         </Form>
         {error && <Alert type="error" title={error} />}
-        <Collapse
-          style={{ marginTop: 20 }}
-          items={[
-            {
-              key: "runtime",
-              label: "检查运行环境",
-              children: <RuntimeChecks />,
-            },
-          ]}
-        />
       </Card>
     </main>
   );

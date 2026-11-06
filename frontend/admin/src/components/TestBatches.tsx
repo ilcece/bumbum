@@ -10,8 +10,9 @@ import {
   Table,
   Typography,
   Tag,
+  Switch,
 } from "antd";
-import { history } from "@umijs/max";
+import { testBatch, setTestBatch } from "../testDataMode";
 import { list, Row } from "../catalog";
 import { request } from "../api";
 import { ActionForm } from "./CatalogUI";
@@ -44,11 +45,29 @@ export default function TestBatches() {
         <Alert
           type="info"
           showIcon
-          title="测试批次与生产验证开关分开保存"
-          description="灌入通过受控测试命令执行；可查看、剔除或整批清理。合成数据不能作为真实卡、认领或交付证据。"
+          title="测试数据仅用于验收"
+          description="开启后，各页面统一显示验收数据；关闭后恢复业务数据。不会删除数据或改变生产验证标记。合成样本不能证明实卡、认领或真实交付。"
         />
         {error && <Alert type="error" title={error} />}
-        <Button onClick={() => setRevision((x) => x + 1)}>刷新批次</Button>
+        <Space>
+          <Typography.Text strong>开启测试数据</Typography.Text>
+          <Switch
+            aria-label="开启测试数据"
+            checked={!!testBatch()}
+            disabled={
+              !testBatch() &&
+              (!writable || !rows.some((r) => r.status === "active"))
+            }
+            onChange={(enabled) =>
+              setTestBatch(
+                enabled
+                  ? rows.find((r) => r.status === "active")?.id
+                  : undefined,
+              )
+            }
+          />
+          <Button onClick={() => setRevision((x) => x + 1)}>刷新数据</Button>
+        </Space>
         <Table<Row>
           rowKey="id"
           dataSource={rows}
@@ -67,24 +86,6 @@ export default function TestBatches() {
               title: "操作",
               render: (_, r) => (
                 <Space wrap>
-                  <Button
-                    onClick={() =>
-                      history.push(
-                        `/items?data_scope=test&test_batch_id=${r.id}`,
-                      )
-                    }
-                  >
-                    查看本批物品
-                  </Button>
-                  <Button
-                    onClick={() =>
-                      history.push(
-                        `/overview?data_scope=test&test_batch_id=${r.id}`,
-                      )
-                    }
-                  >
-                    查看本批统计
-                  </Button>
                   <Button
                     danger
                     disabled={!writable || r.status !== "active"}
@@ -124,12 +125,7 @@ export default function TestBatches() {
                   <ul>
                     {r.manifest?.items?.map((x: any) => (
                       <li key={x.item_id}>
-                        <Button
-                          type="link"
-                          onClick={() => history.push(`/items/${x.item_id}`)}
-                        >
-                          {x.uid}
-                        </Button>
+                        <Typography.Text>{x.uid} · </Typography.Text>
                         {x.scenario}
                       </li>
                     ))}
@@ -151,6 +147,10 @@ export default function TestBatches() {
             initial={{ batch_id: preview.id, confirmed: false }}
             onClose={() => setPreview(undefined)}
             onDone={() => {
+              if (testBatch() === preview.id) {
+                setTestBatch();
+                return;
+              }
               setPreview(undefined);
               setRevision((x) => x + 1);
             }}

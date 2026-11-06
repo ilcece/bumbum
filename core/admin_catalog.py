@@ -124,7 +124,7 @@ ISSUE_SELECT = 'SELECT '+select_source('issue','r')+',r.*,s.name AS style_name,s
 ISSUE_JOIN = 'FROM product_issue r JOIN product_style s ON s.id=r.style_id JOIN project p ON p.id=s.project_id'
 ITEM_SELECT = 'SELECT '+select_source('item','i')+''',i.*,p.code AS project,d.issue_id,d.edition_number,d.sold,d.first_sold_at,d.sale_evidence,d.is_validation,d.quota_year,d.quota_used,d.quota_review,
  r.name AS issue_name,r.mode AS issue_mode,r.total AS issue_total,r.style_id,s.name,s.material,s.image_urls,
- w.id AS whole_id,w.generation,w.spec,w.lost_at,w.loss_evidence,c.id AS chip_id,c.chip_uid,c.chip_status,c.provisioned_at,
+ (SELECT nickname FROM user WHERE id=o.user_id) AS owner_name,w.id AS whole_id,w.generation,w.spec,w.lost_at,w.loss_evidence,c.id AS chip_id,c.chip_uid,c.chip_status,c.provisioned_at,
  (k.chip_id IS NOT NULL) AS keys_generated,o.user_id AS owner_id'''
 ITEM_JOIN = '''FROM item i JOIN project p ON p.id=i.project_id LEFT JOIN digital_item d ON d.item_id=i.id
  LEFT JOIN product_issue r ON r.id=d.issue_id LEFT JOIN product_style s ON s.id=r.style_id
@@ -139,7 +139,7 @@ CHIP_JOIN = '''FROM chip c LEFT JOIN project p ON p.id=c.project_id LEFT JOIN it
 
 @blueprint.get('/<resource>')
 def listing(resource):
-    allowed={'styles':{'project'},'issues':{'project','style_id','status'},'items':{'project','status','issue_id','is_validation','sold','whole_status'},'chips':{'project','status','is_validation','available'},'users':set(),'audit':set()}
+    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner'},'chips':{'project','status','is_validation','available','configured','registration_source'},'users':set(),'audit':set()}
     if resource not in allowed:fail('未知查询资源。',404,'not_found')
     check_parameters({'page','page_size','keyword','data_scope','test_batch_id'}|allowed[resource])
     keyword = request.args.get('keyword','').strip()
@@ -153,20 +153,23 @@ def listing(resource):
     elif resource == 'issues':
         select, joined, order = ISSUE_SELECT, ISSUE_JOIN, 'r.id DESC'
         if keyword:
-            conditions.append('(r.name LIKE %s ESCAPE \'!\' OR s.name LIKE %s ESCAPE \'!\')');values.extend([contains(keyword)]*2)
+            conditions.append('(r.name LIKE %s ESCAPE \'!\' OR s.name LIKE %s ESCAPE \'!\' OR r.series LIKE %s ESCAPE \'!\' OR s.code LIKE %s ESCAPE \'!\')');values.extend([contains(keyword)]*4)
         if request.args.get('style_id'):
             conditions.append('r.style_id=%s');values.append(positive_integer('style_id',1,2147483647))
-        if 'status' in request.args and request.args['status']!='confirmed':invalid('发行状态筛选只支持confirmed。')
-        if request.args.get('status') == 'confirmed':
-            conditions.append('r.confirmed_at IS NOT NULL')
+        if request.args.get('status'):
+            if request.args['status'] not in {'draft','confirmed'}:invalid('发行状态只支持draft或confirmed。')
+            conditions.append('r.confirmed_at IS '+('NOT NULL' if request.args['status']=='confirmed' else 'NULL'))
+        if request.args.get('mode'):
+            if request.args['mode'] not in {'fixed','period','unlimited'}:invalid('发行方式不支持。')
+            conditions.append('r.mode=%s');values.append(request.args['mode'])
     elif resource == 'items':
         select, joined, order = ITEM_SELECT, ITEM_JOIN, 'i.id DESC'
         if keyword:
             conditions.append('(i.item_uid LIKE %s ESCAPE \'!\' OR s.name LIKE %s ESCAPE \'!\' OR c.chip_uid LIKE %s ESCAPE \'!\')');values.extend([contains(keyword)]*3)
-        for name, column in [('status','i.status'),('issue_id','d.issue_id')]:
+        for name, column in [('status','i.status'),('issue_id','d.issue_id'),('style_id','r.style_id')]:
             if request.args.get(name):
                 if name=='status' and request.args[name] not in {'draft','active','disabled','archived'}:invalid('档案状态不支持。')
-                conditions.append(column+'=%s');values.append(positive_integer(name,1,2147483647) if name=='issue_id' else request.args[name])
+                conditions.append(column+'=%s');values.append(positive_integer(name,1,2147483647) if name in {'issue_id','style_id'} else request.args[name])
         for name,column in [('is_validation','d.is_validation'),('sold','d.sold')]:
             if name in request.args:
                 if request.args[name] not in {'true','false'}: invalid('布尔筛选须为true或false。')
@@ -175,6 +178,9 @@ def listing(resource):
         if state:
             if state not in {'lost','normal','missing'}: invalid('整套物品状态不支持。')
             conditions.append({'lost':"w.id IS NOT NULL AND (w.lost_at IS NOT NULL OR w.loss_evidence IS NOT NULL)",'normal':"w.id IS NOT NULL AND w.lost_at IS NULL AND w.loss_evidence IS NULL",'missing':'w.id IS NULL'}[state])
+        if request.args.get('owner'):
+            if request.args['owner'] not in {'yes','no'}:invalid('持有筛选须为yes或no。')
+            conditions.append('o.user_id IS '+('NOT NULL' if request.args['owner']=='yes' else 'NULL'))
     elif resource == 'chips':
         select, joined, order = CHIP_SELECT, CHIP_JOIN, 'c.id DESC'
         if keyword:
@@ -188,6 +194,12 @@ def listing(resource):
         if 'is_validation' in request.args:
             if request.args['is_validation'] not in {'true','false'}: invalid('验证筛选须为布尔值。')
             conditions.append('COALESCE(v.is_validation,0)=%s');values.append(request.args['is_validation']=='true')
+        if request.args.get('configured'):
+            if request.args['configured'] not in {'yes','no'}:invalid('配置筛选须为yes或no。')
+            conditions.append('c.provisioned_at IS '+('NOT NULL' if request.args['configured']=='yes' else 'NULL'))
+        if request.args.get('registration_source'):
+            if request.args['registration_source'] not in {'manual','nfc_cool','unknown'}:invalid('登记来源不支持。')
+            conditions.append('c.registration_source=%s');values.append(request.args['registration_source'])
     elif resource == 'users':
         select,joined,order='SELECT '+select_source('user','u')+',u.id,u.nickname,CONCAT(LEFT(u.phone,3),\'****\',RIGHT(u.phone,4)) AS phone,(SELECT COUNT(*) FROM ownership o WHERE o.user_id=u.id AND o.is_active=1) AS held_items','FROM user u','u.id DESC'
         held_filter,held_args=filter_source('item','o.item_id',request.args.get('data_scope','business'),request.args.get('test_batch_id'))
@@ -540,6 +552,14 @@ def command(action):
                         if not is_new and source(c,'chip',chip['id'])!=integer(p,'test_batch_id'):fail('既有芯片不能改写测试来源。')
                         mark(c,'chip',chip['id'],integer(p,'test_batch_id'))
                     result={'id':chip['id'],'is_new':is_new}
+                elif action=='saleBatch':
+                    field_set(p,{'item_ids','confirmed','evidence'})
+                    ids=p['item_ids']
+                    if not isinstance(ids,list) or not 1<=len(ids)<=100 or any(not valid_id(n) or n>2147483647 for n in ids) or len(set(ids))!=len(ids):invalid('请选择1至100个不同的有效物品。')
+                    origins={source(c,'item',ident) for ident in ids}
+                    if len(origins)!=1:fail('一次操作不能混用业务或不同测试批次对象。')
+                    for ident in sorted(ids):item_action(c,'sale',{'item_id':ident,'confirmed':p['confirmed'],'evidence':p['evidence']})
+                    result={'ids':sorted(ids)}
                 elif action=='style':result=style_save(c,p)
                 elif action=='issue':result=issue_save(c,p)
                 elif action in {'confirmIssue','deleteIssue','seal'}:result=issue_action(c,action,p)
@@ -562,7 +582,7 @@ def command(action):
 
 @blueprint.get('/statistics')
 def statistics():
-    check_parameters({'scope','range','project','item_id','chip_id','data_scope','test_batch_id'})
+    check_parameters({'scope','range','project','item_id','chip_id','data_scope','test_batch_id','style_id','issue_id','page','page_size'})
     scope=request.args.get('scope','sold');period=request.args.get('range','30d')
     if scope not in {'sold','all'} or period not in {'7d','30d','all'}:invalid('统计口径或时间范围不支持。')
     with consistent_read() as c:
@@ -577,6 +597,8 @@ def statistics():
             if request.args.get(key):conditions.append(column+'=%s');values.append(positive_integer(key,1,2147483647))
         if request.args.get('project'):
             conditions.append('i.project_id=%s');values.append(project_id(c,request.args['project']))
+        for key,column in [('style_id','(SELECT style_id FROM product_issue WHERE id=d.issue_id)'),('issue_id','d.issue_id')]:
+            if request.args.get(key):conditions.append(column+'=%s');values.append(positive_integer(key,1,2147483647))
         joined=' FROM scan_log s JOIN item i ON i.id=s.item_id LEFT JOIN digital_item d ON d.item_id=s.item_id WHERE '+' AND '.join(conditions)
         summary=row(c,'SELECT COUNT(*) AS total,COUNT(DISTINCT s.item_id) AS touched_items'+joined,values)
         c.execute('SELECT DATE(s.created_at+INTERVAL 8 HOUR) AS day,COUNT(*) AS total'+joined+' GROUP BY day ORDER BY day',values);daily=[{'day':str(x['day']),'total':x['total']} for x in c.fetchall()]
@@ -587,12 +609,33 @@ def statistics():
             daily=[{'day':(first+timedelta(days=n)).isoformat(),'total':counts_by_day.get((first+timedelta(days=n)).isoformat(),0)} for n in range((today-first).days+1)]
         c.execute('SELECT s.chip_id,s.chip_uid,COUNT(*) AS total'+joined+' GROUP BY s.chip_id,s.chip_uid ORDER BY s.chip_id',values);by_chip=c.fetchall()
         item_filter,item_args=filter_source('item','i.id',data_scope,batch)
-        counts=row(c,'''SELECT COUNT(*) AS items,COALESCE(SUM(COALESCE(d.sold,0)),0) AS sold_items,COUNT(o.user_id) AS claimed_items,COUNT(DISTINCT o.user_id) AS holders
- FROM item i LEFT JOIN digital_item d ON d.item_id=i.id LEFT JOIN ownership o ON o.active_item_id=i.id WHERE '''+item_filter,item_args)
+        inventory=row(c,"SELECT COUNT(*) AS items,COALESCE(SUM(i.status='active'),0) AS active_items FROM item i WHERE "+item_filter,item_args)
+        chip_filter,chip_args=filter_source('chip','x.id',data_scope,batch)
+        inventory.update(row(c,"SELECT COALESCE(SUM(x.chip_status='pending' AND x.item_id IS NULL AND NOT EXISTS(SELECT 1 FROM item_handover h WHERE h.pending_chip_id=x.id)),0) AS pending_chips,COALESCE(SUM(x.item_id IS NOT NULL AND x.provisioned_at IS NULL AND x.chip_status<>'retired'),0) AS unconfigured_chips FROM chip x WHERE "+chip_filter,chip_args))
+        item_conditions=[item_filter]
+        for key,column in [('style_id','r.style_id'),('issue_id','d.issue_id'),('item_id','i.id')]:
+            if request.args.get(key):item_conditions.append(column+'=%s');item_args.append(positive_integer(key,1,2147483647))
+        if request.args.get('project'):item_conditions.append('i.project_id=%s');item_args.append(project_id(c,request.args['project']))
+        item_join=' FROM item i LEFT JOIN digital_item d ON d.item_id=i.id LEFT JOIN product_issue r ON r.id=d.issue_id LEFT JOIN ownership o ON o.active_item_id=i.id LEFT JOIN user u ON u.id=o.user_id'
+        item_where=' AND '.join(item_conditions)
+        counts=row(c,'SELECT COUNT(*) AS items,COALESCE(SUM(COALESCE(d.sold,0)),0) AS sold_items,COUNT(o.user_id) AS claimed_items,COUNT(DISTINCT o.user_id) AS holders'+item_join+' WHERE '+item_where,item_args)
+        event_query='SELECT s.item_id,COUNT(*) AS tap_count,MAX(s.created_at) AS last_tap'+joined+' GROUP BY s.item_id'
+        eligible=item_conditions+(['d.sold=1'] if scope=='sold' else [])
+        page,size=positive_integer('page',1,2147483647),positive_integer('page_size',10,100)
+        total=row(c,'SELECT COUNT(*) AS total'+item_join+' WHERE '+' AND '.join(eligible),item_args)['total']
+        paging=pagination(total,page,size)
+        c.execute('SELECT i.id,i.item_uid,d.edition_number,d.issue_id,d.sold,r.total AS issue_total,u.id AS owner_id,u.nickname AS owner_name,COALESCE(events.tap_count,0) AS tap_count,events.last_tap'+item_join+' LEFT JOIN ('+event_query+') events ON events.item_id=i.id WHERE '+' AND '.join(eligible)+' ORDER BY i.id DESC LIMIT %s OFFSET %s',(*values,*item_args,size,(paging['page']-1)*size))
+        details={'items':[view(x) for x in c.fetchall()],**paging}
+        holder_filter,holder_args=filter_source('user','u.id',data_scope,batch)
+        holder_query='SELECT u.id,u.nickname,COUNT(*) AS held_items'+item_join+' WHERE '+item_where+' AND u.id IS NOT NULL AND '+holder_filter+' GROUP BY u.id,u.nickname'
+        holder_total=row(c,'SELECT COUNT(*) AS total FROM ('+holder_query+') holder_groups',(*item_args,*holder_args))['total']
+        holder_paging=pagination(holder_total,page,size)
+        c.execute(holder_query+' ORDER BY u.id DESC LIMIT %s OFFSET %s',(*item_args,*holder_args,size,(holder_paging['page']-1)*size))
+        holders={'items':c.fetchall(),**holder_paging}
         for kind in ('chip','user'):
             clause,args=filter_source(kind,'x.id',data_scope,batch)
             counts[kind+'s']=row(c,'SELECT COUNT(*) AS n FROM '+kind+' x WHERE '+clause,args)['n']
-    return jsonify(status='ok',data={**summary,'daily':daily,'by_chip':by_chip,'counts':counts,'as_of':iso_time(timestamp),'scope':scope,'range':period,'timezone':'Asia/Shanghai','claim_service_available':False})
+    return jsonify(status='ok',data={**summary,'daily':daily,'by_chip':by_chip,'counts':counts,'inventory':inventory,'details':details,'holders':holders,'as_of':iso_time(timestamp),'scope':scope,'range':period,'timezone':'Asia/Shanghai','claim_service_available':False})
 
 
 @blueprint.route('/styles/<int:style_id>/images/<asset_id>',methods=['GET','POST'])

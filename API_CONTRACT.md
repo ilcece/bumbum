@@ -542,6 +542,7 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 | register | chip_uid，project/batch_no/is_validation可选。复用真实登记与UID规范，重复返回原id/is_new=false，不改批次/来源/验证标记 |
 | linkIssue | item_id/issue_id/edition_number/evidence；只补确实缺失的同类别发行，不改稳定编号、实体、归属和年度事实 |
 | bind | item_id/chip_id/spec；准备首套或补齐当前物品，不用于换新。有效发行、未占用可用芯片及类别校验后追加当代，配置仍独立 |
+| saleBatch | item_ids/confirmed/evidence；1–100个不同物品，不能跨数据来源；固定顺序锁定，在同一事务内维护售出事实、审计和回执，任一失败整体回滚 |
 | sale | item_id/confirmed/evidence；显式维护售出事实，首次确认时间只记一次；撤销不删除首次时间、持有人及触碰历史 |
 | toggleItem | item_id/status，status仅active/disabled；新档案启用检查发行、当前整套、有效芯片与真实核验；停用永久撤销现有查看资格 |
 | loseItem | item_id/whole_id/evidence；固定本次当代ID，挂失写入当代并同步停芯片、撤销资格；准备中的普通换新转为挂失换新，已准备的新整套保留 |
@@ -561,12 +562,12 @@ POST /api/admin/catalog/styles/{id}/images/{asset_id}为精确multipart入口，
 
 当前共用图以受控二进制保存于style_image并随数据库转储，容量与到期暂存受限；旧图片已停止在线服务，清理前仍须原生SQL与文件配套备份；清理后新增款图仅依赖数据库。用户GET /api/tap/items/{item_id}/style-images/{asset_id}复用同一有效view Cookie、物品/芯片/配置检查，且图片必须属于当前已保存共用款式；旧持有者/失效资格不能读取，不返回内部备注或账户。兼容GET /api/fashion/items/{item_id}/style-images/{asset_id}使用原X-Tap-Token短资格；返回图片地址按对应资格族映射，不要求旧短资格客户端持有view Cookie。用户资料只按原公开白名单读取共用字段，旧未关联档案仅保留文字资料，图片为空。
 
-GET /api/admin/catalog/statistics支持scope=sold/all、range=7d/30d/all及project/item_id/chip_id。仅统计可信pass事件；sold额外要求显式售出、首次售出时间及事件不早于首次售出，不按owner是否存在推算售出。按稳定item_id跨历代芯片聚合，返回total/touched_items/daily/by_chip及真实档案/账户/持有counts、as_of和Asia/Shanghai。核验读数、失败、重放和普通查看均不新增事件。首次认领服务未开放须明示，不以空模拟用户统计冒充已接入。
+GET /api/admin/catalog/statistics支持scope=sold/all、range=7d/30d/all及project/item_id/chip_id/style_id/issue_id。明细支持page/page_size（默认10、最多100），返回details与holders的items及分页元数据；details按稳定身份汇总tap_count/last_tap，包含符合售出口径但零触碰的身份。inventory提供独立于触碰筛选的当前数据范围概况；counts中的物品/售出/持有按款式、发行等已生效条件统计，时间仅限制触碰。仅统计可信pass事件；sold额外要求显式售出、首次售出时间及事件不早于首次售出，不按owner是否存在推算售出。按稳定item_id跨历代芯片聚合，返回total/touched_items/daily/by_chip及真实档案/账户/持有counts、as_of和Asia/Shanghai。核验读数、失败、重放和普通查看均不新增事件。首次认领服务未开放须明示，不以空模拟用户统计冒充已接入。
 
 
 ### 11.4 验收批次与数据范围
 
-007新增test_batch、test_batch_object，来源不可由生产验证开关重写。styles/issues/items/chips/users及statistics支持data_scope=business/test/all（默认business）、test_batch_id可选正整数；business与指定批次冲突400。各列表/指标/趋势/明细应用相同来源，详情返回test_batch_id；历史未标记对象属于业务范围。发行继承款式、身份继承发行，新配芯片/接收账户须同来源，不允许业务/测试或跨批次混用。
+007新增test_batch、test_batch_object，来源不可由生产验证开关重写。正式后台只在“系统管理→设置”提供一个“开启测试数据”开关，默认关闭；开启后使用活动验收批次，列表、统计、候选和新增对象统一继承，关闭回业务数据，不删除样本。该偏好仅存当前浏览器标签页，不是权限或后端业务状态；切换重新读取页面，URL旧筛选不能覆盖它。普通页面不提供测试范围/批次筛选、来源列或手填批次。后端参数保留用于受控工具和兼容，并不要求日常页面暴露。发行列表另支持mode=fixed/period/unlimited及status=draft/confirmed；物品支持style_id和owner=yes/no；芯片支持configured=yes/no及registration_source=manual/nfc_cool/unknown。styles/issues/items/chips/users及statistics支持data_scope=business/test/all（默认business）、test_batch_id可选正整数；business与指定批次冲突400。各列表/指标/趋势/明细应用相同来源，详情返回test_batch_id；历史未标记对象属于业务范围。发行继承款式、身份继承发行，新配芯片/接收账户须同来源，不允许业务/测试或跨批次混用。
 
 GET /api/admin/catalog/test-batches返回分页批次，manifest含场景/合成说明/初始预期统计，writable表示当前配置是否允许测试写入。GET /api/admin/catalog/test-batches/{id}/preview在明确测试环境返回counts/objects/conflicts；POST actions/clearTestBatch采用第11.2节相同request_id+payload，payload={batch_id,confirmed:true}。写入口及预览只允许固定杭州test或原本机开发目标，生产/未知配置403；没有公开seed接口。
 

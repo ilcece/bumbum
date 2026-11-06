@@ -2,7 +2,6 @@ import React, { useRef, useState } from "react";
 import { ProTable, ActionType, ProColumns } from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
 import { Alert } from "antd";
-import { DataScope, TestTag } from "./TestDataScope";
 import { list, Row } from "../catalog";
 export default function ServerTable({
   resource,
@@ -10,12 +9,14 @@ export default function ServerTable({
   extra,
   refresh = 0,
   filters = {},
+  rowSelection,
 }: {
   resource: string;
   columns: ProColumns<Row>[];
   extra?: React.ReactNode[];
   refresh?: number;
   filters?: Record<string, any>;
+  rowSelection?: React.ComponentProps<typeof ProTable<Row>>["rowSelection"];
 }) {
   const [error, setError] = useState("");
   const location = useLocation(),
@@ -38,42 +39,34 @@ export default function ServerTable({
     <>
       {" "}
       {error && <Alert type="error" title={error} />}
-      {resource !== "audit" && (
-        <DataScope
-          scope={saved.data_scope || "business"}
-          batch={saved.test_batch_id ? Number(saved.test_batch_id) : undefined}
-          onChange={(data_scope, test_batch_id) =>
-            update({ ...saved, data_scope, test_batch_id, page: 1 })
-          }
-        />
-      )}
       <ProTable<Row>
         actionRef={ref}
         rowKey="id"
-        columns={
-          resource === "audit"
-            ? columns
-            : [
-                ...columns,
-                {
-                  title: "数据来源",
-                  search: false,
-                  render: (_, r) => <TestTag id={r.test_batch_id} />,
-                },
-              ]
+        rowSelection={rowSelection}
+        cardProps={{ size: "small", variant: "outlined" }}
+        options={{ density: true, fullScreen: false, reload: true }}
+        columns={columns}
+        headerTitle={
+          (
+            {
+              items: "数字物品档案",
+              chips: "芯片档案",
+              styles: "共用款式资料",
+              issues: "发行承诺与核定结果",
+              users: "账户与持有",
+              audit: "操作日志",
+            } as Record<string, string>
+          )[resource]
         }
-        params={{
-          ...filters,
-          ...(resource !== "audit"
-            ? {
-                data_scope: saved.data_scope || "business",
-                test_batch_id: saved.test_batch_id,
-              }
-            : {}),
-          _refresh: refresh,
+        size="middle"
+        params={{ ...filters, _refresh: refresh }}
+        search={{
+          layout: "vertical",
+          labelWidth: "auto",
+          defaultCollapsed: true,
+          span: { xs: 24, sm: 12, md: 8, lg: 8, xl: 6, xxl: 6 },
         }}
-        search={{ labelWidth: "auto", defaultCollapsed: true }}
-        form={{ initialValues: saved }}
+        form={{ initialValues: saved, layout: "vertical" }}
         toolBarRender={() => extra || []}
         pagination={{
           pageSize: 10,
@@ -81,7 +74,7 @@ export default function ServerTable({
           current: Number(q.get("page") || 1),
           onChange: (page) => update({ ...saved, page }),
         }}
-        scroll={{ x: 850 }}
+        scroll={{ x: "max-content" }}
         onSubmit={(p) => update({ ...p, page: 1 })}
         onReset={() => update({ page: 1 })}
         request={async (p) => {

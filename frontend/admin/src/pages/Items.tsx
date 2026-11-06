@@ -1,6 +1,16 @@
 import { useRef, useState } from "react";
 import { PageContainer, ProColumns } from "@ant-design/pro-components";
-import { Button, Drawer, Form, Input, InputNumber, Space, Switch } from "antd";
+import {
+  Button,
+  Drawer,
+  Form,
+  Input,
+  InputNumber,
+  Space,
+  Switch,
+  Select,
+  Typography,
+} from "antd";
 import { history } from "@umijs/max";
 import { Row, edition, read, statusNames } from "../catalog";
 import {
@@ -50,8 +60,12 @@ function CreateFields() {
   );
 }
 export default function Items() {
+  const [selected, setSelected] = useState<React.Key[]>([]),
+    [sale, setSale] = useState(false);
   const [id, setId] = useState<number>(),
-    [create, setCreate] = useState(false),
+    [create, setCreate] = useState(
+      new URLSearchParams(location.search).get("create") === "1",
+    ),
     [rev, setRev] = useState(0),
     [created, setCreated] = useState<number>();
   const columns: ProColumns<Row>[] = [
@@ -65,9 +79,31 @@ export default function Items() {
       title: "系统物品编号",
       dataIndex: "item_uid",
       search: false,
-      render: (_, r) => <Copy value={r.item_uid} />,
+      render: (_, r) => (
+        <div>
+          <Copy value={r.item_uid} onClick={() => setId(r.id)} />
+          {r.is_validation && (
+            <div>
+              <State value="生产验证对象" />
+            </div>
+          )}
+        </div>
+      ),
     },
-    { title: "商品款式", search: false, render: (_, r) => <Product row={r} /> },
+    {
+      title: "商品款式",
+      search: false,
+      render: (_, r) => (
+        <div>
+          <Product row={r} />
+          <div className="cell-secondary">
+            {r.generation
+              ? `第${r.generation}代物品 · ${r.spec}`
+              : "物品待准备 · 实物＋芯片尚未准备"}
+          </div>
+        </div>
+      ),
+    },
     { title: "正式序号", search: false, render: (_, r) => edition(r) },
     {
       title: "档案状态",
@@ -85,30 +121,69 @@ export default function Items() {
       dataIndex: "whole_status",
       valueEnum: { normal: "正常", lost: "已挂失", missing: "待准备" },
       render: (_, r) => (
-        <Space orientation="vertical" size={0}>
-          <State
-            value={
-              !r.whole_id
-                ? "待准备"
-                : r.lost_at || r.loss_evidence
-                  ? "已挂失"
-                  : "正常"
-            }
-          />
-          {r.generation && `第${r.generation}代 · ${r.spec}`}
-        </Space>
+        <State
+          value={
+            !r.whole_id
+              ? "待准备"
+              : r.lost_at || r.loss_evidence
+                ? "已挂失"
+                : "正常"
+          }
+        />
       ),
     },
     {
-      title: "生产验证",
+      title: "数据性质",
       dataIndex: "is_validation",
+      hideInTable: true,
       valueEnum: { true: "生产验证", false: "正常业务" },
       render: (_, r) =>
         r.is_validation ? <State value="生产验证对象" /> : "—",
     },
     {
+      title: "售出确认",
+      dataIndex: "sold",
+      valueEnum: { true: "已确认售出", false: "未确认售出" },
+      render: (_, r) => <State value={r.sold ? "已确认售出" : "未确认售出"} />,
+    },
+    {
+      title: "当前持有人",
+      dataIndex: "owner",
+      valueEnum: { yes: "已认领", no: "未认领" },
+      render: (_, r) =>
+        r.owner_id ? (
+          <div>
+            {r.owner_name}
+            <div className="cell-secondary">
+              <Copy value={r.owner_id} />
+            </div>
+          </div>
+        ) : (
+          <State value="未认领" />
+        ),
+    },
+    {
+      title: "当前芯片",
+      search: false,
+      render: (_, r) =>
+        r.chip_uid ? (
+          <div>
+            <Copy
+              value={r.chip_uid}
+              onClick={() => history.push("/chips/" + r.chip_id)}
+            />
+            <div>
+              <State value={r.provisioned_at ? "核验就绪" : "待配置"} />
+            </div>
+          </div>
+        ) : (
+          <State value="未关联" />
+        ),
+    },
+    {
       title: "操作",
       valueType: "option",
+      fixed: "right",
       render: (_, r) => [
         <Button type="link" key="view" onClick={() => setId(r.id)}>
           查看
@@ -123,11 +198,22 @@ export default function Items() {
       )}
       <ServerTable
         resource="items"
+        rowSelection={{
+          selectedRowKeys: selected,
+          onChange: (keys) => setSelected(keys),
+        }}
         columns={columns}
         refresh={rev}
         extra={[
+          <Button
+            key="sale"
+            disabled={!selected.length}
+            onClick={() => setSale(true)}
+          >
+            批量售出确认{selected.length ? `（${selected.length}）` : ""}
+          </Button>,
           <Button type="primary" key="create" onClick={() => setCreate(true)}>
-            新建数字物品
+            登记数字物品
           </Button>,
         ]}
       />
@@ -163,6 +249,33 @@ export default function Items() {
           />
         )}
       </Drawer>
+      {sale && (
+        <ActionForm
+          title="批量售出确认"
+          action="saleBatch"
+          initial={{ item_ids: selected, confirmed: true }}
+          onClose={() => setSale(false)}
+          onDone={() => {
+            setSale(false);
+            setSelected([]);
+            setRev((n) => n + 1);
+          }}
+        >
+          <Form.Item name="item_ids" hidden>
+            <Select mode="multiple" />
+          </Form.Item>
+          <Typography.Paragraph>
+            将维护已选择的{selected.length}
+            件物品的售出事实，不改变持有人或历史。
+          </Typography.Paragraph>
+          <Form.Item name="confirmed" label="售出确认" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+          <Form.Item name="evidence" label="外部核对依据" rules={required}>
+            <Input.TextArea maxLength={1000} />
+          </Form.Item>
+        </ActionForm>
+      )}
       {create && (
         <ActionForm
           title="新建数字物品身份"

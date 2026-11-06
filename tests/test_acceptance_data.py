@@ -80,3 +80,43 @@ def test_clear_batch_audit_failure_rolls_back_and_receipt_is_single(auth_app,log
     token=str(uuid.uuid4());p={'batch_id':batch,'confirmed':True}
     first=ok(action(s,'clearTestBatch',p,token));assert ok(action(s,'clearTestBatch',p,token))==first
     assert query(auth_app,"SELECT COUNT(*) AS n FROM admin_audit WHERE action='catalog.clearTestBatch'")[0]['n']==1
+
+
+def test_prototype_statistics_filters_pagination_and_atomic_batch_sale(auth_app,logged_in,acceptance,monkeypatch):
+    batch=acceptance['batch_id'];client=logged_in[0]
+    base=f'/api/admin/catalog/statistics?data_scope=test&test_batch_id={batch}&scope=all&range=all'
+    result=ok(client.get(base))
+    assert result['total']==18 and result['inventory']['items']==20
+    assert result['details']['total']==20 and len(result['details']['items'])==10
+    first={r['id'] for r in result['details']['items']}
+    second=ok(client.get(base+'&page=2'))
+    assert first.isdisjoint({r['id'] for r in second['details']['items']})
+    style=ok(client.get('/api/admin/catalog/styles?data_scope=test'))['items'][-1]
+    filtered=ok(client.get(base+f"&style_id={style['id']}"))
+    assert filtered['counts']['items']==12 and filtered['details']['total']==12
+    assert filtered['inventory']['items']==20
+    issue=ok(client.get('/api/admin/catalog/issues?data_scope=test'))['items'][0]
+    assert ok(client.get(base+f"&issue_id={issue['id']}"))['counts']['items']==0
+    for resource,parameter in [('items','owner'),('chips','configured')]:
+        yes=ok(client.get(f'/api/admin/catalog/{resource}?data_scope=test&{parameter}=yes'))
+        no=ok(client.get(f'/api/admin/catalog/{resource}?data_scope=test&{parameter}=no'))
+        assert yes['total']+no['total']==(20 if resource=='items' else 27)
+        assert yes['total']>0 and no['total']>0
+    assert ok(client.get('/api/admin/catalog/issues?data_scope=test&mode=fixed'))['total']==2
+    assert ok(client.get('/api/admin/catalog/issues?data_scope=test&status=confirmed'))['total']==4
+    assert client.get('/api/admin/catalog/issues?mode=invalid').status_code==400
+    ids=[r['item_id'] for r in acceptance['manifest']['items'][:2]]
+    payload={'item_ids':ids,'confirmed':True,'evidence':'隔离验收核对'}
+    result=ok(action(logged_in,'saleBatch',payload));assert result['ids']==sorted(ids)
+    assert query(auth_app,'SELECT COUNT(*) AS n FROM digital_item WHERE item_id IN (%s,%s) AND sold=1',tuple(ids))[0]['n']==2
+    assert action(logged_in,'saleBatch',{'item_ids':[ids[0],2147483647],'confirmed':False,'evidence':'应整体拒绝'}).status_code==409
+    assert query(auth_app,'SELECT sold FROM digital_item WHERE item_id=%s',(ids[0],))[0]['sold']==1
+
+    from core import admin_catalog
+    original=admin_catalog.item_action
+    def fail_second(cursor,name,payload):
+        if payload['item_id']==ids[1]:raise RuntimeError('隔离测试第二件失败')
+        return original(cursor,name,payload)
+    monkeypatch.setattr(admin_catalog,'item_action',fail_second)
+    assert action(logged_in,'saleBatch',{'item_ids':ids,'confirmed':False,'evidence':'验证事务回滚'}).status_code==500
+    assert query(auth_app,'SELECT sold FROM digital_item WHERE item_id=%s',(ids[0],))[0]['sold']==1
