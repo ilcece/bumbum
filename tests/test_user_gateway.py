@@ -47,13 +47,19 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
     private_root=tmp_path/'private-media';private_root.mkdir(mode=0o700)
     auth_app.config.update(MEDIA_ENABLED=True,MEDIA_ROOT=str(private_root),MEDIA_MAX_TOTAL_BYTES=2*1024**3,PUBLIC_ORIGIN='http://127.0.0.1:5175')
     item_id=query(auth_app,'SELECT item_id FROM chip')[0]['item_id']
+    from tests.test_admin_catalog import action,ok
     session=ready[0][0];urls=[]
+    style_payload={'project':'fashion','code':'TLS-COMMON','name':'HTTPS图片验证','specs':['标准'],'image_urls':[]}
+    style_id=ok(action(session,'style',style_payload))['id']
     for _ in range(20):
         stream=BytesIO();Image.new('RGB',(24,16),'blue').save(stream,'PNG');stream.seek(0)
-        uploaded=session[0].post(f'/api/admin/items/{item_id}/images',headers=session[1],data={'client_upload_id':uuid.uuid4().hex,'file':(stream,'synthetic.png')})
+        uploaded=session[0].post(f'/api/admin/catalog/styles/{style_id}/images/{uuid.uuid4().hex}',headers=session[1],data={'file':(stream,'synthetic.png')})
         assert uploaded.status_code==200
         urls.append(uploaded.json['data']['url'])
-    assert session[0].patch(f'/api/admin/items/{item_id}',headers=session[1],json={'profile':{'name':'HTTPS图片验证','image_urls':urls}}).status_code==200
+    ok(action(session,'style',{**style_payload,'id':style_id,'image_urls':urls}))
+    issue_id=ok(action(session,'issue',{'style_id':style_id,'name':'HTTPS发行','mode':'fixed','total':20,'description':'受控图片读取','rights':[]}))['id']
+    ok(action(session,'confirmIssue',{'issue_id':issue_id}))
+    ok(action(session,'linkIssue',{'item_id':item_id,'issue_id':issue_id,'edition_number':1,'evidence':'隔离HTTPS图片验收'}))
     backend='bumbum-user-api-'+uuid.uuid4().hex[:10]; gateway='bumbum-user-gateway-'+uuid.uuid4().hex[:10]
     api_port,tls_port,http_port=unused_port(),unused_port(),unused_port()
     config={name:auth_app.config[name] for name in ('DB_HOST','DB_PORT','DB_USER','DB_PASSWORD','DB_NAME','STORAGE_ENCRYPTION_KEY','IP_HASH_KEY','MASTER_KEY_FASHION','MASTER_KEY_JEWELRY','SDM_META_KEY_V1','SDM_META_KEY_VERSION')}

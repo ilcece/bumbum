@@ -64,12 +64,6 @@ server {
         return 413 '{"status":"error","code":"payload_too_large","message":"上传正文超过9MiB"}';
     }
     # 仅上传入口接受大正文；仍继承管理IP限制，并由应用先核验会话及CSRF。
-    location ~ ^/api/admin/items/[1-9][0-9]*/images$ {
-        client_max_body_size 9m;
-        error_page 413 = @upload_payload_too_large;
-        proxy_pass http://127.0.0.1:15000;
-        include /etc/nginx/bumbum-cloud-test-proxy.conf;
-    }
     # 共用款图独立上传；只扩大精确路径，不扩大其他管理入口。
     location ~ "^/api/admin/catalog/styles/[1-9][0-9]*/images/[a-f0-9]{32}$" {
         client_max_body_size 9m;

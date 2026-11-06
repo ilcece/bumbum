@@ -125,7 +125,13 @@ export function RemoteSelect({
   const key = JSON.stringify(params);
   useEffect(() => {
     const n = ++seq.current;
-    list(resource, { ...params, page, page_size: 20, keyword: q })
+    list(resource, {
+      data_scope: "all",
+      ...params,
+      page,
+      page_size: 20,
+      keyword: q,
+    })
       .then((p) => {
         if (n === seq.current) {
           setOptions((prev) =>
@@ -460,6 +466,7 @@ const fields: Record<string, string[]> = {
     "specs",
     "image_urls",
     "shared_confirmed",
+    "test_batch_id",
   ],
   issue: [
     "id",
@@ -477,7 +484,14 @@ const fields: Record<string, string[]> = {
   confirmIssue: ["issue_id"],
   deleteIssue: ["issue_id"],
   seal: ["issue_id", "total", "evidence"],
-  item: ["issue_id", "item_uid", "edition_number", "is_validation"],
+  clearTestBatch: ["batch_id", "confirmed"],
+  item: [
+    "issue_id",
+    "item_uid",
+    "edition_number",
+    "is_validation",
+    "test_batch_id",
+  ],
   bind: ["item_id", "chip_id", "spec"],
   sale: ["item_id", "confirmed", "evidence"],
   toggleItem: ["item_id", "status"],
@@ -489,23 +503,23 @@ const fields: Record<string, string[]> = {
   deleteItem: ["item_id"],
   validationChip: ["chip_id", "enabled"],
   deleteChip: ["chip_id"],
-  register: ["chip_uid", "project", "batch_no", "is_validation"],
+  register: [
+    "chip_uid",
+    "project",
+    "batch_no",
+    "is_validation",
+    "test_batch_id",
+  ],
   chipBatch: ["chip_id", "batch_no"],
   chipState: ["chip_id", "state", "evidence"],
 };
 function pickPayload(action: string, value: Record<string, any>) {
   if (action === "legacyProfile") {
-    if (
-      value.image_files?.some(
-        (f: any) => f.status !== "done" || f.uncertain || !f.reference,
-      )
-    )
-      throw new Error("请先完成图片上传或核对未知结果。");
     value = {
       ...value,
       profile: {
         ...value.profile,
-        image_urls: (value.image_files || []).map((f: any) => f.reference),
+        image_urls: [],
       },
     };
   }

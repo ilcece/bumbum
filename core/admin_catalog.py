@@ -16,6 +16,8 @@ from core.chip_binding import valid_id
 from core.chip_registry import normalize_uid, save_chip
 from core.db import get_database
 
+from core.test_batches import select_source,filter_source,source,mark,same_source,lock_batch,require_test_environment
+
 blueprint = Blueprint('admin_catalog', __name__, url_prefix='/api/admin/catalog')
 KINDS = {'periodic', 'loss', 'resale'}
 
@@ -56,7 +58,7 @@ def decoded(value):
 def view(row):
     if row is None:
         fail('记录不存在，请重新查询。', 404, 'not_found')
-    return {k: iso_time(v) if isinstance(v, datetime) else decoded(v) if k in {'specs', 'image_urls', 'rights', 'detail', 'result'} else v for k, v in row.items()}
+    return {k: iso_time(v) if isinstance(v, datetime) else decoded(v) if k in {'specs', 'image_urls', 'rights', 'detail', 'result', 'manifest'} else v for k, v in row.items()}
 
 
 def row(cursor, sql, args=()):
@@ -107,20 +109,20 @@ def revoke(cursor, item_id):
     cursor.execute('UPDATE tap_grant SET consumed_at=COALESCE(consumed_at,%s) WHERE item_id=%s', (now(), item_id))
 
 
-def list_page(cursor, select, joined, conditions, values, *, order='id DESC'):
+def list_page(cursor, select, joined, conditions, values, *, order='id DESC', select_values=()):
     page, size = positive_integer('page', 1, 2147483647), positive_integer('page_size', 10, 100)
     where = ' WHERE '+ ' AND '.join(conditions) if conditions else ''
     total = row(cursor, 'SELECT COUNT(*) AS total '+joined+where, values)['total']
     paging = pagination(total, page, size)
-    cursor.execute(select+' '+joined+where+' ORDER BY '+order+' LIMIT %s OFFSET %s', (*values, size, (paging['page']-1)*size))
+    cursor.execute(select+' '+joined+where+' ORDER BY '+order+' LIMIT %s OFFSET %s', (*select_values,*values, size, (paging['page']-1)*size))
     return {'items':[view(x) for x in cursor.fetchall()], **paging}
 
 
-STYLE_SELECT = 'SELECT s.*,p.code AS project,(SELECT COUNT(*) FROM product_issue r WHERE r.style_id=s.id) AS issue_count,(SELECT COUNT(*) FROM digital_item d JOIN product_issue r ON r.id=d.issue_id WHERE r.style_id=s.id) AS item_count'
+STYLE_SELECT = 'SELECT '+select_source('style','s')+',s.*,p.code AS project,(SELECT COUNT(*) FROM product_issue r WHERE r.style_id=s.id) AS issue_count,(SELECT COUNT(*) FROM digital_item d JOIN product_issue r ON r.id=d.issue_id WHERE r.style_id=s.id) AS item_count'
 STYLE_JOIN = 'FROM product_style s JOIN project p ON p.id=s.project_id'
-ISSUE_SELECT = 'SELECT r.*,s.name AS style_name,s.code AS style_code,p.code AS project,(SELECT COUNT(*) FROM digital_item d WHERE d.issue_id=r.id) AS item_count'
+ISSUE_SELECT = 'SELECT '+select_source('issue','r')+',r.*,s.name AS style_name,s.code AS style_code,p.code AS project,(SELECT COUNT(*) FROM digital_item d WHERE d.issue_id=r.id) AS item_count'
 ISSUE_JOIN = 'FROM product_issue r JOIN product_style s ON s.id=r.style_id JOIN project p ON p.id=s.project_id'
-ITEM_SELECT = '''SELECT i.*,p.code AS project,d.issue_id,d.edition_number,d.sold,d.first_sold_at,d.sale_evidence,d.is_validation,d.quota_year,d.quota_used,d.quota_review,
+ITEM_SELECT = 'SELECT '+select_source('item','i')+''',i.*,p.code AS project,d.issue_id,d.edition_number,d.sold,d.first_sold_at,d.sale_evidence,d.is_validation,d.quota_year,d.quota_used,d.quota_review,
  r.name AS issue_name,r.mode AS issue_mode,r.total AS issue_total,r.style_id,s.name,s.material,s.image_urls,
  w.id AS whole_id,w.generation,w.spec,w.lost_at,w.loss_evidence,c.id AS chip_id,c.chip_uid,c.chip_status,c.provisioned_at,
  (k.chip_id IS NOT NULL) AS keys_generated,o.user_id AS owner_id'''
@@ -128,7 +130,7 @@ ITEM_JOIN = '''FROM item i JOIN project p ON p.id=i.project_id LEFT JOIN digital
  LEFT JOIN product_issue r ON r.id=d.issue_id LEFT JOIN product_style s ON s.id=r.style_id
  LEFT JOIN whole_item w ON w.current_item_id=i.id LEFT JOIN chip c ON c.item_id=i.id LEFT JOIN chip_key k ON k.chip_id=c.id
  LEFT JOIN ownership o ON o.active_item_id=i.id'''
-CHIP_SELECT = '''SELECT c.*,p.code AS project,i.item_uid,(k.chip_id IS NOT NULL) AS keys_generated,
+CHIP_SELECT = 'SELECT '+select_source('chip','c')+''',c.*,p.code AS project,i.item_uid,(k.chip_id IS NOT NULL) AS keys_generated,
  COALESCE(v.is_validation,0) AS is_validation,w.id AS candidate_id,w.item_id AS candidate_item_id'''
 CHIP_JOIN = '''FROM chip c LEFT JOIN project p ON p.id=c.project_id LEFT JOIN item i ON i.id=c.item_id
  LEFT JOIN chip_key k ON k.chip_id=c.id LEFT JOIN chip_validation v ON v.chip_id=c.id
@@ -139,11 +141,11 @@ CHIP_JOIN = '''FROM chip c LEFT JOIN project p ON p.id=c.project_id LEFT JOIN it
 def listing(resource):
     allowed={'styles':{'project'},'issues':{'project','style_id','status'},'items':{'project','status','issue_id','is_validation','sold','whole_status'},'chips':{'project','status','is_validation','available'},'users':set(),'audit':set()}
     if resource not in allowed:fail('未知查询资源。',404,'not_found')
-    check_parameters({'page','page_size','keyword'}|allowed[resource])
+    check_parameters({'page','page_size','keyword','data_scope','test_batch_id'}|allowed[resource])
     keyword = request.args.get('keyword','').strip()
     if len(keyword)>128:
         invalid('关键词最长128字符。')
-    conditions, values = [], []
+    conditions, values, select_values = [], [], []
     if resource == 'styles':
         select, joined, order = STYLE_SELECT, STYLE_JOIN, 's.id DESC'
         if keyword:
@@ -187,7 +189,9 @@ def listing(resource):
             if request.args['is_validation'] not in {'true','false'}: invalid('验证筛选须为布尔值。')
             conditions.append('COALESCE(v.is_validation,0)=%s');values.append(request.args['is_validation']=='true')
     elif resource == 'users':
-        select,joined,order='SELECT u.id,u.nickname,CONCAT(LEFT(u.phone,3),\'****\',RIGHT(u.phone,4)) AS phone,(SELECT COUNT(*) FROM ownership o WHERE o.user_id=u.id AND o.is_active=1) AS held_items','FROM user u','u.id DESC'
+        select,joined,order='SELECT '+select_source('user','u')+',u.id,u.nickname,CONCAT(LEFT(u.phone,3),\'****\',RIGHT(u.phone,4)) AS phone,(SELECT COUNT(*) FROM ownership o WHERE o.user_id=u.id AND o.is_active=1) AS held_items','FROM user u','u.id DESC'
+        held_filter,held_args=filter_source('item','o.item_id',request.args.get('data_scope','business'),request.args.get('test_batch_id'))
+        select=select.replace('o.is_active=1)', 'o.is_active=1 AND '+held_filter+')');select_values=held_args
         if keyword:
             conditions.append('(u.nickname LIKE %s ESCAPE \'!\' OR CAST(u.id AS CHAR)=%s)');values.extend([contains(keyword),keyword])
     elif resource == 'audit':
@@ -196,6 +200,10 @@ def listing(resource):
             conditions.append('(a.action LIKE %s ESCAPE \'!\' OR a.target_id=%s)');values.extend([contains(keyword),keyword])
     else:
         fail('未知查询资源。',404,'not_found')
+    if resource!='audit':
+        kind,alias={'styles':('style','s'),'issues':('issue','r'),'items':('item','i'),'chips':('chip','c'),'users':('user','u')}[resource]
+        clause,args=filter_source(kind,alias+'.id',request.args.get('data_scope','business'),request.args.get('test_batch_id'))
+        conditions.append(clause);values.extend(args)
     if request.args.get('project'):
         if resource not in {'styles','issues','items','chips'}: invalid('此资源不支持类别。')
         if request.args['project'] not in {'fashion','jewelry','unassigned'}: invalid('类别不支持。')
@@ -204,7 +212,7 @@ def listing(resource):
             conditions.append('p.id IS NULL')
         else: conditions.append('p.code=%s');values.append(request.args['project'])
     with consistent_read() as cursor:
-        result=list_page(cursor,select,joined,conditions,values,order=order)
+        result=list_page(cursor,select,joined,conditions,values,order=order,select_values=select_values)
     return jsonify(status='ok',data=result)
 
 
@@ -234,8 +242,10 @@ def detail(resource,ident):
 
 
 def style_save(c,p):
-    field_set(p,{'code','project','name','specs','image_urls'}, {'id','description','material','care_instructions','shared_confirmed'})
+    field_set(p,{'code','project','name','specs','image_urls'}, {'id','description','material','care_instructions','shared_confirmed','test_batch_id'})
     ident=integer(p,'id',optional=True);old=locked(c,'product_style',ident) if ident else None
+    if old and p.get('test_batch_id') is not None and integer(p,'test_batch_id')!=source(c,'style',ident):fail('测试来源固定，不能改写。')
+    lock_batch(c,source(c,'style',ident))
     pid=project_id(c,p['project']);code=text(p,'code',64,required=True)
     profile=normalized_profile({**{k:p[k] for k in ('name','description','material','care_instructions') if k in p},'image_urls':[]})
     images=p['image_urls']
@@ -258,6 +268,8 @@ def style_save(c,p):
     c.execute('UPDATE style_image SET expires_at=COALESCE(expires_at,%s) WHERE style_id=%s',(now()+timedelta(hours=24),ident))
     for url in images:
         c.execute('UPDATE style_image SET expires_at=NULL WHERE style_id=%s AND asset_id=%s',(ident,url.rsplit('/',1)[-1]))
+    if not old and p.get('test_batch_id') is not None:
+        require_test_environment(current_app.config);mark(c,'style',ident,integer(p,'test_batch_id'))
     return {'id':ident}
 
 
@@ -266,6 +278,7 @@ def issue_save(c,p):
     ident=integer(p,'id',optional=True)
     if ident and locked(c,'product_issue',ident)['confirmed_at']: fail('发行已确认，不能普通重写。')
     style=locked(c,'product_style',integer(p,'style_id'))
+    if ident:same_source(c,'issue',ident,'style',style['id'])
     mode=p['mode'];total=integer(p,'total',optional=True)
     if not isinstance(mode,str) or mode not in {'fixed','period','unlimited'} or (mode=='fixed' and total is None): invalid('请选择发行方式，固定发行须提供总量。')
     rights=p['rights']
@@ -281,6 +294,7 @@ def issue_save(c,p):
     if ident:c.execute('UPDATE product_issue SET style_id=%s,name=%s,series=%s,mode=%s,total=%s,starts_at=%s,ends_at=%s,counting_rule=%s,description=%s,rights=%s WHERE id=%s',(*vals,ident))
     else:
         c.execute('INSERT INTO product_issue(style_id,name,series,mode,total,starts_at,ends_at,counting_rule,description,rights) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',vals);ident=c.lastrowid
+    mark(c,'issue',ident,source(c,'style',style['id']))
     return {'id':ident}
 
 
@@ -326,12 +340,14 @@ def create_item(c,p):
     if r['total'] and count>=r['total']:fail('已达到数字身份发行上限。')
     c.execute('INSERT INTO item(project_id,item_uid) VALUES (%s,%s)',(pid,uid));ident=c.lastrowid
     c.execute('INSERT INTO digital_item(item_id,issue_id,edition_number,is_validation,quota_year) VALUES (%s,%s,%s,%s,%s)',(ident,r['id'],number,boolean(p,'is_validation'),(now()+timedelta(hours=8)).year))
+    mark(c,'item',ident,source(c,'issue',r['id']))
     c.execute('UPDATE product_issue SET ever_used=1 WHERE id=%s',(r['id'],))
     return {'id':ident}
 
 
 def item_action(c,action,p):
     ident=integer(p,'item_id');i=locked(c,'item',ident);d=digital(c,ident)
+    lock_batch(c,source(c,'item',ident))
     if action=='validationItem':
         field_set(p,{'item_id','enabled'});c.execute('UPDATE digital_item SET is_validation=%s WHERE item_id=%s',(boolean(p,'enabled'),ident));return {'id':ident}
     if action=='deleteItem':
@@ -351,14 +367,11 @@ def item_action(c,action,p):
     if action=='legacyProfile':
         field_set(p,{'item_id','profile'})
         if d['issue_id'] or i['project_id']!=project_id(c,'fashion'):fail('已关联款式或非服装旧资料不能从旧入口维护。')
-        from core.media_assets import attach_images
         profile=normalized_profile(p['profile'])
-        previous=row(c,'SELECT image_urls FROM fashion_item_profile WHERE item_id=%s FOR UPDATE',(ident,))
-        urls=decoded(previous['image_urls']) if previous and previous['image_urls'] else []
-        profile['image_urls']=attach_images(c,ident,g.admin_session['admin_id'],profile['image_urls'],urls)
         c.execute('INSERT INTO fashion_item_profile(item_id,name,description,material,care_instructions,image_urls) VALUES (%s,%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE name=VALUES(name),description=VALUES(description),material=VALUES(material),care_instructions=VALUES(care_instructions),image_urls=VALUES(image_urls)',(ident,profile['name'],profile['description'],profile['material'],profile['care_instructions'],json.dumps(profile['image_urls'])))
     elif action=='linkIssue':
         field_set(p,{'item_id','issue_id','edition_number','evidence'})
+        same_source(c,'item',ident,'issue',integer(p,'issue_id'))
         if d['issue_id']:fail('已有发行关联不能普通改写。')
         r=locked(c,'product_issue',integer(p,'issue_id'));s=locked(c,'product_style',r['style_id'])
         if not r['confirmed_at'] or s['project_id']!=i['project_id']:fail('请选择同类别且已确认的发行，先核对原承诺。')
@@ -382,7 +395,7 @@ def item_action(c,action,p):
     elif action=='bind':
         field_set(p,{'item_id','chip_id','spec'})
         if current(c,ident,required=False):fail('已有当前整套物品，换新/转售请办理接续。')
-        chip=locked(c,'chip',integer(p,'chip_id'));available_chip(c,chip,i['project_id'])
+        chip=locked(c,'chip',integer(p,'chip_id'));same_source(c,'item',ident,'chip',chip['id']);available_chip(c,chip,i['project_id'])
         if not d['issue_id']:fail('请先补齐发行约定。')
         generation=row(c,'SELECT COALESCE(MAX(generation),0)+1 AS n FROM whole_item WHERE item_id=%s',(ident,))['n']
         c.execute("UPDATE chip SET project_id=%s,item_id=%s,chip_status='bound' WHERE id=%s",(i['project_id'],ident,chip['id']))
@@ -408,11 +421,12 @@ def item_action(c,action,p):
             c.execute('UPDATE digital_item SET quota_year=%s,quota_used=0 WHERE item_id=%s',((now()+timedelta(hours=8)).year,ident));d['quota_used']=0
         if kind!='resale' and (d['quota_used']>=1 or d['quota_review']):fail('年度余额不足或上次计次待核。')
         if kind!='resale' and ((kind=='loss')!=bool(e['lost_at'] or e['loss_evidence'])):fail('请选择与整套物品挂失事实一致的换新类型。')
-        chip=locked(c,'chip',integer(p,'chip_id'));available_chip(c,chip,i['project_id'])
+        chip=locked(c,'chip',integer(p,'chip_id'));same_source(c,'item',ident,'chip',chip['id']);available_chip(c,chip,i['project_id'])
         owner=row(c,'SELECT * FROM ownership WHERE active_item_id=%s FOR UPDATE',(ident,))
         if not owner:fail('尚无正式持有人，不能办理换新/转售。')
         recipient=integer(p,'recipient_id') if kind=='resale' else owner['user_id']
         if kind=='resale' and (recipient==owner['user_id'] or not row(c,'SELECT id FROM user WHERE id=%s',(recipient,))):fail('请选择已建立的其他接收账户。')
+        same_source(c,'item',ident,'user',recipient)
         generation=row(c,'SELECT MAX(generation)+1 AS n FROM whole_item WHERE item_id=%s',(ident,))['n']
         c.execute('INSERT INTO item_handover(item_id,source_id,chip_id,kind,generation,spec,owner_id,recipient_id,prepare_evidence,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',(ident,e['id'],chip['id'],kind,generation,text(p,'spec',256,required=True),owner['user_id'],recipient,text(p,'evidence',1000,required=True),now()))
         c.execute('UPDATE chip SET project_id=%s WHERE id=%s',(i['project_id'],chip['id']))
@@ -509,13 +523,22 @@ def command(action):
                 if prior['admin_id']!=g.admin_session['admin_id'] or prior['action']!=action or prior['payload_hash']!=digest:fail('请求编号已用于其他操作，禁止替换输入重试。')
                 result=decoded(prior['result'])
             else:
-                if action=='register':
-                    field_set(p,{'chip_uid'},{'project','batch_no','is_validation'})
+                if action=='clearTestBatch':
+                    from core.test_batches import cleanup
+                    require_test_environment(current_app.config);field_set(p,{'batch_id','confirmed'})
+                    if p['confirmed'] is not True:invalid('请明确确认整批清理。')
+                    result=cleanup(c,integer(p,'batch_id'))
+                elif action=='register':
+                    field_set(p,{'chip_uid'},{'project','batch_no','is_validation','test_batch_id'})
                     project=p.get('project')
                     if project is not None:project_id(c,project)
                     batch=text(p,'batch_no',64)
                     chip,is_new=save_chip(c,normalize_uid(p['chip_uid']),project=project,batch=batch,admin_id=g.admin_session['admin_id'],source='manual')
                     if is_new and boolean(p,'is_validation'):c.execute('INSERT INTO chip_validation(chip_id,is_validation) VALUES (%s,1)',(chip['id'],))
+                    if p.get('test_batch_id') is not None:
+                        require_test_environment(current_app.config)
+                        if not is_new and source(c,'chip',chip['id'])!=integer(p,'test_batch_id'):fail('既有芯片不能改写测试来源。')
+                        mark(c,'chip',chip['id'],integer(p,'test_batch_id'))
                     result={'id':chip['id'],'is_new':is_new}
                 elif action=='style':result=style_save(c,p)
                 elif action=='issue':result=issue_save(c,p)
@@ -539,11 +562,13 @@ def command(action):
 
 @blueprint.get('/statistics')
 def statistics():
-    check_parameters({'scope','range','project','item_id','chip_id'})
+    check_parameters({'scope','range','project','item_id','chip_id','data_scope','test_batch_id'})
     scope=request.args.get('scope','sold');period=request.args.get('range','30d')
     if scope not in {'sold','all'} or period not in {'7d','30d','all'}:invalid('统计口径或时间范围不支持。')
     with consistent_read() as c:
         timestamp=row(c,'SELECT UTC_TIMESTAMP(6) AS t')['t'];conditions=["s.verify_result='pass'",'s.created_at<=%s'];values=[timestamp]
+        data_scope=request.args.get('data_scope','business');batch=request.args.get('test_batch_id')
+        clause,args=filter_source('item','s.item_id',data_scope,batch);conditions.append(clause);values.extend(args)
         if scope=='sold':conditions.extend(['d.sold=1','d.first_sold_at IS NOT NULL','s.created_at>=d.first_sold_at'])
         if period!='all':
             day=(timestamp+timedelta(hours=8)).replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=6 if period=='7d' else 29,hours=8)
@@ -561,15 +586,18 @@ def statistics():
             counts_by_day={x['day']:x['total'] for x in daily}
             daily=[{'day':(first+timedelta(days=n)).isoformat(),'total':counts_by_day.get((first+timedelta(days=n)).isoformat(),0)} for n in range((today-first).days+1)]
         c.execute('SELECT s.chip_id,s.chip_uid,COUNT(*) AS total'+joined+' GROUP BY s.chip_id,s.chip_uid ORDER BY s.chip_id',values);by_chip=c.fetchall()
+        item_filter,item_args=filter_source('item','i.id',data_scope,batch)
         counts=row(c,'''SELECT COUNT(*) AS items,COALESCE(SUM(COALESCE(d.sold,0)),0) AS sold_items,COUNT(o.user_id) AS claimed_items,COUNT(DISTINCT o.user_id) AS holders
- FROM item i LEFT JOIN digital_item d ON d.item_id=i.id LEFT JOIN ownership o ON o.active_item_id=i.id''')
-        counts['chips']=row(c,'SELECT COUNT(*) AS n FROM chip')['n'];counts['users']=row(c,'SELECT COUNT(*) AS n FROM user')['n']
+ FROM item i LEFT JOIN digital_item d ON d.item_id=i.id LEFT JOIN ownership o ON o.active_item_id=i.id WHERE '''+item_filter,item_args)
+        for kind in ('chip','user'):
+            clause,args=filter_source(kind,'x.id',data_scope,batch)
+            counts[kind+'s']=row(c,'SELECT COUNT(*) AS n FROM '+kind+' x WHERE '+clause,args)['n']
     return jsonify(status='ok',data={**summary,'daily':daily,'by_chip':by_chip,'counts':counts,'as_of':iso_time(timestamp),'scope':scope,'range':period,'timezone':'Asia/Shanghai','claim_service_available':False})
 
 
 @blueprint.route('/styles/<int:style_id>/images/<asset_id>',methods=['GET','POST'])
 def style_image(style_id,asset_id):
-    from core.admin_media import encode_image
+    from core.admin_media import encode_image,UploadFormDataParser
     from core.media_assets import MAX_FILE
     check_parameters(set())
     if not re.fullmatch(r'[a-f0-9]{32}',asset_id):invalid('图片编号须为随机32位十六进制。')
@@ -581,6 +609,7 @@ def style_image(style_id,asset_id):
     # 小规模共用图片随数据库一起备份；规模增大时迁回文件存储，不能公开数据URL。
     if current_app.config.get('MEDIA_ENABLED') is not True:fail('图片上传未启用。',503,'service_unavailable')
     request.max_content_length=9*1024**2;request.max_form_parts=1;request.max_form_memory_size=64*1024
+    request.form_data_parser_class=UploadFormDataParser
     if set(request.files)!={'file'} or len(request.files.getlist('file'))!=1 or request.form:invalid('仅接受一个图片文件。')
     raw=request.files['file'].stream.read(MAX_FILE+1)
     if not raw or len(raw)>MAX_FILE:invalid('单张图片最多8MiB。')
@@ -592,7 +621,7 @@ def style_image(style_id,asset_id):
     connection.begin()
     try:
         with connection.cursor(pymysql.cursors.DictCursor) as c:
-            lock_admin_session(c);locked(c,'product_style',style_id)
+            lock_admin_session(c);locked(c,'product_style',style_id);lock_batch(c,source(c,'style',style_id))
             found=row(c,'SELECT asset_id,style_id,source_sha256,expires_at FROM style_image WHERE asset_id=%s FOR UPDATE',(asset_id,))
             if found:
                 if found['expires_at'] and found['expires_at']<=now():fail('暂存已过期，请放弃本次上传后重新选择。')
@@ -627,3 +656,20 @@ def style_image_status(style_id,asset_id):
         found=row(c,'SELECT asset_id FROM style_image WHERE style_id=%s AND asset_id=%s',(style_id,asset_id))
         if not found:fail('尚无已提交上传记录。',404,'not_found')
     return jsonify(status='ok',data={'url':f'/api/admin/catalog/styles/{style_id}/images/{asset_id}'})
+
+
+@blueprint.get('/test-batches')
+def test_batches():
+    check_parameters({'page','page_size','keyword','data_scope'})
+    with consistent_read() as c:
+        result=list_page(c,'SELECT b.*','FROM test_batch b',[],[],order='b.id DESC')
+    try:require_test_environment(current_app.config);result['writable']=True
+    except AuthRequestError:result['writable']=False
+    return jsonify(status='ok',data=result)
+
+@blueprint.get('/test-batches/<int:batch>/preview')
+def batch_preview(batch):
+    from core.test_batches import preview
+    check_parameters(set());require_test_environment(current_app.config)
+    with consistent_read() as c:result=preview(c,batch)
+    return jsonify(status='ok',data=result)

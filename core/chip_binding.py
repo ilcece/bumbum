@@ -53,6 +53,8 @@ def bind_chip_item(chip_id, item_id):
             project = cursor.fetchone()["code"]
             if project not in {"fashion", "jewelry"}:
                 raise AuthRequestError(409, "project_mismatch", "目标物品项目不支持绑定。")
+            from core.test_batches import same_source
+            same_source(cursor,'item',item_id,'chip',chip_id)
             previous_project = None if chip["project_id"] is None else project
             try:
                 cursor.execute(

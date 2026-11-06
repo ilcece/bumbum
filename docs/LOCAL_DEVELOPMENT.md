@@ -604,3 +604,17 @@ python -m pytest tests/test_admin_browser.py tests/test_admin_item_browser.py te
 ```
 
 人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。首次用户认领、解除挂失及未定计次/费用不通过测试数据冒充开放；更换芯片仍须按原真实配卡手册实际配置，不把服务端生成密钥当作写卡完成。
+
+
+## 16. 验收批次007与本机测试数据
+
+已有本机库先完成006，再默认检查007；apply会核对原本机配置、容器与实例并先完整备份：
+
+```bash
+python scripts/migrate_local.py --test-batches
+python scripts/migrate_local.py --test-batches --apply
+```
+
+本机旧样例/图片清理及新数据包命令、前提和成功/失败解释与[杭州第12节](HANGZHOU_DEPLOYMENT.md#12-验收批次007与测试数据重建)一致，但使用原本机开发配置，不能装载杭州或生产配置。清理备份需要MySQL8.0 mysqldump客户端和旧私有图片目录。清理命令默认只盘点，执行需要显式清单、实例UUID、停写和备份目录。
+
+旧单件图片在线上传/读取和外链已退役，第14节对应旧页面操作不再适用；保留005结构和第13节离线工具用于旧图清理前的配套备份，清理后新款图随数据库备份。当前所有图片在款式维护，当前验收以管理端第8/9节为准。

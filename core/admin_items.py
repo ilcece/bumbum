@@ -12,7 +12,7 @@ from core.admin_queries import (boolean_parameter, check_parameters, consistent_
                                 date_conditions, pagination, positive_integer)
 from core.auth_settings import client_ip, fingerprint, iso_time
 from core.db import get_database
-from core.media_assets import attach_images, managed_path, map_profile_images
+from core.media_assets import map_profile_images
 
 blueprint = Blueprint("admin_items", __name__, url_prefix="/api/admin/items")
 PROJECT_PREFIXES = {"fashion": "FASH", "jewelry": "JEW"}
@@ -49,22 +49,9 @@ def normalized_profile(data):
     if not isinstance(urls, list) or len(urls) > 20:
         invalid("图片地址须为最多20项的列表。")
     result["image_urls"] = []
-    for value in urls:
-        if not isinstance(value, str):
-            invalid("每个图片地址须为文字。")
-        value = value.strip()
-        try:
-            parsed = urlsplit(value)
-            valid = (parsed.scheme in {"http", "https"} and parsed.hostname and parsed.username is None
-                     and parsed.password is None and (parsed.port is None or 0 < parsed.port <= 65535))
-            match = managed_path(value)
-            if match and match[1] == 'admin' and not parsed.scheme and not parsed.netloc and not parsed.query and not parsed.fragment:
-                valid = True
-        except ValueError:
-            valid = False
-        if not valid or len(value) > 2048 or any(c.isspace() or ord(c) < 32 or ord(c) == 127 for c in value) or "\\" in value:
-            invalid("图片地址须为最多2048字符的完整HTTP/HTTPS网址，不含账号密码、空白或控制字符。")
-        result["image_urls"].append(value)
+    if urls:
+        raise AuthRequestError(400,'invalid_param','旧单件图片已退役，请在共用款式维护图片。')
+
     return result
 
 
@@ -118,8 +105,6 @@ def write_item(item_id, profile=None, status=None, sku=MISSING, *, profile_only=
             if profile is not None:
                 cursor.execute("SELECT * FROM fashion_item_profile WHERE item_id=%s FOR UPDATE", (item_id,))
                 previous = cursor.fetchone()
-                previous_urls = json.loads(previous['image_urls']) if previous and previous['image_urls'] else []
-                profile['image_urls'] = attach_images(cursor, item_id, g.admin_session['admin_id'], profile['image_urls'], previous_urls)
                 for field in ("name", "description", "material", "care_instructions", "image_urls"):
                     old = previous[field] if previous else MISSING
                     if field == "image_urls" and previous:

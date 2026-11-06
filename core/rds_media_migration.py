@@ -15,6 +15,7 @@ import uuid
 
 import pymysql
 
+from core.testdata_migration import TABLES as TEST_TABLES, schema as testdata_schema, migrate as migrate_testdata
 from core.catalog_migration import TABLES as CATALOG_TABLES, catalog_schema, migrate as migrate_catalog, CatalogMigrationError
 from core.db import TARGET_TABLES, database_tls_options, media_asset_schema
 from core.media_migration import MediaMigrationError, migrate
@@ -28,8 +29,8 @@ def inspect_media(connection, database, expected_uuid=None):
         cursor.execute('SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE()')
         tables = {row[0] for row in cursor.fetchall()}
         state = media_asset_schema(cursor)
-    base=TARGET_TABLES-set(CATALOG_TABLES)
-    if report['other_object_count'] or tables not in (TARGET_TABLES, TARGET_TABLES-{'media_asset'},base,base-{'media_asset'}) or state == 'unknown':
+    base=TARGET_TABLES-set(CATALOG_TABLES)-TEST_TABLES
+    if report['other_object_count'] or tables not in (TARGET_TABLES, TARGET_TABLES-{'media_asset'},base,base-{'media_asset'},TARGET_TABLES-TEST_TABLES) or state == 'unknown':
         raise MediaMigrationError('已有库结构无法完整识别，未升级；先核对旧版本及005。')
     if expected_uuid is not None and report['server_uuid'] != expected_uuid:
         raise MediaMigrationError('实际实例标识与确认值不同，未升级。')
@@ -91,6 +92,7 @@ def connect(config, password):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description='杭州已有库媒体005检查；显式apply在停止写入并备份后升级，不启用上传。')
+    parser.add_argument('--test-batches',action='store_true',help='检查/升级验收批次007，先完成006')
     parser.add_argument('--digital-catalog',action='store_true',help='改为检查/升级数字档案006，仍须先完成媒体005')
     parser.add_argument('--slot',required=True,choices=SLOTS)
     parser.add_argument('--ca',required=True)
@@ -100,6 +102,7 @@ def main(argv=None):
     parser.add_argument('--writes-stopped',action='store_true')
     parser.add_argument('--backup-dir',type=Path)
     args = parser.parse_args(argv)
+    if args.test_batches and args.digital_catalog:parser.error("007与006不能同时执行。")
     target = SLOTS[args.slot]
     config = {'APP_ENV':'production','HANGZHOU_SLOT':args.slot,'DB_HOST':RDS_HOST,'DB_PORT':3306,
               'DB_NAME':target['database'],'DB_USER':target['user']+'_init','DB_SSL_MODE':'VERIFY_IDENTITY','DB_SSL_CA':args.ca}
@@ -117,13 +120,20 @@ def main(argv=None):
             raise MediaMigrationError('未输入密码，未连接。')
         with connect(config,password) as connection:
             report = inspect_media(connection,config['DB_NAME'],args.confirm_server_uuid if args.apply else None)
+            if args.test_batches:
+                with connection.cursor() as cursor:
+                    report['test_batches']=testdata_schema(cursor)
+                    if catalog_schema(cursor)!='ready':raise CatalogMigrationError('先完成006，再升级007。')
+                if args.apply:
+                    report['changed']=migrate_testdata(connection,lambda:native_backup(config,password,connection,args.confirm_server_uuid,args.backup_dir,purpose="test-batches"))
+                    report['test_batches']='ready'
             if args.digital_catalog:
                 with connection.cursor() as cursor: report['digital_catalog']=catalog_schema(cursor)
                 if report['media_assets']!='ready':raise CatalogMigrationError('先完成媒体005，再升级数字档案006。')
             if args.apply and args.digital_catalog:
                 report['changed']=migrate_catalog(connection,lambda:native_backup(config,password,connection,args.confirm_server_uuid,args.backup_dir,purpose='digital-catalog'))
                 with connection.cursor() as cursor:report['digital_catalog']=catalog_schema(cursor)
-            elif args.apply:
+            elif args.apply and not args.test_batches:
                 report['changed'] = migrate(connection,lambda: native_backup(config,password,connection,args.confirm_server_uuid,args.backup_dir))
                 report['media_assets'] = inspect_media(connection,config['DB_NAME'],args.confirm_server_uuid)['media_assets']
             print(json.dumps(report,ensure_ascii=False))

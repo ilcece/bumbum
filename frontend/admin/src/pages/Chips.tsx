@@ -4,6 +4,7 @@ import { Button, Drawer, Form, Input, InputNumber, Select, Switch } from "antd";
 import { history } from "@umijs/max";
 import { Row, statusNames, time } from "../catalog";
 import { ActionForm, Copy, State, required } from "../components/CatalogUI";
+import { BatchSelect } from "../components/TestDataScope";
 import ServerTable from "../components/ServerTable";
 import ChipDetail from "./ChipDetail";
 export default function Chips() {
@@ -156,6 +157,9 @@ export default function Chips() {
           </Form.Item>
           <Form.Item name="batch_no" label="批次">
             <Input maxLength={64} />
+          </Form.Item>
+          <Form.Item name="test_batch_id" label="测试批次">
+            <BatchSelect />
           </Form.Item>
           <Form.Item
             name="is_validation"

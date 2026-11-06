@@ -108,6 +108,7 @@ def database_ready():
     """检查表、初始项目及本次芯片结构版本；只读，不自动建表或修库。"""
     try:
         from core.catalog_migration import catalog_schema
+        from core.testdata_migration import schema as testdata_schema
         with get_database().cursor() as cursor:
             cursor.execute("SHOW TABLES")
             actual_tables = {row[0] for row in cursor.fetchall()}
@@ -120,7 +121,8 @@ def database_ready():
                     and tap_event_schema(cursor) == "ready"
                     and view_grant_schema(cursor) == "ready"
                     and media_asset_schema(cursor) == "ready"
-                    and catalog_schema(cursor) == "ready")
+                    and catalog_schema(cursor) == "ready"
+                    and testdata_schema(cursor) == "ready")
     except pymysql.MySQLError as error:
         record_failure(error)
         return False

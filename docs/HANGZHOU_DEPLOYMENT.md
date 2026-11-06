@@ -937,3 +937,41 @@ python -m core.rds_media_migration --digital-catalog --slot test --ca /opt/bumbu
 升级前先完整原生转储，保留--hex-blob；共用款图的受控二进制随数据库一起备份。旧单件私有图仍须原目录与同窗口媒体配套备份，不能只留SQL。006失败或部分结构保留现场、不自动重跑删表，ready未通过前不恢复管理写入。006后新增retired与历代关系，回退程序不能代替数据恢复；不覆盖后来数据，不把旧程序直接当作兼容回退。
 
 测试步骤见[管理端四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)。旧档案发行/款式待人工核对补齐；迁移不重新生成密钥、不重置计数或授予持有人。真实芯片配置/手机触碰、公网和Windows结果由cece按实际环境验证，本轮云端临时MySQL/Chromium不替代它们。
+
+
+## 12. 验收批次007与测试数据重建
+
+仅操作test槽；代码发布与数据操作分开。先完成006；执行007前停止test写入、完整备份，工具默认只检查。初始化身份、CA和实例核对沿第11节，将--digital-catalog替换为--test-batches：
+
+```bash
+python -m core.rds_media_migration --test-batches --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem
+```
+
+确认后使用第11节相同的apply/库名/实例UUID/停写/备份参数；不在production执行样例命令。007不自动删除旧业务数据或图片。失败保留现场与备份，不能重新执行schema.sql。
+
+在加载**测试应用运行配置**的受控终端或容器内，仓库根目录运行只读盘点：
+
+```bash
+python -m core.testdata_cleanup
+```
+
+盘点仅输出ID、UID及保护事实，不输出密钥、电话或配置。AI根据实际输出生成私有JSON清单，至少包含snapshot_sha256、delete_items、delete_chips；可选delete_users/delete_issues/delete_styles。各列表只列明确无价值对象；账户仍有持有历史或对象有外部引用时事务拒绝，管理员不在可删范围。已配置、有密钥、验证计数、挂失/退役或持有历史的对象及必要关联受保护；未知对象保留，不用批次清理变相强删真实卡。所有历史图片可清理，旧文字资料不自动猜测款式/发行。
+
+全部test写入停止并等待在途请求结束后执行；替换管理员、实例UUID、清单及私有备份目录：
+
+```bash
+python -m core.testdata_cleanup --apply --plan /私有绝对路径/清理清单.json --admin-username 你的测试管理员 --confirm-server-uuid 实际实例UUID --writes-stopped --backup-dir /私有绝对路径/清理备份
+```
+
+命令核对清单未过期、目标和管理员，使用MySQL8.0 mysqldump完整转储，再生成并核对SQL+私有图片配套备份；任一步失败不继续数据库删除。新批次已有活动数据则拒绝旧图片全清理，避免抹掉新样本。数据库事务清理引用/元数据后，仅删除与备份同摘要、合法命名的旧文件；未知文件保留，文件异常单列需核对，不能将其当全部成功。图片目录必须可读且私有；目录缺失或图片损坏先核对，不跳过备份。
+
+旧清理完成后，准备新场景。此命令默认预览，apply才创建：
+
+```bash
+python -m core.acceptance_data --admin-username 你的测试管理员
+python -m core.acceptance_data --admin-username 你的测试管理员 --apply
+```
+
+成功输出batch_id和manifest，包含约20身份、场景索引与初始预期统计。活动数据包重复执行复用；整批清理后重新执行创建新批次。虚拟UID随机生成并拒绝覆盖既有记录，合成配置不导入密钥、不通过真实验签；真实测试卡单独验证。恢复测试写入后按[三组验收](ADMIN_DESKTOP.md#9-验收数据包与整批清理)操作。
+
+首次认领仍未开放。已有单件持有人辅助命令不替代本数据包，也不能拿模拟账户作为真实用户验收。备份不上传Git或聊天；回退程序不能撤销已清理的数据，恢复必须另行核对后来写入，不自动整库覆盖。

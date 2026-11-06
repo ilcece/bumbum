@@ -1,3 +1,4 @@
+import { TestSource } from "../components/TestDataScope";
 import { useEffect, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import {
@@ -43,7 +44,12 @@ export default function ChipDetail({
     [stats, setStats] = useState<Row>();
   useEffect(() => {
     let active = true;
-    statistics({ chip_id: ident, range: "all", scope: "all" })
+    statistics({
+      data_scope: "all",
+      chip_id: ident,
+      range: "all",
+      scope: "all",
+    })
       .then((x) => {
         if (active) setStats(x);
       })
@@ -64,6 +70,7 @@ export default function ChipDetail({
     <Load error={error} loading={loading} retry={reload}>
       {r && (
         <div className="page-stack">
+          <TestSource record={r} />
           <ProCard title="芯片档案" headerBordered>
             <Descriptions column={2}>
               <Descriptions.Item label="芯片编号">

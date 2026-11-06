@@ -1,3 +1,4 @@
+import TestBatches from "../components/TestBatches";
 import { PageContainer } from "@ant-design/pro-components";
 import { Tabs } from "antd";
 import { RuntimeChecks } from "../RuntimeChecks";
@@ -9,6 +10,7 @@ export default function System() {
     <PageContainer title={false}>
       <Tabs
         items={[
+          { key: "test-data", label: "测试数据", children: <TestBatches /> },
           {
             key: "audit",
             label: "操作日志",

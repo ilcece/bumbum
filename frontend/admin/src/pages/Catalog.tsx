@@ -28,6 +28,7 @@ import {
   State,
   required,
 } from "../components/CatalogUI";
+import { BatchSelect, TestSource } from "../components/TestDataScope";
 import ServerTable from "../components/ServerTable";
 import StyleImages from "../components/StyleImages";
 function StyleFields({ record }: { record?: Row }) {
@@ -36,10 +37,22 @@ function StyleFields({ record }: { record?: Row }) {
   const v = Form.useWatch([], form) || {};
   return (
     <GridRow gutter={24}>
+      <Col span={24}>
+        <TestSource record={record} />
+      </Col>
       <Col span={15}>
         <Form.Item name="id" hidden>
           <InputNumber />
         </Form.Item>
+        {!record && (
+          <Form.Item
+            name="test_batch_id"
+            label="测试批次"
+            extra="留空为业务数据；已生成来源不能通过生产验证开关改写。"
+          >
+            <BatchSelect />
+          </Form.Item>
+        )}
         <Form.Item name="project" label="物品类别" rules={required}>
           <Select
             disabled={!!record?.issue_count}

@@ -38,6 +38,9 @@ def seed_holders(connection,item_id,username,*,apply=False):
                 for role in ('A','B'):
                     name='测试持有人'+role+'-'+suffix[-4:]
                     c.execute('INSERT INTO user(phone,nickname) VALUES (%s,%s)',('TEST'+role+suffix,name));ids.append(c.lastrowid);names.append(name)
+                from core.test_batches import source,mark
+                batch=source(c,'item',item_id)
+                for ident in ids:mark(c,'user',ident,batch)
                 c.execute("INSERT INTO ownership(item_id,user_id,bind_source) VALUES (%s,%s,'import')",(item_id,ids[0]))
                 c.execute("INSERT INTO ownership_history(item_id,from_user_id,to_user_id,action,note) VALUES (%s,NULL,%s,'bind','仅测试库的合成持有关系，不是用户认领')",(item_id,ids[0]))
                 result.update(owner_id=ids[0],recipient_id=ids[1],owner_name=names[0],recipient_name=names[1])

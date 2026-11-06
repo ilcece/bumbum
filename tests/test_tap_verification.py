@@ -43,7 +43,7 @@ def test_success_get_detail_and_statistics_source(auth_app, ready):
     assert response.status_code == 200 and response.headers['Cache-Control'] == 'no-store'
     data = response.json['data']
     assert data['verified'] and data['project'] == 'fashion' and data['expires_in'] == 300
-    assert data['item_detail']['name'] == '测试外套' and data['item_detail']['image_urls'] == ['https://example.com/item.jpg']
+    assert data['item_detail']['name'] == '测试外套' and data['item_detail']['image_urls'] == []
     assert not data['owner_bound']
     token = data['tap_token']
     grant = query(auth_app, 'SELECT * FROM tap_grant')[0]

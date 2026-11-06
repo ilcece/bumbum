@@ -1,3 +1,4 @@
+import { TestSource } from "../components/TestDataScope";
 import React, { useEffect, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import {
@@ -38,7 +39,6 @@ import {
   useRecord,
   returnPath,
 } from "../components/CatalogUI";
-import { ItemImages } from "../ItemImages";
 import KeyConfiguration from "../components/KeyConfiguration";
 export default function ItemDetail({
   id,
@@ -62,7 +62,7 @@ export default function ItemDetail({
   useEffect(() => {
     let active = true;
     setStats(undefined);
-    statistics({ item_id: ident, scope, range })
+    statistics({ data_scope: "all", item_id: ident, scope, range })
       .then((x) => {
         if (active) {
           setStats(x);
@@ -104,6 +104,7 @@ export default function ItemDetail({
     <Load error={error} loading={loading} retry={reload}>
       {r && (
         <div className="page-stack">
+          <TestSource record={r} />
           <ProCard
             title="数字身份与发行"
             headerBordered
@@ -190,9 +191,7 @@ export default function ItemDetail({
                 维护历史单件资料
               </Button>
             )}
-            <Gallery
-              urls={r.style?.image_urls || r.legacy_profile?.image_urls || []}
-            />
+            <Gallery urls={r.style?.image_urls || []} />
             <Descriptions column={1}>
               <Descriptions.Item label="商品名称">
                 {r.style?.name || r.legacy_profile?.name || "待补齐"}
@@ -532,15 +531,6 @@ export default function ItemDetail({
               material: "",
               care_instructions: "",
             },
-            image_files: (r.legacy_profile?.image_urls || []).map(
-              (url: string) => ({
-                uid: url,
-                name: "已保存图片",
-                url,
-                reference: url,
-                status: "done",
-              }),
-            ),
             kind:
               action === "prepareResale"
                 ? "resale"
@@ -575,12 +565,6 @@ export default function ItemDetail({
               </Form.Item>
               <Form.Item name={["profile", "care_instructions"]} label="养护">
                 <Input.TextArea maxLength={2000} />
-              </Form.Item>
-              <Form.Item name="image_files" label="私有图片">
-                <ItemImages
-                  itemId={r.id}
-                  onSessionExpired={() => history.replace("/login")}
-                />
               </Form.Item>
             </>
           )}

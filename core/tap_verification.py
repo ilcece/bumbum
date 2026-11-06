@@ -124,6 +124,7 @@ def public_detail(cursor, item, chip):
     table = 'fashion_item_profile' if project == 'fashion' else 'jewelry_item_profile'
     cursor.execute('SELECT s.name,s.description,s.material,s.care_instructions,s.image_urls FROM digital_item d JOIN product_issue r ON r.id=d.issue_id JOIN product_style s ON s.id=r.style_id WHERE d.item_id=%s FOR SHARE', (item['id'],))
     profile = cursor.fetchone()
+    shared=bool(profile)
     if profile:
         if project == 'fashion': profile['size_chart'] = None
         else: profile['meaning'] = profile.pop('care_instructions')
@@ -135,6 +136,7 @@ def public_detail(cursor, item, chip):
     for name in ('image_urls', 'size_chart'):
         if name in profile:
             profile[name] = json.loads(profile[name]) if isinstance(profile[name], (str, bytes)) else profile[name]
+    if not shared:profile['image_urls']=[]
     if profile['image_urls'] is None:
         profile['image_urls'] = []
     import re

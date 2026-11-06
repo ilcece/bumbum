@@ -11,11 +11,17 @@ import {
   Table,
   Typography,
 } from "antd";
+import { DataScope } from "../components/TestDataScope";
+import { useLocation, history } from "@umijs/max";
 import { Link } from "@umijs/max";
 import { Row as Record, statistics } from "../catalog";
 import "../chart.css";
 import { TapDailyChart } from "../TapDailyChart";
 export default function Overview() {
+  const location = useLocation(),
+    q = new URLSearchParams(location.search),
+    dataScope = q.get("data_scope") || "business",
+    batch = q.get("test_batch_id") || undefined;
   const [scope, setScope] = useState("sold"),
     [range, setRange] = useState("30d"),
     [data, setData] = useState<Record>(),
@@ -24,7 +30,7 @@ export default function Overview() {
   useEffect(() => {
     let live = true;
     setData(undefined);
-    statistics({ scope, range })
+    statistics({ scope, range, data_scope: dataScope, test_batch_id: batch })
       .then((x) => {
         if (live) {
           setData(x);
@@ -37,10 +43,35 @@ export default function Overview() {
     return () => {
       live = false;
     };
-  }, [scope, range, retry]);
+  }, [scope, range, retry, dataScope, batch]);
   return (
     <PageContainer title={false}>
       <div className="page-stack">
+        <DataScope
+          scope={dataScope}
+          batch={batch ? Number(batch) : undefined}
+          onChange={(scope, id) =>
+            history.replace({
+              pathname: location.pathname,
+              search: new URLSearchParams({
+                data_scope: scope,
+                ...(id ? { test_batch_id: String(id) } : {}),
+              }).toString(),
+            })
+          }
+        />
+        {dataScope !== "business" && (
+          <Alert
+            type="warning"
+            title="当前统计含测试数据，合成触碰不代表真实读卡。"
+          />
+        )}
+        {dataScope === "business" && data?.counts.items === 0 && (
+          <Alert
+            type="info"
+            title="当前没有业务数据，可切换测试数据进行验收。"
+          />
+        )}
         <Space>
           <Select
             value={scope}
@@ -93,7 +124,7 @@ export default function Overview() {
             ))}
           </Row>
           <Typography.Paragraph type="secondary">
-            账户与持有关系来自真实记录。首次用户认领服务尚未开放，触碰不代表售出或拥有。
+            账户与持有关系按当前数据范围统计。首次用户认领服务尚未开放，触碰不代表售出或拥有。
           </Typography.Paragraph>
         </ProCard>
         <ProCard title="有效触碰趋势" headerBordered>

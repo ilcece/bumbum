@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { ProTable, ActionType, ProColumns } from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
 import { Alert } from "antd";
+import { DataScope, TestTag } from "./TestDataScope";
 import { list, Row } from "../catalog";
 export default function ServerTable({
   resource,
@@ -37,11 +38,40 @@ export default function ServerTable({
     <>
       {" "}
       {error && <Alert type="error" title={error} />}
+      {resource !== "audit" && (
+        <DataScope
+          scope={saved.data_scope || "business"}
+          batch={saved.test_batch_id ? Number(saved.test_batch_id) : undefined}
+          onChange={(data_scope, test_batch_id) =>
+            update({ ...saved, data_scope, test_batch_id, page: 1 })
+          }
+        />
+      )}
       <ProTable<Row>
         actionRef={ref}
         rowKey="id"
-        columns={columns}
-        params={{ ...filters, _refresh: refresh }}
+        columns={
+          resource === "audit"
+            ? columns
+            : [
+                ...columns,
+                {
+                  title: "数据来源",
+                  search: false,
+                  render: (_, r) => <TestTag id={r.test_batch_id} />,
+                },
+              ]
+        }
+        params={{
+          ...filters,
+          ...(resource !== "audit"
+            ? {
+                data_scope: saved.data_scope || "business",
+                test_batch_id: saved.test_batch_id,
+              }
+            : {}),
+          _refresh: refresh,
+        }}
         search={{ labelWidth: "auto", defaultCollapsed: true }}
         form={{ initialValues: saved }}
         toolBarRender={() => extra || []}

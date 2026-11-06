@@ -155,10 +155,7 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
             assert status == 200 and json.loads(data)['data']['sku_code'] == '合并维护' and json.loads(data)['data']['profile']['description'] == '文'*4000
             # 大正文只放行精确上传路由；此容器默认禁止上传，应抵达应用503而非被8k误拦。
             upload_headers={**write_headers,'Content-Type':'multipart/form-data; boundary=synthetic'}
-            status, _, data = call(f'/api/admin/items/{item_id}/images',method='POST',body=b'x'*(1024**2),headers=upload_headers)
-            assert status == 503 and json.loads(data)['code'] == 'service_unavailable'
-            status, _, data = call(f'/api/admin/items/{item_id}/images',method='POST',body=b'x'*(9*1024**2+1),headers=upload_headers)
-            assert status == 413 and json.loads(data)['code'] == 'payload_too_large'
+            assert call(f'/api/admin/items/{item_id}/images')[0]==404
             status, _, data = call(f"/api/admin/items/{item_id}", method="PATCH", body={"status": "active"}, headers=write_headers)
             assert status == 200 and json.loads(data)["data"]["status"] == "active"
             status, _, data = call(f"/api/admin/items/{item_id}/profile", method="PUT", body={"name": "x" * (256 * 1024)}, headers=write_headers)
