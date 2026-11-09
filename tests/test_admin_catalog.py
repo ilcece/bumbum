@@ -57,6 +57,20 @@ def owner(app,ident,n):
     return uid
 
 
+def test_audit_lists_current_and_historical_targets_with_mixed_collations(auth_app, catalog):
+    session, _, _, item, _ = catalog
+    operator = query(auth_app, 'SELECT id FROM admin_user')[0]['id']
+    targets = [('item', str(item)), ('item', f'0{item}'), ('item', '18446744073709551615'), ('style', str(item))]
+    for kind, target in targets:
+        query(auth_app, 'INSERT INTO admin_audit(admin_id,action,target_type,target_id,detail) VALUES (%s,%s,%s,%s,%s)',
+              (operator, 'catalog.installAssembly', kind, target, json.dumps({'summary': '排序规则验收'})))
+    client = session[0]
+    assert ok(client.get('/api/admin/catalog/audit'))['items']
+    data = ok(client.get('/api/admin/catalog/audit', query_string={'keyword': '排序规则验收'}))
+    actual = {(record['target_type'], record['target_id']): bool(record['object_exists']) for record in data['items']}
+    assert actual == {target: target == ('item', str(item)) for target in targets}
+
+
 def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration(auth_app,catalog):
     s,style,issue,i,chips=catalog
     ok(action(s,'installAssembly',{'item_id':i,**assembly(s,style,chips[0],'L黑')}));config_chip(auth_app,s,chips[0]);ok(action(s,'toggleItem',{'item_id':i,'status':'active'}))

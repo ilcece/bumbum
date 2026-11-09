@@ -301,7 +301,8 @@ def listing(resource):
         if keyword:
             conditions.append('(u.nickname LIKE %s ESCAPE \'!\' OR CAST(u.id AS CHAR)=%s)');values.extend([contains(keyword),keyword])
     elif resource == 'audit':
-        select,joined,order="SELECT a.id,a.action,a.target_type,a.target_id,a.detail,a.created_at,u.username,EXISTS(SELECT 1 FROM item i WHERE a.target_type='item' AND CAST(i.id AS CHAR)=a.target_id) AS object_exists",'FROM admin_audit a LEFT JOIN admin_user u ON u.id=a.admin_id','a.id DESC'
+        # 审计的对象编号按原值匹配，不依赖连接与历史表的排序规则。
+        select,joined,order="SELECT a.id,a.action,a.target_type,a.target_id,a.detail,a.created_at,u.username,EXISTS(SELECT 1 FROM item i WHERE a.target_type='item' AND CAST(i.id AS BINARY)=CAST(a.target_id AS BINARY)) AS object_exists",'FROM admin_audit a LEFT JOIN admin_user u ON u.id=a.admin_id','a.id DESC'
         if keyword:
             conditions.append("(a.action LIKE %s ESCAPE '!' OR a.target_id=%s OR JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.object_code')) LIKE %s ESCAPE '!' OR JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.summary')) LIKE %s ESCAPE '!')");values.extend([contains(keyword),keyword,contains(keyword),contains(keyword)])
         for name, column in [('action','a.action'),('operator','u.username')]:
