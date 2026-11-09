@@ -11,7 +11,7 @@ import sys
 import tempfile
 import warnings
 
-from core.aliyun_sms import ALIYUN_SMS_SETTINGS, valid_settings
+from core.aliyun_sms import ALIYUN_SMS_SETTINGS, MAINLAND_PHONE, valid_settings
 
 
 TEST_ROOT = Path('/opt/bumbum-hangzhou/test')
@@ -94,12 +94,24 @@ def main():
     if manifest['name'] != 'bumbum-hangzhou-test' or env['HANGZHOU_SLOT'] != 'test' or env['DB_NAME'] != 'bumbum_hz_test':
         raise ValueError('Compose 清单不属于杭州 test。')
     settings = {'SMS_PROVIDER': 'aliyun'}
-    settings['SMS_ALIYUN_SIGN_NAME'] = input('完整短信签名：').strip()
-    settings['SMS_ALIYUN_TEMPLATE_CODE'] = input('已通过审核的短信模板 CODE：').strip()
+    sign_name = input('完整短信签名（控制台签名管理中的名称）：').strip()
+    if not sign_name or re.fullmatch(r'SMS_[0-9]+', sign_name):
+        raise ValueError('请填签名管理里的完整签名名称。SMS_ 开头的编号属于短信模板。')
+    template = os.getenv('BUMBUM_TEST_SMS_TEMPLATE_CODE') or input('已通过审核的短信模板 CODE：').strip()
+    if not re.fullmatch(r'SMS_[0-9]+', template):
+        raise ValueError('短信模板 CODE 格式不符，应为 SMS_ 后接数字。')
+    settings.update(SMS_ALIYUN_SIGN_NAME=sign_name, SMS_ALIYUN_TEMPLATE_CODE=template)
     with warnings.catch_warnings():
         warnings.simplefilter('error', getpass.GetPassWarning)
-        for name in (ALIYUN_SMS_SETTINGS[0], ALIYUN_SMS_SETTINGS[1], ALIYUN_SMS_SETTINGS[-1]):
-            settings[name] = getpass.getpass(f'{name}（隐藏输入）：')
+        for name, label in zip(ALIYUN_SMS_SETTINGS[:2], ('AccessKey ID', 'AccessKey Secret')):
+            value = getpass.getpass(f'{label}（隐藏输入）：')
+            if not re.fullmatch(r'[!-~]+', value):
+                raise ValueError(f'{label} 为空或含空白、非 ASCII 字符。')
+            settings[name] = value
+        phone = getpass.getpass('验收手机号（11 位大陆手机号，隐藏输入）：')
+        if not re.fullmatch(MAINLAND_PHONE, phone):
+            raise ValueError('验收手机号须为 11 位大陆手机号，请去掉 +86、空格和连字符。')
+        settings['SMS_ALIYUN_TEST_PHONE'] = phone
     if not valid_settings(settings):
         raise ValueError('签名、模板、凭据或唯一验收号码格式不符。')
     changed = write_runtime(RUNTIME, settings)
