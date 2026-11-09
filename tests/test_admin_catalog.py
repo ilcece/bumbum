@@ -77,7 +77,9 @@ def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration
     a=owner(auth_app,i,1);b=owner(auth_app,None,2)
     ok(action(s,'sale',{'item_id':i,'confirmed':True,'evidence':'外部店铺实际售出'}))
     original=ok(s[0].get(f'/api/admin/catalog/items/{i}'))
-    ok(action(s,'prepare',{'item_id':i,'kind':'periodic','evidence':'核对资格',**assembly(s,style,chips[1],'新实物L黑')}))
+    prepared=ok(action(s,'prepare',{'item_id':i,'kind':'periodic','evidence':'核对资格',**assembly(s,style,chips[1],'新实物L黑')}))
+    blocked=action(s,'complete',{'work_id':prepared['work_id'],'checked':True,'evidence':'尚未完成核验'})
+    assert blocked.status_code==409 and '尚未通过配置核验' in blocked.json['message']
     config_chip(auth_app,s,chips[1])
     w=query(auth_app,'SELECT * FROM item_handover WHERE item_id=%s',(i,))[0]
     # 候选真实配置通过，但尚未获得物品关联或触碰授权。
@@ -101,6 +103,16 @@ def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration
     old=[x for x in result['handovers'] if x['id']==w['id']][0]
     assert old['source_id']==original['whole_id'] and old['target_id']==renewed['whole_id']
     assert query(auth_app,'SELECT COUNT(*) AS n FROM item')[0]['n']==1
+    audit=ok(s[0].get('/api/admin/catalog/audit',query_string={'item_id':i,'page_size':30}))['items']
+    by_operation={event['operation']:event for event in audit}
+    pending=by_operation['准备换新']['detail']
+    assert pending['work_id']==prepared['work_id'] and pending['candidate']['generation']==2 and pending['outcome']=='待交付'
+    assert by_operation['交付确认受阻']['outcome']=='受阻'
+    assert '已用 1 次' in by_operation['确认换新交付']['summary']
+    assert by_operation['准备转售']['detail']['work_id']==resale['id']
+    transferred=by_operation['确认转售交付']
+    assert f'U{a} 变更为 U{b}' in transferred['summary'] and '剩余 0 次' in transferred['summary']
+    assert transferred['detail']['after']['generation']==3
 
 
 def test_release_uniqueness_validation_cleanup_and_receipt(auth_app,catalog):

@@ -8,6 +8,19 @@ from tests.test_admin_auth import query
 pytestmark=[pytest.mark.auth_database,pytest.mark.browser]
 
 
+def test_audit_reads_in_business_order_and_expands_evidence(desktop):
+    _,_,item,_=setup(desktop)
+    api(desktop,'sale',{'item_id':item,'confirmed':True,'evidence':'已核对外部成交记录'})
+    page=desktop.page
+    page.goto('http://localhost:5174/system?tab=audit',wait_until='networkidle')
+    audit=page.get_by_role('table')
+    row=audit.get_by_role('row').filter(has_text='确认售出状态')
+    expect(row).to_be_visible()
+    assert audit.get_by_role('columnheader').all_text_contents()[:5]==['时间','操作人','操作','对象','结果与依据']
+    row.get_by_text(re.compile('确认已售出，首次成交时间')).click()
+    expect(row.get_by_text('已核对外部成交记录',exact=True)).to_be_visible()
+
+
 def test_server_pagination_query_drawer_and_validation_cleanup(desktop,tmp_path):
     _,issue,item,chips=setup(desktop);p=desktop.page
     for n in range(2,13):api(desktop,'item',{'issue_id':issue,'item_uid':f'FASH-2026-{880000+n:06d}','edition_number':n})

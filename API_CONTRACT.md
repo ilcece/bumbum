@@ -575,7 +575,7 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 | sale | item_id/confirmed/evidence，first_sold_at可选（带时区ISO8601、不晚于当前）；首次登记使用所填成交时间或当前时间，已有首次时间拒绝不同值；显式维护售出事实，操作时间与依据留审计，首次成交时间只记一次；撤销不删除首次时间、持有人及触碰历史 |
 | toggleItem | item_id/status，status仅active/disabled；新档案启用检查发行、当前整套、有效芯片与真实核验；停用永久撤销现有查看资格 |
 | loseItem | item_id/whole_id/evidence；固定本次当代ID，挂失写入当代并同步停芯片、撤销资格；准备中的普通换新转为挂失换新，已准备的新整套保留 |
-| prepare | item_id/kind/chip_id/evidence，spec选填（不适用时空），转售另需recipient_id；kind=periodic/loss/resale。检查真实持有人、已约定权益、年度/待核事实、接收账户及芯片占用；保存原代ID与新代规格/芯片，尚不切换归属/授权 |
+| prepare | item_id/kind/chip_id/evidence，spec 选填，转售另需 recipient_id。kind 支持 periodic、loss、resale。检查真实持有人、已约定权益、年度用量、接收账户和芯片占用。保存原代与新代组合，返回 `id` 和 `work_id`，审计记录关联办理单。归属和授权在确认交付时切换。 |
 | complete | work_id/evidence/checked=true；重查原代及当前持有人，候选必须真实核验。一起结束旧代、退役旧卡、追加新代、必要转移持有人、保存历史并撤销旧短许可/持续查看。新代正常，不继承旧代挂失；身份/编号/首次售出保留，换新计次待核，转售不重置余额 |
 | chipBatch/chipState | chip_id/batch_no；或chip_id/state/evidence，state仅disabled/restore；挂失、退役或候选不可普通恢复，芯片页无独立挂失 |
 | validationItem/validationChip | item_id或chip_id及enabled布尔值；标记不改变统计 |

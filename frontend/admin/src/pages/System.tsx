@@ -5,7 +5,7 @@ import { RuntimeChecks } from "../RuntimeChecks";
 import { Copy } from "../components/CatalogUI";
 import ServerTable from "../components/ServerTable";
 import { useLocation, history } from "@umijs/max";
-import { time } from "../catalog";
+import { statusNames, time } from "../catalog";
 export default function System() {
   return (
     <PageContainer title={false}>
@@ -25,26 +25,23 @@ export default function System() {
               <ServerTable
                 resource="audit"
                 columns={[
-                  { title: "对象或结果关键词", dataIndex: "keyword", hideInTable: true },
+                  { title: "时间", search: false, render: (_, r) => time(r.created_at) },
+                  { title: "操作人", dataIndex: "username", search: false },
                   { title: "操作", dataIndex: "operation", search: false },
+                  { title: "对象或结果关键词", dataIndex: "keyword", hideInTable: true },
                   { title: "操作筛选", dataIndex: "action", hideInTable: true, valueType: "select", valueEnum: {
                     "catalog.installAssembly": { text: "确认安装" }, "catalog.sale": { text: "确认售出" },
-                    "catalog.loseItem": { text: "登记挂失" }, "catalog.prepare": { text: "准备替换物品" },
-                    "catalog.complete": { text: "确认交付与生效" },
+                    "catalog.loseItem": { text: "登记挂失" }, "catalog.prepare": { text: "准备换新或转售" },
+                    "catalog.complete": { text: "交付确认" }, "catalog.undoInstall": { text: "纠正安装" },
+                    "catalog.issueClaimCode": { text: "首次发放认领码" }, "catalog.reissueClaimCode": { text: "核对后补发认领码" },
                   } },
                   { title: "操作人账号", dataIndex: "operator", hideInTable: true },
-                  { title: "操作人", dataIndex: "username", search: false },
                   { title: "起日（北京时间）", dataIndex: "date_from", hideInTable: true, valueType: "date" },
                   { title: "末日（北京时间）", dataIndex: "date_to", hideInTable: true, valueType: "date" },
                   {
                     title: "对象",
                     search: false,
                     render: (_, r) => <Copy value={r.object_code} onClick={r.object_exists ? () => history.push(`/items/${r.target_id}?from=${encodeURIComponent(location.pathname + location.search)}`) : undefined} />,
-                  },
-                  {
-                    title: "时间",
-                    search: false,
-                    render: (_, r) => time(r.created_at),
                   },
                   {
                     title: "结果与依据",
@@ -56,6 +53,7 @@ export default function System() {
                           <Descriptions.Item label="结果">{r.outcome || "历史结果未单独记录"}</Descriptions.Item>
                           {r.detail?.evidence && <Descriptions.Item label="核对依据">{r.detail.evidence}</Descriptions.Item>}
                           {r.detail?.work_id && <Descriptions.Item label="办理记录">{r.detail.work_id}</Descriptions.Item>}
+                          {r.detail?.candidate && <Descriptions.Item label="待交付组合">{auditSummary(r.detail.candidate)}</Descriptions.Item>}
                           {r.detail?.before && <Descriptions.Item label="操作前">{auditSummary(r.detail.before)}</Descriptions.Item>}
                           {r.detail?.after && <Descriptions.Item label="操作后">{auditSummary(r.detail.after)}</Descriptions.Item>}
                         </Descriptions>
@@ -98,6 +96,13 @@ export default function System() {
 }
 
 function auditSummary(value: Record<string, any>) {
-  const parts = [value.generation && `第 ${value.generation} 代`, value.physical_uid && `实体 ${value.physical_uid}`, value.chip_uid && `芯片 ${value.chip_uid}`, value.user_id && `持有人 U${value.user_id}`, value.lost_at && "已挂失", value.sold != null && (value.sold ? "已售出" : "未售出")];
+  const parts = [
+    statusNames[value.status], value.generation && `第 ${value.generation} 代`,
+    value.physical_uid && `实体 ${value.physical_uid}`, value.chip_uid && `芯片 ${value.chip_uid}`,
+    value.user_id && `持有人 U${value.user_id}`, value.lost_at && "已挂失",
+    value.sold != null && (value.sold ? "已售出" : "未售出"),
+    value.first_sold_at && `首次成交 ${time(value.first_sold_at)}`,
+    value.quota_review ? "换新额度待核对" : value.quota_year && value.quota_used != null && `${value.quota_year} 年换新已用 ${value.quota_used} 次`,
+  ];
   return <Typography.Text>{parts.filter(Boolean).join(" · ") || "档案已记录"}</Typography.Text>;
 }

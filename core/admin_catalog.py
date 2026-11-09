@@ -99,7 +99,7 @@ def audit_item_id(c,action,p):
 
 def audit_snapshot(c,ident):
     if ident is None:return None
-    record=row(c,'''SELECT i.item_uid,i.status,d.sold,d.first_sold_at,d.quota_used,
+    record=row(c,'''SELECT i.item_uid,i.status,d.sold,d.first_sold_at,d.quota_used,d.quota_year,d.quota_review,
                     w.generation,w.lost_at,ph.physical_uid,ch.chip_uid,o.user_id
                     FROM item i LEFT JOIN digital_item d ON d.item_id=i.id
                     LEFT JOIN whole_item w ON w.current_item_id=i.id
@@ -115,11 +115,30 @@ def audit_detail(c,action,token,p,result,before):
     current_item=after or before or {}
     code=current_item.get('item_uid') or result.get('physical_uid') or result.get('deleted_uid') or result.get('chip_uid')
     work_id=result.get('work_id')
-    summary=AUDIT_LABELS.get(action,'处理业务记录')
+    operation=AUDIT_LABELS.get(action,'处理业务记录')
+    summary=operation
+    candidate=None
+    if work_id and action in {'prepare','complete'}:
+        work=row(c,'''SELECT w.kind,w.generation,ph.physical_uid,ch.chip_uid FROM item_handover w
+                      LEFT JOIN physical_item ph ON ph.id=w.physical_item_id
+                      JOIN chip ch ON ch.id=w.chip_id WHERE w.id=%s''',(work_id,))
+    else:work=None
     if action=='installAssembly':summary=f"确认将芯片 {after['chip_uid']} 安装到实体 {after['physical_uid']}，待配置核验。"
-    if action=='complete' and after:
+    if action=='prepare' and work:
+        operation={'periodic':'准备换新','loss':'准备挂失换新','resale':'准备转售'}[work['kind']]
+        summary=f"已{operation}，第 {work['generation']} 代整套物品待交付。"
+        candidate={key:work[key] for key in ('generation','physical_uid','chip_uid')}
+    if action=='complete' and after and work:
+        operation='确认转售交付' if work['kind']=='resale' else '确认换新交付'
         summary=f"第 {after['generation']} 代已交付生效，原芯片已退役。"
-        if before and before['user_id']!=after['user_id']:summary+=f"持有人由 U{before['user_id']} 变更为 U{after['user_id']}。"
+        if work['kind']=='resale':
+            summary+=f"持有人由 U{before['user_id']} 变更为 U{after['user_id']}。"
+            if row(c,"SELECT 1 FROM digital_item_right WHERE item_id=%s AND kind='renewal'",(result['id'],)):
+                if after['quota_review'] or after['quota_year'] is None:
+                    summary+='本年换新额度待核对。'
+                else:
+                    used=renewal_usage(c,{**after,'item_id':result['id']},(now()+timedelta(hours=8)).year)
+                    summary+=f"本年换新剩余 {max(0,1-used)} 次。"
         else:summary+=f"本年换新已用 {after['quota_used']} 次。"
     if action=='sale' and after:
         sold_at=datetime.fromisoformat(after['first_sold_at']).astimezone(timezone(timedelta(hours=8))) if after['sold'] else None
@@ -127,8 +146,9 @@ def audit_detail(c,action,token,p,result,before):
     if action=='loseItem' and after:summary=f"第 {after['generation']} 代整套物品已挂失，配套芯片停止服务。"
     if action=='saleBatch':summary=f"批量{'确认' if p['confirmed'] else '撤销'}售出，共 {len(result['ids'])} 件。"
     detail={'request_id':token,'object_type':'item' if is_item else 'digital_catalog','object_code':code,
-            'operation':AUDIT_LABELS.get(action,'处理业务记录'),'summary':summary,'outcome':'已完成',
+            'operation':operation,'summary':summary,'outcome':'待交付' if candidate else '已完成',
             'before':before,'after':after,'work_id':work_id}
+    if candidate:detail['candidate']=candidate
     if p.get('evidence'):detail['evidence']=p['evidence']
     if result.get('claim_code_id'):detail.update(claim_code_id=result['claim_code_id'],expires_at=result['expires_at'],evidence=p.get('delivery_reference'))
     if result.get('deleted_uid'):detail['deleted_uid']=result['deleted_uid']
@@ -643,10 +663,11 @@ def item_action(c,action,p,*,installed_by=None):
         generation=row(c,'SELECT MAX(generation)+1 AS n FROM whole_item WHERE item_id=%s',(ident,))['n']
         actor=(installed_by or g.admin_session['admin_id']) if physical else None
         c.execute('INSERT INTO item_handover(item_id,source_id,chip_id,kind,generation,spec,owner_id,recipient_id,prepare_evidence,created_at,physical_item_id,installed_at,installed_by,seller_confirmation,recipient_confirmation,identity_verification_reference) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',(ident,e['id'],chip['id'],kind,generation,physical['spec'] if physical else text(p,'spec',256) or '',owner['user_id'],recipient,text(p,'evidence',1000,required=True),now(),physical['id'] if physical else None,now() if physical else None,actor,seller_confirmation,recipient_confirmation,identity_ref))
+        work_id=c.lastrowid
         c.execute('UPDATE chip SET project_id=%s WHERE id=%s',(i['project_id'],chip['id']))
     else:fail('操作不支持。',404,'not_found')
     c.execute('UPDATE item SET updated_at=CURRENT_TIMESTAMP WHERE id=%s',(ident,))
-    return {'id':ident}
+    return {'id':ident,'work_id':work_id} if action=='prepare' else {'id':ident}
 
 
 def available_chip(c,chip,pid):
@@ -668,7 +689,8 @@ def complete(c,p):
         if row(c,'SELECT id FROM whole_item WHERE physical_item_id=%s LIMIT 1 FOR UPDATE',(w['physical_item_id'],)):fail('候选实体已被其他装配占用。')
     c.execute('SELECT * FROM chip WHERE id IN (%s,%s) ORDER BY id FOR UPDATE',(e['chip_id'],w['chip_id']));chips={x['id']:x for x in c.fetchall()};old,new=chips[e['chip_id']],chips[w['chip_id']]
     owner=row(c,'SELECT * FROM ownership WHERE active_item_id=%s FOR UPDATE',(i['id'],))
-    if not owner or owner['user_id']!=w['owner_id'] or old['item_id']!=i['id'] or new['item_id'] is not None or new['chip_status']!='pending' or not new['provisioned_at'] or new['project_id']!=i['project_id']:fail('物品、持有人或新物品配置已变化，请重新核对。')
+    if not owner or owner['user_id']!=w['owner_id'] or old['item_id']!=i['id'] or new['item_id'] is not None or new['chip_status']!='pending' or new['project_id']!=i['project_id']:fail('物品、持有人或新物品配置已变化，请重新核对。')
+    if not new['provisioned_at']:fail('新芯片尚未通过配置核验，办理仍处于准备中。')
     if p['checked'] is not True:invalid('请明确确认整套交付及接收人。')
     evidence=text(p,'evidence',1000,required=True)
     effective_at=now()
