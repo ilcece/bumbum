@@ -1,12 +1,14 @@
 """独立 MySQL 中核对实签名触碰、账户验证与并发认领。"""
 
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
 import secrets
 import uuid
 
 import pytest
 
 from core.chip_keys import target_keys
+from core import public_account
 from tests.test_admin_auth import query
 from tests.test_admin_catalog import action, assembly, catalog, config_chip, ok
 from tests.test_admin_chips import logged_in
@@ -15,6 +17,48 @@ from tests.test_chip_keys import reading
 
 pytestmark=pytest.mark.auth_database
 ORIGIN={'Origin':'http://127.0.0.1:5175'}
+
+
+def test_aliyun_sms_rejects_other_slots_and_recipients_before_creating_challenge(auth_app, monkeypatch):
+    phone = '13900009701'
+    auth_app.config.update(
+        PUBLIC_ORIGIN=ORIGIN['Origin'], SMS_CODE_HASH_KEY=secrets.token_hex(32),
+        SMS_PROVIDER='aliyun', SMS_ALIYUN_ACCESS_KEY_ID='synthetic-id',
+        SMS_ALIYUN_ACCESS_KEY_SECRET='synthetic-secret', SMS_ALIYUN_SIGN_NAME='隔离验收签名',
+        SMS_ALIYUN_TEMPLATE_CODE='SMS_123456', SMS_ALIYUN_TEST_PHONE=phone,
+        TEST_SMS_SENDER=lambda *_: pytest.fail('不能绕回模拟发送'),
+    )
+    attempts = []
+
+    def send(_config, recipient, code):
+        attempts.append((recipient, code))
+        return len(attempts) > 1
+
+    monkeypatch.setattr(public_account, 'send_aliyun_sms', send)
+    client = auth_app.test_client()
+
+    def request_sms(recipient):
+        return client.post('/api/public/sms/send', headers=ORIGIN, json={'phone': recipient})
+
+    for slot in ('', 'production'):
+        auth_app.config['HANGZHOU_SLOT'] = slot
+        assert request_sms(phone).status_code == 503
+    auth_app.config['HANGZHOU_SLOT'] = 'test'
+    assert request_sms('13900009702').status_code == 403
+    auth_app.config['SMS_ALIYUN_TEST_PHONE'] = ''
+    assert request_sms(phone).status_code == 503
+    assert not attempts and not query(auth_app, 'SELECT bucket_key FROM security_rate_limit')
+    assert not query(auth_app, 'SELECT phone FROM user_sms_challenge')
+
+    auth_app.config['SMS_ALIYUN_TEST_PHONE'] = phone
+    assert request_sms(phone).status_code == 503
+    assert query(auth_app, 'SELECT consumed_at FROM user_sms_challenge')[0]['consumed_at'] is not None
+    auth_app.test_clock[0] += timedelta(seconds=61)
+    challenge_id = ok(request_sms(phone))['challenge_id']
+    assert [recipient for recipient, _ in attempts] == [phone, phone]
+    result = client.post('/api/public/sms/verify', headers=ORIGIN,
+                         json={'challenge_id': challenge_id, 'code': attempts[-1][1]})
+    assert ok(result)['account']['phone'] == '139****9701'
 
 
 def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_app,catalog):

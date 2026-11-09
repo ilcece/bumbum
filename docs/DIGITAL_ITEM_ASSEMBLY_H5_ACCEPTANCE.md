@@ -13,6 +13,6 @@
 ## 测试准备和执行边界
 
 - 本机已有 007 数据库时，在仓库目录用 `python -m scripts.migrate_local --assembly-h5` 先查看结构。确认是独立本机开发库且暂停写入后，用 `--assembly-h5 --apply` 启动配套备份并顺序升级 008、009。脚本输出已就绪后再启动对应应用。发现部分结构时保留现场，先核对备份。
-- 云端测试发布、RDS 与媒体备份及回退见 [杭州部署手册](HANGZHOU_DEPLOYMENT.md)。目标环境配置独立 `SMS_CODE_HASH_KEY`、`SMS_GATEWAY_URL`、`SMS_GATEWAY_TOKEN`。网关须接受 HTTPS JSON 请求 `phone`、`code` 和 `purpose`，用配置的 Bearer 凭证鉴权。由 cece 在测试环境安全配置并指定可验收的号码，真实短信与实卡各取证一次。
+- 杭州 test 可用阿里云 `SendSms`，配置和启用见 [杭州部署手册](HANGZHOU_DEPLOYMENT.md#杭州-test-阿里云短信)。只向 cece 安全填写的唯一验收号码发送；真实短信与实卡各取证一次。实卡和真实手机号用测试站的「业务数据」范围，合成批次用于后台和预览验收。
 - 用 `python -m core.acceptance_data --admin-username <测试管理员> --replace-batch <旧模拟批次ID>` 预览。仅在确定是目标测试槽、旧批次 `acceptance-v2`、已完成 SQL 和媒体备份、预览无冲突后，追加 `--apply --backup-confirmed`。清理与生成同一事务提交，结果包含被替换批次、新批次和样本清单。失败后先读取实际批次状态和冲突，再决定重试或按备份恢复。
 - 模拟样本的配置、归属和交付是合成数据。实际 NFC 验签和短信发送用已授权的测试卡和号码另验。H5 首版产品要求见 [H5 规格](proposals/digital-item-h5-mvp.md)，收费、争议处置和已核验装配的专用纠错规则按独立范围审核。

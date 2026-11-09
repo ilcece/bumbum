@@ -398,6 +398,14 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 
 只读身份/主机验证通过后，继续已批准的test数据重建，按第11/12节核对test实际部署和006/007结构，先备份再处理明确清单；真实测试卡及必要历代关系保留。2026-11-06本轮已完成test盘点、备份升级、当前分支部署及验收包灌入，证据见第12.1节；生产RDS、生产发布及main合并不在本轮授权。认证/授权拒绝停止，不循环创建会话；只定向清理自己创建的会话和进程，保留既有SSH/Tailscale。
 
+### 杭州 test 阿里云短信
+
+构建杭州 test 镜像时传 `--build-arg HANGZHOU_TEST_SMS=1` 安装 [专用依赖锁](../requirements-hangzhou-test-sms.txt)，以启用阿里云 `SendSms`。发送身份仅授权 `dysms:SendSms`，由 cece 准备可用签名、验证码模板及专用 AccessKey。现有 HTTPS 网关仍使用 `SMS_GATEWAY_URL` 和 `SMS_GATEWAY_TOKEN`，请求 JSON 包含 `phone`、`code` 和 `purpose`，使用 Bearer 凭证。
+
+从本次已核验的发布源码目录，在指定杭州 ECS 的 Workbench root 交互终端执行 `python3 -m scripts.configure_hangzhou_test_sms`。按提示填签名和模板 CODE，并隐藏输入 AccessKey ID、Secret 和自己的中国大陆手机号。程序只写 test 的私有 `runtime.env`，已存在的有效 `SMS_CODE_HASH_KEY` 会保留，首次配置在服务器内随机生成。加载新版 test 后端后，检查真实短信、碰卡认领及「我的数字物品」。账号未获授权、签名模板未就绪或实际发送失败时，保留错误并核对发送记录。凭据和手机号不进入命令参数、聊天或日志。
+
+仅 `HANGZHOU_SLOT=test` 且 `SMS_PROVIDER=aliyun` 时启用。未配置或使用其他槽位时，该发送路径拒绝。唯一号码白名单在创建短信挑战之前检查。阿里云业务结果为 `OK` 时才返回发送受理成功，网络错误不自动重发。
+
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
 ### 4.1 在 RDS 控制台核对网络与权限

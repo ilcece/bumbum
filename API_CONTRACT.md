@@ -534,7 +534,7 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 | 入口 | 条件与返回 |
 |---|---|
-| `POST /api/public/sms/send` | 传 `phone`，成功返回 `challenge_id` 和重发间隔。单一手机号至少间隔 60 秒，网关不可用时返回 503。 |
+| `POST /api/public/sms/send` | 传 `phone`，成功返回 `challenge_id` 和重发间隔。单一手机号至少间隔 60 秒，发送服务不可用时返回 503。杭州 test 使用阿里云适配时，白名单外号码返回 403 `sms_recipient_not_allowed`，不生成短信挑战。 |
 | `POST /api/public/sms/verify` | 传 `challenge_id`、`code`。成功建立会话，返回稳定账户 UID 和脱敏手机号。 |
 | `GET /api/public/account/session`、`POST /api/public/account/logout` | 读取本人会话，或用空 JSON 对象注销当前会话。 |
 | `POST /api/public/items/{id}/claim` | 传 `tap_token`、`claim_code`，同时验证用户会话及当前装配。成功建立持有关系、记录历史并核销凭证。旧碰卡返回 `retap_required`，旧码或过期按状态提示。 |

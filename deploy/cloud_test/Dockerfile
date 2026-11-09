@@ -20,8 +20,15 @@ RUN npm run build
 FROM python:3.12.14-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY requirements-deploy.txt ./
-RUN --mount=type=secret,id=proxy_ca,required=true PIP_CERT=/run/secrets/proxy_ca pip install --no-cache-dir -r requirements-deploy.txt
+COPY requirements-deploy.txt requirements-hangzhou-test-sms.txt ./
+ARG HANGZHOU_TEST_SMS=0
+RUN --mount=type=secret,id=proxy_ca,required=true \
+    export PIP_CERT=/run/secrets/proxy_ca; \
+    if [ "$HANGZHOU_TEST_SMS" = 1 ]; then \
+        pip install --no-cache-dir -r requirements-deploy.txt -r requirements-hangzhou-test-sms.txt; \
+    else \
+        pip install --no-cache-dir -r requirements-deploy.txt; \
+    fi
 COPY app.py ./
 COPY core/ ./core/
 COPY db/ ./db/

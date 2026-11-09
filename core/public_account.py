@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from datetime import timedelta
+from functools import partial
 import hmac
 import json
 import os
@@ -14,6 +15,7 @@ from flask import Blueprint, Response, current_app, jsonify, request
 import pymysql
 
 from core.admin_auth import AuthRequestError, request_json, token_hash
+from core.aliyun_sms import ALIYUN_SMS_SETTINGS, MAINLAND_PHONE, send_aliyun_sms, valid_settings
 from core.auth_settings import client_ip, fingerprint, iso_time, secret_key, utc_now
 from core.db import get_database
 from core.tap_grants import public_settings
@@ -83,11 +85,7 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def send_code(phone, code):
-    sender = current_app.config.get('TEST_SMS_SENDER') if current_app.testing else None
-    if sender:
-        sender(phone, code)
-        return
+def send_gateway_code(phone, code):
     url = current_app.config['SMS_GATEWAY_URL']
     token = current_app.config['SMS_GATEWAY_TOKEN']
     target = urlsplit(url)
@@ -100,11 +98,27 @@ def send_code(phone, code):
             fail(503, 'sms_unavailable', '短信发送未完成，请稍后重试。')
 
 
+def sms_delivery(phone):
+    config = current_app.config
+    provider = config['SMS_PROVIDER']
+    if provider == 'aliyun':
+        if config['HANGZHOU_SLOT'] != 'test' or not valid_settings(config):
+            fail(503, 'sms_unavailable', '短信服务暂未就绪。')
+        if phone != config['SMS_ALIYUN_TEST_PHONE']:
+            fail(403, 'sms_recipient_not_allowed', '该手机号未获本次测试授权。')
+        return partial(send_aliyun_sms, config, phone)
+    if provider != 'gateway':
+        fail(503, 'sms_unavailable', '短信服务暂未就绪。')
+    sender = config.get('TEST_SMS_SENDER') if current_app.testing else None
+    return partial(sender or send_gateway_code, phone)
+
+
 @blueprint.post('/sms/send')
 def sms_send():
     phone = request_json({'phone'}, max_bytes=1024)['phone']
-    if not isinstance(phone,str) or not re.fullmatch(r'1[3-9][0-9]{9}',phone):
+    if not isinstance(phone,str) or not re.fullmatch(MAINLAND_PHONE,phone):
         fail(400,'invalid_param','请输入有效的中国大陆手机号。')
+    deliver = sms_delivery(phone)
     limited('sms-ip', client_ip(), 6)
     limited('sms-phone', phone, 1)
     challenge = secrets.token_hex(16)
@@ -114,7 +128,8 @@ def sms_send():
     with transaction() as c:
         c.execute('INSERT INTO user_sms_challenge(phone,challenge_id,code_hash,expires_at) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE challenge_id=VALUES(challenge_id),code_hash=VALUES(code_hash),expires_at=VALUES(expires_at),consumed_at=NULL,failed_attempts=0',(phone,challenge,digest,expires))
     try:
-        send_code(phone,code)
+        if deliver(code) is False:
+            fail(503, 'sms_unavailable', '短信发送未完成，请稍后重试。')
     except Exception:
         with transaction() as c:
             c.execute('UPDATE user_sms_challenge SET consumed_at=%s WHERE challenge_id=%s',(utc_now(),challenge))
@@ -331,6 +346,7 @@ def my_image(item_id,asset_id):
 
 
 def init_public_account(app):
-    for name in ('SMS_CODE_HASH_KEY','SMS_GATEWAY_URL','SMS_GATEWAY_TOKEN'):
+    app.config.setdefault('SMS_PROVIDER', os.getenv('SMS_PROVIDER', 'gateway'))
+    for name in ('SMS_CODE_HASH_KEY','SMS_GATEWAY_URL','SMS_GATEWAY_TOKEN', *ALIYUN_SMS_SETTINGS):
         app.config.setdefault(name,os.getenv(name,''))
     app.register_blueprint(blueprint)
