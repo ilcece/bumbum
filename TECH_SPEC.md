@@ -4,13 +4,13 @@
 
 ## 1. 各部分负责什么
 
-管理后台组件库已确定为Ant Design，采用antd 6官方组件、本次Make展示组合及官方交互模式，原则见[A提案复用约定](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)；当前任务分支已迁移，人工验收与main/部署状态见TODO。锁定版本、React兼容性及依赖调整见技术方案；正式管理端使用Umi Max/Ant Design Pro，既有认证保留，用户H5独立设计。
+管理后台组件库已确定为Ant Design，采用antd 6官方组件、本次Make展示组合及官方交互模式，原则见[后台设计与交互规范](docs/ADMIN_UI_GUIDELINES.md)；当前任务分支已迁移，人工验收与main/部署状态见TODO。锁定版本、React兼容性及依赖调整见技术方案；正式管理端使用Umi Max/Ant Design Pro，既有认证保留，用户H5独立设计。
 
-组件版本和A完整范围见[批准技术方案](docs/proposals/admin-management-implementation.md)，图片恢复门槛保留，固定React19独立组件矩阵已按cece决定取消；历史验证证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品列表、同字段详情/编辑、连续创建及Upload已接入；人工验收、合并与部署进度见TODO。
+组件版本和A完整范围见[后台工程说明](docs/proposals/admin-rebuild-implementation.md)，图片恢复门槛保留，固定React19独立组件矩阵已按cece决定取消；历史验证证据在CHANGELOG。芯片查询、详情和批次维护已按下文及API第3节交付；物品扩展查询、普通资料原子保存、私有图片及升级工具已接入后端，管理端物品列表、同字段详情/编辑、连续创建及Upload已接入；人工验收、合并与部署进度见TODO。
 
 图片配套恢复门槛保留；媒体后端使用005及[离线备份模块](core/media_backup.py)，实现边界见[附录第9节](docs/IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)，字段/图片契约见[API第4节](API_CONTRACT.md#4-管理物品)。原生SQL还原与文件还原分开，不依赖上传服务在线。生产上传默认关闭，隔离检查不等于真实目标备份或生产启用前提已满足。
 
-现有chip.item_id唯一、停用/丢失仍占关联，支持首次绑定；历史载体与当前授权、资格永久撤销是[D提案](docs/proposals/replacement-resale.md)待设计的技术缺口。生产验证清理及纠错分别看[B](docs/proposals/production-validation-cleanup.md)、[C](docs/proposals/chip-correction.md)，本文件不另复制待审业务细则，也不解除现有约束。
+现有 `chip.item_id` 唯一，停用或挂失时按状态保留当前关联。测试分支的整套物品接续、历史和验证批次能力见 [接口契约](API_CONTRACT.md#11-数字档案管理与整套物品当前分支)。独立实体、装配和 H5 的增量方案见 [待审技术稿](docs/proposals/digital-item-assembly-h5-technical.md)。
 
 | 部分 | 使用的工具 | 大白话解释 |
 |---|---|---|
@@ -66,7 +66,7 @@
 
 管理员登录后填写UID，项目和批次可空；项目默认“暂不分配”，新增记录为待绑定。相同UID重复提交返回原记录，不分配、清空或覆盖原项目、批次、状态或绑定。只有原项目非空且本次明确选择另一个项目才拒绝，提示原记录未修改。新登记和操作记录一起保存，有一步失败就撤销。列表能显示和筛选“未分配”。登记不生成密钥、不写卡、不证明芯片真伪；手机入口见第2.5节，手动登记验收步骤见 [芯片登记](docs/CHIP_REGISTRATION.md)。
 
-芯片查询、按ID详情和批次维护使用[API第3节](API_CONTRACT.md#3-管理芯片已实现)契约及[产品规则](docs/product/chip-lifecycle.md#1-芯片登记与首次来源)。读列表使用同一只读一致性快照计数/分页；普通批次写入按管理员→会话→芯片重查并与最小审计原子提交，不反向锁物品、不改变绑定或密钥事务。前端使用原生兼容React 19的Ant Design 6和React Router，不再加载v5补丁；原型不作为样式规范。A余下实施范围见[批准方案](docs/proposals/admin-management-implementation.md)。
+芯片查询、按ID详情和批次维护使用[API第3节](API_CONTRACT.md#3-管理芯片已实现)契约及[产品规则](docs/product/chip-lifecycle.md#1-芯片登记与首次来源)。读列表使用同一只读一致性快照计数/分页；普通批次写入按管理员→会话→芯片重查并与最小审计原子提交，不反向锁物品、不改变绑定或密钥事务。测试分支的管理端依赖和迁移范围见 [后台工程说明](docs/proposals/admin-rebuild-implementation.md)，正式样式以 [后台设计与交互规范](docs/ADMIN_UI_GUIDELINES.md) 为准。
 
 ### 2.5 手机扫描后自动登记
 

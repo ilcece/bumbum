@@ -5,11 +5,7 @@ status: review
 
 # A：维护与查询：兼容入口
 
-本文件不再维护独立业务正文。当前分支提案已按cece要求聚合为[管理后台重构方案](admin-make-rebuild.md)，本轮重新审核；原有已确认原则与待审政策分别承接，不因合并全部通过或全部撤回。
-
-当前内容：[主要承接章节](admin-make-rebuild.md#architecture) · [字段/设计/工程边界](../ADMIN_UI_GUIDELINES.md)。
-
-[查看聚合前历史原文](../archive/admin-management-update-2026-11-05.md)。旧章节定位保留供既有链接使用，不代表旧菜单、长履约流程或Vite推荐继续作为新版目标。已实现规则仍以product/API/技术规范为准。
+此页保留旧地址和章节定位。[历史原文](../archive/admin-management-update-2026-11-05.md)与其他旧材料见 [归档索引](../archive/README.md#admin-history)。在用方案从 [产品导航](../../PRD.md) 查阅。
 
 <details>
 <summary>旧章节定位，仅兼容链接</summary>

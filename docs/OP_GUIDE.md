@@ -23,14 +23,13 @@
 
 ## 历史手册（不执行）
 
-[香港云测试归档](archive/cloud-test-deployment.md)保留手机回调、公开用户页、重启及恢复的历史证据；香港ECS已释放，不用于杭州部署或回退。旧[CLOUD_TEST_DEPLOYMENT入口](CLOUD_TEST_DEPLOYMENT.md)继续承接旧链接；deploy/cloud_test模板仍被杭州工具复用。
+[香港云测试归档](archive/cloud-test-deployment.md)保留手机回调、公开用户页、重启及恢复的历史证据；香港 ECS 已释放。历史手册及复盘从 [归档索引](archive/README.md#ops-history) 查阅；杭州仍复用 `deploy/cloud_test` 模板。
 
 ## 技术参考：让 AI 实现时查
 
 | 文件 | 负责什么 |
 |---|---|
 | [技术附录](IMPLEMENTATION_DETAILS.md) | 固定参数、保存规则、加密和网站入口示例；配合 TECH_SPEC 阅读 |
-| [项目优先级与过度工程化复盘](PROJECT_PRIORITY_AND_OVERENGINEERING_REVIEW.md) | 优先级、范围扩张或必要性判断时按需追溯相关事实与纠正依据；不是纯执行任务的固定前置阅读，条件统一见AGENTS第0.5节 |
 | [Figma 协作](FRONTEND_COLLABORATION.md) | 逐页接设计，保留真实接口、登录和错误处理 |
 
 产品、接口和表结构的定义文件见 [项目入口](../README.md#每个文件管什么)。当前任务与优先级只在 [TODO](../TODO.md) 维护，历史决定与检查结果只在 [CHANGELOG](../CHANGELOG.md) 记录。

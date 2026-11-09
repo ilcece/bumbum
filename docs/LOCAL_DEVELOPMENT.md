@@ -462,7 +462,7 @@ Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction Si
 
 ## 13. 图片备份与离线恢复门槛
 
-本节复现[A技术方案](proposals/admin-management-implementation.md)保留的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
+本节复现[后台工程说明](proposals/admin-rebuild-implementation.md#6-保留图片配套备份恢复门槛)中的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
 
 在`frontend/admin`目录可执行以下官方检查；成功应显示doctor无失败、弃用检查无问题，不能代替实际业务验证。API查询显式指定当前antd版本，若失败先检查npm ci是否完成及Node版本。
 

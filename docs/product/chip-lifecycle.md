@@ -112,4 +112,4 @@ status: approved
 
 ## 4. 未交付动作与专用处理
 
-芯片临时停用/恢复仍属既定后续需求，不能把物品启停当作芯片启停；规则入口见[后续范围](../../PRD.md#3-既定后续范围与未验证候选)。身份错填或误绑定走[C提案](../proposals/chip-correction.md)，必要生产验证退出走[B提案](../proposals/production-validation-cleanup.md)，挂失换新与转售走[D提案](../proposals/replacement-resale.md)。这些动作不得通过普通字段编辑或直接改库替代；当前尚无完整实现。
+芯片临时停用/恢复仍属既定后续需求，不能把物品启停当作芯片启停；规则入口见[后续范围](../../PRD.md#3-既定后续范围与未验证候选)。身份错填、误绑定及生产验证数据清理见 [清理与纠错方案](../proposals/admin-make-rebuild.md#26-清理纠错和旧资料补齐)，挂失、换新与转售见 [核心流程](../proposals/admin-make-rebuild.md#flows)。这些动作走专用入口，实际交付范围以 [接口概览](../../API_CONTRACT.md#04-当前能做到哪一步) 为准。
