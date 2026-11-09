@@ -30,7 +30,7 @@ server {
         if ($request_method !~ ^(GET|HEAD)$) { return 405; }
         try_files /index.html =404;
     }
-    location ~ ^/tap/items/[1-9][0-9]*$ {
+    location ~ ^/(tap/items/[1-9][0-9]*|mine(/items/[1-9][0-9]*)?)$ {
         if ($request_method !~ ^(GET|HEAD)$) { return 405; }
         try_files /index.html =404;
     }
@@ -57,6 +57,22 @@ server {
         proxy_pass http://127.0.0.1:15000;
         include /etc/nginx/bumbum-cloud-test-proxy.conf;
     }
+    location ~ ^/api/public/(sms/(send|verify)|account/logout|items/[1-9][0-9]*/claim)$ {
+        if ($request_method != POST) { return 405; }
+        limit_req zone=bumbum_user_view burst=10 nodelay;
+        limit_req_status 429;
+        error_page 429 = @user_limited;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location ~ "^/api/public/(account/session|items/[1-9][0-9]*/claim-status|me/items(/[1-9][0-9]*(/images/[a-f0-9]{32})?)?)$" {
+        if ($request_method != GET) { return 405; }
+        limit_req zone=bumbum_user_image burst=40 nodelay;
+        limit_req_status 429;
+        error_page 429 = @user_limited;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
     location @user_limited {
         default_type application/json;
         add_header Retry-After "1" always;
@@ -69,6 +85,6 @@ server {
         default_type application/json;
         return 400 '{"status":"error","code":"invalid_param","message":"提交内容过大"}';
     }
-    # 包括/api/admin、旧详情、短信、登记回调及未知静态路径，一律不经此站点开放。
+    # 管理接口、旧详情、登记回调及未知地址仍由默认规则拒绝。
     location / { return 404; }
 }

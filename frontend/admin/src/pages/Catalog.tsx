@@ -127,16 +127,6 @@ function IssueFields() {
       >
         <Input.TextArea rows={3} maxLength={4000} />
       </Form.Item>
-      <Form.Item name="rights" label="适用权益">
-        <Select
-          mode="multiple"
-          placeholder="请选择"
-          options={[
-            { value: "renewal", label: "换新" },
-            { value: "resale", label: "转售" },
-          ]}
-        />
-      </Form.Item>
     </>
   );
 }
@@ -423,7 +413,6 @@ export default function Catalog() {
                     }
                   : {
                       mode: "fixed",
-                      rights: [],
                       style_id: q.get("style_id")
                         ? Number(q.get("style_id"))
                         : undefined,
@@ -498,16 +487,6 @@ export default function Catalog() {
               </Descriptions.Item>
               <Descriptions.Item label="发行说明与承诺" span={2}>
                 {editor.record.description || "未填写"}
-              </Descriptions.Item>
-              <Descriptions.Item label="适用权益" span={2}>
-                {editor.record.rights
-                  ?.map(
-                    (r: string) =>
-                      ({ renewal: "换新", resale: "转售" })[
-                        r as "renewal" | "resale"
-                      ] || r,
-                  )
-                  .join("、") || "未约定"}
               </Descriptions.Item>
               {editor.record.mode === "period" && (
                 <>

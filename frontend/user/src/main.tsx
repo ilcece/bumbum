@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { ApiError, readView, verify, type ItemView, type Reading } from "./api";
 import { ImageGallery } from "./ImageGallery";
+import { ClaimPanel, MyItemsPage } from "./AccountPages";
+import { itemFacts } from "../../shared/itemPresentation";
 import "./style.css";
 
 // 在加载任何外部图片之前移除触碰参数，只在当前内存中保留到本次请求结束。
@@ -30,7 +32,8 @@ function entry(): { reading?: Reading; id?: number; invalid?: boolean } {
     return { id: Number(match[1]) };
   return {};
 }
-const initial = entry();
+const mine = /^\/mine(?:\/items\/([1-9][0-9]*))?\/?$/.exec(location.pathname);
+const initial = mine ? {} : entry();
 const format = (value: string) =>
   new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
@@ -52,6 +55,7 @@ function Help() {
 function App() {
   const [target, setTarget] = useState<number | null>(initial.id || null);
   const [data, setData] = useState<ItemView | null>(null);
+  const [tapToken, setTapToken] = useState<string>();
   const latest = useRef<ItemView | null>(null);
   const [mode, setMode] = useState<
     "loading" | "entry" | "view" | "error" | "unsupported"
@@ -86,6 +90,7 @@ function App() {
         history.replaceState(null, "", `/tap/items/${result.item_id}`);
         latest.current = result;
         setData(result);
+        setTapToken(result.tapToken);
         setMode("view");
         setTarget(result.item_id);
       })
@@ -251,7 +256,7 @@ function App() {
       <header className="brand">
         <span className="brand-mark">b.</span>
         <strong>BUMBUM</strong>
-        <span className="brand-caption">物品数字档案</span>
+        <a className="brand-caption" href="/mine">我的数字物品</a>
       </header>
       <main>
         {mode === "entry" && (
@@ -319,6 +324,10 @@ function App() {
               <p className="eyebrow">服装档案</p>
               <h1>{data.profile.name}</h1>
               <p className="item-uid">物品编号 {data.item_uid}</p>
+              {itemFacts(data).map((fact) => (
+                <section className="profile-section" key={fact.label}><h2>{fact.label}</h2><p>{fact.value}</p></section>
+              ))}
+              <ClaimPanel key={data.item_id} item={data} tapToken={tapToken} />
               {(
                 [
                   ["材质", data.profile.material],
@@ -347,4 +356,4 @@ function App() {
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(mine ? <MyItemsPage itemId={mine[1] ? Number(mine[1]) : undefined} /> : <App />);

@@ -1,5 +1,6 @@
 import { dataScope, testBatch } from "./testDataMode";
 import { request, ApiError } from "./api";
+import type { ItemFacts } from "../../shared/itemPresentation";
 export type Row = { id: number; [key: string]: any };
 export type Page = {
   items: Row[];
@@ -13,7 +14,7 @@ export async function list(
 ): Promise<Page> {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(
-    ["styles", "issues", "items", "chips", "users"].includes(resource)
+    ["styles", "issues", "items", "chips", "users", "physical-items"].includes(resource)
       ? { ...params, ...dataScope() }
       : params,
   ))
@@ -22,6 +23,8 @@ export async function list(
 }
 export const read = (resource: string, id: number): Promise<Row> =>
   request(`/admin/catalog/${resource}/${id}`);
+export const h5Preview = (id: number): Promise<Row & ItemFacts> =>
+  request(`/admin/catalog/items/${id}/h5-preview`);
 export const command = (
   action: string,
   payload: Record<string, any>,

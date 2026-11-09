@@ -1,7 +1,7 @@
 """原型审查整改的业务回归：自由编号、事实时间和候选资格。"""
 from datetime import timedelta
 import pytest
-from tests.test_admin_catalog import catalog, action, ok, owner
+from tests.test_admin_catalog import catalog, action, assembly, ok, owner
 from tests.test_admin_auth import query
 from tests.test_admin_chips import logged_in
 
@@ -51,7 +51,8 @@ def test_eligible_candidates_and_optional_spec_keep_protection(auth_app,catalog)
     query(auth_app,'UPDATE chip SET project_id=%s WHERE id=%s',(jewelry,chips[1]))
     candidates=s[0].get('/api/admin/catalog/chips?available=true&compatible_project=fashion').json['data']['items']
     assert chips[0] in {x['id'] for x in candidates} and chips[1] not in {x['id'] for x in candidates}
-    ok(action(s,'bind',{'item_id':i,'chip_id':chips[0]}))
+    ok(action(s,'style',{'id':style,'project':'fashion','code':'CAP','name':'通用限量帽子','specs':[],'image_urls':[],'shared_confirmed':True}))
+    ok(action(s,'installAssembly',{'item_id':i,**assembly(s,style,chips[0],'')}))
     assert query(auth_app,'SELECT spec FROM whole_item WHERE item_id=%s',(i,))[0]['spec']==''
     assert i not in {x['id'] for x in s[0].get('/api/admin/catalog/items?bindable=true').json['data']['items']}
     assert action(s,'bind',{'item_id':i,'chip_id':chips[1]}).status_code==409

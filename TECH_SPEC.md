@@ -10,7 +10,7 @@
 
 图片配套恢复门槛保留；媒体后端使用005及[离线备份模块](core/media_backup.py)，实现边界见[附录第9节](docs/IMPLEMENTATION_DETAILS.md#9-服装资料与启停实现)，字段/图片契约见[API第4节](API_CONTRACT.md#4-管理物品)。原生SQL还原与文件还原分开，不依赖上传服务在线。生产上传默认关闭，隔离检查不等于真实目标备份或生产启用前提已满足。
 
-现有 `chip.item_id` 唯一，停用或挂失时按状态保留当前关联。测试分支的整套物品接续、历史和验证批次能力见 [接口契约](API_CONTRACT.md#11-数字档案管理与整套物品当前分支)。独立实体、装配和 H5 的增量方案见 [待审技术稿](docs/proposals/digital-item-assembly-h5-technical.md)。
+现有 `chip.item_id` 唯一，停用或挂失时按状态保留当前关联。测试分支的整套物品接续、历史和验证批次能力见 [接口契约](API_CONTRACT.md#11-数字档案管理与整套物品当前分支)。独立实体、装配和 H5 的增量方案见 [已审核技术方案](docs/proposals/digital-item-assembly-h5-technical.md)。
 
 | 部分 | 使用的工具 | 大白话解释 |
 |---|---|---|

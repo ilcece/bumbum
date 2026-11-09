@@ -20,4 +20,6 @@ def test_007_backup_first_repeat_noop_and_partial_refused(auth_app):
             c.execute('ALTER TABLE test_batch_object RENAME COLUMN batch_id TO unknown_batch')
             assert schema(c)=='unknown'
         with pytest.raises(CatalogMigrationError):migrate(conn,lambda:pytest.fail('部分结构不升级'))
-        with conn.cursor() as c:c.execute('ALTER TABLE test_batch_object RENAME COLUMN unknown_batch TO batch_id')
+        with conn.cursor() as c:
+            c.execute('ALTER TABLE test_batch_object RENAME COLUMN unknown_batch TO batch_id')
+            c.execute("ALTER TABLE test_batch_object MODIFY kind ENUM('style','issue','item','chip','user','scan','physical') NOT NULL")

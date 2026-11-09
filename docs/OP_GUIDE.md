@@ -27,6 +27,8 @@
 
 ## 技术参考：让 AI 实现时查
 
+本次测试分支的装配、权益、审计、H5、预览和批次替换按 [数字物品验收清单](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) 检查。
+
 | 文件 | 负责什么 |
 |---|---|
 | [技术附录](IMPLEMENTATION_DETAILS.md) | 固定参数、保存规则、加密和网站入口示例；配合 TECH_SPEC 阅读 |

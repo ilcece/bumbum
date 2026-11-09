@@ -21,6 +21,7 @@ from core.registration_migration import migrate as migrate_source, SourceMigrati
 from core.view_migration import migrate as migrate_view, ViewMigrationError
 from core.testdata_migration import schema as testdata_schema, migrate as migrate_testdata
 from core.catalog_migration import catalog_schema, migrate as migrate_catalog, CatalogMigrationError
+from core.assembly_migration import schema as assembly_schema, migrate as migrate_assembly
 from core.media_migration import migrate as migrate_media, MediaMigrationError
 
 MIGRATIONS = {
@@ -149,6 +150,7 @@ def main():
     parser.add_argument("--apply", action="store_true", help="完整备份成功后执行升级")
     parser.add_argument("--rollback", action="store_true", help="回退此项结构；已有未分配芯片时拒绝")
     parser.add_argument("--test-batches", action="store_true", help="检查验收批次007；先完成006，apply前完整备份")
+    parser.add_argument("--assembly-h5", action="store_true", help="检查实体装配008和认领009；先完成007，apply前完整备份")
     parser.add_argument("--digital-catalog", action="store_true", help="检查数字档案006；配合--apply先备份后升级")
     parser.add_argument("--media-assets", action="store_true", help="检查媒体005结构；配合--apply先备份再新增表")
     parser.add_argument("--view-grants", action="store_true", help="检查浏览器持续查看资格；配合--apply先备份再升级")
@@ -156,6 +158,8 @@ def main():
     parser.add_argument("--registration-source", action="store_true", help="检查首次登记来源；配合--apply先备份再升级")
     parser.add_argument("--backup-dir", type=Path, help="可选的私有备份目录；Windows默认LOCALAPPDATA下Bumbum/backups，其他系统默认仓库backups；只在确需升级时创建备份")
     args = parser.parse_args()
+    if args.assembly_h5 and (args.test_batches or args.digital_catalog or args.rollback or args.media_assets or args.view_grants or args.tap_events or args.registration_source):
+        parser.error("008/009升级单独运行。")
     if args.test_batches and (args.digital_catalog or args.rollback or args.media_assets or args.view_grants or args.tap_events or args.registration_source):
         parser.error("007升级不与其他升级混用。")
     if args.digital_catalog and (args.rollback or args.media_assets or args.view_grants or args.tap_events or args.registration_source):
@@ -168,7 +172,7 @@ def main():
         parser.error("触碰日志升级不与回退或来源升级混用。")
     if args.registration_source and args.rollback:
         parser.error("来源升级不支持此回退参数；旧版本可保留新增字段运行。")
-    inspect_schema = testdata_schema if args.test_batches else catalog_schema if args.digital_catalog else media_asset_schema if args.media_assets else view_grant_schema if args.view_grants else tap_event_schema if args.tap_events else registration_source_schema if args.registration_source else chip_project_schema
+    inspect_schema = assembly_schema if args.assembly_h5 else testdata_schema if args.test_batches else catalog_schema if args.digital_catalog else media_asset_schema if args.media_assets else view_grant_schema if args.view_grants else tap_event_schema if args.tap_events else registration_source_schema if args.registration_source else chip_project_schema
     try:
         from app import create_app
         app = create_app()
@@ -185,6 +189,8 @@ def main():
                     labels = {"required": "需要升级：芯片项目目前必填。", "optional": "已是新版本：芯片项目可以暂不分配。"}
                     if args.test_batches:
                         labels = {"missing":"需要升级：缺少验收批次007。", "ready":"验收批次007已就绪。"}
+                    if args.assembly_h5:
+                        labels = {"missing":"需要升级：缺少实体装配008与H5认领009。", "assembly":"实体装配008已完成，待升级H5认领009。", "ready":"装配与H5认领结构已就绪。"}
                     if args.digital_catalog:
                         labels = {"missing":"需要升级：缺少数字档案006。", "ready":"数字档案006已就绪。"}
                     if args.registration_source:
@@ -208,13 +214,13 @@ def main():
                 raise MigrationError("配置连接的数据库与Docker容器不一致，未执行操作。")
             stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
             folder = backup_directory(args.backup_dir)
-            destination = folder / f"before-{'media-assets' if args.media_assets else 'view-grants' if args.view_grants else 'tap-events' if args.tap_events else 'chip-source' if args.registration_source else 'chip-project'}-{stamp}-{uuid.uuid4().hex[:8]}.sql"
+            destination = folder / f"before-{'assembly-h5' if args.assembly_h5 else 'media-assets' if args.media_assets else 'view-grants' if args.view_grants else 'tap-events' if args.tap_events else 'chip-source' if args.registration_source else 'chip-project'}-{stamp}-{uuid.uuid4().hex[:8]}.sql"
 
             def backup():
                 backup_database(command, container, destination)
                 print("完整备份已保存到：" + str(destination))
 
-            changed = migrate_testdata(connection, backup) if args.test_batches else migrate_catalog(connection, backup) if args.digital_catalog else migrate_media(connection, backup) if args.media_assets else migrate_view(connection, backup) if args.view_grants else migrate_tap(connection, backup) if args.tap_events else migrate_source(connection, backup) if args.registration_source else migrate(connection, backup, rollback=args.rollback)
+            changed = migrate_assembly(connection, backup) if args.assembly_h5 else migrate_testdata(connection, backup) if args.test_batches else migrate_catalog(connection, backup) if args.digital_catalog else migrate_media(connection, backup) if args.media_assets else migrate_view(connection, backup) if args.view_grants else migrate_tap(connection, backup) if args.tap_events else migrate_source(connection, backup) if args.registration_source else migrate(connection, backup, rollback=args.rollback)
             print("升级完成，原有账号和芯片资料保留。" if changed and not args.rollback else "回退完成。" if changed else "已是目标版本，无需重复执行。")
             return 0
     except (MigrationError, SourceMigrationError, TapMigrationError, ViewMigrationError, MediaMigrationError, CatalogMigrationError) as error:

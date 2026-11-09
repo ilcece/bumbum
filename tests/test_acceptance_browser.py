@@ -52,7 +52,7 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     pending=query(desktop.app,"SELECT id FROM product_issue WHERE mode='period' AND confirmed_at IS NOT NULL AND sealed_at IS NULL LIMIT 1")[0]['id']
     p.goto(f'http://localhost:5174/catalog/issue/{pending}',wait_until='networkidle')
     expect(p.get_by_text('待核定',exact=True)).to_be_visible()
-    expect(p.get_by_text('适用权益',exact=True)).to_be_visible()
+    expect(p.get_by_text('适用权益',exact=True)).to_have_count(0)
     expect(p.get_by_text('预估数量',exact=True)).to_have_count(0)
     p.screenshot(animations='disabled',path='test-results/key-review/04-issue-final.png',full_page=True)
     unlimited=query(desktop.app,"SELECT id FROM product_issue WHERE mode='unlimited' LIMIT 1")[0]['id']

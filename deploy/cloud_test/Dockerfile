@@ -5,6 +5,7 @@ WORKDIR /src
 COPY frontend/admin/package.json frontend/admin/package-lock.json ./
 RUN --mount=type=secret,id=proxy_ca,required=true NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca npm ci --strict-ssl=true
 COPY frontend/admin/ ./
+COPY frontend/shared/ /shared/
 RUN npm run build
 
 # 用户页独立构建及导出，不覆盖管理页的入口和资源。
@@ -13,6 +14,7 @@ WORKDIR /user-src
 COPY frontend/user/package.json frontend/user/package-lock.json ./
 RUN --mount=type=secret,id=proxy_ca,required=true NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca npm ci --strict-ssl=true
 COPY frontend/user/ ./
+COPY frontend/shared/ /shared/
 RUN npm run build
 
 FROM python:3.12.14-slim-bookworm

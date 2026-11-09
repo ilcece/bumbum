@@ -1,18 +1,19 @@
 """仅测试目标的真实照片验收包；默认预览，清理后可重建，不改既有业务。"""
 import argparse
-from datetime import timedelta
+from datetime import datetime, timedelta
 import hashlib
 import json
 from pathlib import Path
+import secrets
 import sys
 import uuid
 
 import pymysql
 
 from core.catalog_testdata import validate_test_target
-from core.test_batches import mark
+from core.test_batches import cleanup, mark, preview
 
-PACK = 'acceptance-v2'
+PACK = 'acceptance-v3-assembly-h5'
 SCENARIOS = ['待配套', '待配置', '已准备未启用', '启用未售出', '售出未认领',
              '已有持有人', '整套挂失', '换新准备中', '换新完成', '转售完成',
              '零触碰', '售出前后触碰', '物品与芯片已停用', '挂失换新准备中']
@@ -21,7 +22,7 @@ SCENARIOS = ['待配套', '待配置', '已准备未启用', '启用未售出', 
 def catalog():
     """只读取已查看并固定摘要的公开照片，灌入过程不联网。"""
     folder = Path(__file__).with_name('acceptance_assets')
-    result = json.loads((folder / 'catalog.json').read_text())
+    result = json.loads((folder / 'catalog.json').read_text(encoding='utf-8'))
     for record in result:
         photo = record['photo']
         path = folder / photo['file']
@@ -30,8 +31,8 @@ def catalog():
     return result
 
 
-def seed(connection, username, *, apply=False):
-    from core.admin_catalog import style_save, issue_save, issue_action, create_item, item_action, chip_action, complete, now, row
+def seed(connection, username, *, apply=False, replace_batch=None):
+    from core.admin_catalog import style_save, issue_save, issue_action, create_item, create_physical, item_action, chip_action, complete, now, row
     records = catalog()
     connection.begin()
     try:
@@ -45,12 +46,21 @@ def seed(connection, username, *, apply=False):
                 raise ValueError('请使用已有且启用验证器的管理员。')
             c.execute("SELECT * FROM test_batch WHERE JSON_UNQUOTE(JSON_EXTRACT(manifest,'$.pack'))=%s AND status='active' ORDER BY id DESC LIMIT 1 FOR UPDATE", (PACK,))
             existing = c.fetchone()
+            old_preview=None
+            if replace_batch is not None:
+                old=row(c,'SELECT manifest FROM test_batch WHERE id=%s FOR UPDATE',(replace_batch,))
+                manifest=json.loads(old['manifest']) if old else {}
+                if manifest.get('synthetic') is not True or manifest.get('pack')!='acceptance-v2':
+                    raise ValueError('仅可替换明确的旧模拟验收包 acceptance-v2。')
+                old_preview=preview(c,replace_batch)
             if existing:
+                if old_preview and old_preview['status']!='deleted':raise ValueError('已有活动新版验收批次；请先核对旧批次和新版的用途。')
                 connection.rollback()
                 return {'reused': True, 'batch_id': existing['id'], 'manifest': json.loads(existing['manifest'])}
             if not apply:
                 connection.rollback()
-                return {'apply': False, 'pack': PACK, 'scenarios': SCENARIOS, 'styles': len(records), 'items': len(records) * len(SCENARIOS), 'note': '将创建真实照片款式、独立虚拟芯片和合成账户；不恢复旧业务、不写真实芯片。'}
+                return {'apply': False, 'pack': PACK, 'scenarios': SCENARIOS, 'styles': len(records), 'items': len(records) * len(SCENARIOS), 'replacing':old_preview, 'note': '将创建真实照片款式、编号实体、独立虚拟芯片和合成账户。'}
+            replaced=cleanup(c,replace_batch) if old_preview and old_preview['status']!='deleted' else None
             c.execute('INSERT INTO test_batch(code,name,manifest) VALUES (%s,%s,%s)', ('acceptance-' + uuid.uuid4().hex[:12], '真实照片·后台全流程验收', json.dumps({'pack': PACK})))
             batch = c.lastrowid
 
@@ -59,9 +69,10 @@ def seed(connection, username, *, apply=False):
                 return ident
 
             stamp = now()
+            year = (stamp + timedelta(hours=8)).year
             entries, styles, issues, users, photos = [], [], [], [], []
             for name in ('林澄', '周予', '许禾', '陈屿', '宋岚', '陆遥'):
-                c.execute('INSERT INTO user(phone,nickname) VALUES (%s,%s)', ('TEST' + uuid.uuid4().hex[:16], f'模拟·{name}'))
+                c.execute('INSERT INTO user(phone,nickname,phone_verified_at) VALUES (%s,%s,%s)', ('TEST' + uuid.uuid4().hex[:16], f'模拟·{name}', stamp))
                 users.append(tag('user', c.lastrowid))
             for index, record in enumerate(records):
                 style = style_save(c, {'project': record['project'], 'code': f'SIM-{batch}-{record["slug"].upper()}', 'name': '验收·' + record['name'], 'description': record['description'], 'material': record['material'], 'care_instructions': record['care'], 'specs': record['specs'], 'image_urls': []})['id']
@@ -72,7 +83,7 @@ def seed(connection, username, *, apply=False):
                 c.execute('INSERT INTO style_image(asset_id,style_id,created_by,source_sha256,content) VALUES (%s,%s,%s,%s,%s)', (asset, style, admin['id'], photo['sha256'], content))
                 c.execute('UPDATE product_style SET image_urls=%s WHERE id=%s', (json.dumps([f'/api/admin/catalog/styles/{style}/images/{asset}']), style))
                 photos.append({**photo, 'style_id': style, 'style_name': record['name']})
-                p = {'style_id': style, 'name': record['name'] + ' · 秋冬发行', 'series': '2026秋冬·日常佩戴', 'mode': record['mode'], 'description': '模拟发行：数字身份及发行编号延续；换新或转售交付新整套实物与芯片，不新增身份。不录入订单和物流。', 'rights': ['renewal', 'resale']}
+                p = {'style_id': style, 'name': record['name'] + ' · 秋冬发行', 'series': '2026秋冬·日常佩戴', 'mode': record['mode'], 'description': '模拟发行：按对应发行方式分配数字身份与编号。'}
                 if p['mode'] == 'fixed':
                     p['total'] = 50
                 if p['mode'] == 'period':
@@ -116,10 +127,12 @@ def seed(connection, username, *, apply=False):
                     number = None if record['mode'] == 'period' else phase + 1
                     ident = create_item(c, {'issue_id': issues[index], 'item_uid': uid, 'edition_number': number, 'is_validation': phase in (0, 1, 12)})['id']
                     spec = record['specs'][phase % len(record['specs'])]
+                    physical_uid=f'SIM-PHY-{batch}-{n+1:03d}'
+                    physical=create_physical(c,{'style_id':styles[index],'physical_uid':physical_uid,'spec':spec})['id']
                     ch = None
                     if phase:
                         ch = chip(project, n)
-                        item_action(c, 'bind', {'item_id': ident, 'chip_id': ch, 'spec': spec})
+                        item_action(c,'installAssembly',{'item_id':ident,'chip_id':ch,'physical_item_id':physical,'installed':True},installed_by=admin['id'])
                         if phase != 1:
                             configured(ch)
                         if phase >= 3:
@@ -129,22 +142,30 @@ def seed(connection, username, *, apply=False):
                             c.execute('UPDATE digital_item SET first_sold_at=%s WHERE item_id=%s', (stamp - timedelta(days=4), ident))
                         if phase >= 5:
                             owner(ident, users[index])
+                        if phase == 4:
+                            c.execute('INSERT INTO item_claim_code(item_id,code_hash,issued_by,delivery_reference,issued_at,expires_at) VALUES (%s,%s,%s,%s,%s,%s)',(ident,secrets.token_bytes(32),admin['id'],'模拟首次交付；此码仅用于展示待认领状态',stamp,stamp+timedelta(days=30)))
                         if phase in (6, 13):
                             whole = row(c, 'SELECT id FROM whole_item WHERE item_id=%s', (ident,))['id']
                             item_action(c, 'loseItem', {'item_id': ident, 'whole_id': whole, 'evidence': '模拟原持有人报告整套丢失，历史关系保留'})
                         if phase in (7, 8, 9, 13):
                             target = chip(project, n + 100)
                             kind = 'resale' if phase == 9 else 'loss' if phase == 13 else 'periodic'
-                            payload = {'item_id': ident, 'chip_id': target, 'kind': kind, 'spec': record['specs'][(phase + 1) % len(record['specs'])], 'evidence': '模拟已核对整套替换资格及实际规格'}
+                            next_uid=f'{physical_uid}-R'
+                            next_physical=create_physical(c,{'style_id':styles[index],'physical_uid':next_uid,'spec':record['specs'][(phase+1)%len(record['specs'])]})['id']
+                            payload = {'item_id': ident, 'chip_id': target, 'kind': kind, 'physical_item_id':next_physical,'installed':True,'evidence': '模拟已核对整套替换资格及实际规格'}
                             if phase == 9:
-                                payload['recipient_id'] = users[(index + 1) % len(users)]
+                                payload.update(recipient_id=users[(index+1)%len(users)],seller_confirmation='模拟原持有人已确认',recipient_confirmation='模拟接收人已接受')
+                                c.execute('UPDATE digital_item SET quota_used=1 WHERE item_id=%s',(ident,))
                             event(ident, ch, stamp - timedelta(days=3))
-                            item_action(c, 'prepare', payload)
+                            item_action(c,'prepare',payload,installed_by=admin['id'])
                             if phase in (8, 9):
                                 configured(target)
                                 work = row(c, 'SELECT id FROM item_handover WHERE item_id=%s', (ident,))['id']
+                                if phase==8:
+                                    c.execute('UPDATE item_handover SET created_at=%s WHERE id=%s',(datetime(year-1,12,31,15,50),work))
                                 complete(c, {'work_id': work, 'checked': True, 'evidence': '模拟核对新实物及芯片已交付，不代表真实发货'})
                                 ch = target
+                                physical,physical_uid=next_physical,next_uid
                         if phase == 11:
                             event(ident, ch, stamp - timedelta(days=6))
                         if phase >= 4 and phase != 10:
@@ -153,7 +174,7 @@ def seed(connection, username, *, apply=False):
                         if phase == 12:
                             item_action(c, 'toggleItem', {'item_id': ident, 'status': 'disabled'})
                             chip_action(c, 'chipState', {'chip_id': ch, 'state': 'disabled', 'evidence': '模拟技术停用，与挂失及退役区分'})
-                    entries.append({'item_id': ident, 'uid': uid, 'style_id': styles[index], 'style_name': record['name'], 'scenario': scenario, 'spec': spec, 'chip_id': ch})
+                    entries.append({'item_id': ident, 'uid': uid, 'style_id': styles[index], 'style_name': record['name'], 'scenario': scenario, 'spec': spec, 'chip_id': ch,'physical_item_id':physical,'physical_uid':physical_uid})
 
             # 已核定发行不虚构137件身份；草案留给验收者确认。
             for index, record in enumerate(records):
@@ -179,7 +200,7 @@ def seed(connection, username, *, apply=False):
             c.execute('UPDATE test_batch SET manifest=%s WHERE id=%s', (json.dumps(manifest, ensure_ascii=False), batch))
             c.execute("INSERT INTO admin_audit(admin_id,action,target_type,target_id,detail) VALUES (%s,'catalog.test_seed','test_batch',%s,%s)", (admin['id'], str(batch), json.dumps({'origin': 'test_command', 'batch_id': batch, 'pack': PACK})))
         connection.commit()
-        return {'batch_id': batch, 'manifest': manifest, 'applied': True}
+        return {'batch_id': batch, 'manifest': manifest, 'applied': True,'replaced':replaced}
     except Exception:
         connection.rollback()
         raise
@@ -192,14 +213,18 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='仅明确测试目标：真实照片验收包，默认预览。')
     parser.add_argument('--admin-username', required=True)
     parser.add_argument('--apply', action='store_true')
+    parser.add_argument('--replace-batch', type=int, help='明确要替换的旧模拟批次 ID，默认预览')
+    parser.add_argument('--backup-confirmed', action='store_true', help='确认已备份目标测试槽的数据库与媒体')
     args = parser.parse_args(argv)
+    if args.replace_batch is not None and (args.replace_batch<1 or (args.apply and not args.backup_confirmed)):
+        parser.error('替换时须提供正整数批次 ID，应用前须确认已完成测试备份。')
     try:
         from app import create_app
         from core.db import get_database
         app = create_app()
         validate_test_target(app.config)
         with app.test_request_context():
-            result = seed(get_database(), args.admin_username, apply=args.apply)
+            result = seed(get_database(), args.admin_username, apply=args.apply,replace_batch=args.replace_batch)
         print(json.dumps(result, ensure_ascii=False))
         return 0
     except ValueError as error:

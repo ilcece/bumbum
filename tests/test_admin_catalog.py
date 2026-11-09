@@ -23,6 +23,11 @@ def ok(response):
     return response.json['data']
 
 
+def assembly(session,style_id,chip_id,spec):
+    entity=ok(action(session,'createPhysicalItem',{'style_id':style_id,'physical_uid':'PHY-'+uuid.uuid4().hex,'spec':spec}))
+    return {'physical_item_id':entity['id'],'chip_id':chip_id,'installed':True}
+
+
 @pytest.fixture
 def catalog(auth_app,logged_in):
     for table in ('item_handover','whole_item','ownership_history','ownership','fashion_item_profile','jewelry_item_profile','media_asset','item','product_issue','style_image','product_style','admin_operation'):
@@ -46,7 +51,7 @@ def config_chip(app,session,chip_id):
 
 
 def owner(app,ident,n):
-    query(app,'INSERT INTO user(phone,nickname) VALUES (%s,%s)',(f'1390000{n:04d}',f'临时账户{n}'))
+    query(app,'INSERT INTO user(phone,nickname,phone_verified_at) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE phone_verified_at=VALUES(phone_verified_at)',(f'1390000{n:04d}',f'临时账户{n}',app.test_clock[0]))
     uid=query(app,'SELECT id FROM user WHERE phone=%s',(f'1390000{n:04d}',))[0]['id']
     if ident:query(app,"INSERT INTO ownership(item_id,user_id,bind_source,bound_at) VALUES (%s,%s,'import',%s)",(ident,uid,app.test_clock[0]))
     return uid
@@ -54,11 +59,11 @@ def owner(app,ident,n):
 
 def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration(auth_app,catalog):
     s,style,issue,i,chips=catalog
-    ok(action(s,'bind',{'item_id':i,'chip_id':chips[0],'spec':'L黑'}));config_chip(auth_app,s,chips[0]);ok(action(s,'toggleItem',{'item_id':i,'status':'active'}))
+    ok(action(s,'installAssembly',{'item_id':i,**assembly(s,style,chips[0],'L黑')}));config_chip(auth_app,s,chips[0]);ok(action(s,'toggleItem',{'item_id':i,'status':'active'}))
     a=owner(auth_app,i,1);b=owner(auth_app,None,2)
     ok(action(s,'sale',{'item_id':i,'confirmed':True,'evidence':'外部店铺实际售出'}))
     original=ok(s[0].get(f'/api/admin/catalog/items/{i}'))
-    ok(action(s,'prepare',{'item_id':i,'chip_id':chips[1],'kind':'periodic','spec':'新实物L黑','evidence':'核对资格'}))
+    ok(action(s,'prepare',{'item_id':i,'kind':'periodic','evidence':'核对资格',**assembly(s,style,chips[1],'新实物L黑')}))
     config_chip(auth_app,s,chips[1])
     w=query(auth_app,'SELECT * FROM item_handover WHERE item_id=%s',(i,))[0]
     # 候选真实配置通过，但尚未获得物品关联或触碰授权。
@@ -74,8 +79,8 @@ def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration
     assert renewed['wholes'][0]['generation']==2 and renewed['wholes'][0]['loss_evidence'] is None
     assert renewed['wholes'][1]['loss_evidence']=='整套丢失，身份保留'
     assert query(auth_app,'SELECT chip_status FROM chip WHERE id=%s',(chips[0],))[0]['chip_status']=='retired'
-    assert renewed['quota_review']==1
-    ok(action(s,'prepare',{'item_id':i,'chip_id':chips[2],'kind':'resale','recipient_id':b,'spec':'转售新实物','evidence':'已核对接收账户'}));config_chip(auth_app,s,chips[2])
+    assert renewed['quota_review']==0 and renewed['quota_used']==1
+    ok(action(s,'prepare',{'item_id':i,'kind':'resale','recipient_id':b,'evidence':'已核对接收账户','seller_confirmation':'原持有人已确认','recipient_confirmation':'接收人已确认',**assembly(s,style,chips[2],'转售新实物')}));config_chip(auth_app,s,chips[2])
     resale=query(auth_app,'SELECT * FROM item_handover WHERE item_id=%s ORDER BY id DESC',(i,))[0]
     ok(action(s,'complete',{'work_id':resale['id'],'checked':True,'evidence':'新整套交付新持有人'}))
     result=ok(s[0].get(f'/api/admin/catalog/items/{i}'));assert result['owner_id']==b and len(result['wholes'])==3 and result['first_sold_at']==original['first_sold_at']
@@ -87,7 +92,7 @@ def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration
 def test_release_uniqueness_validation_cleanup_and_receipt(auth_app,catalog):
     s,style,issue,i,chips=catalog
     assert action(s,'item',{'issue_id':issue,'item_uid':'FASH-2026-000002','edition_number':1}).status_code==409
-    ok(action(s,'bind',{'item_id':i,'chip_id':chips[0],'spec':'整套'}))
+    ok(action(s,'installAssembly',{'item_id':i,**assembly(s,style,chips[0],'整套')}))
     assert action(s,'deleteItem',{'item_id':i}).status_code==409
     ok(action(s,'validationItem',{'item_id':i,'enabled':True}))
     token=str(uuid.uuid4());ok(action(s,'deleteItem',{'item_id':i},token))
@@ -112,7 +117,7 @@ def test_shared_upload_and_server_pagination(auth_app,catalog):
         from core.db import get_database
         with get_database().cursor() as c:assert catalog_schema(c)=='ready'
     # 同一共用图支持现有短资格与持续查看，挂失后两条链路均失效。
-    ok(action(s,'bind',{'item_id':i,'chip_id':chips[0],'spec':'L黑'}));config_chip(auth_app,s,chips[0]);ok(action(s,'toggleItem',{'item_id':i,'status':'active'}))
+    ok(action(s,'installAssembly',{'item_id':i,**assembly(s,style,chips[0],'L黑')}));config_chip(auth_app,s,chips[0]);ok(action(s,'toggleItem',{'item_id':i,'status':'active'}))
     auth_app.config['PUBLIC_ORIGIN']='http://127.0.0.1:5175'
     from core.chip_keys import target_keys
     with auth_app.app_context():keys=target_keys('fashion',query(auth_app,'SELECT chip_uid FROM chip WHERE id=%s',(chips[0],))[0]['chip_uid'])
@@ -137,7 +142,7 @@ def test_loss_failure_rolls_back_and_lost_response_has_single_committed_receipt(
     from core import admin_catalog
     import pymysql
     s,style,issue,i,chips=catalog
-    ok(action(s,'bind',{'item_id':i,'chip_id':chips[0],'spec':'整套'}))
+    ok(action(s,'installAssembly',{'item_id':i,**assembly(s,style,chips[0],'整套')}))
     e=ok(s[0].get(f'/api/admin/catalog/items/{i}'))['whole_id']
     original=admin_catalog.audit
     def fail_audit(*_):raise RuntimeError('测试专用审计故障')
@@ -165,7 +170,7 @@ def test_loss_failure_rolls_back_and_lost_response_has_single_committed_receipt(
 def test_real_event_statistics_do_not_depend_on_current_chip_or_holder(auth_app,catalog):
     from datetime import timedelta
     s,style,issue,i,chips=catalog
-    ok(action(s,'bind',{'item_id':i,'chip_id':chips[0],'spec':'整套'}))
+    ok(action(s,'installAssembly',{'item_id':i,**assembly(s,style,chips[0],'整套')}))
     ok(action(s,'sale',{'item_id':i,'confirmed':True,'evidence':'外部售出事实'}))
     uid=query(auth_app,'SELECT chip_uid FROM chip WHERE id=%s',(chips[0],))[0]['chip_uid']
     for n,delta in enumerate((-1,1,2),3):
@@ -178,13 +183,17 @@ def test_real_event_statistics_do_not_depend_on_current_chip_or_holder(auth_app,
 
 
 def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_app,logged_in):
-    from core.catalog_migration import migrate,TABLES
+    from core.catalog_migration import migrate
+    from core.assembly_migration import migrate as migrate_assembly, schema as assembly_schema
     from core.db import get_database
     for table in ('fashion_item_profile','jewelry_item_profile','item'):query(auth_app,f'DELETE FROM {table}')
     with auth_app.app_context():
         connection=get_database()
         with connection.cursor() as c:
-            for table in ('admin_operation','item_handover','whole_item','digital_item','style_image','product_issue','product_style','chip_validation'):c.execute('DROP TABLE '+table)
+            for table in ('item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
+                c.execute('DROP TABLE '+table)
+            c.execute('ALTER TABLE user DROP COLUMN phone_verified_at')
+            c.execute("ALTER TABLE test_batch_object MODIFY kind ENUM('style','issue','item','chip','user','scan') NOT NULL")
             c.execute("ALTER TABLE chip MODIFY chip_status ENUM('pending','bound','disabled','lost') NOT NULL DEFAULT 'pending'")
             c.execute("INSERT INTO item(project_id,item_uid) VALUES (1,'FASH-2026-900001')");ident=c.lastrowid
             c.execute("INSERT INTO chip(chip_uid,project_id,item_id,chip_status) VALUES ('04:00:00:00:00:99:01',1,%s,'lost')",(ident,))
@@ -195,10 +204,13 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
         assert migrate(connection,backup) is True
         assert migrate(connection,backup) is False and len(backups)==1
         with connection.cursor() as c:assert catalog_schema(c)=='ready'
+        assert migrate_assembly(connection,lambda:backups.append(True))
+        assert not migrate_assembly(connection,lambda:pytest.fail('重复升级无需备份'))
+        with connection.cursor() as c:assert assembly_schema(c)=='ready'
     d=query(auth_app,'SELECT * FROM digital_item WHERE item_id=%s',(ident,))[0]
     e=query(auth_app,'SELECT * FROM whole_item WHERE item_id=%s',(ident,))[0]
     assert d['issue_id'] is None and d['sold']==0 and d['first_sold_at'] is None
-    assert e['generation']==1 and e['started_at'] is None and e['lost_at'] is None and e['loss_evidence']
+    assert e['generation']==1 and e['started_at'] is None and e['lost_at'] is None and e['loss_evidence'] and e['physical_item_id'] is None
 
 
 def test_period_estimate_does_not_cap_identities_and_sealing_does_not_create_items(auth_app,catalog):
@@ -218,7 +230,7 @@ def test_jewelry_validation_cleanup_keeps_chip_account_and_task_definition(auth_
     s,_,_,_,chips=catalog
     style=ok(action(s,'style',{'project':'jewelry','code':'BRACELET','name':'紫檀手串','specs':[],'image_urls':[]}))['id']
     issue=ok(action(s,'issue',{'style_id':style,'name':'限量50个身份','mode':'fixed','total':50,'description':'整套物品','rights':[]}))['id'];ok(action(s,'confirmIssue',{'issue_id':issue}))
-    ident=ok(action(s,'item',{'issue_id':issue,'item_uid':'JEW-2026-000001','edition_number':1,'is_validation':True}))['id'];ok(action(s,'bind',{'item_id':ident,'chip_id':chips[0],'spec':'无尺码'}))
+    ident=ok(action(s,'item',{'issue_id':issue,'item_uid':'JEW-2026-000001','edition_number':1,'is_validation':True}))['id'];ok(action(s,'installAssembly',{'item_id':ident,**assembly(s,style,chips[0],'无尺码')}))
     uid=owner(auth_app,ident,88)
     query(auth_app,'INSERT INTO jewelry_user_progress(item_id,user_id) VALUES (%s,%s)',(ident,uid))
     code='TEST-'+uuid.uuid4().hex;query(auth_app,'INSERT INTO jewelry_task(code,name) VALUES (%s,%s)',(code,'历史预留任务'))

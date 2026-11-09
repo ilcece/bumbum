@@ -46,7 +46,7 @@
 | 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 兼容详情接口 | 请求头 X-Tap-Token 放触碰后的临时凭证，沿用原五分钟规则 |
 | 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
-| 用户发短信/绑定（预留未实现） | JSON 中带 tap_token，不放链接参数；它不证明访问者是所有者 |
+| 用户账户及首次认领 | 短信验证建立独立用户会话。认领时在 JSON 中提交 `tap_token` 和交付认领码，见[用户账户及认领](#用户账户及认领) |
 
 所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第11.3节的精确上传入口仅接受multipart/form-data。除login外，还必须有有效Cookie和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
 
@@ -114,7 +114,7 @@
 
 ### 1.2 POST /api/tap/verify：核验这次触碰
 
-本小步产品及交互规则见[PRD第4.2.1节](docs/product/fashion-touch.md#1-动态验证与短时许可)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](docs/product/admin-management.md#4-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立详情、短信与认领接口仍未接入。
+本小步产品及交互规则见[PRD第4.2.1节](docs/product/fashion-touch.md#1-动态验证与短时许可)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](docs/product/admin-management.md#4-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立手机体验仍按独立范围推进。用户账户与认领接口在本分支见第11节。
 
 只提交picc_data（加密芯片信息，32位十六进制）、cmac（防伪码，16位十六进制）；不增加项目、UID、版本、查找码或item_uid。现有测试卡与配置确认已核对该编码，用户验证入口按附录第15节实现，后台配置核验不替代用户验证、真实卡或公网验收：
 ```json
@@ -136,7 +136,7 @@
 
 reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法解析）、unknown_chip（未登记）、replay_suspect（旧读数）、disabled（芯片停用/丢失，或物品停用/归档）、not_ready（未绑定、物品草稿或未配置好）。格式错误仍为 400。
 
-短信与首次认领接口尚未实现，见[预留设计](#101-短信与首次认领预留)。
+短信与首次认领在测试分支接入，见[用户账户及认领](#用户账户及认领)。
 
 <a name="2-管理员登录第一阶段"></a>
 
@@ -427,7 +427,7 @@ view为连续24小时无成功查询失效，成功查询滑动续期24小时；
 
 ### 10.1 短信与首次认领（预留）
 
-下一版产品规则见 [数字物品 H5 首版](docs/proposals/digital-item-h5-mvp.md)。已确认首次认领同时校验近期有效碰卡、已验证手机号账户及交付一次性码。下方端点与字段为历史预留，供技术审核时核对；新契约以该产品规格和后续获批技术方案为准。
+下方是早期预留，保留供追溯。测试分支请使用[已接入的用户账户及认领接口](#用户账户及认领)及 [H5 首版产品规格](docs/proposals/digital-item-h5-mvp.md)。
 
 <a name="13-post-apipublicsmssend发绑定短信第二阶段"></a>
 
@@ -514,7 +514,32 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 ## 11. 数字档案管理与整套物品（当前分支）
 
-以下记录当前测试代码的已实现接口。发行接口里的 `rights` 是该版本的旧数据形态。下一版权益按 [数字物品权益方案](docs/proposals/admin-make-rebuild.md#item-rights) 记录在物品档案，发行接口的目标字段以对应技术方案和交付为准。
+测试分支从物品档案读取换新与转售权益，发行读接口省略 `rights`。旧发行客户端的同名输入仅用于兼容解析。新物品的标准权益由服务端授予。业务规则见 [数字物品权益](docs/proposals/admin-make-rebuild.md#item-rights)，上线和人工验收见 [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。
+
+### 实体装配、发码与预览
+
+| 入口 | 条件与返回 |
+|---|---|
+| `GET /api/admin/catalog/physical-items` | 管理登录后按 `style_id`、`available`、编号关键词和批次筛选；详情按 ID 查看。实体包含编号、实际规格及装配状态。 |
+| `actions/createPhysicalItem` | 传 `style_id`、`physical_uid`、适用的 `spec`，可选 `batch_no`、`supplier_serial`。返回实体 ID 及编号。 |
+| `actions/installAssembly`、`actions/undoInstall` | 安装传 `item_id`、`physical_item_id`、`chip_id`、`installed=true`。纠正限未配置草稿，传 `item_id`、`whole_id`、`evidence`、`confirmed=true`。 |
+| `actions/prepare`、`actions/complete` | 新版准备含 `physical_item_id` 和 `installed=true`，转售含接收账户和双方确认依据。有争议时提交核验结果引用。确认换新交付时按北京时间生效日计次。 |
+| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。首次成功响应展示原码一次。回执只返回发放记录和有效期。 |
+| `GET /api/admin/catalog/items/{id}/h5-preview` | 读取指定物品已保存的展示资料，预设视角在后台界面切换。 |
+| `GET /api/admin/catalog/audit` | 支持 `keyword`、`action`、`operator`、`date_from`、`date_to`、`item_id`。返回动作说明、对象、结果和必要前后值。 |
+
+### 用户账户及认领
+
+用户端从指定同源发起写请求。账户使用独立 HttpOnly Cookie。碰卡短时资格、持续查看 Cookie 和用户会话分别校验。
+
+| 入口 | 条件与返回 |
+|---|---|
+| `POST /api/public/sms/send` | 传 `phone`，成功返回 `challenge_id` 和重发间隔。单一手机号至少间隔 60 秒，网关不可用时返回 503。 |
+| `POST /api/public/sms/verify` | 传 `challenge_id`、`code`。成功建立会话，返回稳定账户 UID 和脱敏手机号。 |
+| `GET /api/public/account/session`、`POST /api/public/account/logout` | 读取本人会话，或用空 JSON 对象注销当前会话。 |
+| `POST /api/public/items/{id}/claim` | 传 `tap_token`、`claim_code`，同时验证用户会话及当前装配。成功建立持有关系、记录历史并核销凭证。旧碰卡返回 `retap_required`，旧码或过期按状态提示。 |
+| `GET /api/public/items/{id}/claim-status` | 登录后核对本人已持有、他人已认领或待认领，用于未知结果恢复。 |
+| `GET /api/public/me/items`、`GET /api/public/me/items/{id}` | 读取本人当前持有列表与详情。关联图片走同样的归属检查。 |
 
 当前正式管理端使用此服务。复用管理Cookie/Origin/CSRF和禁缓存，任何写入先重查管理员与会话。没有原型会话导入、演示触碰、演示认领、默认持有人或模拟成功入口。旧认证、密钥、图片及用户触碰契约继续适用；数据库先升级006，工具默认只检查，缺失/部分结构时ready拒绝。
 
@@ -525,7 +550,7 @@ GET /api/admin/catalog/{resource}，resource为styles/issues/items/chips/users/a
 | 资源 | 筛选与返回补充 |
 |---|---|
 | styles | project；返回code/name/description/material/care_instructions/specs/image_urls及引用计数 |
-| issues | project/style_id/status=confirmed；返回mode/total/starts_at/ends_at/counting_rule/rights/confirmed_at/sealed_at/ever_used |
+| issues | project/style_id/status=confirmed；返回mode/total/starts_at/ends_at/counting_rule/confirmed_at/sealed_at/ever_used |
 | items | project/status/issue_id/is_validation/sold/whole_status/bindable=true；bindable仅未归档、已关联发行且未准备整套的对象；whole_status为normal/lost/missing，布尔筛选仅true/false；返回稳定身份、发行序号、当前整套/芯片、售出、归属与验证摘要 |
 | chips | project/status/is_validation/available=true/compatible_project；compatible_project只筛该类别或未预设类别；available只取未占用且可准备的pending芯片，不将候选当当前；status新增retired，lost表示随整套挂失停用 |
 | users | keyword按昵称或ID，exclude_id可排除当前持有人；仅真实账户，联系方式脱敏，返回持有数量，不是CRM或认领接口 |
@@ -540,7 +565,7 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 | action | payload及关键条件 |
 |---|---|
 | style | project/code/name/specs/image_urls必填；id、description/material/care_instructions/shared_confirmed选填。specs最多100项，每项128字符；引用后类别/编号保护，共用保存须明确确认影响；读取返回item_count与active_item_count，保存前展示引用总数及已启用数 |
-| issue | style_id/name/mode/description/rights；id/series/total/starts_at/ends_at/counting_rule可选或按模式必填。mode=fixed/period/unlimited；固定总量正整数，限时提供带时区的起止时间及核定规则；rights仅renewal/resale |
+| issue | style_id/name/mode/description；id/series/total/starts_at/ends_at/counting_rule可选或按模式必填。mode=fixed/period/unlimited；固定总量正整数，限时提供带时区的起止时间及核定规则 |
 | confirmIssue/deleteIssue/seal | issue_id；seal另需total/evidence，必须窗口已结束、已确认、未封版且不小于已建身份/已有序号。删除仅从未引用约定并留快照审计 |
 | item | issue_id/item_uid；edition_number按模式要求、is_validation默认false。必须已确认发行，项目由款式确定，item_uid去首尾空白后1–32字符、不含控制字符、全局唯一，不限制格式，FASH/JEW仅作建议；固定/封版总量与发行内编号唯一由服务端及数据库保护 |
 | register | chip_uid，project/batch_no/is_validation可选。复用真实登记与UID规范，重复返回原id/is_new=false，不改批次/来源/验证标记 |

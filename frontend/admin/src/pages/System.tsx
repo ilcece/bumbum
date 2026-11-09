@@ -1,6 +1,6 @@
 import TestBatches from "../components/TestBatches";
 import { PageContainer } from "@ant-design/pro-components";
-import { Tabs } from "antd";
+import { Descriptions, Tabs, Typography } from "antd";
 import { RuntimeChecks } from "../RuntimeChecks";
 import { Copy } from "../components/CatalogUI";
 import ServerTable from "../components/ServerTable";
@@ -25,13 +25,21 @@ export default function System() {
               <ServerTable
                 resource="audit"
                 columns={[
-                  { title: "关键词", dataIndex: "keyword", hideInTable: true },
-                  { title: "操作", dataIndex: "action", search: false },
-                  { title: "操作者", dataIndex: "username", search: false },
+                  { title: "对象或结果关键词", dataIndex: "keyword", hideInTable: true },
+                  { title: "操作", dataIndex: "operation", search: false },
+                  { title: "操作筛选", dataIndex: "action", hideInTable: true, valueType: "select", valueEnum: {
+                    "catalog.installAssembly": { text: "确认安装" }, "catalog.sale": { text: "确认售出" },
+                    "catalog.loseItem": { text: "登记挂失" }, "catalog.prepare": { text: "准备替换物品" },
+                    "catalog.complete": { text: "确认交付与生效" },
+                  } },
+                  { title: "操作人账号", dataIndex: "operator", hideInTable: true },
+                  { title: "操作人", dataIndex: "username", search: false },
+                  { title: "起日（北京时间）", dataIndex: "date_from", hideInTable: true, valueType: "date" },
+                  { title: "末日（北京时间）", dataIndex: "date_to", hideInTable: true, valueType: "date" },
                   {
                     title: "对象",
                     search: false,
-                    render: (_, r) => <Copy value={r.target_id} />,
+                    render: (_, r) => <Copy value={r.object_code} onClick={r.object_exists ? () => history.push(`/items/${r.target_id}?from=${encodeURIComponent(location.pathname + location.search)}`) : undefined} />,
                   },
                   {
                     title: "时间",
@@ -39,14 +47,18 @@ export default function System() {
                     render: (_, r) => time(r.created_at),
                   },
                   {
-                    title: "必要记录",
+                    title: "结果与依据",
                     search: false,
                     render: (_, r) => (
                       <details>
-                        <summary>查看记录</summary>
-                        <pre style={{ whiteSpace: "pre-wrap" }}>
-                          {JSON.stringify(r.detail, null, 2)}
-                        </pre>
+                        <summary>{r.summary || "历史记录，摘要未保存"}</summary>
+                        <Descriptions column={1} size="small">
+                          <Descriptions.Item label="结果">{r.outcome || "历史结果未单独记录"}</Descriptions.Item>
+                          {r.detail?.evidence && <Descriptions.Item label="核对依据">{r.detail.evidence}</Descriptions.Item>}
+                          {r.detail?.work_id && <Descriptions.Item label="办理记录">{r.detail.work_id}</Descriptions.Item>}
+                          {r.detail?.before && <Descriptions.Item label="操作前">{auditSummary(r.detail.before)}</Descriptions.Item>}
+                          {r.detail?.after && <Descriptions.Item label="操作后">{auditSummary(r.detail.after)}</Descriptions.Item>}
+                        </Descriptions>
                       </details>
                     ),
                   },
@@ -83,4 +95,9 @@ export default function System() {
       />
     </PageContainer>
   );
+}
+
+function auditSummary(value: Record<string, any>) {
+  const parts = [value.generation && `第 ${value.generation} 代`, value.physical_uid && `实体 ${value.physical_uid}`, value.chip_uid && `芯片 ${value.chip_uid}`, value.user_id && `持有人 U${value.user_id}`, value.lost_at && "已挂失", value.sold != null && (value.sold ? "已售出" : "未售出")];
+  return <Typography.Text>{parts.filter(Boolean).join(" · ") || "档案已记录"}</Typography.Text>;
 }

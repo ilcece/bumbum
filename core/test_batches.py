@@ -3,7 +3,7 @@ import json
 from core.admin_auth import AuthRequestError
 from core.catalog_testdata import validate_test_target
 
-TABLES={'style':'product_style','issue':'product_issue','item':'item','chip':'chip','user':'user','scan':'scan_log'}
+TABLES={'style':'product_style','issue':'product_issue','item':'item','chip':'chip','user':'user','scan':'scan_log','physical':'physical_item'}
 
 def require_test_environment(config):
     try:validate_test_target(config)
@@ -56,6 +56,11 @@ def objects(c,batch,*,lock=False):
 def conflicts(c,ids):
     # 少量验收数据直接核对关系，避免为清理建立第二套业务模型。
     checks=[('product_issue','id','style_id','issue','style'),('product_issue','style_id','id','style','issue'),('digital_item','item_id','issue_id','item','issue'),('digital_item','issue_id','item_id','issue','item'),('chip','id','item_id','chip','item'),('whole_item','item_id','chip_id','item','chip'),('whole_item','chip_id','item_id','chip','item'),('item_handover','item_id','chip_id','item','chip'),('item_handover','chip_id','item_id','chip','item'),('scan_log','item_id','chip_id','item','chip'),('scan_log','chip_id','item_id','chip','item'),('jewelry_user_progress','item_id','user_id','item','user'),('jewelry_user_progress','user_id','item_id','user','item'),('jewelry_task_record','user_id','item_id','user','item'),('ownership','item_id','user_id','item','user'),('ownership','user_id','item_id','user','item'),('ownership_history','item_id','from_user_id','item','user'),('ownership_history','item_id','to_user_id','item','user'),('ownership_history','from_user_id','item_id','user','item'),('ownership_history','to_user_id','item_id','user','item'),('item_handover','owner_id','item_id','user','item'),('item_handover','recipient_id','item_id','user','item')]
+    checks.extend([
+        ('physical_item','id','style_id','physical','style'),('physical_item','style_id','id','style','physical'),
+        ('whole_item','physical_item_id','item_id','physical','item'),('whole_item','item_id','physical_item_id','item','physical'),
+        ('item_handover','physical_item_id','item_id','physical','item'),('item_handover','item_id','physical_item_id','item','physical'),
+    ])
     bad=[]
     for table,left,right,lk,rk in checks:
         c.execute(f'SELECT {left} AS a,{right} AS b FROM {table}')
@@ -80,7 +85,7 @@ def cleanup(c,batch):
         c.execute('UPDATE digital_item SET is_validation=1 WHERE item_id=%s',(ident,));item_action(c,'deleteItem',{'item_id':ident})
     for ident in ids['chip']:
         c.execute('INSERT INTO chip_validation(chip_id,is_validation) VALUES (%s,1) ON DUPLICATE KEY UPDATE is_validation=1',(ident,));chip_action(c,'deleteChip',{'chip_id':ident})
-    for kind in ('scan','issue','style','user'):
+    for kind in ('scan','physical','issue','style','user'):
         for ident in ids[kind]:
             if kind=='style':c.execute('DELETE FROM style_image WHERE style_id=%s',(ident,))
             c.execute(f'DELETE FROM {TABLES[kind]} WHERE id=%s',(ident,))

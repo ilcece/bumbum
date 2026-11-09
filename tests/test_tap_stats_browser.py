@@ -2,14 +2,14 @@
 from datetime import datetime,timedelta
 import pytest
 from tests.test_admin_browser import browser_gate,desktop,button,expect
-from tests.admin_ui_helpers import setup,api
+from tests.admin_ui_helpers import setup,api,install
 from tests.test_admin_auth import query
 pytestmark=[pytest.mark.auth_database,pytest.mark.browser]
 
 
 def test_real_scope_switch_and_failure_not_zero(desktop,tmp_path):
-    _,_,item,chips=setup(desktop);p=desktop.page
-    api(desktop,'bind',{'item_id':item,'chip_id':chips[0],'spec':'L黑'})
+    style,_,item,chips=setup(desktop);p=desktop.page
+    install(desktop,style,item,chips[0])
     api(desktop,'sale',{'item_id':item,'confirmed':True,'evidence':'售出事实'})
     uid=query(desktop.app,'SELECT chip_uid FROM chip WHERE id=%s',(chips[0],))[0]['chip_uid']
     for n,days in enumerate((-1,1,2),3):query(desktop.app,"INSERT INTO scan_log(chip_id,item_id,chip_uid,project_id,scan_counter,verify_result,created_at) VALUES (%s,%s,%s,1,%s,'pass',%s)",(chips[0],item,uid,n,desktop.app.test_clock[0]+timedelta(days=days)))

@@ -130,7 +130,8 @@ def test_selected_schema_keeps_only_current_database_and_all_tables():
     source = (ROOT / "db/schema.sql").read_text(encoding="utf-8")
     result = schema_for_selected_database(source)
     assert "CREATE DATABASE" not in result and "USE bumbum_digital" not in result
-    assert result.count("CREATE TABLE ") == len(TARGET_TABLES) == 35
+    assert result.count("CREATE TABLE ") == len(TARGET_TABLES)
+    assert {'physical_item','digital_item_right','user_session','user_sms_challenge','item_claim_code'} <= TARGET_TABLES
     assert "CREATE TABLE media_asset" in result
     with pytest.raises(RdsPreparationError):
         schema_for_selected_database(source.replace("USE bumbum_digital;", "USE another_database;"))
@@ -221,12 +222,12 @@ def test_real_mysql_verified_tls_wrong_identity_ca_and_guarded_initialization(tl
         with pytest.raises(RdsPreparationError, match="只允许"):
             normalize_empty_collation(connection, "bumbum_hz_production", report["server_uuid"])
         result = initialize_empty(connection, "bumbum_hz_test", report["server_uuid"], (ROOT / "db/schema.sql").read_text())
-        assert result["tables_complete"] and result["table_count"] == 35
+        assert result["tables_complete"] and result["table_count"] == len(TARGET_TABLES)
         with pytest.raises(RdsPreparationError, match="不是空库"):
             initialize_empty(connection, "bumbum_hz_test", report["server_uuid"], (ROOT / "db/schema.sql").read_text())
         with pytest.raises(RdsPreparationError, match="不是空库"):
             normalize_empty_collation(connection, "bumbum_hz_test", report["server_uuid"])
-        assert inspect_target(connection, "bumbum_hz_test")["table_count"] == 35
+        assert inspect_target(connection, "bumbum_hz_test")["table_count"] == len(TARGET_TABLES)
         with connection.cursor() as cursor:
             cursor.execute("SELECT code FROM project ORDER BY id")
             assert cursor.fetchall() == (("fashion",), ("jewelry",))

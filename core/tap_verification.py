@@ -197,9 +197,11 @@ def verify_in_transaction(cursor, reading, *, browser_view=False):
             'owner_bound': owner_bound, 'tap_token': token, 'expires_in': 300, 'item_detail': profile}
     if browser_view and chip['project'] == 'fashion':
         from core.auth_settings import iso_time
+        from core.public_account import item_metadata
         verified_at = utc_now()
         result['_view_cookie'] = issue_grant(cursor, item, chip, owner_bound, view=True, at=verified_at)
         result.update(view_path=f"/tap/items/{item['id']}", verified_at=iso_time(verified_at), retrieved_at=iso_time(verified_at))
+        result.update(item_metadata(cursor,item['id'],owner_bound))
     return result
 
 

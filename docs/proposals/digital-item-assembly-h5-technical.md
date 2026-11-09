@@ -1,11 +1,11 @@
 ---
 doc_type: proposal
-status: review
+status: approved
 ---
 
 # 数字物品装配与 H5 首版技术方案
 
-产品规则已确认，见 [后台装配流程](admin-make-rebuild.md#assembly)、[业务字段表](admin-rebuild-fields.md)和 [H5 首版](digital-item-h5-mvp.md)。本文供 cece 审核技术范围。建议按「后台装配、权益和审计 → H5 账户与认领 → 手机预览和批次验收」三步在同一测试分支验收。保留 Flask、MySQL、Umi 管理端及现有独立 React H5 工程。
+产品与技术方案已由 cece 确认，见 [后台装配流程](admin-make-rebuild.md#assembly)、[业务字段表](admin-rebuild-fields.md)和 [H5 首版](digital-item-h5-mvp.md)。实施顺序为后台装配、权益和审计，随后 H5 认领及预览，最后模拟批次替换。实际交付和人工验收见 [验收清单](../DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。保留 Flask、MySQL、Umi 管理端及现有独立 React H5 工程。
 
 ## 1. 后台装配、权益和审计
 

@@ -220,7 +220,7 @@ export default function ChipDetail({
             {
               validationChip: "维护生产验证标记",
               deleteChip: "直接删除生产验证芯片",
-              bind: "准备物品（实物＋芯片）",
+              bind: "选择数字物品继续安装",
               chipBatch: "维护批次",
               chipState: "芯片技术维护",
             }[action] || "维护芯片"
@@ -232,7 +232,14 @@ export default function ChipDetail({
             batch_no: r.batch_no,
             state: r.chip_status === "disabled" ? "restore" : "disabled",
           }}
-          onDone={done}
+          submitText={action === "bind" ? "继续安装" : undefined}
+          execute={action === "bind" ? async (payload) => ({ id: payload.item_id }) : undefined}
+          onDone={(result) => {
+            if (action === "bind") {
+              setAction(undefined);
+              history.push(`/items/${result.id}?installChip=${r.id}&from=${encodeURIComponent(`/chips/${r.id}`)}`);
+            } else done();
+          }}
           onClose={() => setAction(undefined)}
         >
           <Form.Item name="chip_id" hidden>
@@ -269,13 +276,6 @@ export default function ChipDetail({
                     ...(r.project ? { project: r.project } : {}),
                   }}
                 />
-              </Form.Item>
-              <Form.Item
-                name="spec"
-                label="物品实际规格"
-                extra="不适用尺寸、颜色等规格时可留空。"
-              >
-                <Input maxLength={256} />
               </Form.Item>
             </>
           )}

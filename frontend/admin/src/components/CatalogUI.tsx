@@ -217,7 +217,7 @@ export function RemoteSelect({
   useEffect(() => {
     let live = true;
     setSelectedOption(undefined);
-    if (value && ["styles", "issues", "items", "chips"].includes(resource))
+    if (value && ["styles", "issues", "items", "chips", "physical-items"].includes(resource))
       read(resource, Number(value))
         .then((r) => {
           if (live) setSelectedOption(r);
@@ -275,6 +275,7 @@ export function RemoteSelect({
         ).map((r) => ({
           value: r.id,
           label:
+            (r.physical_uid && `${r.physical_uid} · ${r.spec || "规格不适用"}`) ||
             r.chip_uid ||
             r.item_uid ||
             (resource === "styles"
@@ -684,7 +685,6 @@ const fields: Record<string, string[]> = {
     "ends_at",
     "counting_rule",
     "description",
-    "rights",
   ],
   confirmIssue: ["issue_id"],
   deleteIssue: ["issue_id"],
@@ -698,13 +698,18 @@ const fields: Record<string, string[]> = {
     "test_batch_id",
   ],
   bind: ["item_id", "chip_id", "spec"],
+  createPhysicalItem: ["style_id", "physical_uid", "spec", "batch_no", "supplier_serial"],
+  installAssembly: ["item_id", "physical_item_id", "chip_id", "installed"],
+  undoInstall: ["item_id", "whole_id", "evidence", "confirmed"],
   sale: ["item_id", "confirmed", "evidence", "first_sold_at"],
   saleBatch: ["item_ids", "confirmed", "evidence", "first_sold_at"],
   toggleItem: ["item_id", "status"],
   loseItem: ["item_id", "whole_id", "evidence"],
   linkIssue: ["item_id", "issue_id", "edition_number", "evidence"],
-  prepare: ["item_id", "kind", "chip_id", "spec", "evidence", "recipient_id"],
+  prepare: ["item_id", "kind", "physical_item_id", "chip_id", "installed", "evidence", "recipient_id", "seller_confirmation", "recipient_confirmation", "identity_review_required", "identity_verification_reference"],
   complete: ["work_id", "evidence", "checked"],
+  issueClaimCode: ["item_id", "delivery_reference", "confirmed"],
+  reissueClaimCode: ["item_id", "delivery_reference", "confirmed"],
   validationItem: ["item_id", "enabled"],
   deleteItem: ["item_id"],
   validationChip: ["chip_id", "enabled"],

@@ -46,6 +46,19 @@ def test_source_inherits_and_switch_does_not_reclassify(auth_app,logged_in,accep
     issue=ok(action(s,'issue',{'style_id':style['id'],'name':'继承测试发行','mode':'fixed','total':2,'rights':[],'description':'测试继承'}))['id']
     assert ok(s[0].get(f'/api/admin/catalog/issues/{issue}'))['test_batch_id']==batch
 
+
+def test_replace_old_simulated_batch_after_preview(auth_app,admin_account,acceptance):
+    old=acceptance['batch_id']
+    query(auth_app,"UPDATE test_batch SET manifest=JSON_SET(manifest,'$.pack','acceptance-v2') WHERE id=%s",(old,))
+    with auth_app.test_request_context():
+        planned=seed(get_database(),admin_account['username'],replace_batch=old)
+        assert planned['replacing']['status']=='active' and not planned['replacing']['conflicts']
+        result=seed(get_database(),admin_account['username'],replace_batch=old,apply=True)
+        assert result['replaced']['status']=='deleted' and result['batch_id']!=old
+        assert seed(get_database(),admin_account['username'],replace_batch=old,apply=True)['reused']
+    assert query(auth_app,'SELECT status FROM test_batch WHERE id=%s',(old,))[0]['status']=='deleted'
+    assert len(result['manifest']['items'])==84 and all(x['physical_uid'] for x in result['manifest']['items'])
+
 def test_external_reference_blocks_whole_batch_and_production_denies(auth_app,logged_in,acceptance,monkeypatch):
     batch=acceptance['batch_id'];s=logged_in
     user=query(auth_app,"INSERT INTO user(phone,nickname) VALUES ('TEST-EXTERNAL','批次外账户')")
@@ -133,7 +146,7 @@ def test_rich_pack_real_photos_specs_states_and_synthetic_boundaries(auth_app,ac
     assert {r['status'] for r in query(auth_app,'SELECT DISTINCT status FROM item')}=={'draft','active','disabled'}
     assert len(query(auth_app,'SELECT id FROM item_handover WHERE completed_at IS NULL'))==12
     assert len(query(auth_app,'SELECT id FROM whole_item WHERE ended_at IS NOT NULL'))==12
-    assert len(query(auth_app,'SELECT item_id FROM digital_item WHERE quota_review=1'))==6
+    assert len(query(auth_app,'SELECT item_id FROM item_handover WHERE quota_year IS NOT NULL AND completed_at IS NOT NULL'))==6
     assert len(query(auth_app,'SELECT id FROM ownership WHERE is_active=1'))==54
     assert query(auth_app,'SELECT COUNT(*) AS n FROM chip c JOIN (SELECT chip_id,MAX(scan_counter) AS counter FROM scan_log GROUP BY chip_id) s ON s.chip_id=c.id WHERE c.last_verified_counter<s.counter')[0]['n']==0
     rows=query(auth_app,'SELECT w.spec,s.specs FROM whole_item w JOIN digital_item d ON d.item_id=w.item_id JOIN product_issue i ON i.id=d.issue_id JOIN product_style s ON s.id=i.style_id')

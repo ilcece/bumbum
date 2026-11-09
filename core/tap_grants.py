@@ -122,10 +122,12 @@ def read_detail(item_id, *, view=False, image_id=None):
             data = {'item_uid': item['item_uid'], 'profile': {name: value for name, value in profile.items() if name not in {'trace', 'story', 'channel'}},
                     'trace': profile['trace'], 'story': profile['story'], 'channel': profile['channel'], 'owner_bound': owner_bound}
             if view:
+                from core.public_account import item_metadata
                 now = utc_now()
                 data = {'project': 'fashion', 'item_id': item_id, 'item_uid': item['item_uid'],
                         'verified_at': iso_time(grant['created_at']), 'retrieved_at': iso_time(now),
                         'profile': {name: profile[name] for name in ('name','description','material','care_instructions','image_urls')}}
+                data.update(item_metadata(cursor,item_id,owner_bound))
                 cursor.execute('UPDATE tap_grant SET expires_at=%s WHERE id=%s', (now + timedelta(hours=24), grant['id']))
         connection.commit()
         return data

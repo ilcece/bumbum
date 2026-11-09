@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 import pytest
 from tests.test_admin_browser import desktop,browser_gate,button,expect
-from tests.admin_ui_helpers import setup,api,choose
+from tests.admin_ui_helpers import setup,api,choose,install
 from tests.test_admin_auth import query
 
 pytestmark=[pytest.mark.auth_database,pytest.mark.browser]
@@ -16,7 +16,7 @@ def shot(p,name):
 
 def test_danger_navigation_never_submits_and_style_save_confirms_real_impact(desktop):
     style,issue,item,chips=setup(desktop);p=desktop.page
-    api(desktop,'bind',{'item_id':item,'chip_id':chips[0]})
+    install(desktop,style,item,chips[0])
     p.goto(f'http://localhost:5174/items/{item}',wait_until='networkidle')
     button(p,'挂失物品');p.get_by_label('核对依据',exact=True).fill('仅填写，未确认挂失')
     p.get_by_role('link',name=re.compile('芯片管理')).evaluate('(e)=>e.click()')

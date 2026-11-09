@@ -5,7 +5,7 @@ status: approved
 
 # 数字物品 H5 首版：查看、认领与我的物品
 
-cece 已确认本稿的首版范围、一次性认领码和预览交互。本稿是产品规格，交付状态见 [TODO](../../TODO.md)，实施细节见 [待审核的技术方案](digital-item-assembly-h5-technical.md)。管理端的实体、芯片和装配流程见 [后台重构方案](admin-make-rebuild.md#assembly)，字段见 [后台字段表](admin-rebuild-fields.md)。
+cece 已确认本稿的首版范围、一次性认领码和预览交互。本稿是产品规格，交付状态见 [TODO](../../TODO.md)，实施细节见 [已审核技术方案](digital-item-assembly-h5-technical.md)。管理端的实体、芯片和装配流程见 [后台重构方案](admin-make-rebuild.md#assembly)，字段见 [后台字段表](admin-rebuild-fields.md)。
 
 ## 1. 首版目标与入口
 
