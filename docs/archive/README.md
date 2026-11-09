@@ -13,15 +13,15 @@ reason: 集中索引已归档的方案、手册和复盘
 
 ## 旧后台提案与原型
 
-| 原主题 | 历史原文 | 旧链接兼容入口 |
-|---|---|---|
-| Make 管理后台重构 | [原稿](admin-make-rebuild-2026-11-05.md) | [旧章节定位](../proposals/admin-make-rebuild.md#sources) |
-| A：维护与查询 | [原稿及 S01–S30](admin-management-update-2026-11-05.md) | [旧路径](../proposals/admin-management-update.md) |
-| A：改版技术 | [原稿](admin-management-implementation-2026-11-05.md) | [旧路径](../proposals/admin-management-implementation.md) |
-| 通用销售与交付 | [原稿及旧原型证据](initial-sale-delivery-2026-11-05.md) | [旧路径](../proposals/initial-sale-delivery.md) |
-| B：验证识别与清理 | [原稿](production-validation-cleanup-2026-11-05.md) | [旧路径](../proposals/production-validation-cleanup.md) |
-| C：建档与绑定纠错 | [原稿](chip-correction-2026-11-05.md) | [旧路径](../proposals/chip-correction.md) |
-| D：挂失、换新与转售 | [原稿](replacement-resale-2026-11-05.md) | [旧路径](../proposals/replacement-resale.md) |
+| 原主题 | 历史原文 |
+|---|---|
+| Make 管理后台重构 | [原稿](admin-make-rebuild-2026-11-05.md) |
+| A：维护与查询 | [原稿及 S01–S30](admin-management-update-2026-11-05.md) |
+| A：改版技术 | [原稿](admin-management-implementation-2026-11-05.md) |
+| 通用销售与交付 | [原稿及旧原型证据](initial-sale-delivery-2026-11-05.md) |
+| B：验证识别与清理 | [原稿](production-validation-cleanup-2026-11-05.md) |
+| C：建档与绑定纠错 | [原稿](chip-correction-2026-11-05.md) |
+| D：挂失、换新与转售 | [原稿](replacement-resale-2026-11-05.md) |
 
 旧 FigJam、Make 和整月经营原型作为历史设计材料，实际版本和验收记录按 [变更历史](../../CHANGELOG.md) 查阅。
 
