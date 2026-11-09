@@ -62,6 +62,17 @@ def confirmation(keyed, keys, first=5, second=8):
     return {"management_confirmed": True, "readings": [reading(keys, keyed[1]["chip_uid"], n) for n in (first, second)]}
 
 
+def test_sun_template_uses_hangzhou_test_public_origin(auth_app, keyed):
+    keys = generated(auth_app, keyed)
+    auth_app.config.update(HANGZHOU_SLOT='test', PUBLIC_ORIGIN='https://nfc-test.bumbum.cc')
+    result = post(keyed, 'keys', {'confirm': True}).json['data']
+    assert result['sun_url_template'] == 'https://nfc-test.bumbum.cc/tap?picc_data={picc}&cmac={cmac}'
+    assert result['keys'] == keys
+    auth_app.config.update(HANGZHOU_SLOT='production', PUBLIC_ORIGIN='https://nfc.bumbum.cc')
+    result = post(keyed, 'keys', {'confirm': True}).json['data']
+    assert result['sun_url_template'] == 'https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}'
+
+
 def test_generate_view_confirm_and_preserve_item(auth_app, keyed, caplog):
     before = query(auth_app, "SELECT * FROM item")[0]
     keys = generated(auth_app, keyed)

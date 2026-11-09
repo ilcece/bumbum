@@ -17,10 +17,10 @@ import { Copy, State } from "./components/CatalogUI";
 import { time } from "./catalog";
 import type { ChipKeys, ChipView, SunReading } from "./api";
 
-function parseReading(value: string): SunReading {
+function parseReading(value: string, publicOrigin: string): SunReading {
   const url = new URL(value.trim());
   if (
-    url.origin !== "https://nfc.bumbum.cc" ||
+    url.origin !== publicOrigin ||
     url.pathname !== "/tap" ||
     url.hash ||
     url.username ||
@@ -51,6 +51,9 @@ export function ChipKeysDialog({
   onInteraction: (state: { dirty: boolean; busy: boolean }) => void;
 }) {
   const { modal } = App.useApp();
+  const publicOrigin = window.location.hostname === "test.bumbum.cc"
+    ? "https://nfc-test.bumbum.cc"
+    : "https://nfc.bumbum.cc";
   const [chip, setChip] = useState(initialChip);
   const [keys, setKeys] = useState<ChipKeys | null>(null);
   const [viewConfirmed, setViewConfirmed] = useState(false);
@@ -106,12 +109,12 @@ export function ChipKeysDialog({
     try {
       if (action === "confirm-provisioning")
         body = {
-          readings: links.map(parseReading),
+          readings: links.map((link) => parseReading(link, publicOrigin)),
           management_confirmed: management,
         };
     } catch {
       setError(
-        "请填写两条正确的系统触碰链接，地址须为 https://nfc.bumbum.cc/tap 并包含完整动态参数。",
+        `请填写两条正确的系统触碰链接，地址须为 ${publicOrigin}/tap 并包含完整动态参数。`,
       );
       return;
     }
@@ -130,8 +133,7 @@ export function ChipKeysDialog({
         if (
           result.chip_uid !== chip.chip_uid ||
           !result.keys ||
-          result.sun_url_template !==
-            "https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}" ||
+          result.sun_url_template !== `${publicOrigin}/tap?picc_data={picc}&cmac={cmac}` ||
           Object.keys(result.keys).sort().join(",") !== "K0,K1,K2,K3,K4" ||
           Object.values(result.keys).some(
             (value) =>

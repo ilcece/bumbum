@@ -131,7 +131,7 @@ chip.registration_source表示首次登记来源：manual为网页手工、nfc_c
 
 本小步PRD及交互规则已确认；事务、改表及全项目统计记录见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)，技术方案已确认；代码、人工验收及部署状态分别查看接口概览和TODO。
 
-链接保持 `https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}`。picc_data 是加密的芯片信息，cmac 是一起生成的防伪码；不额外公开 UID、物品编号、项目或密钥版本，也不启用额外加密内容 enc。网页读取两个参数，再提交给后端；此链接是前端页面，不是后端直接返回 HTML 的接口。
+生产使用 `https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}`，杭州 test 使用 `https://nfc-test.bumbum.cc/tap?picc_data={picc}&cmac={cmac}`。链接参数限定为加密芯片信息 `picc_data` 和防伪码 `cmac`。网页读取这两个参数并提交给对应环境的后端。
 
 ```mermaid
 flowchart TD

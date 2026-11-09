@@ -16,7 +16,6 @@ from core.sdm_derivation import derive_tag_key
 from core.sdm_verification import InvalidReading, InvalidLayout, decode_reading, valid_mac
 from core.secret_storage import decrypt_chip_keys, encrypt_chip_keys
 
-URL_TEMPLATE = "https://nfc.bumbum.cc/tap?picc_data={picc}&cmac={cmac}"
 CONFIG_NAMES = ("MASTER_KEY_FASHION", "MASTER_KEY_JEWELRY", "SDM_META_KEY_V1", "SDM_META_KEY_VERSION")
 
 
@@ -27,6 +26,11 @@ class ChipKeyUnavailable(Exception):
 def init_chip_keys(app):
     for name in CONFIG_NAMES:
         app.config.setdefault(name, os.getenv(name, "v1" if name == "SDM_META_KEY_VERSION" else ""))
+
+
+def sun_url_template():
+    origin = current_app.config['PUBLIC_ORIGIN'] if current_app.config['HANGZHOU_SLOT'] == 'test' else 'https://nfc.bumbum.cc'
+    return origin + '/tap?picc_data={picc}&cmac={cmac}'
 
 
 def configured_key(name):
@@ -131,7 +135,7 @@ def key_operation(chip_id, operation, readings=None):
                 saved = checked_saved_keys(stored, chip)
                 if operation == "view":
                     audit(cursor, "chip.view_keys", chip)
-                    result = {"chip_uid": chip["chip_uid"], "keys": saved, "sun_url_template": URL_TEMPLATE}
+                    result = {"chip_uid": chip["chip_uid"], "keys": saved, "sun_url_template": sun_url_template()}
                 else:
                     if chip["provisioned_at"] is not None:
                         raise AuthRequestError(409, "already_configured", "已有配置完成记录，请按UID查询；本入口不重配或重置计数。")

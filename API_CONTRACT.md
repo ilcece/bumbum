@@ -187,7 +187,7 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 | 查详情：GET /api/admin/chips/{id} | 有效芯片ID，无查询参数 | ChipSummary，无记录404 |
 | 修改批次：PATCH /api/admin/chips/{id} | 仅batch_no，文字或null | 最新ChipSummary |
 | 生成密钥：POST /api/admin/chips/{id}/generate-keys | `{}`，不接受 force | chip_id、generated=true、key_version |
-| 查看密钥：POST /api/admin/chips/{id}/keys | confirm=true | chip_uid、keys、sun_url_template |
+| 查看密钥：POST /api/admin/chips/{id}/keys | confirm=true | chip_uid、keys、sun_url_template。杭州 test 模板指向 nfc-test.bumbum.cc，生产指向 nfc.bumbum.cc。 |
 | 确认配置：POST /api/admin/chips/{id}/confirm-provisioning | readings：恰好两项的数组，各含picc_data/cmac；management_confirmed=true | 更新后的ChipView；不返回密钥或用户凭证 |
 | 绑定物品：POST /api/admin/chips/{id}/bind-item | item_id | 更新后 ChipView |
 
