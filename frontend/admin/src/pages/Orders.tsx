@@ -168,22 +168,33 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
     {configure && unit.chip_id && <KeyConfiguration id={unit.chip_id} onUpdated={reload} onClose={done} />}
     {dialog === "match" && <OrderMatchDialog unit={unit} onClose={() => setDialog(undefined)} onDone={done} />}
     {dialog === "new" && <RegisterPhysical orderUnit={unit} onClose={() => setDialog(undefined)} onDone={done} />}
-    {dialog && dialog !== "new" && dialog !== "match" && <ActionForm title={titleFor[dialog]} submitText={titleFor[dialog]}
+    {dialog && dialog !== "new" && dialog !== "match" && <ActionForm key={dialog}
+      title={dialog === "allocate" && !unit.item_id ? "选择可分配数字库存" : titleFor[dialog]}
+      submitText={titleFor[dialog]}
       action={({ physical: "orderPhysical", allocate: "allocateOrderUnit", release: "releaseOrderUnit",
         sale: "orderSale", delivery: "issueClaimCode", enable: "toggleItem" } as Record<string, string>)[dialog]}
       initial={{ order_unit_id: unit.id, item_id: unit.item_id || undefined, status: "active", first_sold_at: inputISO(inputDate()) }}
       onClose={() => setDialog(undefined)} onDone={(r) => { if (dialog === "delivery") setClaim(r); done(); }}>
-      <OrderFacts unit={unit} actual={unit.physical_uid ? unit : undefined} />
+      <OrderFacts unit={unit} />
       {dialog === "enable" && <Alert type="info" title="启用后可继续分配，首次售出另行确认。" />}
       {dialog === "release" && <Alert type="warning" title="释放后该件需重新准备物品，已登记的实物和装配记录保留。" />}
       {["physical", "allocate", "release", "sale"].includes(dialog) && <Form.Item name="order_unit_id" hidden><InputNumber /></Form.Item>}
       {dialog === "physical" && <Form.Item name="physical_item_id" label="可用实物" rules={required}>
-        <RemoteSelect resource="physical-items" params={{ order_unit_id: unit.id }} placeholder="搜索已核对款式和规格的可用实物" />
+        <RemoteSelect resource="physical-items" params={{ order_unit_id: unit.id }} placeholder="搜索已核对款式和规格的可用实物"
+          emptyState={<Alert type="info" showIcon title="没有符合该订单件款式和规格的可用实物"
+            description="可为当前订单件登记新实物，保存后继续装配。"
+            action={<Button onClick={() => setDialog("new")}>登记新实物</Button>} />} />
       </Form.Item>}
       {dialog === "allocate" && !unit.item_id ?
         <Form.Item name="item_id" label="可分配数字库存" rules={required}>
           <RemoteSelect resource="items" params={{ order_unit_id: unit.id }} placeholder="搜索同款同规格的就绪库存"
-            optionLabel={(r) => [r.item_uid, r.name, r.spec].filter(Boolean).join(" · ")} />
+            optionLabel={(r) => [r.item_uid, r.name, r.spec].filter(Boolean).join(" · ")}
+            emptyState={<Alert type="info" showIcon title="没有符合该订单件款式和规格的可分配库存"
+              description="先为当前订单件准备实物，再装配、核验并启用。"
+              action={<Space wrap>
+                <Button onClick={() => setDialog("physical")}>选用已有实物</Button>
+                <Button onClick={() => setDialog("new")}>登记新实物</Button>
+              </Space>} />} />
         </Form.Item> : ["allocate", "sale", "delivery", "enable"].includes(dialog) &&
         <Form.Item name="item_id" hidden><InputNumber /></Form.Item>}
       {dialog === "release" && <Form.Item name="evidence" label="释放依据" rules={required}><Input.TextArea maxLength={1000} /></Form.Item>}
@@ -208,17 +219,19 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
   </section>;
 }
 
-function OrderFacts({ unit, actual }: { unit: Row; actual?: Row }) {
+function OrderFacts({ unit }: { unit: Row }) {
   return <Descriptions size="small" bordered column={1} style={{ marginBottom: 16 }}>
     <Descriptions.Item label="订单件">{unit.external_order_no} · 第 {unit.position} 件</Descriptions.Item>
     <Descriptions.Item label="订单原文">{unit.product_name} · {unit.ordered_spec || "未提供购买规格"}</Descriptions.Item>
     {unit.expected_style_name && <Descriptions.Item label="核对后要求">
       {unit.expected_style_name} · {unit.expected_spec || "无指定规格"}
     </Descriptions.Item>}
-    {actual && <>
-      <Descriptions.Item label="实际分配">{actual.physical_style_name} · {actual.spec || "无规格"}</Descriptions.Item>
-      <Descriptions.Item label="数字编号与实体编号">{actual.item_uid || "待装配"} · {actual.physical_uid}</Descriptions.Item>
-    </>}
+    {unit.physical_uid && <Descriptions.Item label={unit.allocated_at ? "已分配实物" : "已准备实物"}>
+      {[unit.physical_uid, unit.physical_style_name, unit.spec || "无规格"].filter(Boolean).join(" · ")}
+    </Descriptions.Item>}
+    {unit.item_uid && <Descriptions.Item label={unit.allocated_at ? "已分配数字物品" : "已装配数字物品"}>
+      {unit.item_uid}
+    </Descriptions.Item>}
   </Descriptions>;
 }
 
@@ -235,10 +248,11 @@ function OrderMatchDialog({ unit, onClose, onDone }: { unit: Row; onClose: () =>
       initial={{ order_unit_id: unit.id, style_id: unit.expected_style_id ?? undefined,
         spec: unit.expected_spec ?? undefined }}
       formInstance={form} onClose={onClose} onDone={onDone} submitDisabled={!chosen || creatingStyle}>
-      <OrderFacts unit={unit} actual={unit.physical_uid ? unit : undefined} />
+      <OrderFacts unit={unit} />
       <Form.Item name="order_unit_id" hidden><InputNumber /></Form.Item>
       <Form.Item name="style_id" label="对应款式" rules={required}
-        extra={<Button type="link" onClick={() => setCreatingStyle(true)}>补建款式</Button>}>
+        extra={<Space wrap><Button type="link" onClick={() => setCreatingStyle(true)}>补建款式</Button>
+          <Typography.Text type="secondary">保存后带回本订单件，仍需确认规格。</Typography.Text></Space>}>
         <RemoteSelect resource="styles" onChange={() => form.setFieldValue("spec", undefined)} />
       </Form.Item>
       {style.error && <Alert type="error" title={style.error} action={<Button onClick={style.reload}>重试</Button>} />}
@@ -248,7 +262,7 @@ function OrderMatchDialog({ unit, onClose, onDone }: { unit: Row; onClose: () =>
           <Input maxLength={256} />}
       </Form.Item>}
     </ActionForm>
-    {creatingStyle && <StyleEditor page={false} compact onClose={() => setCreatingStyle(false)} onDone={(result) => {
+    {creatingStyle && <StyleEditor page={false} compact returnTo="保存后返回本订单件并选中新款式。" onClose={() => setCreatingStyle(false)} onDone={(result) => {
       form.setFieldsValue({ style_id: result.id, spec: undefined });
       setCreatingStyle(false);
     }} />}

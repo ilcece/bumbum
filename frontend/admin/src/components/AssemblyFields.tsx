@@ -31,6 +31,7 @@ export default function AssemblyFields({ styleId, project, orderUnit }: { styleI
       {registering && (
         <ActionForm
           title="登记实体物品"
+          submitText="登记并带回"
           action="createPhysicalItem"
           initial={{ style_id: styleId }}
           onClose={() => setRegistering(false)}
@@ -43,12 +44,21 @@ export default function AssemblyFields({ styleId, project, orderUnit }: { styleI
           <Form.Item name="style_id" hidden><InputNumber /></Form.Item>
           <Form.Item name="physical_uid" label="实体编号" rules={required}><Input maxLength={64} /></Form.Item>
           <Form.Item name="spec" label="实际规格" extra="有尺码、颜色等规格时必填。"><Input maxLength={256} /></Form.Item>
-          <Form.Item name="batch_no" label="实体批次"><Input maxLength={64} /></Form.Item>
+          <Form.Item name="batch_no" label="实物批次"><Input maxLength={64} /></Form.Item>
           <Form.Item name="supplier_serial" label="供应商序列号"><Input maxLength={128} /></Form.Item>
         </ActionForm>
       )}
     </>
   );
+}
+
+export function ChipRegistrationFields() {
+  return <>
+    <Form.Item name="chip_uid" label="芯片编号 UID" rules={required}>
+      <Input maxLength={32} placeholder="7字节真实UID" />
+    </Form.Item>
+    <Form.Item name="batch_no" label="芯片批次"><Input maxLength={64} /></Form.Item>
+  </>;
 }
 
 export function InstallationConfirmation() {

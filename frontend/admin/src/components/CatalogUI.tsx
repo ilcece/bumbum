@@ -200,6 +200,7 @@ export function RemoteSelect({
   onChange,
   placeholder,
   optionLabel,
+  emptyState,
 }: {
   id?: string;
   resource: string;
@@ -208,6 +209,7 @@ export function RemoteSelect({
   onChange?: (v: number | string) => void;
   placeholder?: string;
   optionLabel?: (row: Row) => string;
+  emptyState?: React.ReactNode;
 }) {
   const [options, setOptions] = useState<Row[]>([]),
     [page, setPage] = useState(1),
@@ -215,6 +217,7 @@ export function RemoteSelect({
     [refresh, setRefresh] = useState(0),
     [total, setTotal] = useState(0),
     [error, setError] = useState(""),
+    [listResult, setListResult] = useState<{ key: string; total?: number; error?: string }>(),
     seq = useRef(0);
   const [selectedOption, setSelectedOption] = useState<Row>();
   useEffect(() => {
@@ -233,6 +236,12 @@ export function RemoteSelect({
     };
   }, [resource, value]);
   const key = JSON.stringify(params);
+  const requestKey = JSON.stringify([resource, key, page, q, refresh]);
+  const result = listResult?.key === requestKey ? listResult : undefined;
+  const hasEmptyState = emptyState !== undefined;
+  const candidates = hasEmptyState && (!result || result.error) ? [] : options;
+  const visibleOptions = selectedOption && !candidates.some((r) => r.id === selectedOption.id)
+    ? [selectedOption, ...candidates] : candidates;
   useEffect(() => {
     const n = ++seq.current;
     list(resource, {
@@ -252,19 +261,30 @@ export function RemoteSelect({
                 ],
           );
           setTotal(p.total);
+          setListResult({ key: requestKey, total: p.total });
           setError("");
         }
       })
       .catch((e) => {
-        if (n === seq.current) setError(e.message);
+        if (n === seq.current) setListResult({ key: requestKey, error: e.message });
       });
-  }, [resource, key, page, q, refresh]);
+    return () => { ++seq.current; };
+  }, [requestKey]);
   return (
     <>
       <Select
         id={id}
-        showSearch
-        filterOption={false}
+        showSearch={{
+          filterOption: false,
+          searchValue: q,
+          onSearch: (keyword) => {
+            setQ(keyword);
+            setPage(1);
+          },
+        }}
+        loading={!result}
+        notFoundContent={!result ? <Spin size="small" /> :
+          result.error ? "读取失败" : q ? "没有符合搜索词的记录" : undefined}
         value={value}
         onChange={onChange}
         onOpenChange={(open) => {
@@ -274,15 +294,7 @@ export function RemoteSelect({
             setRefresh((n) => n + 1);
           }
         }}
-        onSearch={(v) => {
-          setQ(v);
-          setPage(1);
-        }}
-        options={(selectedOption &&
-        !options.some((r) => r.id === selectedOption.id)
-          ? [selectedOption, ...options]
-          : options
-        ).map((r) => ({
+        options={visibleOptions.map((r) => ({
           value: r.id,
           label:
             optionLabel?.(r) ||
@@ -307,6 +319,11 @@ export function RemoteSelect({
         style={{ minWidth: 200, width: "100%" }}
       />
       {error && <Typography.Text type="danger">{error}</Typography.Text>}
+      {result?.error && (hasEmptyState ? <Alert type="error" showIcon title="库存读取失败"
+        description={result.error} action={<Button onClick={() => setRefresh((n) => n + 1)}>重试</Button>} /> :
+        <Typography.Text type="danger">{result.error}</Typography.Text>)}
+      {hasEmptyState && result?.total === 0 && (q ? <Alert type="info" showIcon title="没有符合搜索词的记录"
+        action={<Button onClick={() => { setQ(""); setPage(1); }}>清除搜索</Button>} /> : emptyState)}
     </>
   );
 }
@@ -433,6 +450,8 @@ export function ActionForm({
     "register",
     "legacyProfile",
     "chipBatch",
+    "createOrder",
+    "createPhysicalItem",
   ].includes(action);
   const submit = async (v: Record<string, any>) => {
     setBusy(true);
@@ -486,28 +505,36 @@ export function ActionForm({
         content: "不会代为提交本次操作。已提交的结果不会因离开而撤销。",
         okText: "放弃输入并离开",
         cancelText: "返回核对",
+        focusable: { autoFocusButton: "cancel" },
         onOk: continueLeaving,
       });
       return;
     }
+    let saving = false;
     const prompt = modal.confirm({
       title: "有未保存修改",
+      content: "可以继续编辑、放弃本次输入，或保存后离开。",
       okText: "保存后继续",
       cancelText: "继续编辑",
-      content: (
-        <Button
-          danger
-          onClick={() => {
+      focusable: { autoFocusButton: "cancel" },
+      okButtonProps: { disabled: submitDisabled },
+      footer: (_, { CancelBtn, OkBtn }) => (
+        <Space wrap>
+          <CancelBtn />
+          <Button danger onClick={() => {
+            if (saving) return;
             prompt.destroy();
             continueLeaving();
-          }}
-        >
-          放弃并继续
-        </Button>
+          }}>放弃并离开</Button>
+          <OkBtn />
+        </Space>
       ),
       onOk: async () => {
-        if (await form.current?.validateFields().then(submit))
-          continueLeaving();
+        saving = true;
+        prompt.update({ cancelButtonProps: { disabled: true }, keyboard: false });
+        const values = await (formInstance ?? form.current)?.validateFields().catch(() => undefined);
+        // 校验失败或服务报错时，关闭离开提示，留在原表单查看错误。
+        if (values && await submit(values)) continueLeaving();
       },
     });
   };

@@ -3,7 +3,7 @@ import { PageContainer, ProCard } from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
 import { Alert, Button, Checkbox, Collapse, Descriptions, Form, Input, InputNumber, Select, Space, Switch, Typography } from "antd";
 import { ActionForm, Load, RemoteSelect, required, returnPath, useRecord } from "../components/CatalogUI";
-import { InstallationConfirmation } from "../components/AssemblyFields";
+import { ChipRegistrationFields, InstallationConfirmation } from "../components/AssemblyFields";
 import StyleEditor from "../components/StyleEditor";
 import { IssueFields } from "./Catalog";
 import { Row, statusNames } from "../catalog";
@@ -30,7 +30,7 @@ export function RegisterPhysical({ orderUnit, onClose, onDone }: {
   const [form] = Form.useForm();
   const unitId = orderUnit?.id;
   return <>
-    <ActionForm title="登记实体物品" submitText="保存实体"
+    <ActionForm title="登记实体物品" submitText={unitId ? "登记并用于本件" : "登记实物"}
       formInstance={form} action={unitId ? "orderPhysical" : "createPhysicalItem"}
       initial={unitId ? { order_unit_id: unitId, physical: { style_id: orderUnit.expected_style_id, spec: orderUnit.expected_spec } } : {}}
       onDone={onDone} onClose={onClose}>
@@ -40,13 +40,13 @@ export function RegisterPhysical({ orderUnit, onClose, onDone }: {
         <Form.Item name={["physical", "style_id"]} hidden><InputNumber /></Form.Item>
       </> : <>
         <Form.Item name="style_id" label="款式" rules={required}
-          extra={<Button type="link" onClick={() => setCreatingStyle(true)}>新建款式</Button>}>
+          extra={<Button type="link" onClick={() => setCreatingStyle(true)}>补建款式</Button>}>
           <RemoteSelect resource="styles" onChange={() => form.setFieldValue("spec", undefined)} />
         </Form.Item>
       </>}
       <PhysicalFields nested={!!unitId} fixedSpec={orderUnit?.expected_spec} />
     </ActionForm>
-    {creatingStyle && <StyleEditor page={false} onClose={() => setCreatingStyle(false)} onDone={(r) => {
+    {creatingStyle && <StyleEditor page={false} compact returnTo="保存后返回实物登记并选中新款式。" onClose={() => setCreatingStyle(false)} onDone={(r) => {
       form.setFieldsValue({ style_id: r.id, spec: undefined });
       setCreatingStyle(false);
     }} />}
@@ -138,7 +138,7 @@ function Assembly({ issue, physical, chip, unitId, target }: {
         {physical ? <Typography.Text>{physical.style_name} · 实体 {physical.physical_uid}</Typography.Text> :
           <Space wrap>
             <RemoteSelect resource="styles" value={styleId} onChange={(id) => chooseStyle(Number(id))} />
-            <Button onClick={() => setSupplement("style")}>新建款式</Button>
+            <Button type="link" onClick={() => setSupplement("style")}>补建款式</Button>
           </Space>}
         {!unitId && <Select value={mode} options={[
           { value: "assemble", label: "建档并确认安装" },
@@ -175,15 +175,15 @@ function Assembly({ issue, physical, chip, unitId, target }: {
         }]} />
       </ActionForm>
     </ProCard>
-    {supplement === "style" && <StyleEditor page={false} onClose={() => setSupplement(undefined)} onDone={(r) => {
+    {supplement === "style" && <StyleEditor page={false} compact returnTo="保存后返回数字物品建档并选中新款式。" onClose={() => setSupplement(undefined)} onDone={(r) => {
       chooseStyle(r.id); setSupplement(undefined);
     }} />}
-    {supplement === "issue" && <ActionForm title="发行约定草案" submitText="保存草案" action="issue"
+    {supplement === "issue" && <ActionForm title="发行约定草案" submitText="保存并继续确认" action="issue"
       initial={{ style_id: styleId, mode: "fixed" }} onClose={() => setSupplement(undefined)}
       onDone={(r) => { setDraftIssue(r.id); setSupplement("confirm"); }}>
       <IssueFields />
     </ActionForm>}
-    {supplement === "confirm" && <ActionForm title="确认发行约定" submitText="确认发行" action="confirmIssue"
+    {supplement === "confirm" && <ActionForm title="确认发行约定" submitText="确认并带回" action="confirmIssue"
       initial={{ issue_id: draftIssue }} onClose={() => setSupplement(undefined)}
       onDone={(r) => { chooseIssue(r.id); setSupplement(undefined); }}>
       <Form.Item name="issue_id" label="同款发行草案" rules={required}>
@@ -191,17 +191,16 @@ function Assembly({ issue, physical, chip, unitId, target }: {
       </Form.Item>
       <IssueConfirmation />
     </ActionForm>}
-    {supplement === "physical" && <ActionForm title="登记新实物" submitText="保存实体" action="createPhysicalItem"
+    {supplement === "physical" && <ActionForm title="登记实体物品" submitText="登记并带回" action="createPhysicalItem"
       initial={{ style_id: styleId }} onClose={() => setSupplement(undefined)}
       onDone={(r) => { form.setFieldValue("physical_item_id", r.id); setSupplement(undefined); }}>
       <Form.Item name="style_id" hidden><InputNumber /></Form.Item>
       <PhysicalFields />
     </ActionForm>}
-    {supplement === "chip" && <ActionForm title="登记新芯片" submitText="登记芯片" action="register"
+    {supplement === "chip" && <ActionForm title="手工登记芯片" submitText="登记并带回" action="register"
       initial={{}} onClose={() => setSupplement(undefined)}
       onDone={(r) => { form.setFieldValue("chip_id", r.id); setSupplement(undefined); }}>
-      <Form.Item name="chip_uid" label="芯片 UID" rules={required}><Input maxLength={32} /></Form.Item>
-      <Form.Item name="batch_no" label="芯片批次"><Input maxLength={64} /></Form.Item>
+      <ChipRegistrationFields />
     </ActionForm>}
   </>;
 }

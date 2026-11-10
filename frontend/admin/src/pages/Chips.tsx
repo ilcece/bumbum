@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { PageContainer, ProColumns } from "@ant-design/pro-components";
-import { Button, Drawer, Form, Input, InputNumber, Select, Switch } from "antd";
+import { Button, Drawer, Form, InputNumber, Select, Switch } from "antd";
 import { history } from "@umijs/max";
 import { Row, statusNames, time, validationHelp } from "../catalog";
-import { ActionForm, Copy, State, required } from "../components/CatalogUI";
+import { ActionForm, Copy, State } from "../components/CatalogUI";
+import { ChipRegistrationFields } from "../components/AssemblyFields";
 import ServerTable from "../components/ServerTable";
 import KeyConfiguration from "../components/KeyConfiguration";
 import ChipDetail from "./ChipDetail";
@@ -189,12 +190,7 @@ export default function Chips() {
             setRev((n) => n + 1);
           }}
         >
-          <Form.Item name="chip_uid" label="芯片编号 UID" rules={required}>
-            <Input maxLength={32} placeholder="7字节真实UID" />
-          </Form.Item>
-          <Form.Item name="batch_no" label="批次">
-            <Input maxLength={64} />
-          </Form.Item>
+          <ChipRegistrationFields />
           <Form.Item
             name="is_validation"
             label="生产验证对象"

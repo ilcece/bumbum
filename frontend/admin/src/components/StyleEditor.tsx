@@ -243,12 +243,14 @@ export default function StyleEditor({
   record,
   page,
   compact = false,
+  returnTo,
   onClose,
   onDone,
 }: {
   record?: Row;
   page: boolean;
   compact?: boolean;
+  returnTo?: string;
   onClose: () => void;
   onDone: (r: Row) => void;
 }) {
@@ -337,7 +339,7 @@ export default function StyleEditor({
   };
   return (
     <ActionForm
-      title={compact ? "补建订单款式" : "维护款式共用资料"}
+      title={returnTo ? "补建款式" : "维护款式共用资料"}
       action="style"
       page={page}
       width={compact ? 560 : 1120}
@@ -345,9 +347,9 @@ export default function StyleEditor({
       footerNote={
         savedId
           ? `共用资料 · 引用 ${record?.item_count || 0} 件物品`
-          : "先建立款式资料，再维护发行约定"
+          : returnTo || "先建立款式资料，再维护发行约定"
       }
-      submitText={compact ? "保存款式" : "保存共用资料"}
+      submitText={returnTo ? "保存并带回" : "保存共用资料"}
       initial={record || { project: "fashion", specs: [], image_urls: [] }}
       beforeSubmit={async (values) => {
         if (!savedId) return true;
