@@ -67,7 +67,7 @@
 | 持续查看 | POST /api/tap/verify可选browser_view模式、GET /api/tap/items/{id}/view | 第9节 |
 | 款式图片 | POST/GET /api/admin/catalog/styles/{id}/images/{asset_id}及状态；GET /api/tap/items/{id}/style-images/{asset_id}、GET /api/fashion/items/{id}/style-images/{asset_id} | 第11.3节；旧单件图片入口已退役 |
 | 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
-| 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；当前分支构建，验收/部署见TODO |
+| 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,physical-items,orders,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；当前分支构建，验收/部署见TODO |
 | 用户账户及认领 | /api/public 下的短信验证、会话、认领及我的数字物品 | [第11节用户账户及认领](#用户账户及认领) |
 | 用户动态与账户卡 | GET /api/admin/catalog/activity、GET /api/admin/catalog/users/{uid}/card、POST /api/admin/catalog/users/{uid}/phone | [第11.1节](#111-分页与详情) |
 
@@ -527,6 +527,18 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 测试分支从物品档案读取换新与转售权益，发行读接口省略 `rights`。旧发行客户端的同名输入仅用于兼容解析。新物品的标准权益由服务端授予。业务规则见 [数字物品权益](docs/proposals/admin-make-rebuild.md#item-rights)，上线和人工验收见 [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。
 
+### 订单逐件履约
+
+| 入口 | 条件与返回 |
+|---|---|
+| `GET /api/admin/catalog/orders`、`GET /api/admin/catalog/orders/{id}` | 管理员查询。列表分页，支持 `keyword`、`data_scope` 和 `test_batch_id`；详情返回逐件原购买规格、分配、首次成交、交付代次及认领摘要。 |
+| `actions/createOrder` | 传 `channel`、`external_order_no`、1 至 100 件 `units`（每件 `product_name`，可选 `ordered_spec`），验收数据可选 `test_batch_id`。渠道与外部订单号在同一来源范围内唯一。 |
+| `actions/orderPhysical` | 传 `order_unit_id` 与 `physical_item_id`，或用 `physical` 提供与独立登记同样的字段。保存及占用在同一事务提交。 |
+| `actions/allocateOrderUnit`、`actions/releaseOrderUnit` | 分配传 `order_unit_id` 和 `item_id`，需要已核验启用的未成交库存。释放传 `order_unit_id` 和 `evidence`，限未成交且未交付，保留审计。 |
+| `actions/orderSale`、`actions/issueClaimCode` | 结构化订单售出传 `order_unit_id`、`item_id` 和带时区的 `first_sold_at`。发码从物品引用查找已成交分配，记录首次交付代次和凭证，再开放用户认领。 |
+
+`items` 查询增加 `workflow`（`assembly`、`verification`、`available`、`delivery`、`claim`）及实体、发行和订单号关键词。详情返回 `order`。`statistics` 可按 `detail_filter` 查看有触碰、售出后零触碰、成交时间待核对的物品列表。有效触碰穿透用 `activity?event=tap`，可带 `scope`、`range`、`as_of`、`style_id`、`issue_id`、`item_id`、`chip_id` 及既有日期与数据范围筛选。保留管理员认证、CSRF 和写回执。
+
 ### 实体装配、发码与预览
 
 | 入口 | 条件与返回 |
@@ -535,10 +547,10 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | `actions/createPhysicalItem` | 传 `style_id`、`physical_uid`、适用的 `spec`，可选 `batch_no`、`supplier_serial`。返回实体 ID 及编号。 |
 | `actions/installAssembly`、`actions/undoInstall` | 安装传 `item_id`、`physical_item_id`、`chip_id`、`installed=true`。纠正限未配置草稿，传 `item_id`、`whole_id`、`evidence`、`confirmed=true`。 |
 | `GET /api/admin/catalog/items?order_stock=true` | 仅返回已有实体装配、有效芯片核验、启用、未登记首次成交、无持有人和发码记录的库存，仍按数据范围筛选。 |
-| `actions/assembleOrderItem` | `issue_id`、`item_uid`、`physical_item_id`、`chip_id`、`installed=true`。依既有发行规则传 `edition_number`，可选 `is_validation`。数字身份与装配同事务，返回物品 `id`。 |
+| `actions/assembleOrderItem` | `issue_id`、`item_uid`、`physical_item_id`、`chip_id`、`installed=true`。依既有发行规则传 `edition_number`，可选 `is_validation`。数字身份与装配同事务，返回物品 ID。结构化订单可传 `order_unit_id`，同事务更新对应订单件。 |
 | `actions/orderSale` | `item_id`、`channel`（最多 40 字符）、`external_order_no`（最多 64 字符）、`first_sold_at`（带时区且不晚于当前）。事务锁定后重新校验库存资格，保存首次成交、售出依据和审计，不发码。 |
 | `actions/prepare`、`actions/complete` | 新版准备含 `physical_item_id` 和 `installed=true`，转售含接收账户和双方确认依据。有争议时提交核验结果引用。确认换新交付时按北京时间生效日计次。 |
-| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。订单流程首次发码时另传 `channel` 和 `external_order_no`，两者须与当前售出依据一致。成功响应展示原码一次。回执只返回发放记录和有效期。 |
+| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。旧成交依据流程首次发码时可传 `channel` 和 `external_order_no`，两者须与当前售出依据一致。成功响应展示原码一次。回执只返回发放记录和有效期。 |
 | `GET /api/admin/catalog/items/{id}/h5-preview` | 读取指定物品已保存的展示资料，预设视角在后台界面切换。 |
 | `GET /api/admin/catalog/audit` | 支持 `keyword`、`action`、`operator`、`date_from`、`date_to`、`item_id`。返回动作说明、对象、结果和必要前后值。 |
 

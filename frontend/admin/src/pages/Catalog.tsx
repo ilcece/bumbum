@@ -23,7 +23,7 @@ import {
 } from "antd";
 import { history, useLocation, useParams } from "@umijs/max";
 import dayjs from "dayjs";
-import { Row, read, statusNames, time, edition } from "../catalog";
+import { assemblyPath, Row, read, statusNames, time, edition } from "../catalog";
 import {
   ActionForm,
   Copy,
@@ -37,7 +37,7 @@ import {
 import { inputDate, inputISO } from "../businessTime";
 import ServerTable from "../components/ServerTable";
 import StyleEditor from "../components/StyleEditor";
-function IssueFields() {
+export function IssueFields() {
   const mode = Form.useWatch("mode");
   return (
     <>
@@ -563,7 +563,7 @@ export default function Catalog() {
             <Button
               type="primary"
               onClick={() =>
-                history.push(`/items?create=1&issue_id=${editor.record!.id}`)
+                history.push(assemblyPath(location.pathname + location.search, { issue_id: editor.record!.id }))
               }
             >
               登记该发行物品

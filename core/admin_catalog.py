@@ -34,6 +34,8 @@ AUDIT_LABELS = {
     'viewHolderPhone':'查看持有人完整手机号',
     'viewUserPhone':'查看账户完整手机号',
     'undoInstall':'纠正未配置的安装',
+    'createOrder':'登记订单','orderPhysical':'为订单件准备实体','allocateOrderUnit':'确认订单件分配',
+    'releaseOrderUnit':'释放订单件占用',
 }
 
 
@@ -170,6 +172,15 @@ def audit_detail(c,action,token,p,result,before):
         detail.update(channel=p['channel'].strip(), external_order_no=p['external_order_no'].strip(),
                       evidence=order_reference(p))
     if result.get('claim_code_id'):detail.update(claim_code_id=result['claim_code_id'],expires_at=result['expires_at'],evidence=p.get('delivery_reference'))
+    if result.get('order_id'):
+        detail.update(order_id=result['order_id'],order_unit_id=result.get('order_unit_id'),
+                      external_order_no=result['external_order_no'])
+        if not is_item:
+            detail.update(object_type='order',object_code=result['external_order_no'])
+            if result.get('position'):
+                detail['summary']=f"{operation}，订单第 {result['position']} 件。"
+            if result.get('released_item_id') or result.get('released_physical_id'):
+                detail.update(released_item_id=result['released_item_id'],released_physical_id=result['released_physical_id'])
     if result.get('deleted_uid'):detail['deleted_uid']=result['deleted_uid']
     return detail
 
@@ -258,9 +269,172 @@ CHIP_JOIN = '''FROM chip c LEFT JOIN project p ON p.id=c.project_id LEFT JOIN it
  LEFT JOIN item_handover w ON w.pending_chip_id=c.id'''
 
 
+ORDER_ITEM_JOIN = ' LEFT JOIN sales_order_unit ou ON ou.item_id=i.id LEFT JOIN sales_order ouo ON ouo.id=ou.order_id'
+HAS_CLAIM_CODE = 'EXISTS (SELECT 1 FROM item_claim_code cc WHERE cc.item_id=i.id)'
+ORDER_STOCK_FILTER = """i.status='active' AND d.issue_id IS NOT NULL AND d.sold=0 AND d.first_sold_at IS NULL
+    AND w.physical_item_id IS NOT NULL AND w.lost_at IS NULL AND w.loss_evidence IS NULL
+    AND c.chip_status='bound' AND c.id=w.chip_id AND c.provisioned_at IS NOT NULL
+    AND c.last_verified_counter IS NOT NULL AND o.user_id IS NULL AND ou.id IS NULL AND NOT """ + HAS_CLAIM_CODE
+WORKFLOW_FILTERS = {
+    'assembly': "i.status='draft' AND d.issue_id IS NOT NULL AND w.id IS NULL",
+    'verification': "i.status='draft' AND w.id IS NOT NULL AND c.provisioned_at IS NULL",
+    'available': ORDER_STOCK_FILTER,
+    'delivery': "d.sold=1 AND o.user_id IS NULL AND NOT " + HAS_CLAIM_CODE,
+    'claim': "o.user_id IS NULL AND " + HAS_CLAIM_CODE,
+}
+ORDER_UNIT_SELECT = """SELECT ou.*,so.channel,so.external_order_no,so.test_batch_id,
+    ph.physical_uid,ph.spec,ph.style_id,
+    i.item_uid,i.status AS item_status,d.sold,d.first_sold_at,
+    w.id AS whole_id,w.generation,ch.id AS chip_id,ch.provisioned_at,ch.chip_status,
+    w.lost_at,w.loss_evidence,
+    old.generation AS delivered_generation,old.spec AS delivered_spec,
+    old_ph.physical_uid AS delivered_physical_uid,old_ch.chip_uid AS delivered_chip_uid,
+    BIN_TO_UUID(u.public_uid) AS holder_uid,
+    first_code.delivery_reference AS first_delivery_reference,cc.expires_at AS claim_expires_at,cc.consumed_at AS claim_consumed_at,
+    cc.revoked_at AS claim_revoked_at
+    FROM sales_order_unit ou JOIN sales_order so ON so.id=ou.order_id
+    LEFT JOIN physical_item ph ON ph.id=ou.physical_item_id
+    LEFT JOIN item i ON i.id=ou.item_id
+    LEFT JOIN digital_item d ON d.item_id=i.id
+    LEFT JOIN whole_item w ON w.current_item_id=i.id LEFT JOIN chip ch ON ch.id=w.chip_id
+    LEFT JOIN whole_item old ON old.id=ou.delivery_whole_id
+    LEFT JOIN physical_item old_ph ON old_ph.id=old.physical_item_id LEFT JOIN chip old_ch ON old_ch.id=old.chip_id
+    LEFT JOIN ownership o ON o.active_item_id=i.id LEFT JOIN user u ON u.uid=o.user_id
+    LEFT JOIN item_claim_code first_code ON first_code.id=ou.first_claim_code_id
+    LEFT JOIN item_claim_code cc ON cc.id=(SELECT MAX(latest.id) FROM item_claim_code latest WHERE latest.item_id=i.id)"""
+
+
+def item_order(c, item_id):
+    found = row(c, ORDER_UNIT_SELECT + ' WHERE ou.item_id=%s', (item_id,))
+    return view(found) if found else None
+
+
+@blueprint.get('/orders')
+def orders():
+    check_parameters({'page','page_size','keyword','data_scope','test_batch_id'})
+    scope = request.args.get('data_scope','business')
+    _, args = filter_source('item','so.id',scope,request.args.get('test_batch_id'))
+    conditions, values = [], []
+    if scope != 'all':
+        conditions.append('so.test_batch_id IS '+('NOT NULL' if scope=='test' else 'NULL'))
+    if request.args.get('test_batch_id') is not None:
+        conditions.append('so.test_batch_id=%s')
+        values.append(args[-1])
+    keyword = text(request.args,'keyword',128)
+    if keyword:
+        conditions.append("(so.external_order_no LIKE %s ESCAPE '!' OR so.channel LIKE %s ESCAPE '!')")
+        values.extend([contains(keyword)]*2)
+    select = """SELECT so.id,so.channel,so.external_order_no,so.created_at,so.test_batch_id,
+        (SELECT COUNT(*) FROM sales_order_unit ou WHERE ou.order_id=so.id) AS unit_count,
+        (SELECT COUNT(*) FROM sales_order_unit ou WHERE ou.order_id=so.id AND ou.delivered_at IS NOT NULL) AS delivered_count"""
+    with consistent_read() as c:
+        return jsonify(status='ok',data=list_page(c,select,'FROM sales_order so',conditions,values,order='so.id DESC'))
+
+
+@blueprint.get('/orders/<int:ident>')
+def order_detail(ident):
+    check_parameters(set())
+    with consistent_read() as c:
+        order = view(row(c,'SELECT * FROM sales_order WHERE id=%s',(ident,)))
+        c.execute(ORDER_UNIT_SELECT + ' WHERE ou.order_id=%s ORDER BY ou.position',(ident,))
+        order['units'] = [view(unit) for unit in c.fetchall()]
+        return jsonify(status='ok',data=order)
+
+
+def create_order(c,p):
+    field_set(p,{'channel','external_order_no','units'},{'test_batch_id'})
+    order_reference(p)
+    batch = integer(p,'test_batch_id',optional=True)
+    if batch:
+        require_test_environment(current_app.config)
+        lock_batch(c,batch)
+    units = p['units']
+    if not isinstance(units,list) or not 1<=len(units)<=100 or any(not isinstance(unit,dict) for unit in units):
+        invalid('每个订单须登记 1 至 100 件。')
+    entries = []
+    for pos, unit in enumerate(units,1):
+        field_set(unit,{'product_name'},{'ordered_spec'})
+        entries.append((pos,text(unit,'product_name',128,required=True),text(unit,'ordered_spec',256)))
+    channel, number = p['channel'].strip(), p['external_order_no'].strip()
+    c.execute('INSERT INTO sales_order(channel,external_order_no,test_batch_id,created_by) VALUES (%s,%s,%s,%s)',
+              (channel,number,batch,g.admin_session['admin_id']))
+    order_id = c.lastrowid
+    c.executemany('INSERT INTO sales_order_unit(order_id,position,product_name,ordered_spec) VALUES (%s,%s,%s,%s)',
+                  [(order_id,*entry) for entry in entries])
+    return {'id':order_id,'order_id':order_id,'external_order_no':number}
+
+
+def lock_order_unit(c, unit_id):
+    unit = row(c,'SELECT order_id FROM sales_order_unit WHERE id=%s',(unit_id,))
+    if not unit:fail('订单件不存在。',404,'not_found')
+    order = view(row(c,'SELECT * FROM sales_order WHERE id=%s',(unit['order_id'],)))
+    lock_batch(c,order['test_batch_id'])
+    unit = view(row(c,'SELECT * FROM sales_order_unit WHERE id=%s FOR UPDATE',(unit_id,)))
+    return {**unit,'channel':order['channel'],'external_order_no':order['external_order_no'],'test_batch_id':order['test_batch_id']}
+
+
+def order_origin(c, unit, kind, ident):
+    if source(c,kind,ident)!=unit['test_batch_id']:
+        fail('请选用与订单同一数据范围和验收批次的对象。',409,'batch_conflict')
+
+
+def order_unit_action(c, action, p):
+    unit_id = integer(p,'order_unit_id')
+    unit = lock_order_unit(c,unit_id)
+    if unit['delivered_at']:fail('已经交付，请从物品档案核对历史或办理售后。')
+    if action=='orderPhysical':
+        field_set(p,{'order_unit_id'},{'physical_item_id','physical'})
+        if unit['physical_item_id'] or unit['item_id']:fail('该件已准备物品。请先核对或释放已有占用。')
+        if ('physical_item_id' in p)==('physical' in p):invalid('请选择已有实物或登记新实物。')
+        if 'physical' in p:
+            if not isinstance(p['physical'],dict):invalid('请输入实体资料。')
+            order_origin(c,unit,'style',integer(p['physical'],'style_id'))
+            ident = create_physical(c,p['physical'])['id']
+        else:
+            ident = integer(p,'physical_item_id')
+        locked(c,'physical_item',ident)
+        order_origin(c,unit,'physical',ident)
+        if row(c,'SELECT id FROM whole_item WHERE physical_item_id=%s LIMIT 1 FOR UPDATE',(ident,)) or row(c,'SELECT id FROM item_handover WHERE pending_physical_id=%s FOR UPDATE',(ident,)):
+            fail('此实体已用于装配。请选择可用实物或选用对应数字库存。')
+        c.execute('UPDATE sales_order_unit SET physical_item_id=%s WHERE id=%s',(ident,unit_id))
+    elif action=='allocateOrderUnit':
+        from core.public_account import claimable_item
+        field_set(p,{'order_unit_id','item_id'})
+        ident = integer(p,'item_id')
+        locked(c,'item',ident)
+        order_origin(c,unit,'item',ident)
+        if unit['allocated_at'] or (unit['item_id'] and unit['item_id']!=ident):
+            fail('该订单件已有物品或分配记录，请核对后再办理。')
+        whole = current(c,ident)
+        d = digital(c,ident)
+        if (not d['issue_id'] or d['sold'] or d['first_sold_at'] or not claimable_item(c,ident)
+                or row(c,'SELECT id FROM ownership WHERE active_item_id=%s FOR UPDATE',(ident,))
+                or row(c,'SELECT id FROM item_claim_code WHERE item_id=%s LIMIT 1 FOR UPDATE',(ident,))):
+            fail('物品未就绪或已有成交、交付或持有人，不能分配。')
+        if unit['physical_item_id'] and unit['physical_item_id']!=whole['physical_item_id']:
+            fail('当前装配与该件已准备的实体不一致。')
+        c.execute('UPDATE sales_order_unit SET item_id=%s,physical_item_id=%s,allocated_at=%s WHERE id=%s',
+                  (ident,whole['physical_item_id'],now(),unit_id))
+    else:
+        field_set(p,{'order_unit_id','evidence'})
+        text(p,'evidence',1000,required=True)
+        if not unit['physical_item_id'] and not unit['item_id']:fail('该订单件没有待释放的占用。')
+        if unit['item_id']:
+            locked(c,'item',unit['item_id'])
+            d = digital(c,unit['item_id'])
+            if (d['sold'] or d['first_sold_at'] or row(c,'SELECT id FROM item_claim_code WHERE item_id=%s LIMIT 1 FOR UPDATE',(unit['item_id'],))
+                    or row(c,'SELECT id FROM ownership WHERE active_item_id=%s FOR UPDATE',(unit['item_id'],))):
+                fail('此物品已成交、交付或归属，须先核对历史，不能释放。')
+        c.execute('UPDATE sales_order_unit SET item_id=NULL,physical_item_id=NULL,allocated_at=NULL WHERE id=%s',(unit_id,))
+    return {'id':unit['order_id'],'order_id':unit['order_id'],'order_unit_id':unit_id,
+            'external_order_no':unit['external_order_no'],'position':unit['position'],
+            'released_item_id':unit['item_id'] if action=='releaseOrderUnit' else None,
+            'released_physical_id':unit['physical_item_id'] if action=='releaseOrderUnit' else None}
+
+
 @blueprint.get('/<resource>')
 def listing(resource):
-    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner','bindable','order_stock'},'chips':{'project','status','is_validation','available','configured','registration_source','compatible_project'},'users':{'exclude_id','verified'},'physical-items':{'style_id','available'},'audit':{'action','operator','date_from','date_to','item_id'}}
+    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner','bindable','order_stock','workflow'},'chips':{'project','status','is_validation','available','configured','registration_source','compatible_project'},'users':{'exclude_id','verified'},'physical-items':{'style_id','available'},'audit':{'action','operator','date_from','date_to','item_id'}}
     if resource not in allowed:fail('未知查询资源。',404,'not_found')
     check_parameters({'page','page_size','keyword','data_scope','test_batch_id'}|allowed[resource])
     keyword = request.args.get('keyword','').strip()
@@ -285,9 +459,11 @@ def listing(resource):
             conditions.append('r.mode=%s');values.append(request.args['mode'])
     elif resource == 'items':
         select, joined, order = ITEM_SELECT, ITEM_JOIN, 'i.id DESC'
+        select += ",ou.id AS order_unit_id,ou.allocated_at,ou.delivered_at,ouo.id AS order_id,ouo.external_order_no"
+        select += ",EXISTS(SELECT 1 FROM item_claim_code cc WHERE cc.item_id=i.id) AS has_claim_code"
+        joined += ORDER_ITEM_JOIN
         if keyword:
-            columns = ['i.item_uid', 's.name', 'c.chip_uid']
-            if 'order_stock' in request.args: columns.append('ph.physical_uid')
+            columns = ['i.item_uid','s.name','c.chip_uid','ph.physical_uid','r.name','ouo.external_order_no','d.sale_evidence']
             conditions.append('(' + ' OR '.join(f"{column} LIKE %s ESCAPE '!'" for column in columns) + ')')
             values.extend([contains(keyword)] * len(columns))
         for name, column in [('status','i.status'),('issue_id','d.issue_id'),('style_id','r.style_id')]:
@@ -301,13 +477,13 @@ def listing(resource):
         if 'bindable' in request.args:
             if request.args['bindable']!='true':invalid('bindable仅接受true。')
             conditions.extend(["i.status!='archived'",'d.issue_id IS NOT NULL','w.id IS NULL','c.id IS NULL'])
+        workflow = request.args.get('workflow')
+        if workflow:
+            if workflow not in WORKFLOW_FILTERS:invalid('办理阶段不支持。')
+            conditions.append(WORKFLOW_FILTERS[workflow])
         if 'order_stock' in request.args:
             if request.args['order_stock'] != 'true': invalid('order_stock 仅接受 true。')
-            conditions.extend(["i.status='active'", 'd.issue_id IS NOT NULL', 'd.sold=0', 'd.first_sold_at IS NULL',
-                               'w.physical_item_id IS NOT NULL', 'w.lost_at IS NULL', 'w.loss_evidence IS NULL',
-                               "c.chip_status='bound'", 'c.id=w.chip_id', 'c.provisioned_at IS NOT NULL',
-                               'c.last_verified_counter IS NOT NULL', 'o.user_id IS NULL',
-                               'NOT EXISTS (SELECT 1 FROM item_claim_code cc WHERE cc.item_id=i.id)'])
+            conditions.append(ORDER_STOCK_FILTER)
         state=request.args.get('whole_status')
         if state:
             if state not in {'lost','normal','missing'}: invalid('整套物品状态不支持。')
@@ -339,6 +515,7 @@ def listing(resource):
             conditions.append('c.registration_source=%s');values.append(request.args['registration_source'])
     elif resource == 'physical-items':
         select = "SELECT ph.*,s.name AS style_name,CASE WHEN EXISTS (SELECT 1 FROM whole_item w WHERE w.current_physical_id=ph.id) THEN 'installed' WHEN EXISTS (SELECT 1 FROM item_handover w WHERE w.pending_physical_id=ph.id) THEN 'prepared' WHEN EXISTS (SELECT 1 FROM whole_item w WHERE w.physical_item_id=ph.id) THEN 'replaced' ELSE 'available' END AS assembly_status"
+        select += ",(SELECT order_id FROM sales_order_unit ou WHERE ou.physical_item_id=ph.id) AS order_id"
         joined,order = 'FROM physical_item ph JOIN product_style s ON s.id=ph.style_id','ph.id DESC'
         if keyword:
             conditions.append("(ph.physical_uid LIKE %s ESCAPE '!' OR ph.spec LIKE %s ESCAPE '!')");values.extend([contains(keyword)]*2)
@@ -346,7 +523,7 @@ def listing(resource):
             conditions.append('ph.style_id=%s');values.append(positive_integer('style_id',1,2147483647))
         if 'available' in request.args:
             if request.args['available']!='true':invalid('available仅接受true。')
-            conditions.extend(['NOT EXISTS (SELECT 1 FROM whole_item w WHERE w.physical_item_id=ph.id)','NOT EXISTS (SELECT 1 FROM item_handover w WHERE w.pending_physical_id=ph.id)'])
+            conditions.extend(['NOT EXISTS (SELECT 1 FROM whole_item w WHERE w.physical_item_id=ph.id)','NOT EXISTS (SELECT 1 FROM item_handover w WHERE w.pending_physical_id=ph.id)','NOT EXISTS (SELECT 1 FROM sales_order_unit ou WHERE ou.physical_item_id=ph.id)'])
     elif resource == 'users':
         if 'verified' in request.args:
             if request.args['verified']!='true':invalid('verified仅接受true。')
@@ -419,9 +596,19 @@ def detail(resource,ident):
             result['suggested_item_uid']=prefix+str(candidate).zfill(6)
         elif resource=='chips': result=view(row(c,CHIP_SELECT+' '+CHIP_JOIN+' WHERE c.id=%s',(ident,)))
         elif resource=='physical-items':
-            result=view(row(c,'SELECT ph.*,s.name AS style_name FROM physical_item ph JOIN product_style s ON s.id=ph.style_id WHERE ph.id=%s',(ident,)))
+            result=view(row(c,'''SELECT ph.*,s.name AS style_name,
+                w.item_id,ou.order_id,ou.id AS order_unit_id,
+                CASE WHEN w.id IS NOT NULL THEN 'installed'
+                WHEN EXISTS (SELECT 1 FROM item_handover h WHERE h.pending_physical_id=ph.id) THEN 'prepared'
+                WHEN EXISTS (SELECT 1 FROM whole_item h WHERE h.physical_item_id=ph.id) THEN 'replaced'
+                ELSE 'available' END AS assembly_status
+                FROM physical_item ph JOIN product_style s ON s.id=ph.style_id
+                LEFT JOIN whole_item w ON w.current_physical_id=ph.id
+                LEFT JOIN sales_order_unit ou ON ou.physical_item_id=ph.id WHERE ph.id=%s''',(ident,)))
+            result['test_batch_id']=source(c,'physical',ident)
         elif resource=='items':
             result=view(row(c,ITEM_SELECT+' '+ITEM_JOIN+' WHERE i.id=%s',(ident,)))
+            result['order']=item_order(c,ident)
             owners_sql = """SELECT o.id,o.user_id,o.bound_at,o.unbound_at,o.is_active,u.nickname,BIN_TO_UUID(u.public_uid) AS public_uid,
                                    CASE WHEN u.phone REGEXP '^[0-9]{11}$'
                                    THEN CONCAT(LEFT(u.phone,3),'****',RIGHT(u.phone,4)) END AS masked_phone
@@ -564,6 +751,7 @@ def issue_action(c,action,p):
     field_set(p,{'issue_id'}, {'total','evidence'})
     r=locked(c,'product_issue',integer(p,'issue_id'))
     if action=='confirmIssue':
+        text(p,'evidence',1000)
         if r['confirmed_at']: fail('约定已确认，请查询结果。')
         if r['mode']=='period' and not r['counting_rule']: fail('请填写有效数量核定规则。')
         c.execute('UPDATE product_issue SET confirmed_at=%s WHERE id=%s',(now(),r['id']))
@@ -627,10 +815,13 @@ def create_physical(c,p):
     return {'id':ident,'physical_uid':uid}
 
 
-def select_physical(c,p,item_id,issue_id):
+def select_physical(c,p,item_id,issue_id,order_unit_id=None):
     if p.get('installed') is not True:invalid('请确认已将所选芯片安装到该实体。')
     physical=locked(c,'physical_item',integer(p,'physical_item_id'))
     same_source(c,'item',item_id,'physical',physical['id'])
+    reserved=row(c,'SELECT id,item_id FROM sales_order_unit WHERE physical_item_id=%s FOR UPDATE',(physical['id'],))
+    if reserved and reserved['id']!=order_unit_id and reserved['item_id']!=item_id:
+        fail('该实体已为其他订单件准备，请回原订单件处理。')
     issue=row(c,'SELECT style_id FROM product_issue WHERE id=%s',(issue_id,))
     if not issue or physical['style_id']!=issue['style_id']:fail('请选择与数字物品同款式的实体。')
     if row(c,'SELECT id FROM whole_item WHERE physical_item_id=%s LIMIT 1 FOR UPDATE',(physical['id'],)) or row(c,'SELECT id FROM item_handover WHERE pending_physical_id=%s FOR UPDATE',(physical['id'],)):
@@ -652,12 +843,14 @@ def resale_accounts(c,owner,recipient):
     if len(verified)!=2 or not all(u['phone_verified_at'] for u in verified):fail('原持有人和接收人均须验证手机号。')
 
 
-def item_action(c,action,p,*,installed_by=None):
+def item_action(c,action,p,order_unit_id=None,*,installed_by=None):
     ident=integer(p,'item_id');i=locked(c,'item',ident);d=digital(c,ident)
     lock_batch(c,source(c,'item',ident))
     if action=='validationItem':
         field_set(p,{'item_id','enabled'});c.execute('UPDATE digital_item SET is_validation=%s WHERE item_id=%s',(boolean(p,'enabled'),ident));return {'id':ident}
     if action=='deleteItem':
+        if row(c,'SELECT id FROM sales_order_unit WHERE item_id=%s FOR UPDATE',(ident,)):
+            fail('该物品关联订单件，请先核对订单分配或使用批次清理。')
         field_set(p,{'item_id'})
         if not d['is_validation']:fail('仅生产验证物品可以直接删除。')
         c.execute('DELETE FROM item_claim_code WHERE item_id=%s',(ident,))
@@ -691,6 +884,8 @@ def item_action(c,action,p,*,installed_by=None):
         c.execute('UPDATE digital_item SET issue_id=%s,edition_number=%s WHERE item_id=%s',(r['id'],number,ident));c.execute('UPDATE product_issue SET ever_used=1 WHERE id=%s',(r['id'],))
         if r['rights'] is not None:grant_item_rights(c,ident,r)
     elif action in {'sale','orderSale'}:
+        if row(c,'SELECT id FROM sales_order_unit WHERE item_id=%s AND id<>%s FOR UPDATE',(ident,order_unit_id or 0)):
+            fail('该物品已占用，请在对应订单件确认售出。')
         if action=='orderSale':
             from core.public_account import claimable_item
             field_set(p, {'item_id','channel','external_order_no','first_sold_at'})
@@ -721,7 +916,7 @@ def item_action(c,action,p,*,installed_by=None):
         field_set(p,{'item_id','chip_id','physical_item_id','installed'} if action=='installAssembly' else {'item_id','chip_id'}, {'spec'} if action=='bind' else set())
         if current(c,ident,required=False):fail('已有当前整套物品，换新/转售请办理接续。')
         if not d['issue_id']:fail('请先补齐发行约定。')
-        physical=select_physical(c,p,ident,d['issue_id']) if action=='installAssembly' else None
+        physical=select_physical(c,p,ident,d['issue_id'],order_unit_id) if action=='installAssembly' else None
         if not physical and row(c,'SELECT item_id FROM digital_item_right WHERE item_id=%s AND rule_version=%s LIMIT 1',(ident,'standard-v1')):
             fail('请通过安装芯片选择并确认独立编号的实体。')
         chip=locked(c,'chip',integer(p,'chip_id'));same_source(c,'item',ident,'chip',chip['id']);available_chip(c,chip,i['project_id'])
@@ -838,6 +1033,8 @@ def chip_action(c,action,p):
         field_set(p,{'chip_id','enabled'});c.execute('INSERT INTO chip_validation(chip_id,is_validation) VALUES (%s,%s) ON DUPLICATE KEY UPDATE is_validation=VALUES(is_validation)',(ident,boolean(p,'enabled')))
     elif action=='deleteChip':
         field_set(p,{'chip_id'})
+        if row(c,'SELECT ou.id FROM sales_order_unit ou JOIN whole_item w ON w.id=ou.delivery_whole_id WHERE w.chip_id=%s LIMIT 1 FOR UPDATE',(ident,)):
+            fail('芯片属于已确认的订单交付，请保留原交付记录。')
         flag=row(c,'SELECT is_validation FROM chip_validation WHERE chip_id=%s',(ident,))
         if not flag or not flag['is_validation']:fail('仅生产验证芯片可以直接删除。')
         c.execute('DELETE FROM item_handover WHERE chip_id=%s OR source_id IN (SELECT id FROM whole_item WHERE chip_id=%s)',(ident,ident))
@@ -886,7 +1083,11 @@ def command(action):
                 audited_item_id=audit_item_id(c,action,p)
                 if audited_item_id:row(c,'SELECT id FROM item WHERE id=%s FOR UPDATE',(audited_item_id,))
                 before=audit_snapshot(c,audited_item_id)
-                if action=='clearTestBatch':
+                if action=='createOrder':
+                    result=create_order(c,p)
+                elif action in {'orderPhysical','allocateOrderUnit','releaseOrderUnit'}:
+                    result=order_unit_action(c,action,p)
+                elif action=='clearTestBatch':
                     from core.test_batches import cleanup
                     require_test_environment(current_app.config);field_set(p,{'batch_id','confirmed'})
                     if p['confirmed'] is not True:invalid('请明确确认整批清理。')
@@ -919,10 +1120,28 @@ def command(action):
                 elif action=='assembleOrderItem':
                     identity_fields = {'issue_id','item_uid','edition_number','is_validation'}
                     assembly_fields = {'chip_id','physical_item_id','installed'}
-                    field_set(p, {'issue_id','item_uid'} | assembly_fields, {'edition_number','is_validation'})
+                    field_set(p, {'issue_id','item_uid'} | assembly_fields, {'edition_number','is_validation','order_unit_id'})
+                    unit_id = integer(p,'order_unit_id',optional=True)
+                    if unit_id:
+                        unit = lock_order_unit(c,unit_id)
+                        if unit['item_id'] or unit['physical_item_id']!=integer(p,'physical_item_id'):
+                            fail('订单件的实物已变化，请回原订单件核对。')
+                        order_origin(c,unit,'issue',integer(p,'issue_id'))
                     result = create_item(c, {key:p[key] for key in identity_fields if key in p})
-                    item_action(c, 'installAssembly', {'item_id':result['id'], **{key:p[key] for key in assembly_fields}})
+                    item_action(c, 'installAssembly', {'item_id':result['id'], **{key:p[key] for key in assembly_fields}},order_unit_id=unit_id)
+                    if unit_id:
+                        c.execute('UPDATE sales_order_unit SET item_id=%s WHERE id=%s',(result['id'],unit_id))
+                        result.update(order_id=unit['order_id'],order_unit_id=unit_id,external_order_no=unit['external_order_no'])
                 elif action=='createPhysicalItem':result=create_physical(c,p)
+                elif action=='orderSale' and 'order_unit_id' in p:
+                    field_set(p,{'order_unit_id','item_id','first_sold_at'})
+                    unit=lock_order_unit(c,integer(p,'order_unit_id'))
+                    if not unit['allocated_at'] or unit['item_id']!=integer(p,'item_id'):
+                        fail('请先为该件确认数字物品分配。')
+                    p={key:p[key] for key in ('item_id','first_sold_at')}
+                    p.update(channel=unit['channel'],external_order_no=unit['external_order_no'])
+                    result=item_action(c,action,p,order_unit_id=unit['id'])
+                    result.update(order_id=unit['order_id'],order_unit_id=unit['id'],external_order_no=unit['external_order_no'])
                 elif action in {'issueClaimCode','reissueClaimCode'}:
                     from core.public_account import issue_claim_code
                     field_set(p,{'item_id','delivery_reference','confirmed'},{'channel','external_order_no'} if action=='issueClaimCode' else set())
@@ -934,7 +1153,19 @@ def command(action):
                         sale = row(c, 'SELECT sold,sale_evidence FROM digital_item WHERE item_id=%s FOR UPDATE', (item_id,))
                         if not sale or not sale['sold'] or sale['sale_evidence'] != order_reference(p):
                             fail('当前售出记录与本订单不一致，请核对后再确认交付。')
+                    linked=row(c,'SELECT id FROM sales_order_unit WHERE item_id=%s',(item_id,))
+                    if linked:
+                        unit=lock_order_unit(c,linked['id'])
+                        if not unit['allocated_at'] or not digital(c,item_id)['sold']:
+                            fail('请先在对应订单件完成分配及首次成交。')
                     result=issue_claim_code(c,item_id,g.admin_session['admin_id'],text(p,'delivery_reference',128,required=True),reissue=action=='reissueClaimCode')
+                    if linked and action=='issueClaimCode':
+                        whole=current(c,item_id)
+                        if whole['physical_item_id']!=unit['physical_item_id']:
+                            fail('实际交付的实体与分配不一致，请核对。')
+                        c.execute('UPDATE sales_order_unit SET delivered_at=%s,delivery_whole_id=%s,first_claim_code_id=%s WHERE id=%s',
+                                  (now(),whole['id'],result['claim_code_id'],unit['id']))
+                        result.update(order_id=unit['order_id'],order_unit_id=unit['id'],external_order_no=unit['external_order_no'])
                     transient['claim_code']=result.pop('claim_code')
                 elif action=='complete':result=complete(c,p)
                 elif action in ITEM_ACTIONS:result=item_action(c,action,p)
@@ -968,16 +1199,48 @@ def command(action):
     return jsonify(status='ok',data={**result,**transient})
 
 
+def tap_window(timestamp, scope, period):
+    if scope not in {'sold','all'} or period not in {'7d','30d','all'}:
+        invalid('统计口径或时间范围不支持。')
+    conditions, values = ["s.verify_result='pass'",'s.created_at<=%s'], [timestamp]
+    if scope=='sold':
+        conditions.extend(['d.sold=1','d.first_sold_at IS NOT NULL','s.created_at>=d.first_sold_at'])
+    if period!='all':
+        day=(timestamp+timedelta(hours=8)).replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=6 if period=='7d' else 29,hours=8)
+        conditions.append('s.created_at>=%s')
+        values.append(day)
+    return conditions, values
+
+
 @blueprint.get('/activity')
 def activity():
-    check_parameters({'item_id','item_uid','issue_id','event','date_from','date_to','page','page_size','data_scope','test_batch_id'})
+    check_parameters({'item_id','item_uid','issue_id','style_id','chip_id','event','date_from','date_to','page','page_size','data_scope','test_batch_id','scope','range','as_of'})
+    tap_keys={'scope','range','as_of','chip_id'}
+    if tap_keys.intersection(request.args) and request.args.get('event')!='tap':
+        invalid('触碰统计口径仅用于有效触碰明细。')
+    tap_args=[]
+    tap_filter=["s.verify_result='pass'"]
+    if request.args.get('event')=='tap':
+        timestamp=datetime.now(timezone.utc).replace(tzinfo=None)
+        if request.args.get('as_of'):
+            try:
+                as_of=datetime.fromisoformat(request.args['as_of'].replace('Z','+00:00'))
+                if as_of.tzinfo is None or as_of.year<1000:raise ValueError()
+                timestamp=min(timestamp,as_of.astimezone(timezone.utc).replace(tzinfo=None))
+            except (ValueError,OverflowError):
+                invalid('统计截止时间须为带时区的有效时间。')
+        tap_filter,tap_args=tap_window(timestamp,request.args.get('scope','all'),request.args.get('range','all'))
+        if request.args.get('chip_id'):
+            tap_filter.append('s.chip_id=%s')
+            tap_args.append(positive_integer('chip_id',1,2147483647))
     event = request.args.get('event')
     sources = {
-        'tap': ("SELECT s.id,s.item_id,s.created_at AS occurred_at,'tap' AS event,NULL AS user_uid FROM scan_log s JOIN items i ON i.id=s.item_id WHERE s.verify_result='pass'"),
+        'tap': ("SELECT s.id,s.item_id,s.created_at AS occurred_at,'tap' AS event,NULL AS user_uid FROM scan_log s JOIN items i ON i.id=s.item_id LEFT JOIN digital_item d ON d.item_id=i.id WHERE "+" AND ".join(tap_filter)),
         'claim': ("SELECT o.id,o.item_id,o.bound_at,'claim',BIN_TO_UUID(u.public_uid) FROM ownership o JOIN items i ON i.id=o.item_id JOIN user u ON u.uid=o.user_id WHERE o.bind_source='user_self'"),
+        'first_delivery': ("SELECT ou.id,ou.item_id,ou.delivered_at,'first_delivery',NULL FROM sales_order_unit ou JOIN items i ON i.id=ou.item_id WHERE ou.delivered_at IS NOT NULL"),
         'delivery': ("SELECT h.id,h.item_id,h.completed_at,IF(h.kind='resale','resale','renewal'),BIN_TO_UUID(u.public_uid) FROM item_handover h JOIN items i ON i.id=h.item_id JOIN user u ON u.uid=h.recipient_id WHERE h.completed_at IS NOT NULL"),
     }
-    if event not in {None,'tap','claim','resale','renewal'}:
+    if event not in {None,'tap','claim','first_delivery','resale','renewal'}:
         invalid('未知用户动态类型。')
     if event:
         sources = {key: sources[key] for key in (event if event in sources else 'delivery',)}
@@ -987,6 +1250,9 @@ def activity():
         if key in request.args:
             conditions.append(column+'=%s')
             values.append(positive_integer(key,1,2147483647))
+    if 'style_id' in request.args:
+        conditions.append('(SELECT style_id FROM product_issue WHERE id=d.issue_id)=%s')
+        values.append(positive_integer('style_id',1,2147483647))
     if 'item_uid' in request.args:
         conditions.append('i.item_uid=%s')
         values.append(text(request.args,'item_uid',32,required=True))
@@ -1000,7 +1266,7 @@ def activity():
     joined = ' FROM events e JOIN items i ON i.id=e.item_id'
     if event_conditions:
         joined += ' WHERE '+' AND '.join(event_conditions)
-    params = (*values,*event_values)
+    params = (*values,*tap_args,*event_values)
     page, size = positive_integer('page',1,2147483647),positive_integer('page_size',10,100)
     with consistent_read() as c:
         total = row(c,cte+'SELECT COUNT(*) AS total'+joined,params)['total']
@@ -1012,17 +1278,17 @@ def activity():
 
 @blueprint.get('/statistics')
 def statistics():
-    check_parameters({'scope','range','project','item_id','chip_id','data_scope','test_batch_id','style_id','issue_id','page','page_size'})
+    check_parameters({'scope','range','project','item_id','chip_id','data_scope','test_batch_id','style_id','issue_id','page','page_size','detail_filter'})
     scope=request.args.get('scope','sold');period=request.args.get('range','30d')
     if scope not in {'sold','all'} or period not in {'7d','30d','all'}:invalid('统计口径或时间范围不支持。')
+    detail_filter=request.args.get('detail_filter')
+    if detail_filter not in {None,'touched','zero','missing_sale'} or (detail_filter in {'zero','missing_sale'} and scope!='sold'):
+        invalid('所选明细筛选与触碰口径不一致。')
     with consistent_read() as c:
-        timestamp=row(c,'SELECT UTC_TIMESTAMP(6) AS t')['t'];conditions=["s.verify_result='pass'",'s.created_at<=%s'];values=[timestamp]
+        timestamp=row(c,'SELECT UTC_TIMESTAMP(6) AS t')['t']
+        conditions, values = tap_window(timestamp,scope,period)
         data_scope=request.args.get('data_scope','business');batch=request.args.get('test_batch_id')
         clause,args=filter_source('item','s.item_id',data_scope,batch);conditions.append(clause);values.extend(args)
-        if scope=='sold':conditions.extend(['d.sold=1','d.first_sold_at IS NOT NULL','s.created_at>=d.first_sold_at'])
-        if period!='all':
-            day=(timestamp+timedelta(hours=8)).replace(hour=0,minute=0,second=0,microsecond=0)-timedelta(days=6 if period=='7d' else 29,hours=8)
-            conditions.append('s.created_at>=%s');values.append(day)
         for key,column in [('item_id','s.item_id'),('chip_id','s.chip_id')]:
             if request.args.get(key):conditions.append(column+'=%s');values.append(positive_integer(key,1,2147483647))
         if request.args.get('project'):
@@ -1052,9 +1318,15 @@ def statistics():
         event_query='SELECT s.item_id,COUNT(*) AS tap_count,MAX(s.created_at) AS last_tap'+joined+' GROUP BY s.item_id'
         eligible=item_conditions+(['d.sold=1'] if scope=='sold' else [])
         page,size=positive_integer('page',1,2147483647),positive_integer('page_size',10,100)
-        total=row(c,'SELECT COUNT(*) AS total'+item_join+' WHERE '+' AND '.join(eligible),item_args)['total']
+        detail_join=item_join+' LEFT JOIN ('+event_query+') events ON events.item_id=i.id WHERE '
+        if detail_filter:
+            eligible.append({'touched':'events.tap_count>0','zero':'d.first_sold_at IS NOT NULL AND events.tap_count IS NULL',
+                             'missing_sale':'d.first_sold_at IS NULL'}[detail_filter])
+        total_join=detail_join if detail_filter else item_join+' WHERE '
+        total_args=(*values,*item_args) if detail_filter else item_args
+        total=row(c,'SELECT COUNT(*) AS total'+total_join+' AND '.join(eligible),total_args)['total']
         paging=pagination(total,page,size)
-        c.execute('SELECT i.id,i.item_uid,d.edition_number,d.issue_id,d.sold,r.total AS issue_total,u.uid AS owner_id,BIN_TO_UUID(u.public_uid) AS owner_public_uid,u.nickname AS owner_name,COALESCE(events.tap_count,0) AS tap_count,events.last_tap'+item_join+' LEFT JOIN ('+event_query+') events ON events.item_id=i.id WHERE '+' AND '.join(eligible)+' ORDER BY i.id DESC LIMIT %s OFFSET %s',(*values,*item_args,size,(paging['page']-1)*size))
+        c.execute('SELECT i.id,i.item_uid,d.edition_number,d.issue_id,d.sold,r.total AS issue_total,u.uid AS owner_id,BIN_TO_UUID(u.public_uid) AS owner_public_uid,u.nickname AS owner_name,COALESCE(events.tap_count,0) AS tap_count,events.last_tap'+detail_join+' AND '.join(eligible)+' ORDER BY i.id DESC LIMIT %s OFFSET %s',(*values,*item_args,size,(paging['page']-1)*size))
         details={'items':[view(x) for x in c.fetchall()],**paging}
         holder_filter,holder_args=filter_source('user','u.uid',data_scope,batch)
         holder_query='SELECT u.uid AS id,BIN_TO_UUID(u.public_uid) AS public_uid,u.nickname,COUNT(*) AS held_items'+item_join+' WHERE '+item_where+' AND u.uid IS NOT NULL AND '+holder_filter+' GROUP BY u.uid,u.public_uid,u.nickname'

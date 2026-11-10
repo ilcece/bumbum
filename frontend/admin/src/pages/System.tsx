@@ -8,7 +8,6 @@ import { useLocation, history } from "@umijs/max";
 import { statusNames, time } from "../catalog";
 import AdminPasskeys from "../components/AdminPasskeys";
 import { passkeysEnabled } from "../passkeys";
-import UserIdentity from "../components/UserIdentity";
 export default function System() {
   return (
     <PageContainer title={false}>
@@ -16,7 +15,7 @@ export default function System() {
         className="section-tabs"
         size="small"
         activeKey={
-          new URLSearchParams(useLocation().search).get("tab") || "audit"
+          (new URLSearchParams(useLocation().search).get("tab") || "audit").replace(/^users$/, "audit")
         }
         onChange={(tab) => history.replace("/system?tab=" + tab)}
         items={[
@@ -72,30 +71,7 @@ export default function System() {
             ),
           },
           { key: "runtime", label: "系统与环境", children: <RuntimeChecks /> },
-          {
-            key: "users",
-            label: "账户与持有",
-            children: (
-              <ServerTable
-                resource="users"
-                columns={[
-                  { title: "关键词", dataIndex: "keyword", hideInTable: true },
-                  { title: "账户 UID", dataIndex: "public_uid", search: false, render: (_, row) => <UserIdentity uid={row.public_uid} /> },
-                  { title: "昵称", dataIndex: "nickname", search: false },
-                  {
-                    title: "联系方式（脱敏）",
-                    dataIndex: "phone",
-                    search: false,
-                  },
-                  {
-                    title: "当前持有物品",
-                    dataIndex: "held_items",
-                    search: false,
-                  },
-                ]}
-              />
-            ),
-          },
+
         ]}
       />
     </PageContainer>

@@ -82,7 +82,17 @@ def preview(c,batch,*,lock=False):
     c.execute('SELECT * FROM test_batch WHERE id=%s'+(' FOR UPDATE' if lock else ''),(batch,));b=c.fetchone()
     if not b:raise AuthRequestError(404,'not_found','测试批次不存在。')
     ids=objects(c,batch,lock=lock)
-    return {'id':batch,'status':b['status'],'counts':{k:len(v) for k,v in ids.items()},'conflicts':conflicts(c,ids),'objects':ids}
+    c.execute('SELECT COUNT(*) AS total FROM sales_order WHERE test_batch_id=%s',(batch,))
+    order_count=c.fetchone()['total']
+    bad=conflicts(c,ids)
+    c.execute("""SELECT ou.id,ou.item_id,ou.physical_item_id,so.test_batch_id
+                 FROM sales_order_unit ou JOIN sales_order so ON so.id=ou.order_id""")
+    for unit in c.fetchall():
+        for kind, field in [('item','item_id'),('physical','physical_item_id')]:
+            ident=unit[field]
+            if ident is not None and ((ident in ids[kind])!=(unit['test_batch_id']==batch)):
+                bad.append({'kind':'order_unit','id':unit['id'],'related_kind':kind,'related_id':ident})
+    return {'id':batch,'status':b['status'],'counts':{**{k:len(v) for k,v in ids.items()},'order':order_count},'conflicts':bad,'objects':ids}
 
 def cleanup(c,batch):
     from core.admin_catalog import item_action,chip_action
@@ -90,6 +100,7 @@ def cleanup(c,batch):
     if p['status']=='deleted':return p
     if p['conflicts']:raise AuthRequestError(409,'batch_conflict','批次存在外部关联，请先查看清理预览；没有删除任何对象。')
     ids=p['objects']
+    c.execute('DELETE FROM sales_order WHERE test_batch_id=%s',(batch,))
     # 单条删除规则不改；整批显式清理本批拥有的双方对象。
     for ident in ids['item']:
         c.execute('UPDATE digital_item SET is_validation=1 WHERE item_id=%s',(ident,));item_action(c,'deleteItem',{'item_id':ident})

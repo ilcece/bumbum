@@ -115,6 +115,18 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
       </div>
     </div>
   ),
+  menuDataRender: (menu) => {
+    const digital = menu.find((item) => item.path === "/items");
+    const physical = menu.find((item) => item.path === "/physical-items");
+    if (!digital || !physical) return menu;
+    return menu.flatMap((item) => {
+      if (item === physical) return [];
+      return item === digital ? [{
+        key: "item-management", name: "数字物品管理", icon: digital.icon,
+        children: [{ ...digital, icon: undefined }, physical],
+      }] : [item];
+    });
+  },
   menuItemRender: (item, dom) =>
     item.path ? <Link to={item.path}>{dom}</Link> : dom,
   headerContentRender: () => <HeaderContext />,

@@ -19,6 +19,7 @@ import {
   Tooltip,
 } from "antd";
 import { history, useLocation, useParams } from "@umijs/max";
+import { activityPath, itemWorkflow, orderPath } from "../catalog";
 import {
   Row,
   edition,
@@ -69,10 +70,13 @@ export default function ItemDetail({
   onDeleted?: () => void;
 }) {
   const params = useParams();
-  const installChip = Number(new URLSearchParams(useLocation().search).get("installChip"));
+  const location = useLocation();
+  const query = new URLSearchParams(location.search);
+  const installChip = Number(query.get("installChip"));
+  const from = location.pathname + location.search;
   const ident = id || Number(params.id),
     { record: r, error, loading, reload } = useRecord("items", ident),
-    [action, setAction] = useState<string | undefined>(installChip ? "bind" : undefined),
+    [action, setAction] = useState<string | undefined>(installChip || query.get("install") === "1" ? "bind" : undefined),
     [work, setWork] = useState<Row>(),
     [preview, setPreview] = useState(false),
     [claimResult, setClaimResult] = useState<Row>(),
@@ -119,8 +123,11 @@ export default function ItemDetail({
   const container = (content: React.ReactNode) => (
     <DetailContainer
       embedded={embedded}
-      title={<Copy value={r?.item_uid} />}
-      subTitle={`${r?.style?.name || "款式待核对"} · ${r ? edition(r) : ""}`}
+      title={<Space wrap>{r?.style?.name || "数字物品"}<Copy value={r?.item_uid} /></Space>}
+      subTitle={r && <Space wrap><State value={itemWorkflow(r)} />
+        {r.spec || "规格待核对"} · {r.sold ? "已售出" : "未售出"}
+        {r.owner_id && <UserIdentity uid={r.owner_public_uid} />}
+      </Space>}
       onBack={() => history.push(returnPath("/items"))}
       extra={
         r && (
@@ -131,7 +138,8 @@ export default function ItemDetail({
               </Button>
             )}
             <Button onClick={() => setPreview(true)}>预览手机页</Button>
-            <Button onClick={() => setAction("sale")}>维护售出确认</Button>
+            {r.order ? <Button type="primary" onClick={() => history.push(orderPath(r.order.order_id, r.order.id))}>打开对应订单件</Button> :
+              <Button onClick={() => setAction("sale")}>维护售出确认</Button>}
             <Button
               danger={r.status === "active"}
               type={r.status === "active" ? "default" : "primary"}
@@ -154,7 +162,7 @@ export default function ItemDetail({
           <ProCard
             size="small"
             variant="outlined"
-            title="数字身份与发行"
+            title="身份与发行"
             headerBordered
             extra={<State value={statusNames[r.status]} />}
           >
@@ -272,53 +280,9 @@ export default function ItemDetail({
           <ProCard
             size="small"
             variant="outlined"
-            title="当前物品（实物＋芯片）"
+            title="实物与芯片"
             headerBordered
-            extra={
-              e ? (
-                <Space wrap>
-                  <Button
-                    danger
-                    disabled={
-                      !!(e.lost_at || e.loss_evidence) ||
-                      r.status === "archived"
-                    }
-                    onClick={() => setAction("loseItem")}
-                  >
-                    挂失物品
-                  </Button>
-                  {pending ? (
-                    <Button type="primary" onClick={() => setWork(pending)}>
-                      继续办理{pending.kind === "resale" ? "转售" : "换新"}
-                    </Button>
-                  ) : (
-                    <>
-                      <Button
-                        disabled={!r.owner_id || !r.rights?.some((right: Row) => right.kind === "renewal") || r.quota_review || r.quota_used >= 1}
-                        type="primary"
-                        onClick={() => setAction("prepareRenewal")}
-                      >
-                        办理换新
-                      </Button>
-                      <Button
-                        disabled={!r.owner_phone_verified || !r.rights?.some((right: Row) => right.kind === "resale")}
-                        onClick={() => setAction("prepareResale")}
-                      >
-                        办理转售
-                      </Button>
-                    </>
-                  )}
-                </Space>
-              ) : (
-                <Button
-                  disabled={!r.issue_id}
-                  type="primary"
-                  onClick={() => setAction("bind")}
-                >
-                  安装芯片
-                </Button>
-              )
-            }
+            extra={!e && <Button disabled={!r.issue_id} type="primary" onClick={() => setAction("bind")}>安装芯片</Button>}
           >
             {e ? (
               <>
@@ -388,7 +352,43 @@ export default function ItemDetail({
               <Alert type="info" title="尚未准备当前整套物品" />
             )}
           </ProCard>
-          <ProCard title="持有人与权益" headerBordered>
+          <ProCard title="订单与交付" headerBordered extra={r.order && <Button onClick={() =>
+            history.push(orderPath(r.order.order_id, r.order.id))}>返回原订单件</Button>}>
+            <Descriptions size="small" bordered column={2}>
+              <Descriptions.Item label="订单">{r.order ? r.order.channel + " · " + r.order.external_order_no + " · 第 " + r.order.position + " 件" : "无结构化订单"}</Descriptions.Item>
+              <Descriptions.Item label="购买规格">{r.order?.ordered_spec || "未记录"}</Descriptions.Item>
+              <Descriptions.Item label="分配时间">{time(r.order?.allocated_at)}</Descriptions.Item>
+              <Descriptions.Item label="首次成交">{time(r.first_sold_at)}</Descriptions.Item>
+              <Descriptions.Item label="首次交付">{time(r.order?.delivered_at)}</Descriptions.Item>
+              <Descriptions.Item label="交付依据">{r.order?.first_delivery_reference || "未记录"}</Descriptions.Item>
+              {r.order?.delivered_generation && <Descriptions.Item label="交付实物与代次">
+                第 {r.order.delivered_generation} 代 · {r.order.delivered_physical_uid}
+              </Descriptions.Item>}
+              {!r.order && r.sale_evidence && <Descriptions.Item label="历史成交依据">{r.sale_evidence}</Descriptions.Item>}
+            </Descriptions>
+            {!r.owner_id && (!r.order || r.order.delivered_at) && (
+              <Space wrap>
+                <Typography.Text type="secondary">{r.claim_code_status ? (r.claim_code_status.revoked_at ? "认领码已撤销" : Date.parse(r.claim_code_status.expires_at) <= Date.now() ? "认领码已过期" : "认领码有效期至 " + time(r.claim_code_status.expires_at)) : "首次交付后可发放认领码"}</Typography.Text>
+                <Button disabled={!r.physical_item_id || r.status !== "active" || !r.provisioned_at || !!e?.lost_at || !!e?.loss_evidence || r.chip_status !== "bound"} onClick={() => setAction(r.claim_code_status ? "reissueClaimCode" : "issueClaimCode")}>
+                  {r.claim_code_status ? "核对交付后补发" : "发放认领码"}
+                </Button>
+              </Space>
+            )}
+          </ProCard>
+          <ProCard title="持有人与权益" headerBordered extra={e && (
+            <Space wrap>
+              <Button danger disabled={!!(e.lost_at || e.loss_evidence) || r.status === "archived"}
+                onClick={() => setAction("loseItem")}>挂失物品</Button>
+              {pending ? <Button type="primary" onClick={() => setWork(pending)}>
+                继续办理{pending.kind === "resale" ? "转售" : "换新"}
+              </Button> : <>
+                <Button disabled={!r.owner_id || !r.rights?.some((right: Row) => right.kind === "renewal") || r.quota_review || r.quota_used >= 1}
+                  onClick={() => setAction("prepareRenewal")}>办理换新</Button>
+                <Button disabled={!r.owner_phone_verified || !r.rights?.some((right: Row) => right.kind === "resale")}
+                  onClick={() => setAction("prepareResale")}>办理转售</Button>
+              </>}
+            </Space>
+          )}>
             <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="适用数字权益">
                 {r.rights?.map((right: Row) => `${right.kind === "renewal" ? "换新" : "转售"}（${right.rule_version}）`).join("、") || "暂无已确认权益"}
@@ -409,14 +409,6 @@ export default function ItemDetail({
                 <State value={r.quota_review ? "待核对计次" : "暂无待核对"} />
               </Descriptions.Item>
             </Descriptions>
-            {!r.owner_id && (
-              <Space wrap>
-                <Typography.Text type="secondary">{r.claim_code_status ? `认领码有效期至 ${time(r.claim_code_status.expires_at)}` : "首次交付后可发放认领码"}</Typography.Text>
-                <Button disabled={!r.physical_item_id || r.status !== "active" || !r.provisioned_at || !!e?.lost_at || !!e?.loss_evidence || r.chip_status !== "bound"} onClick={() => setAction(r.claim_code_status ? "reissueClaimCode" : "issueClaimCode")}>
-                  {r.claim_code_status ? "核对交付后补发" : "发放认领码"}
-                </Button>
-              </Space>
-            )}
             <Collapse
               items={[
                 {
@@ -465,7 +457,7 @@ export default function ItemDetail({
           <ProCard
             size="small"
             variant="outlined"
-            title="物品历程（实物＋芯片）"
+            title="历程与动态"
             headerBordered
           >
             <Table<Row>
@@ -548,7 +540,9 @@ export default function ItemDetail({
               <Alert type="error" title={statsError} />
             ) : stats ? (
               <>
-                <Typography.Title level={3}>{stats.total}次</Typography.Title>
+                <Button type="link" onClick={() => history.push(activityPath(from, {
+                  event: "tap", item_id: r.id, scope, range, as_of: stats.as_of,
+                }))}>查看 {stats.total} 次有效触碰明细</Button>
                 <Typography.Paragraph type="secondary">
                   按稳定数字身份汇总历代物品；配置核验、失败及旧读数不计次。北京时间。
                 </Typography.Paragraph>
@@ -560,13 +554,13 @@ export default function ItemDetail({
                       title: "配套芯片",
                       render: (_, x) => <Copy value={x.chip_uid} />,
                     },
-                    { title: "有效触碰", dataIndex: "total" },
+                    { title: "有效触碰", dataIndex: "total", render: (_, x) => <Button type="link" onClick={() => history.push(activityPath(from, { event: "tap", item_id: r.id, chip_id: x.chip_id, scope, range, as_of: stats.as_of }))}>{x.total}</Button> },
                   ]}
                 />
               </>
             ) : null}
           </ProCard>
-          <ProCard title="用户动态" headerBordered extra={<Button onClick={() => history.push(`/overview/activity?item_id=${r.id}`)}>查看全部动态</Button>}>
+          <ProCard title="用户动态" headerBordered extra={<Button onClick={() => history.push(activityPath(from, { item_id: r.id }))}>查看全部动态</Button>}>
             <ItemActivity key={r.id} itemId={r.id} revision={r} />
           </ProCard>
           <ProCard title="业务操作记录" headerBordered extra={<Button onClick={() => history.push(`/system?tab=audit&item_id=${r.id}`)}>查看全部</Button>}>
@@ -602,6 +596,7 @@ export default function ItemDetail({
           initial={{
             item_id: r.id,
             chip_id: action === "bind" && installChip ? installChip : undefined,
+            physical_item_id: action === "bind" ? r.order?.physical_item_id : undefined,
             whole_id: e?.id,
             status: r.status === "active" ? "disabled" : "active",
             confirmed: action === "sale" ? !r.sold : undefined,

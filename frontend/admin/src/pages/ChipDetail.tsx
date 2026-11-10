@@ -12,6 +12,7 @@ import {
   Typography,
   Tooltip,
 } from "antd";
+import { assemblyPath } from "../catalog";
 import { history, useParams } from "@umijs/max";
 import { Row, statistics, statusNames, time, validationHelp } from "../catalog";
 import {
@@ -145,9 +146,12 @@ export default function ChipDetail({
                   </Button>
                 </Space>
               ) : r.chip_status === "pending" ? (
-                <Button type="primary" onClick={() => setAction("bind")}>
-                  准备首套物品
-                </Button>
+                <Space wrap>
+                  <Button type="primary" onClick={() => history.push(assemblyPath("/chips/" + r.id, { chip_id: r.id }))}>
+                    新建数字物品
+                  </Button>
+                  <Button onClick={() => setAction("bind")}>配套已有待装配物品</Button>
+                </Space>
               ) : (
                 <State value="未关联" />
               )}

@@ -386,6 +386,7 @@ export function ActionForm({
   beforeSubmit,
   onDirtyChange,
   submitDisabled = false,
+  formInstance,
 }: {
   title: string;
   action: string;
@@ -405,6 +406,7 @@ export function ActionForm({
   beforeSubmit?: (values: Record<string, any>) => Promise<boolean>;
   onDirtyChange?: (dirty: boolean) => void;
   submitDisabled?: boolean;
+  formInstance?: ReturnType<typeof Form.useForm>[0];
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -541,6 +543,7 @@ export function ActionForm({
       title={page ? undefined : title}
       width={width}
       formRef={form}
+      form={formInstance}
       className={className}
       initialValues={initial}
       onValuesChange={() => {
@@ -689,7 +692,7 @@ const fields: Record<string, string[]> = {
     "counting_rule",
     "description",
   ],
-  confirmIssue: ["issue_id"],
+  confirmIssue: ["issue_id", "evidence"],
   deleteIssue: ["issue_id"],
   seal: ["issue_id", "total", "evidence"],
   clearTestBatch: ["batch_id", "confirmed"],
@@ -703,6 +706,12 @@ const fields: Record<string, string[]> = {
   bind: ["item_id", "chip_id", "spec"],
   createPhysicalItem: ["style_id", "physical_uid", "spec", "batch_no", "supplier_serial"],
   installAssembly: ["item_id", "physical_item_id", "chip_id", "installed"],
+  createOrder: ["channel", "external_order_no", "units", "test_batch_id"],
+  orderPhysical: ["order_unit_id", "physical_item_id", "physical"],
+  allocateOrderUnit: ["order_unit_id", "item_id"],
+  releaseOrderUnit: ["order_unit_id", "evidence"],
+  assembleOrderItem: ["order_unit_id", "issue_id", "item_uid", "edition_number", "physical_item_id", "chip_id", "installed", "is_validation"],
+  orderSale: ["order_unit_id", "item_id", "first_sold_at"],
   undoInstall: ["item_id", "whole_id", "evidence", "confirmed"],
   sale: ["item_id", "confirmed", "evidence", "first_sold_at"],
   saleBatch: ["item_ids", "confirmed", "evidence", "first_sold_at"],
@@ -851,7 +860,7 @@ export function InlineCommand({
 export function returnPath(fallback: string) {
   const value = new URLSearchParams(window.location.search).get("from");
   return value &&
-    /^\/(?:items|chips|overview|catalog(?:\/(?:style|issue))?)(\/[1-9][0-9]*)?(\?[^#]*)?$/.test(
+    /^\/(?:items|physical-items|orders|chips|overview(?:\/activity)?|system|catalog(?:\/(?:style|issue))?)(\/[1-9][0-9]*)?(\?[^#]*)?$/.test(
       value,
     )
     ? value

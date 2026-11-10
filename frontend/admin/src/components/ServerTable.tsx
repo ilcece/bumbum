@@ -49,6 +49,8 @@ export default function ServerTable({
         headerTitle={
           (
             {
+              orders: "订单列表",
+              "physical-items": "实体物品",
               items: "数字物品档案",
               chips: "芯片档案",
               styles: "共用款式资料",

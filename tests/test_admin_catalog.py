@@ -236,6 +236,11 @@ def test_real_event_statistics_do_not_depend_on_current_chip_or_holder(auth_app,
         query(auth_app,"INSERT INTO scan_log(chip_id,item_id,chip_uid,project_id,scan_counter,verify_result,created_at) VALUES (%s,%s,%s,1,%s,'pass',%s)",(chips[0],i,uid,n,auth_app.test_clock[0]+timedelta(seconds=delta)))
     assert ok(s[0].get(f'/api/admin/catalog/statistics?item_id={i}&range=all&scope=all'))['total']==3
     assert ok(s[0].get(f'/api/admin/catalog/statistics?item_id={i}&range=all&scope=sold'))['total']==2
+    summary=ok(s[0].get(f'/api/admin/catalog/statistics?item_id={i}&range=all&scope=sold&detail_filter=touched'))
+    params={'item_id':i,'range':'all','scope':'sold','as_of':summary['as_of'],'event':'tap'}
+    assert summary['details']['total']==1
+    assert ok(s[0].get('/api/admin/catalog/activity',query_string=params))['total']==summary['total']
+    assert ok(s[0].get(f'/api/admin/catalog/statistics?item_id={i}&range=all&scope=sold&detail_filter=zero'))['details']['total']==0
     ok(action(s,'validationChip',{'chip_id':chips[0],'enabled':True}));ok(action(s,'deleteChip',{'chip_id':chips[0]}))
     assert ok(s[0].get(f'/api/admin/catalog/statistics?item_id={i}&range=all&scope=all'))['total']==0
     assert ok(s[0].get(f'/api/admin/catalog/items/{i}'))['sold']==1
@@ -246,11 +251,12 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
     from core.assembly_migration import migrate as migrate_assembly, schema as assembly_schema
     from core.user_uid_migration import migrate as migrate_user_uid, schema as user_uid_schema
     from core.db import get_database
+    from core.order_migration import migrate as migrate_orders
     for table in ('fashion_item_profile','jewelry_item_profile','item'):query(auth_app,f'DELETE FROM {table}')
     with auth_app.app_context():
         connection=get_database()
         with connection.cursor() as c:
-            for table in ('item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
+            for table in ('sales_order_unit','sales_order','item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
                 c.execute('DROP TABLE '+table)
             c.execute('DELETE FROM user')
             for table, keys in (
@@ -297,6 +303,8 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
         assert migrate_user_uid(connection,lambda:backups.append(True))
         assert not migrate_user_uid(connection,lambda:pytest.fail('重复升级无需备份'))
         with connection.cursor() as c:assert user_uid_schema(c)=='ready'
+        assert migrate_orders(connection,lambda:backups.append(True))
+        assert not migrate_orders(connection,lambda:pytest.fail('重复升级无需备份'))
     d=query(auth_app,'SELECT * FROM digital_item WHERE item_id=%s',(ident,))[0]
     e=query(auth_app,'SELECT * FROM whole_item WHERE item_id=%s',(ident,))[0]
     assert d['issue_id'] is None and d['sold']==0 and d['first_sold_at'] is None

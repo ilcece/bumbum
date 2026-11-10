@@ -49,11 +49,10 @@ function drafts(key: string): Draft[] {
 export function OrderPreparationQueue() {
   const key = useDraftKey();
   const entries = key ? drafts(key).filter((entry) => !entry.completed) : [];
+  if (!entries.length) return null;
   return (
-    <ProCard title="订单物品办理" headerBordered extra={
-      <Button type="primary" disabled={!key} onClick={() => history.push(path)}>准备订单物品</Button>
-    }>
-      <Typography.Text type="secondary">登记新实物并装配芯片，或选用已核验库存。此浏览器中的待办按管理员和数据范围分开。</Typography.Text>
+    <ProCard title="此浏览器的旧版未办记录" headerBordered>
+      <Typography.Text type="secondary">已保存的旧待办可继续。新订单请使用上方订单列表。</Typography.Text>
       {entries.length > 0 && <List dataSource={entries} renderItem={(entry) =>
         <List.Item actions={[<Button key="resume" onClick={() => history.push(`${path}?draft=${entry.id}`)}>继续办理</Button>]}>
           <List.Item.Meta
