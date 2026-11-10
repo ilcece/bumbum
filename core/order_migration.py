@@ -1,4 +1,4 @@
-"""012 仅新增订单及逐件履约两张表。"""
+"""012 创建订单表，013 保存逐件核对的款式与规格。"""
 
 from pathlib import Path
 
@@ -22,26 +22,35 @@ def schema(cursor):
     return "ready" if fields == COLUMNS else "missing" if not fields else "unknown"
 
 
+def match_schema(cursor):
+    cursor.execute("""SELECT COLUMN_NAME FROM information_schema.COLUMNS
+                      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sales_order_unit_match'""")
+    columns = {column for column, in cursor.fetchall()}
+    return "ready" if columns == {"unit_id", "style_id", "spec"} else "unknown" if columns else "missing"
+
+
 def migrate(connection, backup):
     with connection.cursor() as cursor:
         cursor.execute("SELECT GET_LOCK('bumbum.sales-orders',5)")
         if cursor.fetchone()[0] != 1:
             raise CatalogMigrationError("另一个订单升级正在运行。")
         try:
-            state = schema(cursor)
-            if state == "ready":
+            orders, match = schema(cursor), match_schema(cursor)
+            if orders == match == "ready":
                 return False
-            if state != "missing" or passkey_schema(cursor) != "ready":
-                raise CatalogMigrationError("需要完整的 011 基线；遇到部分订单结构请先核对现场。")
+            if (orders, match) not in {("missing", "missing"), ("ready", "missing")} or passkey_schema(cursor) != "ready":
+                raise CatalogMigrationError("订单结构不完整，请先核对现场。")
             connection.commit()
             backup()
-            path = Path(__file__).resolve().parents[1] / "db/migrations/012_sales_orders.sql"
-            sql = "\n".join(line for line in path.read_text(encoding="utf-8").splitlines() if not line.startswith("--"))
-            for statement in sql.split(";"):
-                if statement.strip():
-                    cursor.execute(statement)
+            migrations = Path(__file__).resolve().parents[1] / "db/migrations"
+            names = ["012_sales_orders.sql"] if orders == "missing" else []
+            for name in [*names, "013_sales_order_unit_match.sql"]:
+                sql = "\n".join(line for line in (migrations / name).read_text(encoding="utf-8").splitlines() if not line.startswith("--"))
+                for statement in sql.split(";"):
+                    if statement.strip():
+                        cursor.execute(statement)
             connection.commit()
-            if schema(cursor) != "ready":
+            if schema(cursor) != "ready" or match_schema(cursor) != "ready":
                 raise CatalogMigrationError("订单升级后的结构未通过核对。")
             return True
         finally:

@@ -85,10 +85,11 @@ def preview(c,batch,*,lock=False):
     c.execute('SELECT COUNT(*) AS total FROM sales_order WHERE test_batch_id=%s',(batch,))
     order_count=c.fetchone()['total']
     bad=conflicts(c,ids)
-    c.execute("""SELECT ou.id,ou.item_id,ou.physical_item_id,so.test_batch_id
-                 FROM sales_order_unit ou JOIN sales_order so ON so.id=ou.order_id""")
+    c.execute("""SELECT ou.id,ou.item_id,ou.physical_item_id,m.style_id,so.test_batch_id
+                 FROM sales_order_unit ou JOIN sales_order so ON so.id=ou.order_id
+                 LEFT JOIN sales_order_unit_match m ON m.unit_id=ou.id""")
     for unit in c.fetchall():
-        for kind, field in [('item','item_id'),('physical','physical_item_id')]:
+        for kind, field in [('item','item_id'),('physical','physical_item_id'),('style','style_id')]:
             ident=unit[field]
             if ident is not None and ((ident in ids[kind])!=(unit['test_batch_id']==batch)):
                 bad.append({'kind':'order_unit','id':unit['id'],'related_kind':kind,'related_id':ident})

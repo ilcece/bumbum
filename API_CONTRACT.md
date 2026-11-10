@@ -531,11 +531,14 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 | 入口 | 条件与返回 |
 |---|---|
-| `GET /api/admin/catalog/orders`、`GET /api/admin/catalog/orders/{id}` | 管理员查询。列表分页，支持 `keyword`、`data_scope` 和 `test_batch_id`；详情返回逐件原购买规格、分配、首次成交、交付代次及认领摘要。 |
+| `GET /api/admin/catalog/orders`、`GET /api/admin/catalog/orders/{id}` | 管理员查询。列表分页，支持 `keyword`、`data_scope` 和 `test_batch_id`；详情返回逐件原购买规格、核对要求（expected_style_id、expected_style_name、expected_spec）、已准备实物是否匹配（physical_matches，未核对或无实物时为 null）、分配、首次成交、交付代次及认领摘要。 |
 | `actions/createOrder` | 传 `channel`、`external_order_no`、1 至 100 件 `units`（每件 `product_name`，可选 `ordered_spec`），验收数据可选 `test_batch_id`。渠道与外部订单号在同一来源范围内唯一。 |
+| `actions/matchOrderUnit` | 传 `order_unit_id`、`style_id` 和适用的 `spec`。有原购买规格或目录规格时必须填写；目录有规格选项时必须选其中一个。原订单文本保留。 |
 | `actions/orderPhysical` | 传 `order_unit_id` 与 `physical_item_id`，或用 `physical` 提供与独立登记同样的字段。保存及占用在同一事务提交。 |
 | `actions/allocateOrderUnit`、`actions/releaseOrderUnit` | 分配传 `order_unit_id` 和 `item_id`，需要已核验启用的未成交库存。释放传 `order_unit_id` 和 `evidence`，限未成交且未交付，保留审计。 |
 | `actions/orderSale`、`actions/issueClaimCode` | 结构化订单售出传 `order_unit_id`、`item_id` 和带时区的 `first_sold_at`。发码从物品引用查找已成交分配，记录首次交付代次和凭证，再开放用户认领。 |
+
+订单件的准备、装配、分配、首次成交和交付均复核实物款式和规格。没有核对记录返回 `409 order_match_required`，不匹配返回 `409 order_item_mismatch`。可为 `items` 或 `physical-items` 传 `order_unit_id` 取得该件同一数据范围内符合要求且可用的候选。
 
 `items` 查询增加 `workflow`（`assembly`、`verification`、`available`、`delivery`、`claim`）及实体、发行和订单号关键词。详情返回 `order`。`statistics` 可按 `detail_filter` 查看有触碰、售出后零触碰、成交时间待核对的物品列表。有效触碰穿透用 `activity?event=tap`，可带 `scope`、`range`、`as_of`、`style_id`、`issue_id`、`item_id`、`chip_id` 及既有日期与数据范围筛选。保留管理员认证、CSRF 和写回执。
 

@@ -734,3 +734,12 @@ CREATE TABLE sales_order_unit (
  CONSTRAINT fk_order_unit_delivery FOREIGN KEY(delivery_whole_id) REFERENCES whole_item(id),
  CONSTRAINT fk_order_unit_claim FOREIGN KEY(first_claim_code_id) REFERENCES item_claim_code(id)
 ) COMMENT='订单逐件准备、分配与首次交付，解除占用留审计';
+
+-- 保留订单原文与历史分配，逐件保存人工核对的目录款式和规格。
+CREATE TABLE sales_order_unit_match (
+ unit_id BIGINT UNSIGNED PRIMARY KEY,
+ style_id BIGINT UNSIGNED NOT NULL,
+ spec VARCHAR(256) NULL,
+ CONSTRAINT fk_order_match_unit FOREIGN KEY(unit_id) REFERENCES sales_order_unit(id) ON DELETE CASCADE,
+ CONSTRAINT fk_order_match_style FOREIGN KEY(style_id) REFERENCES product_style(id)
+) COMMENT='订单件已核对的履约目标';

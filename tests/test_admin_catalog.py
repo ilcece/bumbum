@@ -256,7 +256,7 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
     with auth_app.app_context():
         connection=get_database()
         with connection.cursor() as c:
-            for table in ('sales_order_unit','sales_order','item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
+            for table in ('sales_order_unit_match','sales_order_unit','sales_order','item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
                 c.execute('DROP TABLE '+table)
             c.execute('DELETE FROM user')
             for table, keys in (

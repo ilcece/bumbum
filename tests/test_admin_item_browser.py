@@ -16,12 +16,12 @@ def fill_assembly(page,dialog,physical_uid,spec,chip_uid):
     register.get_by_label('实际规格',exact=True).fill(spec)
     save_dialog(page,'登记实体物品')
     choose(dialog,'芯片 UID',chip_uid)
-    dialog.get_by_role('checkbox',name=re.compile('已核对实体编号')).check()
+    dialog.get_by_role('checkbox',name='已将所选芯片安装到这件实物').check()
 
 
 def test_whole_item_from_preparation_through_loss_renewal_resale(desktop,tmp_path):
     _,_,item,chips=setup(desktop);p=desktop.page
-    desktop.navigate('数字物品');button(p,'查看')
+    p.goto('http://localhost:5174/items',wait_until='networkidle');button(p,'查看')
     drawer=p.get_by_role('dialog',name='数字物品详情',exact=True)
     button(drawer,'安装芯片');d=p.get_by_role('dialog',name='安装芯片',exact=True)
     fill_assembly(p,d,'PHY-BROWSER-FIRST','L黑','04:00:00:00:00:00:C9');save_dialog(p,'安装芯片')
@@ -30,7 +30,8 @@ def test_whole_item_from_preparation_through_loss_renewal_resale(desktop,tmp_pat
     preview.get_by_text('待认领',exact=True).click();button(preview,'查看下一步');expect(preview.get_by_text('手机号验证',exact=True)).to_be_visible()
     preview.get_by_text('持有人',exact=True).click();expect(preview.get_by_text('模拟账户 138****0000',exact=True)).to_be_visible()
     preview.get_by_role('button',name=re.compile(r'关\s*闭')).click();preview.wait_for(state='hidden')
-    button(drawer,'查看密钥与配置');key_configuration(desktop,chips[0])
+    expect(drawer.get_by_role('button',name='启用物品',exact=True)).to_have_count(0)
+    button(drawer,'配置并核验芯片');key_configuration(desktop,chips[0])
     button(drawer,'启用物品');save_dialog(p,'启用物品档案')
     button(drawer,'维护售出事实');d=p.get_by_role('dialog',name='维护售出事实');d.get_by_label('销售确认或更正依据',exact=True).fill('外部平台实际售出');save_dialog(p,'维护售出事实')
     a=owner(desktop.app,item,21);b=owner(desktop.app,None,22)

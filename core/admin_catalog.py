@@ -34,7 +34,7 @@ AUDIT_LABELS = {
     'viewHolderPhone':'查看持有人完整手机号',
     'viewUserPhone':'查看账户完整手机号',
     'undoInstall':'纠正未配置的安装',
-    'createOrder':'登记订单','orderPhysical':'为订单件准备实体','allocateOrderUnit':'确认订单件分配',
+    'createOrder':'登记订单','matchOrderUnit':'核对订单款式与规格','orderPhysical':'为订单件准备实体','allocateOrderUnit':'确认订单件分配',
     'releaseOrderUnit':'释放订单件占用',
 }
 
@@ -179,6 +179,8 @@ def audit_detail(c,action,token,p,result,before):
             detail.update(object_type='order',object_code=result['external_order_no'])
             if result.get('position'):
                 detail['summary']=f"{operation}，订单第 {result['position']} 件。"
+            if action=='matchOrderUnit':
+                detail['expected'] = result['match']
             if result.get('released_item_id') or result.get('released_physical_id'):
                 detail.update(released_item_id=result['released_item_id'],released_physical_id=result['released_physical_id'])
     if result.get('deleted_uid'):detail['deleted_uid']=result['deleted_uid']
@@ -275,6 +277,7 @@ ORDER_STOCK_FILTER = """i.status='active' AND d.issue_id IS NOT NULL AND d.sold=
     AND w.physical_item_id IS NOT NULL AND w.lost_at IS NULL AND w.loss_evidence IS NULL
     AND c.chip_status='bound' AND c.id=w.chip_id AND c.provisioned_at IS NOT NULL
     AND c.last_verified_counter IS NOT NULL AND o.user_id IS NULL AND ou.id IS NULL AND NOT """ + HAS_CLAIM_CODE
+PHYSICAL_AVAILABLE = ['NOT EXISTS (SELECT 1 FROM whole_item w WHERE w.physical_item_id=ph.id)','NOT EXISTS (SELECT 1 FROM item_handover w WHERE w.pending_physical_id=ph.id)','NOT EXISTS (SELECT 1 FROM sales_order_unit ou WHERE ou.physical_item_id=ph.id)']
 WORKFLOW_FILTERS = {
     'assembly': "i.status='draft' AND d.issue_id IS NOT NULL AND w.id IS NULL",
     'verification': "i.status='draft' AND w.id IS NOT NULL AND c.provisioned_at IS NULL",
@@ -283,7 +286,10 @@ WORKFLOW_FILTERS = {
     'claim': "o.user_id IS NULL AND " + HAS_CLAIM_CODE,
 }
 ORDER_UNIT_SELECT = """SELECT ou.*,so.channel,so.external_order_no,so.test_batch_id,
-    ph.physical_uid,ph.spec,ph.style_id,
+    ph.physical_uid,ph.spec,ph.style_id,ps.name AS physical_style_name,
+    m.style_id AS expected_style_id,m.spec AS expected_spec,ms.name AS expected_style_name,
+    CASE WHEN ph.id IS NULL OR m.style_id IS NULL THEN NULL
+         ELSE ph.style_id=m.style_id AND (m.spec IS NULL OR BINARY ph.spec=BINARY m.spec) END AS physical_matches,
     i.item_uid,i.status AS item_status,d.sold,d.first_sold_at,
     w.id AS whole_id,w.generation,ch.id AS chip_id,ch.provisioned_at,ch.chip_status,
     w.lost_at,w.loss_evidence,
@@ -294,6 +300,9 @@ ORDER_UNIT_SELECT = """SELECT ou.*,so.channel,so.external_order_no,so.test_batch
     cc.revoked_at AS claim_revoked_at
     FROM sales_order_unit ou JOIN sales_order so ON so.id=ou.order_id
     LEFT JOIN physical_item ph ON ph.id=ou.physical_item_id
+    LEFT JOIN product_style ps ON ps.id=ph.style_id
+    LEFT JOIN sales_order_unit_match m ON m.unit_id=ou.id
+    LEFT JOIN product_style ms ON ms.id=m.style_id
     LEFT JOIN item i ON i.id=ou.item_id
     LEFT JOIN digital_item d ON d.item_id=i.id
     LEFT JOIN whole_item w ON w.current_item_id=i.id LEFT JOIN chip ch ON ch.id=w.chip_id
@@ -370,7 +379,8 @@ def lock_order_unit(c, unit_id):
     order = view(row(c,'SELECT * FROM sales_order WHERE id=%s',(unit['order_id'],)))
     lock_batch(c,order['test_batch_id'])
     unit = view(row(c,'SELECT * FROM sales_order_unit WHERE id=%s FOR UPDATE',(unit_id,)))
-    return {**unit,'channel':order['channel'],'external_order_no':order['external_order_no'],'test_batch_id':order['test_batch_id']}
+    match = row(c, 'SELECT style_id AS expected_style_id,spec AS expected_spec FROM sales_order_unit_match WHERE unit_id=%s', (unit_id,))
+    return {**unit,**(match or {}),'channel':order['channel'],'external_order_no':order['external_order_no'],'test_batch_id':order['test_batch_id']}
 
 
 def order_origin(c, unit, kind, ident):
@@ -378,21 +388,75 @@ def order_origin(c, unit, kind, ident):
         fail('请选用与订单同一数据范围和验收批次的对象。',409,'batch_conflict')
 
 
+def require_order_match(unit, physical):
+    if not unit.get('expected_style_id'):
+        fail('请先在订单件核对款式和规格。',409,'order_match_required')
+    if (not physical or physical['style_id']!=unit['expected_style_id']
+            or (unit['expected_spec'] is not None and physical['spec']!=unit['expected_spec'])):
+        fail('实物款式或规格与已核对的订单要求不一致。',409,'order_item_mismatch')
+
+
+def match_order_unit(c, unit, p):
+    field_set(p,{'order_unit_id','style_id'},{'spec'})
+    style = locked(c,'product_style',integer(p,'style_id'))
+    order_origin(c,unit,'style',style['id'])
+    spec = text(p,'spec',256,required=bool(style['specs'] or unit['ordered_spec']))
+    if style['specs'] and spec not in style['specs']:
+        invalid('请选择款式目录中的实际规格。')
+    if unit.get('expected_style_id') and unit['physical_item_id']:
+        fail('请先释放未售占用，再更正订单款式或规格。')
+    if unit['item_id'] and digital(c,unit['item_id'])['sold']:
+        physical = locked(c,'physical_item',unit['physical_item_id'])
+        require_order_match({'expected_style_id':style['id'],'expected_spec':spec},physical)
+    c.execute("""INSERT INTO sales_order_unit_match(unit_id,style_id,spec) VALUES (%s,%s,%s)
+                 ON DUPLICATE KEY UPDATE style_id=%s,spec=%s""",(unit['id'],style['id'],spec,style['id'],spec))
+    return {'style_id':style['id'],'style_name':style['name'],'spec':spec}
+
+
+def order_candidate_conditions(cursor, resource, conditions, values):
+    unit_id = positive_integer('order_unit_id',1,2147483647)
+    unit = view(row(cursor, """SELECT so.test_batch_id,m.style_id,m.spec
+          FROM sales_order_unit ou JOIN sales_order so ON so.id=ou.order_id
+          LEFT JOIN sales_order_unit_match m ON m.unit_id=ou.id WHERE ou.id=%s""",(unit_id,)))
+    if not unit['style_id']:
+        fail('请先在订单件核对款式和规格。',409,'order_match_required')
+    conditions.append('ph.style_id=%s')
+    values.append(unit['style_id'])
+    if unit['spec'] is not None:
+        conditions.append('BINARY ph.spec=BINARY %s')
+        values.append(unit['spec'])
+    if resource=='items':
+        conditions.extend([ORDER_STOCK_FILTER,'r.style_id=ph.style_id'])
+    else:
+        conditions.extend(PHYSICAL_AVAILABLE)
+    batch = unit['test_batch_id']
+    clause,args = filter_source('item' if resource=='items' else 'physical','i.id' if resource=='items' else 'ph.id',
+                                'business' if batch is None else 'test',batch)
+    conditions.append(clause)
+    values.extend(args)
+
+
 def order_unit_action(c, action, p):
     unit_id = integer(p,'order_unit_id')
     unit = lock_order_unit(c,unit_id)
     if unit['delivered_at']:fail('已经交付，请从物品档案核对历史或办理售后。')
-    if action=='orderPhysical':
+    match = None
+    if action=='matchOrderUnit':
+        match = match_order_unit(c,unit,p)
+    elif action=='orderPhysical':
         field_set(p,{'order_unit_id'},{'physical_item_id','physical'})
         if unit['physical_item_id'] or unit['item_id']:fail('该件已准备物品。请先核对或释放已有占用。')
         if ('physical_item_id' in p)==('physical' in p):invalid('请选择已有实物或登记新实物。')
         if 'physical' in p:
             if not isinstance(p['physical'],dict):invalid('请输入实体资料。')
-            order_origin(c,unit,'style',integer(p['physical'],'style_id'))
+            expected = {'style_id':integer(p['physical'],'style_id'),'spec':text(p['physical'],'spec',256) or ''}
+            require_order_match(unit,expected)
+            order_origin(c,unit,'style',expected['style_id'])
             ident = create_physical(c,p['physical'])['id']
         else:
             ident = integer(p,'physical_item_id')
-        locked(c,'physical_item',ident)
+        physical=locked(c,'physical_item',ident)
+        require_order_match(unit,physical)
         order_origin(c,unit,'physical',ident)
         if row(c,'SELECT id FROM whole_item WHERE physical_item_id=%s LIMIT 1 FOR UPDATE',(ident,)) or row(c,'SELECT id FROM item_handover WHERE pending_physical_id=%s FOR UPDATE',(ident,)):
             fail('此实体已用于装配。请选择可用实物或选用对应数字库存。')
@@ -413,6 +477,11 @@ def order_unit_action(c, action, p):
             fail('物品未就绪或已有成交、交付或持有人，不能分配。')
         if unit['physical_item_id'] and unit['physical_item_id']!=whole['physical_item_id']:
             fail('当前装配与该件已准备的实体不一致。')
+        physical=locked(c,'physical_item',whole['physical_item_id'])
+        require_order_match(unit,physical)
+        issue=row(c,'SELECT style_id FROM product_issue WHERE id=%s',(d['issue_id'],))
+        if issue['style_id']!=physical['style_id']:
+            fail('数字物品与当前实体款式不一致，请先核对装配。')
         c.execute('UPDATE sales_order_unit SET item_id=%s,physical_item_id=%s,allocated_at=%s WHERE id=%s',
                   (ident,whole['physical_item_id'],now(),unit_id))
     else:
@@ -427,14 +496,14 @@ def order_unit_action(c, action, p):
                 fail('此物品已成交、交付或归属，须先核对历史，不能释放。')
         c.execute('UPDATE sales_order_unit SET item_id=NULL,physical_item_id=NULL,allocated_at=NULL WHERE id=%s',(unit_id,))
     return {'id':unit['order_id'],'order_id':unit['order_id'],'order_unit_id':unit_id,
-            'external_order_no':unit['external_order_no'],'position':unit['position'],
+            'external_order_no':unit['external_order_no'],'position':unit['position'],'match':match,
             'released_item_id':unit['item_id'] if action=='releaseOrderUnit' else None,
             'released_physical_id':unit['physical_item_id'] if action=='releaseOrderUnit' else None}
 
 
 @blueprint.get('/<resource>')
 def listing(resource):
-    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner','bindable','order_stock','workflow'},'chips':{'project','status','is_validation','available','configured','registration_source','compatible_project'},'users':{'exclude_id','verified'},'physical-items':{'style_id','available'},'audit':{'action','operator','date_from','date_to','item_id'}}
+    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner','bindable','order_stock','order_unit_id','workflow'},'chips':{'project','status','is_validation','available','configured','registration_source','compatible_project'},'users':{'exclude_id','verified'},'physical-items':{'style_id','available','order_unit_id'},'audit':{'action','operator','date_from','date_to','item_id'}}
     if resource not in allowed:fail('未知查询资源。',404,'not_found')
     check_parameters({'page','page_size','keyword','data_scope','test_batch_id'}|allowed[resource])
     keyword = request.args.get('keyword','').strip()
@@ -523,7 +592,7 @@ def listing(resource):
             conditions.append('ph.style_id=%s');values.append(positive_integer('style_id',1,2147483647))
         if 'available' in request.args:
             if request.args['available']!='true':invalid('available仅接受true。')
-            conditions.extend(['NOT EXISTS (SELECT 1 FROM whole_item w WHERE w.physical_item_id=ph.id)','NOT EXISTS (SELECT 1 FROM item_handover w WHERE w.pending_physical_id=ph.id)','NOT EXISTS (SELECT 1 FROM sales_order_unit ou WHERE ou.physical_item_id=ph.id)'])
+            conditions.extend(PHYSICAL_AVAILABLE)
     elif resource == 'users':
         if 'verified' in request.args:
             if request.args['verified']!='true':invalid('verified仅接受true。')
@@ -563,6 +632,8 @@ def listing(resource):
             conditions.append('p.id IS NULL')
         else: conditions.append('p.code=%s');values.append(request.args['project'])
     with consistent_read() as cursor:
+        if 'order_unit_id' in request.args:
+            order_candidate_conditions(cursor,resource,conditions,values)
         result=list_page(cursor,select,joined,conditions,values,order=order,select_values=select_values)
     if resource=='audit':
         for event in result['items']:
@@ -917,6 +988,13 @@ def item_action(c,action,p,order_unit_id=None,*,installed_by=None):
         if current(c,ident,required=False):fail('已有当前整套物品，换新/转售请办理接续。')
         if not d['issue_id']:fail('请先补齐发行约定。')
         physical=select_physical(c,p,ident,d['issue_id'],order_unit_id) if action=='installAssembly' else None
+        if physical and not order_unit_id:
+            linked=row(c,'SELECT id FROM sales_order_unit WHERE item_id=%s',(ident,))
+            if linked:
+                unit=lock_order_unit(c,linked['id'])
+                if unit['physical_item_id']!=physical['id']:
+                    fail('请选择原订单件已准备的实体，或回原订单件纠正分配。')
+                require_order_match(unit,physical)
         if not physical and row(c,'SELECT item_id FROM digital_item_right WHERE item_id=%s AND rule_version=%s LIMIT 1',(ident,'standard-v1')):
             fail('请通过安装芯片选择并确认独立编号的实体。')
         chip=locked(c,'chip',integer(p,'chip_id'));same_source(c,'item',ident,'chip',chip['id']);available_chip(c,chip,i['project_id'])
@@ -1085,7 +1163,7 @@ def command(action):
                 before=audit_snapshot(c,audited_item_id)
                 if action=='createOrder':
                     result=create_order(c,p)
-                elif action in {'orderPhysical','allocateOrderUnit','releaseOrderUnit'}:
+                elif action in {'matchOrderUnit','orderPhysical','allocateOrderUnit','releaseOrderUnit'}:
                     result=order_unit_action(c,action,p)
                 elif action=='clearTestBatch':
                     from core.test_batches import cleanup
@@ -1127,6 +1205,7 @@ def command(action):
                         if unit['item_id'] or unit['physical_item_id']!=integer(p,'physical_item_id'):
                             fail('订单件的实物已变化，请回原订单件核对。')
                         order_origin(c,unit,'issue',integer(p,'issue_id'))
+                        require_order_match(unit,locked(c,'physical_item',unit['physical_item_id']))
                     result = create_item(c, {key:p[key] for key in identity_fields if key in p})
                     item_action(c, 'installAssembly', {'item_id':result['id'], **{key:p[key] for key in assembly_fields}},order_unit_id=unit_id)
                     if unit_id:
@@ -1138,6 +1217,10 @@ def command(action):
                     unit=lock_order_unit(c,integer(p,'order_unit_id'))
                     if not unit['allocated_at'] or unit['item_id']!=integer(p,'item_id'):
                         fail('请先为该件确认数字物品分配。')
+                    whole=current(c,unit['item_id'])
+                    if whole['physical_item_id']!=unit['physical_item_id']:
+                        fail('当前实体与订单分配不一致，请先核对。')
+                    require_order_match(unit,locked(c,'physical_item',unit['physical_item_id']))
                     p={key:p[key] for key in ('item_id','first_sold_at')}
                     p.update(channel=unit['channel'],external_order_no=unit['external_order_no'])
                     result=item_action(c,action,p,order_unit_id=unit['id'])
@@ -1158,11 +1241,13 @@ def command(action):
                         unit=lock_order_unit(c,linked['id'])
                         if not unit['allocated_at'] or not digital(c,item_id)['sold']:
                             fail('请先在对应订单件完成分配及首次成交。')
-                    result=issue_claim_code(c,item_id,g.admin_session['admin_id'],text(p,'delivery_reference',128,required=True),reissue=action=='reissueClaimCode')
                     if linked and action=='issueClaimCode':
                         whole=current(c,item_id)
                         if whole['physical_item_id']!=unit['physical_item_id']:
                             fail('实际交付的实体与分配不一致，请核对。')
+                        require_order_match(unit,locked(c,'physical_item',unit['physical_item_id']))
+                    result=issue_claim_code(c,item_id,g.admin_session['admin_id'],text(p,'delivery_reference',128,required=True),reissue=action=='reissueClaimCode')
+                    if linked and action=='issueClaimCode':
                         c.execute('UPDATE sales_order_unit SET delivered_at=%s,delivery_whole_id=%s,first_claim_code_id=%s WHERE id=%s',
                                   (now(),whole['id'],result['claim_code_id'],unit['id']))
                         result.update(order_id=unit['order_id'],order_unit_id=unit['id'],external_order_no=unit['external_order_no'])

@@ -112,7 +112,7 @@ def database_ready():
         from core.assembly_migration import schema as assembly_schema
         from core.user_uid_migration import schema as user_uid_schema
         from core.passkey_migration import schema as passkey_schema
-        from core.order_migration import schema as order_schema
+        from core.order_migration import match_schema as order_match_schema, schema as order_schema
         with get_database().cursor() as cursor:
             cursor.execute("SHOW TABLES")
             actual_tables = {row[0] for row in cursor.fetchall()}
@@ -130,7 +130,8 @@ def database_ready():
                     and assembly_schema(cursor) == "ready"
                     and user_uid_schema(cursor) == "ready"
                     and passkey_schema(cursor) == "ready"
-                    and order_schema(cursor) == "ready")
+                    and order_schema(cursor) == "ready"
+                    and order_match_schema(cursor) == "ready")
     except pymysql.MySQLError as error:
         record_failure(error)
         return False

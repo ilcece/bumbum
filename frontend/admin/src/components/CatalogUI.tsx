@@ -212,6 +212,7 @@ export function RemoteSelect({
   const [options, setOptions] = useState<Row[]>([]),
     [page, setPage] = useState(1),
     [q, setQ] = useState(""),
+    [refresh, setRefresh] = useState(0),
     [total, setTotal] = useState(0),
     [error, setError] = useState(""),
     seq = useRef(0);
@@ -257,7 +258,7 @@ export function RemoteSelect({
       .catch((e) => {
         if (n === seq.current) setError(e.message);
       });
-  }, [resource, key, page, q]);
+  }, [resource, key, page, q, refresh]);
   return (
     <>
       <Select
@@ -266,6 +267,13 @@ export function RemoteSelect({
         filterOption={false}
         value={value}
         onChange={onChange}
+        onOpenChange={(open) => {
+          if (open) {
+            setQ("");
+            setPage(1);
+            setRefresh((n) => n + 1);
+          }
+        }}
         onSearch={(v) => {
           setQ(v);
           setPage(1);
@@ -707,6 +715,7 @@ const fields: Record<string, string[]> = {
   createPhysicalItem: ["style_id", "physical_uid", "spec", "batch_no", "supplier_serial"],
   installAssembly: ["item_id", "physical_item_id", "chip_id", "installed"],
   createOrder: ["channel", "external_order_no", "units", "test_batch_id"],
+  matchOrderUnit: ["order_unit_id", "style_id", "spec"],
   orderPhysical: ["order_unit_id", "physical_item_id", "physical"],
   allocateOrderUnit: ["order_unit_id", "item_id"],
   releaseOrderUnit: ["order_unit_id", "evidence"],

@@ -115,11 +115,20 @@ export default function ItemDetail({
     if (deleted) {
       onDeleted?.();
       if (!embedded) history.push("/items");
+    } else if (action === "bind" && r?.order) {
+      history.push(orderPath(r.order.order_id, r.order.id));
     } else reload();
   };
   const e = r?.wholes?.find((x: Row) => !x.ended_at),
     pending = r?.handovers?.find((x: Row) => !x.completed_at);
   const owner = r?.owners?.find((holder: Row) => holder.is_active);
+  const orderTarget = r?.order && orderPath(r.order.order_id, r.order.id);
+  const configurable = !!e && !(e.lost_at || e.loss_evidence) && r?.chip_status === "bound";
+  const canConfigure = configurable && !r?.provisioned_at && r?.status !== "archived";
+  const canEnable = configurable && !!r?.provisioned_at && !!r?.issue_id
+    && r?.status !== "archived" && r?.status !== "active";
+  const canInstall = !e && !!r?.issue_id && r?.status !== "archived" && !orderTarget;
+  const orderNext = orderTarget && !r?.order.delivered_at && !canConfigure;
   const container = (content: React.ReactNode) => (
     <DetailContainer
       embedded={embedded}
@@ -131,23 +140,13 @@ export default function ItemDetail({
       onBack={() => history.push(returnPath("/items"))}
       extra={
         r && (
-          <Space>
-            {!embedded && (
-              <Button onClick={() => history.push(returnPath("/items"))}>
-                返回来源
-              </Button>
-            )}
+          <Space wrap>
             <Button onClick={() => setPreview(true)}>预览手机页</Button>
-            {r.order ? <Button type="primary" onClick={() => history.push(orderPath(r.order.order_id, r.order.id))}>打开对应订单件</Button> :
-              <Button onClick={() => setAction("sale")}>维护售出确认</Button>}
-            <Button
-              danger={r.status === "active"}
-              type={r.status === "active" ? "default" : "primary"}
-              disabled={!r.issue_id || r.status === "archived"}
-              onClick={() => setAction("toggleItem")}
-            >
-              {r.status === "active" ? "停用物品" : "启用物品"}
-            </Button>
+            {r.status === "active" && <Button danger onClick={() => setAction("toggleItem")}>停用物品</Button>}
+            {canConfigure ? <Button type="primary" onClick={() => setKeyChip(e!.chip_id)}>配置并核验芯片</Button> :
+              orderNext ? <Button type="primary" onClick={() => history.push(orderNext)}>打开对应订单件</Button> :
+              canEnable ? <Button type="primary" onClick={() => setAction("toggleItem")}>启用物品</Button> :
+              canInstall ? <Button type="primary" onClick={() => setAction("bind")}>安装芯片</Button> : null}
           </Space>
         )
       }
@@ -209,15 +208,6 @@ export default function ItemDetail({
                     }}
                   />
                 )}
-              </Descriptions.Item>
-              <Descriptions.Item label="售出状态">
-                <State value={r.sold ? "已售出" : "未确认售出"} />
-                <Button type="link" onClick={() => setAction("sale")}>
-                  维护售出事实
-                </Button>
-              </Descriptions.Item>
-              <Descriptions.Item label="首次售出时间">
-                {time(r.first_sold_at)}
               </Descriptions.Item>
             </Descriptions>
           </ProCard>
@@ -282,7 +272,6 @@ export default function ItemDetail({
             variant="outlined"
             title="实物与芯片"
             headerBordered
-            extra={!e && <Button disabled={!r.issue_id} type="primary" onClick={() => setAction("bind")}>安装芯片</Button>}
           >
             {e ? (
               <>
@@ -352,13 +341,14 @@ export default function ItemDetail({
               <Alert type="info" title="尚未准备当前整套物品" />
             )}
           </ProCard>
-          <ProCard title="订单与交付" headerBordered extra={r.order && <Button onClick={() =>
-            history.push(orderPath(r.order.order_id, r.order.id))}>返回原订单件</Button>}>
+          <ProCard title="订单与交付" headerBordered extra={orderTarget
+            ? (!orderNext && <Button onClick={() => history.push(orderTarget)}>返回原订单件</Button>)
+            : (r.status !== "archived" && <Button onClick={() => setAction("sale")}>维护售出事实</Button>)}>
             <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="订单">{r.order ? r.order.channel + " · " + r.order.external_order_no + " · 第 " + r.order.position + " 件" : "无结构化订单"}</Descriptions.Item>
               <Descriptions.Item label="购买规格">{r.order?.ordered_spec || "未记录"}</Descriptions.Item>
               <Descriptions.Item label="分配时间">{time(r.order?.allocated_at)}</Descriptions.Item>
-              <Descriptions.Item label="首次成交">{time(r.first_sold_at)}</Descriptions.Item>
+              <Descriptions.Item label="首次成交"><Space><State value={r.sold ? "已售出" : "未确认售出"} />{time(r.first_sold_at)}</Space></Descriptions.Item>
               <Descriptions.Item label="首次交付">{time(r.order?.delivered_at)}</Descriptions.Item>
               <Descriptions.Item label="交付依据">{r.order?.first_delivery_reference || "未记录"}</Descriptions.Item>
               {r.order?.delivered_generation && <Descriptions.Item label="交付实物与代次">
@@ -704,7 +694,7 @@ export default function ItemDetail({
               <Form.Item name="kind" hidden>
                 <Input />
               </Form.Item>
-              <AssemblyFields styleId={r.style_id} project={r.project} />
+              <AssemblyFields styleId={r.style_id} project={r.project} orderUnit={action === "bind" ? r.order : undefined} />
               {action === "prepareResale" && (
                 <>
                   <Form.Item name="recipient_id" label="已核对接收账户" rules={required}>

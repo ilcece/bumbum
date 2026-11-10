@@ -11,7 +11,7 @@ def test_007_backup_first_repeat_noop_and_partial_refused(auth_app):
         conn=get_database()
         with conn.cursor() as c:
             assert schema(c)=='ready'
-            c.execute('DROP TABLE sales_order_unit');c.execute('DROP TABLE sales_order');
+            c.execute('DROP TABLE sales_order_unit_match');c.execute('DROP TABLE sales_order_unit');c.execute('DROP TABLE sales_order');
             c.execute('DROP TABLE test_batch_object');c.execute('DROP TABLE test_batch');conn.commit()
         def denied():raise ValueError('测试备份失败')
         with pytest.raises(ValueError):migrate(conn,denied)

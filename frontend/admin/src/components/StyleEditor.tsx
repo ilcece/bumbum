@@ -242,11 +242,13 @@ function Fields({ record, drafts }: { record?: Row; drafts: Drafts }) {
 export default function StyleEditor({
   record,
   page,
+  compact = false,
   onClose,
   onDone,
 }: {
   record?: Row;
   page: boolean;
+  compact?: boolean;
   onClose: () => void;
   onDone: (r: Row) => void;
 }) {
@@ -335,17 +337,17 @@ export default function StyleEditor({
   };
   return (
     <ActionForm
-      title="维护款式共用资料"
+      title={compact ? "补建订单款式" : "维护款式共用资料"}
       action="style"
       page={page}
-      width={1120}
+      width={compact ? 560 : 1120}
       className="page-stack form-page"
       footerNote={
         savedId
           ? `共用资料 · 引用 ${record?.item_count || 0} 件物品`
           : "先建立款式资料，再维护发行约定"
       }
-      submitText="保存共用资料"
+      submitText={compact ? "保存款式" : "保存共用资料"}
       initial={record || { project: "fashion", specs: [], image_urls: [] }}
       beforeSubmit={async (values) => {
         if (!savedId) return true;
@@ -378,7 +380,19 @@ export default function StyleEditor({
           title="款式资料已保存，仍有图片待保存；请继续完成或明确放弃未保存部分。"
         />
       )}
-      <Fields record={record} drafts={drafts} />
+      {compact ? <>
+        <Form.Item name="code" label="款式编号" rules={required}><Input autoFocus maxLength={64} /></Form.Item>
+        <Form.Item name="project" label="物品类别" rules={required}>
+          <Select options={[{ value: "fashion", label: "服装" }, { value: "jewelry", label: "饰品" }]} />
+        </Form.Item>
+        <Form.Item name="name" label="款式名称" rules={required}><Input maxLength={128} /></Form.Item>
+        <Form.Item name="specs" label="适用规格（每行一项）" extra="无规格的款式可留空。"
+          getValueProps={(value) => ({ value: (value || []).join("\n") })}
+          getValueFromEvent={(event) => event.target.value.split("\n")}>
+          <Input.TextArea rows={3} />
+        </Form.Item>
+        <Form.Item name="image_urls" hidden><Select mode="multiple" /></Form.Item>
+      </> : <Fields record={record} drafts={drafts} />}
     </ActionForm>
   );
 }

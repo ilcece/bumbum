@@ -1,48 +1,53 @@
 import { useEffect, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
-import { Alert, Button, Checkbox, Form, Input, InputNumber, Select, Space, Typography } from "antd";
+import { Alert, Button, Checkbox, Collapse, Descriptions, Form, Input, InputNumber, Select, Space, Switch, Typography } from "antd";
 import { ActionForm, Load, RemoteSelect, required, returnPath, useRecord } from "../components/CatalogUI";
+import { InstallationConfirmation } from "../components/AssemblyFields";
 import StyleEditor from "../components/StyleEditor";
 import { IssueFields } from "./Catalog";
-import { Row } from "../catalog";
+import { Row, statusNames } from "../catalog";
 
 type Supplement = "style" | "issue" | "confirm" | "physical" | "chip";
 
-export function PhysicalFields({ nested = false }: { nested?: boolean }) {
+export function PhysicalFields({ nested = false, fixedSpec }: { nested?: boolean; fixedSpec?: string }) {
   const field = (name: string) => nested ? ["physical", name] : name;
   const style = useRecord("styles", Form.useWatch(field("style_id"))).record;
   return <>
     <Form.Item name={field("physical_uid")} label="实体编号" rules={required}><Input maxLength={64} /></Form.Item>
-    <Form.Item name={field("spec")} label="实际规格" rules={style?.specs?.length ? required : []}>
+    {fixedSpec ? <Form.Item name={field("spec")} hidden><Input /></Form.Item> : <Form.Item name={field("spec")} label="实际规格" rules={style?.specs?.length ? required : []}>
       {style?.specs?.length ? <Select options={style.specs.map((spec: string) => ({ label: spec, value: spec }))} /> : <Input maxLength={256} placeholder="填写实物尺码、颜色等信息" />}
-    </Form.Item>
+    </Form.Item>}
     <Form.Item name={field("batch_no")} label="实物批次"><Input maxLength={64} /></Form.Item>
     <Form.Item name={field("supplier_serial")} label="供应商序列号"><Input maxLength={128} /></Form.Item>
   </>;
 }
 
-export function RegisterPhysical({ styleId, unitId, onClose, onDone }: {
-  styleId?: number; unitId?: number; onClose: () => void; onDone: (r: Row) => void;
+export function RegisterPhysical({ orderUnit, onClose, onDone }: {
+  orderUnit?: Row; onClose: () => void; onDone: (r: Row) => void;
 }) {
   const [creatingStyle, setCreatingStyle] = useState(false);
   const [form] = Form.useForm();
-  const styleField = unitId ? ["physical", "style_id"] : "style_id";
+  const unitId = orderUnit?.id;
   return <>
     <ActionForm title="登记实体物品" submitText="保存实体"
       formInstance={form} action={unitId ? "orderPhysical" : "createPhysicalItem"}
-      initial={unitId ? { order_unit_id: unitId, physical: { style_id: styleId } } : { style_id: styleId }}
+      initial={unitId ? { order_unit_id: unitId, physical: { style_id: orderUnit.expected_style_id, spec: orderUnit.expected_spec } } : {}}
       onDone={onDone} onClose={onClose}>
-      {unitId && <Form.Item name="order_unit_id" hidden><InputNumber /></Form.Item>}
-      <Form.Item name={styleField} label="款式" rules={required}>
-        <RemoteSelect resource="styles" onChange={() => form.setFieldValue(unitId ? ["physical", "spec"] : "spec", undefined)} />
-      </Form.Item>
-      <Button onClick={() => setCreatingStyle(true)}>新建款式</Button>
-      <PhysicalFields nested={!!unitId} />
+      {orderUnit ? <>
+        <Alert type="info" title={orderUnit.expected_style_name + " · " + (orderUnit.expected_spec || "无指定规格")} />
+        <Form.Item name="order_unit_id" hidden><InputNumber /></Form.Item>
+        <Form.Item name={["physical", "style_id"]} hidden><InputNumber /></Form.Item>
+      </> : <>
+        <Form.Item name="style_id" label="款式" rules={required}
+          extra={<Button type="link" onClick={() => setCreatingStyle(true)}>新建款式</Button>}>
+          <RemoteSelect resource="styles" onChange={() => form.setFieldValue("spec", undefined)} />
+        </Form.Item>
+      </>}
+      <PhysicalFields nested={!!unitId} fixedSpec={orderUnit?.expected_spec} />
     </ActionForm>
     {creatingStyle && <StyleEditor page={false} onClose={() => setCreatingStyle(false)} onDone={(r) => {
-      form.setFieldValue(styleField, r.id);
-      form.setFieldValue(unitId ? ["physical", "spec"] : "spec", undefined);
+      form.setFieldsValue({ style_id: r.id, spec: undefined });
       setCreatingStyle(false);
     }} />}
   </>;
@@ -75,16 +80,23 @@ export default function ItemAssembly() {
   const chipId = Number(q.get("chip_id")) || undefined;
   const unitId = Number(q.get("order_unit_id")) || undefined;
   const target = returnPath("/items");
+  const orderId = unitId ? Number(/^\/orders\/(\d+)/.exec(target)?.[1]) || undefined : undefined;
+  const order = useRecord("orders", orderId);
+  const unit = order.record?.units?.find((u: Row) => u.id === unitId);
   const issue = useRecord("issues", issueId);
   const physical = useRecord("physical-items", physicalId);
   const chip = useRecord("chips", chipId);
   return (
-    <PageContainer title="新建数字物品" onBack={() => history.push(target)}>
-      <Load error={issue.error || physical.error || chip.error} loading={issue.loading || physical.loading || chip.loading}
-        retry={() => { issue.reload(); physical.reload(); chip.reload(); }}>
-        {(!issueId || issue.record) && (!physicalId || physical.record) && (!chipId || chip.record) &&
+    <PageContainer title={unitId ? "装配订单物品" : "新建数字物品"} onBack={() => history.push(target)}>
+      <Load error={issue.error || physical.error || chip.error || order.error} loading={issue.loading || physical.loading || chip.loading || order.loading}
+        retry={() => { issue.reload(); physical.reload(); chip.reload(); order.reload(); }}>
+        {unit && <Alert type="info" title={unit.external_order_no + " · 第 " + unit.position + " 件"}
+          description={unit.product_name + " · " + (unit.ordered_spec || "原单无规格") + " → " + unit.expected_style_name + " · " + (unit.expected_spec || "无指定规格")} />}
+        {(!unitId || (unit && unit.physical_matches)) && (!issueId || issue.record) && (!physicalId || physical.record) && (!chipId || chip.record) &&
           <Assembly key={location.search} issue={issue.record} physical={physical.record}
             chip={chip.record} unitId={unitId} target={target} />}
+        {unitId && !order.loading && (orderId === undefined || (order.record && !unit?.physical_matches)) &&
+          <Alert type="warning" title="请回原订单件核对款式和规格后再装配。" />}
       </Load>
     </PageContainer>
   );
@@ -101,8 +113,6 @@ function Assembly({ issue, physical, chip, unitId, target }: {
   const [mode, setMode] = useState<"assemble" | "draft">("assemble");
   const chosenIssue = useRecord("issues", selectedIssue).record;
   const style = useRecord("styles", styleId).record;
-  const currentPhysical = useRecord("physical-items", Form.useWatch("physical_item_id", form) || physical?.id).record;
-  const currentChip = useRecord("chips", Form.useWatch("chip_id", form) || chip?.id).record;
   const [initial] = useState({
     issue_id: issue?.id, physical_item_id: physical?.id, chip_id: chip?.id, order_unit_id: unitId,
   });
@@ -113,7 +123,7 @@ function Assembly({ issue, physical, chip, unitId, target }: {
   function chooseStyle(id: number) {
     setStyleId(id);
     setSelectedIssue(undefined);
-    form.setFieldsValue({ issue_id: undefined, physical_item_id: undefined, edition_number: undefined });
+    form.setFieldsValue({ issue_id: undefined, physical_item_id: undefined, edition_number: undefined, installed: false });
   }
 
   function chooseIssue(id: number) {
@@ -140,34 +150,29 @@ function Assembly({ issue, physical, chip, unitId, target }: {
         onClose={() => history.push(target)}
         onDone={(r) => history.push(target.split("?")[0] === "/items" ? "/items/" + r.id + "?from=" + encodeURIComponent(target) : target)}>
         {unitId && <Form.Item name="order_unit_id" hidden><InputNumber /></Form.Item>}
-        <Form.Item name="issue_id" label="已确认发行" rules={required}>
+        <Form.Item name="issue_id" label="已确认发行" rules={required} extra={styleId && !selectedIssue && <Space wrap>
+          <Button type="link" onClick={() => setSupplement("issue")}>新建发行草案</Button>
+          <Button type="link" onClick={() => { setDraftIssue(undefined); setSupplement("confirm"); }}>确认已有草案</Button>
+        </Space>}>
           <RemoteSelect resource="issues" params={{ style_id: styleId, status: "confirmed" }} onChange={(id) => chooseIssue(Number(id))} />
         </Form.Item>
-        <Space wrap>
-          <Button disabled={!styleId} onClick={() => setSupplement("issue")}>新建发行草案</Button>
-          <Button disabled={!styleId} onClick={() => { setDraftIssue(undefined); setSupplement("confirm"); }}>确认已有草案</Button>
-        </Space>
         <IdentityFields />
-        <Form.Item name="is_validation" valuePropName="checked"><Checkbox>标记为生产验证对象</Checkbox></Form.Item>
         {mode === "assemble" && <>
-          <Form.Item name="physical_item_id" label="实体物品" rules={required} preserve={false}>
+          <Form.Item name="physical_item_id" label="实体物品" rules={required} preserve={false}
+            extra={!physical && styleId && <Button type="link" onClick={() => setSupplement("physical")}>登记新实物</Button>}>
             {physical ? <ReadOnlyValue text={physical.physical_uid + " · " + (physical.spec || "规格不适用")} /> :
               <RemoteSelect resource="physical-items" params={{ style_id: styleId, available: true }} />}
           </Form.Item>
-          {!physical && <Button disabled={!styleId} onClick={() => setSupplement("physical")}>登记新实物</Button>}
-          <Form.Item name="chip_id" label="芯片 UID" rules={required} preserve={false}>
+          <Form.Item name="chip_id" label="芯片 UID" rules={required} preserve={false}
+            extra={!chip && <Button type="link" onClick={() => setSupplement("chip")}>登记新芯片</Button>}>
             {chip ? <ReadOnlyValue text={chip.chip_uid} /> :
               <RemoteSelect resource="chips" params={{ available: true, compatible_project: chosenIssue?.project || style?.project }} />}
           </Form.Item>
-          {!chip && <Button onClick={() => setSupplement("chip")}>登记新芯片</Button>}
-          {currentPhysical && currentChip && <Alert type="info" title={
-            "请核对 " + currentPhysical.physical_uid + " · " + (currentPhysical.spec || "规格不适用") + " · " + currentChip.chip_uid
-          } />}
-          <Form.Item name="installed" valuePropName="checked" preserve={false}
-            rules={[{ validator: (_, value) => value === true ? Promise.resolve() : Promise.reject("请先确认实际安装") }]}>
-            <Checkbox>已将所选芯片安装到这件实物</Checkbox>
-          </Form.Item>
+          <InstallationConfirmation />
         </>}
+        <Collapse size="small" items={[{ key: "advanced", label: "高级选项",
+          children: <Form.Item name="is_validation" label="标记为生产验证对象" valuePropName="checked"><Switch /></Form.Item>,
+        }]} />
       </ActionForm>
     </ProCard>
     {supplement === "style" && <StyleEditor page={false} onClose={() => setSupplement(undefined)} onDone={(r) => {
@@ -184,8 +189,7 @@ function Assembly({ issue, physical, chip, unitId, target }: {
       <Form.Item name="issue_id" label="同款发行草案" rules={required}>
         <RemoteSelect resource="issues" params={{ style_id: styleId, status: "draft" }} />
       </Form.Item>
-      <Form.Item name="evidence" label="发行确认依据" rules={required}><Input.TextArea maxLength={1000} /></Form.Item>
-      <Form.Item name="confirmed" valuePropName="checked" rules={[{ validator: (_, value) => value === true ? Promise.resolve() : Promise.reject("请先核对发行承诺") }]}><Checkbox>已核对款式、规格承诺、数量和编号规则</Checkbox></Form.Item>
+      <IssueConfirmation />
     </ActionForm>}
     {supplement === "physical" && <ActionForm title="登记新实物" submitText="保存实体" action="createPhysicalItem"
       initial={{ style_id: styleId }} onClose={() => setSupplement(undefined)}
@@ -204,4 +208,25 @@ function Assembly({ issue, physical, chip, unitId, target }: {
 
 function ReadOnlyValue({ text }: { text: string; value?: number }) {
   return <Typography.Text>{text}</Typography.Text>;
+}
+
+function IssueConfirmation() {
+  const form = Form.useFormInstance();
+  const issueId = Form.useWatch("issue_id", form);
+  const { record } = useRecord("issues", issueId);
+  const issue = record?.id === issueId ? record : undefined;
+  useEffect(() => { form.setFieldValue("confirmed", false); }, [form, issueId]);
+  return <>
+    {issue && <Descriptions size="small" bordered column={1}>
+      <Descriptions.Item label="款式">{issue.style_name}</Descriptions.Item>
+      <Descriptions.Item label="发行方式">{statusNames[issue.mode]}{issue.total ? " · " + issue.total + " 个身份" : ""}</Descriptions.Item>
+      <Descriptions.Item label="发行说明与规格承诺">{issue.description || "未填写"}</Descriptions.Item>
+      <Descriptions.Item label="序号">{issue.mode === "period" && !issue.sealed_at ? "核定后分配正式序号" : "同一发行的正式序号不可重复"}</Descriptions.Item>
+    </Descriptions>}
+    <Form.Item name="evidence" label="发行确认依据" rules={required}><Input.TextArea maxLength={1000} /></Form.Item>
+    <Form.Item name="confirmed" valuePropName="checked" dependencies={["issue_id"]}
+      rules={[{ validator: (_, value) => issue && value === true ? Promise.resolve() : Promise.reject("请先核对当前发行约定") }]}>
+      <Checkbox disabled={!issue}>已核对款式、规格承诺、数量和编号规则</Checkbox>
+    </Form.Item>
+  </>;
 }
