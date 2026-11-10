@@ -41,6 +41,7 @@ import {
   State as StatusTag,
   RemoteSelect,
 } from "../components/CatalogUI";
+import UserIdentity from "../components/UserIdentity";
 export default function Overview() {
   const q = new URLSearchParams(useLocation().search);
   const [filter, setFilter] = useState<Record<string, any>>({
@@ -166,7 +167,7 @@ export default function Overview() {
           headerBordered
           variant="outlined"
           title="物品与芯片概况"
-          extra={<Tag color="blue">点击卡片带条件查看</Tag>}
+          extra={<Space><Tag color="blue">点击卡片带条件查看</Tag><Button onClick={() => go("/overview/activity")}>用户动态</Button></Space>}
         >
           <Row gutter={[16, 16]}>
             {inventory.map((card) => (
@@ -451,8 +452,8 @@ export default function Overview() {
                     render: (_, r) =>
                       r.owner_id ? (
                         <Space direction="vertical" size={0}>
-                          <span>{r.owner_name || "账户 " + r.owner_id}</span>
-                          <CopyValue value={r.owner_id} />
+                          {r.owner_name && <span>{r.owner_name}</span>}
+                          <UserIdentity uid={r.owner_public_uid} />
                         </Space>
                       ) : (
                         <StatusTag value="暂无持有人" />
@@ -484,7 +485,7 @@ export default function Overview() {
                   {
                     title: "稳定账户",
                     dataIndex: "id",
-                    render: (_, r) => <CopyValue value={r.id} />,
+                    render: (_, r) => <UserIdentity uid={r.public_uid} />,
                   },
                   { title: "持有人", dataIndex: "nickname" },
                   {

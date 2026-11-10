@@ -3,11 +3,17 @@ import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { history, useModel } from "@umijs/max";
 import { readSession, signIn } from "../api";
 import { RuntimeChecks } from "../RuntimeChecks";
+import { passkeysEnabled, passkeyMessage, usePasskey } from "../passkeys";
 export default function Login() {
   const [form] = Form.useForm(),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const { refresh } = useModel("@@initialState");
+  const complete = async () => {
+    await readSession();
+    await refresh();
+    history.replace("/overview");
+  };
   return (
     <main className="login-frame">
       <Card className="login-card">
@@ -16,6 +22,19 @@ export default function Login() {
         </div>
         <Typography.Title level={3}>BUMBUM</Typography.Title>
         <Typography.Title level={4}>管理员登录</Typography.Title>
+        {passkeysEnabled() && <Button block type="primary" disabled={busy} style={{ marginBottom: 16 }}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await usePasskey("login");
+              await complete();
+            } catch (failure) {
+              setError(passkeyMessage(failure));
+            } finally {
+              setBusy(false);
+            }
+          }}>使用通行密钥登录</Button>}
         <Form
           form={form}
           layout="vertical"
@@ -24,9 +43,7 @@ export default function Login() {
             setError("");
             try {
               await signIn(v.username, v.password, v.code);
-              await readSession();
-              await refresh();
-              history.replace("/overview");
+              await complete();
             } catch (e) {
               setError(e instanceof Error ? e.message : "登录未完成");
             } finally {
@@ -53,7 +70,7 @@ export default function Login() {
             />
           </Form.Item>
           <Button type="primary" htmlType="submit" block loading={busy}>
-            登录
+            {passkeysEnabled() ? "使用密码和动态码登录" : "登录"}
           </Button>
         </Form>
         {error && <Alert type="error" title={error} />}

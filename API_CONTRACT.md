@@ -58,6 +58,7 @@
 |---|---|---|
 | 运行检查 | GET /api/health、GET /api/ready | 第0.5节；公开用户域名不因此开放内部检查 |
 | 管理认证 | POST /api/admin/auth/login、GET /api/admin/auth/session、POST /api/admin/auth/logout | 第2节 |
+| 通行密钥 | 杭州 test 的 /api/admin/auth/passkeys 登记、登录、查询与撤销 | [第2.4节](#24-杭州-test-通行密钥) |
 | 芯片登记/查询/批次 | GET/POST /api/admin/chips、GET/PATCH /api/admin/chips/{id}、POST /api/webhook/admin/scan | 第1.1、3节；PATCH仅批次，回调与网页认证不同 |
 | 首次绑定 | POST /api/admin/chips/{id}/bind-item | 第3.1节；不含解绑或换新 |
 | 密钥及配置核验 | POST /api/admin/chips/{id}/generate-keys、keys、confirm-provisioning | 第3节；不连接或改写实卡 |
@@ -67,8 +68,10 @@
 | 款式图片 | POST/GET /api/admin/catalog/styles/{id}/images/{asset_id}及状态；GET /api/tap/items/{id}/style-images/{asset_id}、GET /api/fashion/items/{id}/style-images/{asset_id} | 第11.3节；旧单件图片入口已退役 |
 | 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
 | 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；当前分支构建，验收/部署见TODO |
+| 用户账户及认领 | /api/public 下的短信验证、会话、认领及我的数字物品 | [第11节用户账户及认领](#用户账户及认领) |
+| 用户动态与账户卡 | GET /api/admin/catalog/activity、GET /api/admin/catalog/users/{uid}/card、POST /api/admin/catalog/users/{uid}/phone | [第11.1节](#111-分页与详情) |
 
-第10节集中保留短信/认领、所有权、芯片状态/解绑、详情所有权扩展、独立GET物品profile、服装扩展和饰品旧接口设计，均不因文档存在成为可用能力。物品扩展查询、普通保存及款式图片后端已接入，旧单件图片Upload/读取已退役，人工验收见TODO；生产验证清理与整套物品接续已按确认范围在第11节提供；C纠错及未定政策不因此开放，媒体到期技术资源维护不替代B。
+第10节保留短信认领、所有权、芯片状态与解绑、资料扩展和饰品等早期接口草案。已接入的手机号账户、认领、数字档案与整套物品接口以第11节为准。其他草案的可用范围以本节索引为准。
 
 未注册地址返回404；已有地址的不支持方法返回405，例如独立GET /api/admin/items/{id}/profile未开放，当前使用物品详情。未来若注册但未开放的业务可按明确契约返回501，不能据旧预留文字声称当前已返回501。扫描配置缺失/非法或密钥配置/密文无法核对时503，不以空密码、默认秘密或假成功凑通过。
 
@@ -175,6 +178,12 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 原先的验证码单独验证、备份码验证和网页设置验证器接口不再属于当前方案。验证器丢失且无法迁移时，通过有权限的服务器操作重置，不能从网页跳过验证码。
 
 <a name="3-管理芯片第一阶段"></a>
+
+### 2.4 杭州 test 通行密钥
+
+`POST /api/admin/auth/passkeys/login/options` 接收空 JSON。客户端用返回的选项发起 WebAuthn，随后向 `login/finish` 提交通行密钥响应及原挑战。成功签发与动态码相同的八小时管理会话。服务端校验杭州 test 来源、用户验证、签名和单次挑战。
+
+管理会话可读取 `GET /api/admin/auth/passkeys`。登录后十分钟内可用 `register/options`、`register/finish` 登记，或用 `POST /api/admin/auth/passkeys/{id}/revoke` 撤销。登记和撤销须同源及 CSRF，登记挑战绑定当前管理会话。撤销使该账户的全部旧会话失效。
 
 ## 3. 管理芯片（已实现）
 
@@ -535,7 +544,7 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | 入口 | 条件与返回 |
 |---|---|
 | `POST /api/public/sms/send` | 传 `phone`，成功返回 `challenge_id` 和重发间隔。单一手机号至少间隔 60 秒，发送服务不可用时返回 503。杭州 test 使用阿里云适配时，白名单外号码返回 403 `sms_recipient_not_allowed`，不生成短信挑战。 |
-| `POST /api/public/sms/verify` | 传 `challenge_id`、`code`。成功建立会话，返回稳定账户 UID 和脱敏手机号。 |
+| `POST /api/public/sms/verify` | 传 `challenge_id`、`code`。成功建立会话，返回 UUIDv4 字符串 account.uid 和脱敏手机号。 |
 | `GET /api/public/account/session`、`POST /api/public/account/logout` | 读取本人会话，或用空 JSON 对象注销当前会话。 |
 | `POST /api/public/items/{id}/claim` | 传 `tap_token`、`claim_code`，同时验证用户会话及当前装配。成功建立持有关系、记录历史并核销凭证。旧碰卡返回 `retap_required`，旧码或过期按状态提示。 |
 | `GET /api/public/items/{id}/claim-status` | 登录后核对本人已持有、他人已认领或待认领，用于未知结果恢复。 |
@@ -553,10 +562,18 @@ GET /api/admin/catalog/{resource}，resource为styles/issues/items/chips/users/a
 | issues | project/style_id/status=confirmed；返回mode/total/starts_at/ends_at/counting_rule/confirmed_at/sealed_at/ever_used |
 | items | project/status/issue_id/is_validation/sold/whole_status/bindable=true；bindable仅未归档、已关联发行且未准备整套的对象；whole_status为normal/lost/missing，布尔筛选仅true/false；返回稳定身份、发行序号、当前整套/芯片、售出、归属与验证摘要 |
 | chips | project/status/is_validation/available=true/compatible_project；compatible_project只筛该类别或未预设类别；available只取未占用且可准备的pending芯片，不将候选当当前；status新增retired，lost表示随整套挂失停用 |
-| users | keyword按昵称或ID，exclude_id可排除当前持有人；仅真实账户，联系方式脱敏，返回持有数量，不是CRM或认领接口 |
+| users | keyword 按昵称或账户 UID 搜索。public_uid 为对外 UUIDv4，id 和 exclude_id 为管理办理使用的 UUIDv7。返回脱敏联系方式及持有数量。 |
 | audit | keyword按动作/对象ID；管理操作及必要依据只向管理员开放 |
 
 GET /api/admin/catalog/{styles,issues,items,chips}/{id}读取确切记录；issues另返回suggested_item_uid与suggested_edition_number，仅作未预占的建议；items.handovers另带owner_name/recipient_name及候选provisioned_at只读核对摘要；id为页面可安全处理的正整数（当前新增服务上限2147483647），缺失404。items详情另外返回style/issue、wholes、handovers、owners及缺发行时的legacy_profile。所有者只读；无所有者显示暂无持有人，有当前关系显示已有持有人，不推断首次认领，不猜购买人/碰卡人。旧单件资料不自动归并到款式，已有正确发行不允许普通更换。
+
+`owners[].masked_phone` 用于后台当前持有人和持有人历史，显示账户当前手机号的前三位和后四位，例如 `139****9701`。无适用号码时为 `null`。
+
+POST /api/admin/catalog/items/{item_id}/owners/{ownership_id}/phone 接收空 JSON，须有效管理会话、同源及 CSRF。持有记录须归属指定物品。成功响应仅在本次查看返回完整手机号，禁止缓存。系统先提交审计，记录操作人、时间、物品、持有记录及对外账户 UID。审计只保存这些引用与查看结果。
+
+GET /api/admin/catalog/activity 分页合并有效触碰、用户自行认领及已完成交付事实。可按 `item_id`、`item_uid`、`issue_id`、`event`、`date_from`、`date_to` 和测试数据范围筛选。响应的 `user_uid` 为对外 UUIDv4，匿名事件为空。
+
+GET /api/admin/catalog/users/{uid}/card 按 UUIDv4 返回账户 UID、昵称和脱敏号码。POST /api/admin/catalog/users/{uid}/phone 需管理会话、同源和 CSRF。先写账户查看审计，成功才返回完整号码。
 
 ### 11.2 事务操作与字段
 
@@ -575,7 +592,7 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 | sale | item_id/confirmed/evidence，first_sold_at可选（带时区ISO8601、不晚于当前）；首次登记使用所填成交时间或当前时间，已有首次时间拒绝不同值；显式维护售出事实，操作时间与依据留审计，首次成交时间只记一次；撤销不删除首次时间、持有人及触碰历史 |
 | toggleItem | item_id/status，status仅active/disabled；新档案启用检查发行、当前整套、有效芯片与真实核验；停用永久撤销现有查看资格 |
 | loseItem | item_id/whole_id/evidence；固定本次当代ID，挂失写入当代并同步停芯片、撤销资格；准备中的普通换新转为挂失换新，已准备的新整套保留 |
-| prepare | item_id/kind/chip_id/evidence，spec 选填，转售另需 recipient_id。kind 支持 periodic、loss、resale。检查真实持有人、已约定权益、年度用量、接收账户和芯片占用。保存原代与新代组合，返回 `id` 和 `work_id`，审计记录关联办理单。归属和授权在确认交付时切换。 |
+| prepare | item_id/kind/chip_id/evidence，spec 选填，转售另需内部 UUIDv7 recipient_id。kind 支持 periodic、loss、resale。检查真实持有人、已约定权益、年度用量、接收账户和芯片占用。保存原代与新代组合，返回 `id` 和 `work_id`，审计记录关联办理单。归属和授权在确认交付时切换。 |
 | complete | work_id/evidence/checked=true；重查原代及当前持有人，候选必须真实核验。一起结束旧代、退役旧卡、追加新代、必要转移持有人、保存历史并撤销旧短许可/持续查看。新代正常，不继承旧代挂失；身份/编号/首次售出保留，换新计次待核，转售不重置余额 |
 | chipBatch/chipState | chip_id/batch_no；或chip_id/state/evidence，state仅disabled/restore；挂失、退役或候选不可普通恢复，芯片页无独立挂失 |
 | validationItem/validationChip | item_id或chip_id及enabled布尔值；标记不改变统计 |

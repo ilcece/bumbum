@@ -10,6 +10,7 @@ import uuid
 
 import pymysql
 
+from core.account_uid import new_account_identity
 from core.catalog_testdata import validate_test_target
 from core.test_batches import cleanup, mark, preview
 
@@ -72,8 +73,9 @@ def seed(connection, username, *, apply=False, replace_batch=None):
             year = (stamp + timedelta(hours=8)).year
             entries, styles, issues, users, photos = [], [], [], [], []
             for name in ('林澄', '周予', '许禾', '陈屿', '宋岚', '陆遥'):
-                c.execute('INSERT INTO user(phone,nickname,phone_verified_at) VALUES (%s,%s,%s)', ('TEST' + uuid.uuid4().hex[:16], f'模拟·{name}', stamp))
-                users.append(tag('user', c.lastrowid))
+                uid, public_uid = new_account_identity()
+                c.execute('INSERT INTO user(uid,public_uid,phone,nickname,phone_verified_at) VALUES (%s,%s,%s,%s,%s)', (uid, public_uid, 'TEST' + uuid.uuid4().hex[:16], f'模拟·{name}', stamp))
+                users.append(tag('user', uid))
             for index, record in enumerate(records):
                 style = style_save(c, {'project': record['project'], 'code': f'SIM-{batch}-{record["slug"].upper()}', 'name': '验收·' + record['name'], 'description': record['description'], 'material': record['material'], 'care_instructions': record['care'], 'specs': record['specs'], 'image_urls': []})['id']
                 styles.append(tag('style', style))
@@ -193,9 +195,9 @@ def seed(connection, username, *, apply=False, replace_batch=None):
                         configured(ident)
                     if state == 3:
                         chip_action(c, 'chipState', {'chip_id': ident, 'state': 'disabled', 'evidence': '模拟未绑定芯片暂停使用'})
-            c.execute("UPDATE chip c JOIN (SELECT s.chip_id,MAX(s.scan_counter) AS counter FROM scan_log s JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=s.id WHERE tb.batch_id=%s GROUP BY s.chip_id) x ON x.chip_id=c.id SET c.last_verified_counter=GREATEST(COALESCE(c.last_verified_counter,0),x.counter)", (batch,))
-            lifecycle = row(c, "SELECT COUNT(*) AS n FROM scan_log s JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=s.id WHERE tb.batch_id=%s", (batch,))['n']
-            sold = row(c, "SELECT COUNT(*) AS n FROM scan_log s JOIN digital_item d ON d.item_id=s.item_id JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=s.id WHERE tb.batch_id=%s AND d.sold=1 AND s.created_at>=d.first_sold_at", (batch,))['n']
+            c.execute("UPDATE chip c JOIN (SELECT s.chip_id,MAX(s.scan_counter) AS counter FROM scan_log s JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=CAST(s.id AS CHAR CHARACTER SET ascii) COLLATE ascii_bin WHERE tb.batch_id=%s GROUP BY s.chip_id) x ON x.chip_id=c.id SET c.last_verified_counter=GREATEST(COALESCE(c.last_verified_counter,0),x.counter)", (batch,))
+            lifecycle = row(c, "SELECT COUNT(*) AS n FROM scan_log s JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=CAST(s.id AS CHAR CHARACTER SET ascii) COLLATE ascii_bin WHERE tb.batch_id=%s", (batch,))['n']
+            sold = row(c, "SELECT COUNT(*) AS n FROM scan_log s JOIN digital_item d ON d.item_id=s.item_id JOIN test_batch_object tb ON tb.kind='scan' AND tb.object_id=CAST(s.id AS CHAR CHARACTER SET ascii) COLLATE ascii_bin WHERE tb.batch_id=%s AND d.sold=1 AND s.created_at>=d.first_sold_at", (batch,))['n']
             manifest = {'pack': PACK, 'synthetic': True, 'warning': '照片为网上真实实物照片；业务资料、配置、持有、交付及触碰为独立模拟导入。虚拟芯片没有密钥，不能证明实卡、首次认领、真实销售或交付通过。', 'items': entries, 'photos': photos, 'expected_initial': {'styles': len(records), 'issues': 10, 'items': len(entries), 'chips': 114, 'users': len(users), 'lifecycle_taps': lifecycle, 'sold_taps': sold}, 'real_cards': []}
             c.execute('UPDATE test_batch SET manifest=%s WHERE id=%s', (json.dumps(manifest, ensure_ascii=False), batch))
             c.execute("INSERT INTO admin_audit(admin_id,action,target_type,target_id,detail) VALUES (%s,'catalog.test_seed','test_batch',%s,%s)", (admin['id'], str(batch), json.dumps({'origin': 'test_command', 'batch_id': batch, 'pack': PACK})))

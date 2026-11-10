@@ -1,3 +1,4 @@
+import UserIdentity from "../components/UserIdentity";
 import { useEffect, useRef, useState } from "react";
 import { PageContainer, ProColumns } from "@ant-design/pro-components";
 import {
@@ -206,7 +207,7 @@ export default function Items() {
           <div>
             {r.owner_name}
             <div className="cell-secondary">
-              <Copy value={r.owner_id} />
+              <UserIdentity uid={r.owner_public_uid} />
             </div>
           </div>
         ) : (

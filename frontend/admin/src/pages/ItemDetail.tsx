@@ -47,6 +47,18 @@ import SaleFields from "../components/SaleFields";
 import KeyConfiguration from "../components/KeyConfiguration";
 import AssemblyFields from "../components/AssemblyFields";
 import ItemH5Preview from "../components/ItemH5Preview";
+import ItemActivity from "../components/ItemActivity";
+
+import UserIdentity, { PhoneReveal } from "../components/UserIdentity";
+
+function HolderPhone({ itemId, holder }: { itemId: number; holder?: Row }) {
+  if (!holder) return <>手机号未记录</>;
+  return <Space wrap>
+    <UserIdentity uid={holder.public_uid} />
+    <PhoneReveal masked={holder.masked_phone} path={`/admin/catalog/items/${itemId}/owners/${holder.id}/phone`} />
+  </Space>;
+}
+
 export default function ItemDetail({
   id,
   embedded = false,
@@ -103,6 +115,7 @@ export default function ItemDetail({
   };
   const e = r?.wholes?.find((x: Row) => !x.ended_at),
     pending = r?.handovers?.find((x: Row) => !x.completed_at);
+  const owner = r?.owners?.find((holder: Row) => holder.is_active);
   const container = (content: React.ReactNode) => (
     <DetailContainer
       embedded={embedded}
@@ -382,7 +395,7 @@ export default function ItemDetail({
               </Descriptions.Item>
               <Descriptions.Item label="当前持有人">
                 {r.owner_id ? (
-                  <Copy value={r.owner_id} />
+                  <HolderPhone key={owner?.id} itemId={r.id} holder={owner} />
                 ) : (
                   <State value="暂无持有人" />
                 )}
@@ -497,7 +510,7 @@ export default function ItemDetail({
                       rowKey="id"
                       dataSource={r.owners}
                       columns={[
-                        { title: "账户ID", dataIndex: "user_id" },
+                        { title: "脱敏手机号", render: (_, x) => <HolderPhone key={x.id} itemId={r.id} holder={x} /> },
                         { title: "开始", render: (_, x) => time(x.bound_at) },
                         { title: "结束", render: (_, x) => time(x.unbound_at) },
                       ]}
@@ -552,6 +565,9 @@ export default function ItemDetail({
                 />
               </>
             ) : null}
+          </ProCard>
+          <ProCard title="用户动态" headerBordered extra={<Button onClick={() => history.push(`/overview/activity?item_id=${r.id}`)}>查看全部动态</Button>}>
+            <ItemActivity key={r.id} itemId={r.id} revision={r} />
           </ProCard>
           <ProCard title="业务操作记录" headerBordered extra={<Button onClick={() => history.push(`/system?tab=audit&item_id=${r.id}`)}>查看全部</Button>}>
             <Table<Row> rowKey="id" size="small" pagination={false} dataSource={r.audit || []} columns={[
@@ -681,8 +697,7 @@ export default function ItemDetail({
                         : "定期换新"}
                   </Descriptions.Item>
                   <Descriptions.Item label="当前持有人">
-                    {r.owner_name || "暂无持有人"}{" "}
-                    {r.owner_id && <Copy value={r.owner_id} />}
+                    {r.owner_id ? owner?.masked_phone || "手机号未记录" : "暂无持有人"}
                   </Descriptions.Item>
                   <Descriptions.Item label="年度核对">
                     {r.quota_year || "待核对"}年 · 已核定使用
@@ -847,7 +862,7 @@ function Handover({
           </Typography.Paragraph>
           <Copy value={old?.chip_uid} />
           <p>
-            原持有人：{work.owner_name || "账户"} <Copy value={work.owner_id} />
+            原持有人：{work.owner_name || "账户"} <UserIdentity uid={work.owner_public_uid} />
           </p>
           <State value={old ? wholeStatus(old) : "待核对"} />
           {old?.loss_evidence && <p>曾挂失：{old.loss_evidence}</p>}
@@ -859,7 +874,7 @@ function Handover({
           <Copy value={work.chip_uid} />
           <p>
             接收账户：{work.recipient_name || "账户"}{" "}
-            <Copy value={work.recipient_id} />
+            <UserIdentity uid={work.recipient_public_uid} />
           </p>
           <State
             value={

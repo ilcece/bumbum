@@ -177,7 +177,7 @@ export async function verify(
   return item;
 }
 
-export type Account = { uid: number; phone: string };
+export type Account = { uid: string; phone: string };
 export type OwnedItem = ItemFacts & {
   item_id: number; item_uid: string; name: string | null; image_urls: string[];
   bound_at: string; spec: string | null; generation: number | null;
@@ -191,8 +191,8 @@ export function publicAccount(path: string, body?: unknown) {
 export function accountView(value: unknown): Account | null {
   if (value === null) return null;
   const data = object(value);
-  if (!Number.isSafeInteger(data.uid) || typeof data.phone !== "string") invalid();
-  return { uid: Number(data.uid), phone: data.phone };
+  if (typeof data.uid !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(data.uid) || typeof data.phone !== "string") invalid();
+  return { uid: data.uid, phone: data.phone };
 }
 
 export function ownedItem(value: unknown): OwnedItem {

@@ -110,6 +110,8 @@ def database_ready():
         from core.catalog_migration import catalog_schema
         from core.testdata_migration import schema as testdata_schema
         from core.assembly_migration import schema as assembly_schema
+        from core.user_uid_migration import schema as user_uid_schema
+        from core.passkey_migration import schema as passkey_schema
         with get_database().cursor() as cursor:
             cursor.execute("SHOW TABLES")
             actual_tables = {row[0] for row in cursor.fetchall()}
@@ -124,7 +126,9 @@ def database_ready():
                     and media_asset_schema(cursor) == "ready"
                     and catalog_schema(cursor) == "ready"
                     and testdata_schema(cursor) == "ready"
-                    and assembly_schema(cursor) == "ready")
+                    and assembly_schema(cursor) == "ready"
+                    and user_uid_schema(cursor) == "ready"
+                    and passkey_schema(cursor) == "ready")
     except pymysql.MySQLError as error:
         record_failure(error)
         return False

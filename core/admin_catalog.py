@@ -8,6 +8,7 @@ import re
 from flask import Blueprint, Response, current_app, g, jsonify, request
 import pymysql
 
+from core.account_uid import ACCOUNT_UID
 from core.admin_auth import AuthRequestError, lock_admin_session, request_json
 from core.admin_queries import check_parameters, consistent_read, contains, date_conditions, pagination, positive_integer, invalid
 from core.admin_items import normalized_profile
@@ -30,6 +31,8 @@ AUDIT_LABELS = {
     'register':'登记芯片','chipState':'调整芯片服务','chipBatch':'修改芯片批次','validationChip':'更新芯片验证标记','deleteChip':'清理芯片',
     'clearTestBatch':'清理验收批次','legacyProfile':'保存物品资料',
     'issueClaimCode':'首次发放认领码','reissueClaimCode':'核对后补发认领码',
+    'viewHolderPhone':'查看持有人完整手机号',
+    'viewUserPhone':'查看账户完整手机号',
     'undoInstall':'纠正未配置的安装',
 }
 
@@ -60,6 +63,18 @@ def boolean(data, name, default=False):
     value = data.get(name, default)
     if type(value) is not bool:
         invalid(f'{name}须为布尔值。')
+    return value
+
+
+def account_uid(value):
+    if not isinstance(value, str) or not ACCOUNT_UID.fullmatch(value):
+        invalid('账户 UID 须为有效的 UUIDv7。')
+    return value
+
+
+def public_account_uid(value):
+    if not re.fullmatch(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}', value):
+        invalid('账户 UID 须为有效的 UUIDv4。')
     return value
 
 
@@ -100,12 +115,13 @@ def audit_item_id(c,action,p):
 def audit_snapshot(c,ident):
     if ident is None:return None
     record=row(c,'''SELECT i.item_uid,i.status,d.sold,d.first_sold_at,d.quota_used,d.quota_year,d.quota_review,
-                    w.generation,w.lost_at,ph.physical_uid,ch.chip_uid,o.user_id
+                    w.generation,w.lost_at,ph.physical_uid,ch.chip_uid,BIN_TO_UUID(u.public_uid) AS user_uid
                     FROM item i LEFT JOIN digital_item d ON d.item_id=i.id
                     LEFT JOIN whole_item w ON w.current_item_id=i.id
                     LEFT JOIN physical_item ph ON ph.id=w.physical_item_id
                     LEFT JOIN chip ch ON ch.id=w.chip_id
-                    LEFT JOIN ownership o ON o.active_item_id=i.id WHERE i.id=%s''',(ident,))
+                    LEFT JOIN ownership o ON o.active_item_id=i.id
+                    LEFT JOIN user u ON u.uid=o.user_id WHERE i.id=%s''',(ident,))
     return view(record) if record else None
 
 
@@ -132,7 +148,7 @@ def audit_detail(c,action,token,p,result,before):
         operation='确认转售交付' if work['kind']=='resale' else '确认换新交付'
         summary=f"第 {after['generation']} 代已交付生效，原芯片已退役。"
         if work['kind']=='resale':
-            summary+=f"持有人由 U{before['user_id']} 变更为 U{after['user_id']}。"
+            summary+=f"持有人由 {before['user_uid']} 变更为 {after['user_uid']}。"
             if row(c,"SELECT 1 FROM digital_item_right WHERE item_id=%s AND kind='renewal'",(result['id'],)):
                 if after['quota_review'] or after['quota_year'] is None:
                     summary+='本年换新额度待核对。'
@@ -215,7 +231,8 @@ ISSUE_JOIN = 'FROM product_issue r JOIN product_style s ON s.id=r.style_id JOIN 
 ITEM_SELECT = 'SELECT '+select_source('item','i')+''',i.*,p.code AS project,d.issue_id,d.edition_number,d.sold,d.first_sold_at,d.sale_evidence,d.is_validation,d.quota_year,d.quota_used,d.quota_review,
  r.name AS issue_name,r.mode AS issue_mode,r.total AS issue_total,r.style_id,s.name,s.material,s.image_urls,
  w.physical_item_id,ph.physical_uid,w.installed_at,
- (SELECT nickname FROM user WHERE id=o.user_id) AS owner_name,(SELECT phone_verified_at IS NOT NULL FROM user WHERE id=o.user_id) AS owner_phone_verified,
+ (SELECT nickname FROM user WHERE uid=o.user_id) AS owner_name,(SELECT phone_verified_at IS NOT NULL FROM user WHERE uid=o.user_id) AS owner_phone_verified,
+ (SELECT BIN_TO_UUID(public_uid) FROM user WHERE uid=o.user_id) AS owner_public_uid,
  w.id AS whole_id,w.generation,w.spec,w.lost_at,w.loss_evidence,c.id AS chip_id,c.chip_uid,c.chip_status,c.provisioned_at,
  (k.chip_id IS NOT NULL) AS keys_generated,o.user_id AS owner_id'''
 ITEM_JOIN = '''FROM item i JOIN project p ON p.id=i.project_id LEFT JOIN digital_item d ON d.item_id=i.id
@@ -314,12 +331,12 @@ def listing(resource):
             if request.args['verified']!='true':invalid('verified仅接受true。')
             conditions.append('u.phone_verified_at IS NOT NULL')
         if request.args.get('exclude_id'):
-            conditions.append('u.id<>%s');values.append(positive_integer('exclude_id',1,2147483647))
-        select,joined,order='SELECT '+select_source('user','u')+',u.id,u.nickname,CONCAT(LEFT(u.phone,3),\'****\',RIGHT(u.phone,4)) AS phone,(SELECT COUNT(*) FROM ownership o WHERE o.user_id=u.id AND o.is_active=1) AS held_items','FROM user u','u.id DESC'
+            conditions.append('u.uid<>%s');values.append(account_uid(request.args['exclude_id']))
+        select,joined,order='SELECT '+select_source('user','u')+',u.uid AS id,BIN_TO_UUID(u.public_uid) AS public_uid,u.nickname,CONCAT(LEFT(u.phone,3),\'****\',RIGHT(u.phone,4)) AS phone,(SELECT COUNT(*) FROM ownership o WHERE o.user_id=u.uid AND o.is_active=1) AS held_items','FROM user u','u.created_at DESC,u.uid DESC'
         held_filter,held_args=filter_source('item','o.item_id',request.args.get('data_scope','business'),request.args.get('test_batch_id'))
         select=select.replace('o.is_active=1)', 'o.is_active=1 AND '+held_filter+')');select_values=held_args
         if keyword:
-            conditions.append('(u.nickname LIKE %s ESCAPE \'!\' OR CAST(u.id AS CHAR)=%s)');values.extend([contains(keyword),keyword])
+            conditions.append("(u.nickname LIKE %s ESCAPE '!' OR u.uid=%s OR BIN_TO_UUID(u.public_uid)=%s)");values.extend([contains(keyword),keyword,keyword])
     elif resource == 'audit':
         # 审计的对象编号按原值匹配，不依赖连接与历史表的排序规则。
         select,joined,order="SELECT a.id,a.action,a.target_type,a.target_id,a.detail,a.created_at,u.username,EXISTS(SELECT 1 FROM item i WHERE a.target_type='item' AND CAST(i.id AS BINARY)=CAST(a.target_id AS BINARY)) AS object_exists",'FROM admin_audit a LEFT JOIN admin_user u ON u.id=a.admin_id','a.id DESC'
@@ -334,7 +351,7 @@ def listing(resource):
         fail('未知查询资源。',404,'not_found')
     if resource!='audit':
         kind,alias={'styles':('style','s'),'issues':('issue','r'),'items':('item','i'),'chips':('chip','c'),'users':('user','u'),'physical-items':('physical','ph')}[resource]
-        clause,args=filter_source(kind,alias+'.id',request.args.get('data_scope','business'),request.args.get('test_batch_id'))
+        clause,args=filter_source(kind,alias+('.uid' if kind=='user' else '.id'),request.args.get('data_scope','business'),request.args.get('test_batch_id'))
         conditions.append(clause);values.extend(args)
     if request.args.get('project'):
         if resource not in {'styles','issues','items','chips'}: invalid('此资源不支持类别。')
@@ -380,7 +397,12 @@ def detail(resource,ident):
             result=view(row(c,'SELECT ph.*,s.name AS style_name FROM physical_item ph JOIN product_style s ON s.id=ph.style_id WHERE ph.id=%s',(ident,)))
         elif resource=='items':
             result=view(row(c,ITEM_SELECT+' '+ITEM_JOIN+' WHERE i.id=%s',(ident,)))
-            for key,sql in [('wholes','SELECT w.*,c.chip_uid,c.chip_status,ph.physical_uid FROM whole_item w JOIN chip c ON c.id=w.chip_id LEFT JOIN physical_item ph ON ph.id=w.physical_item_id WHERE w.item_id=%s ORDER BY w.generation DESC'),('handovers','SELECT w.*,c.chip_uid,c.provisioned_at,ph.physical_uid,(SELECT nickname FROM user WHERE id=w.owner_id) AS owner_name,(SELECT nickname FROM user WHERE id=w.recipient_id) AS recipient_name FROM item_handover w JOIN chip c ON c.id=w.chip_id LEFT JOIN physical_item ph ON ph.id=w.physical_item_id WHERE w.item_id=%s ORDER BY w.id DESC'),('owners','SELECT o.id,o.user_id,o.bound_at,o.unbound_at,o.is_active,u.nickname FROM ownership o JOIN user u ON u.id=o.user_id WHERE o.item_id=%s ORDER BY o.id DESC'),('rights','SELECT kind,rule_version FROM digital_item_right WHERE item_id=%s ORDER BY kind')]:
+            owners_sql = """SELECT o.id,o.user_id,o.bound_at,o.unbound_at,o.is_active,u.nickname,BIN_TO_UUID(u.public_uid) AS public_uid,
+                                   CASE WHEN u.phone REGEXP '^[0-9]{11}$'
+                                   THEN CONCAT(LEFT(u.phone,3),'****',RIGHT(u.phone,4)) END AS masked_phone
+                            FROM ownership o JOIN user u ON u.uid=o.user_id
+                            WHERE o.item_id=%s ORDER BY o.id DESC"""
+            for key,sql in [('wholes','SELECT w.*,c.chip_uid,c.chip_status,ph.physical_uid FROM whole_item w JOIN chip c ON c.id=w.chip_id LEFT JOIN physical_item ph ON ph.id=w.physical_item_id WHERE w.item_id=%s ORDER BY w.generation DESC'),('handovers','SELECT w.*,c.chip_uid,c.provisioned_at,ph.physical_uid,(SELECT nickname FROM user WHERE uid=w.owner_id) AS owner_name,(SELECT nickname FROM user WHERE uid=w.recipient_id) AS recipient_name,(SELECT BIN_TO_UUID(public_uid) FROM user WHERE uid=w.owner_id) AS owner_public_uid,(SELECT BIN_TO_UUID(public_uid) FROM user WHERE uid=w.recipient_id) AS recipient_public_uid FROM item_handover w JOIN chip c ON c.id=w.chip_id LEFT JOIN physical_item ph ON ph.id=w.physical_item_id WHERE w.item_id=%s ORDER BY w.id DESC'),('owners',owners_sql),('rights','SELECT kind,rule_version FROM digital_item_right WHERE item_id=%s ORDER BY kind')]:
                 c.execute(sql,(ident,));result[key]=[view(x) for x in c.fetchall()]
             year=(now()+timedelta(hours=8)).year
             if result['quota_year'] and result['quota_year']<year and not result['quota_review']:
@@ -402,6 +424,57 @@ def detail(resource,ident):
                 result['legacy_profile']=legacy
         else: fail('未知查询资源。',404,'not_found')
     return jsonify(status='ok',data=result)
+
+
+@blueprint.post('/items/<int:item_id>/owners/<int:ownership_id>/phone')
+def reveal_holder_phone(item_id, ownership_id):
+    return reveal_phone(
+        """SELECT i.item_uid, BIN_TO_UUID(u.public_uid) AS public_uid, u.phone
+           FROM ownership o JOIN user u ON u.uid=o.user_id JOIN item i ON i.id=o.item_id
+           WHERE o.id=%s AND o.item_id=%s FOR SHARE""", (ownership_id,item_id), item_id=item_id, ownership_id=ownership_id,
+    )
+
+
+@blueprint.get('/users/<string:uid>/card')
+def user_card(uid):
+    check_parameters(set())
+    with consistent_read() as cursor:
+        profile = view(row(cursor, """SELECT BIN_TO_UUID(public_uid) AS public_uid,nickname,
+                                      CASE WHEN phone REGEXP '^[0-9]{11}$'
+                                      THEN CONCAT(LEFT(phone,3),'****',RIGHT(phone,4)) END AS masked_phone
+                                      FROM user WHERE public_uid=UUID_TO_BIN(%s)""", (public_account_uid(uid),)))
+        return jsonify(status='ok',data=profile)
+
+
+@blueprint.post('/users/<string:uid>/phone')
+def reveal_user_phone(uid):
+    return reveal_phone("SELECT BIN_TO_UUID(public_uid) AS public_uid,phone FROM user WHERE public_uid=UUID_TO_BIN(%s) FOR SHARE",
+                        (public_account_uid(uid),))
+
+
+def reveal_phone(query, args, *, item_id=None, ownership_id=None):
+    request_json(set(), max_bytes=1024)
+    connection = get_database()
+    connection.begin()
+    try:
+        with connection.cursor(pymysql.cursors.DictCursor) as cursor:
+            lock_admin_session(cursor)
+            holder = row(cursor, query, args)
+            if not holder or not re.fullmatch(r'[0-9]{11}', holder['phone']):
+                fail('该账户没有可查看的手机号。', 404, 'not_found')
+            action = 'viewHolderPhone' if item_id is not None else 'viewUserPhone'
+            audit(cursor, action, item_id if item_id is not None else holder['public_uid'], {
+                'object_type': 'item' if item_id is not None else 'user',
+                'object_code': holder.get('item_uid') or holder['public_uid'],
+                'operation': AUDIT_LABELS[action], 'outcome': '已查看',
+                'summary': f"查看了账户 {holder['public_uid']} 的完整手机号。",
+                'user_uid': holder['public_uid'], 'ownership_id': ownership_id,
+            })
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    return jsonify(status='ok',data={'phone':holder['phone']})
 
 
 def style_save(c,p):
@@ -549,7 +622,7 @@ def renewal_usage(c,d,year):
 
 def resale_accounts(c,owner,recipient):
     if owner==recipient:fail('请选择不同的接收账户。')
-    c.execute('SELECT id,phone_verified_at FROM user WHERE id IN (%s,%s) ORDER BY id FOR UPDATE',(owner,recipient))
+    c.execute('SELECT uid,phone_verified_at FROM user WHERE uid IN (%s,%s) ORDER BY uid FOR UPDATE',(owner,recipient))
     verified=c.fetchall()
     if len(verified)!=2 or not all(u['phone_verified_at'] for u in verified):fail('原持有人和接收人均须验证手机号。')
 
@@ -652,7 +725,7 @@ def item_action(c,action,p,*,installed_by=None):
         chip=locked(c,'chip',integer(p,'chip_id'));same_source(c,'item',ident,'chip',chip['id']);available_chip(c,chip,i['project_id'])
         owner=row(c,'SELECT * FROM ownership WHERE active_item_id=%s FOR UPDATE',(ident,))
         if not owner:fail('尚无正式持有人，不能办理换新/转售。')
-        recipient=integer(p,'recipient_id') if kind=='resale' else owner['user_id']
+        recipient=account_uid(p.get('recipient_id')) if kind=='resale' else owner['user_id']
         same_source(c,'item',ident,'user',recipient)
         seller_confirmation=recipient_confirmation=identity_ref=None
         if kind=='resale':
@@ -846,6 +919,48 @@ def command(action):
     return jsonify(status='ok',data={**result,**transient})
 
 
+@blueprint.get('/activity')
+def activity():
+    check_parameters({'item_id','item_uid','issue_id','event','date_from','date_to','page','page_size','data_scope','test_batch_id'})
+    event = request.args.get('event')
+    sources = {
+        'tap': ("SELECT s.id,s.item_id,s.created_at AS occurred_at,'tap' AS event,NULL AS user_uid FROM scan_log s JOIN items i ON i.id=s.item_id WHERE s.verify_result='pass'"),
+        'claim': ("SELECT o.id,o.item_id,o.bound_at,'claim',BIN_TO_UUID(u.public_uid) FROM ownership o JOIN items i ON i.id=o.item_id JOIN user u ON u.uid=o.user_id WHERE o.bind_source='user_self'"),
+        'delivery': ("SELECT h.id,h.item_id,h.completed_at,IF(h.kind='resale','resale','renewal'),BIN_TO_UUID(u.public_uid) FROM item_handover h JOIN items i ON i.id=h.item_id JOIN user u ON u.uid=h.recipient_id WHERE h.completed_at IS NOT NULL"),
+    }
+    if event not in {None,'tap','claim','resale','renewal'}:
+        invalid('未知用户动态类型。')
+    if event:
+        sources = {key: sources[key] for key in (event if event in sources else 'delivery',)}
+    clause, values = filter_source('item','i.id',request.args.get('data_scope','business'),request.args.get('test_batch_id'))
+    conditions = [clause]
+    for key, column in [('item_id','i.id'),('issue_id','d.issue_id')]:
+        if key in request.args:
+            conditions.append(column+'=%s')
+            values.append(positive_integer(key,1,2147483647))
+    if 'item_uid' in request.args:
+        conditions.append('i.item_uid=%s')
+        values.append(text(request.args,'item_uid',32,required=True))
+    event_conditions, event_values = [], []
+    date_conditions({'date':'e.occurred_at'},event_conditions,event_values)
+    if event in {'resale','renewal'}:
+        event_conditions.append('e.event=%s')
+        event_values.append(event)
+    cte = ('WITH items AS (SELECT i.id,i.item_uid,d.issue_id FROM item i LEFT JOIN digital_item d ON d.item_id=i.id WHERE '
+           +' AND '.join(conditions)+'), events(id,item_id,occurred_at,event,user_uid) AS ('+' UNION ALL '.join(sources.values())+') ')
+    joined = ' FROM events e JOIN items i ON i.id=e.item_id'
+    if event_conditions:
+        joined += ' WHERE '+' AND '.join(event_conditions)
+    params = (*values,*event_values)
+    page, size = positive_integer('page',1,2147483647),positive_integer('page_size',10,100)
+    with consistent_read() as c:
+        total = row(c,cte+'SELECT COUNT(*) AS total'+joined,params)['total']
+        paging = pagination(total,page,size)
+        c.execute(cte+"SELECT CONCAT(e.event,'-',e.id) AS id,e.event,e.occurred_at,e.user_uid,i.id AS item_id,i.item_uid,i.issue_id"+joined
+                  +' ORDER BY e.occurred_at DESC,e.event,e.id DESC LIMIT %s OFFSET %s',(*params,size,(paging['page']-1)*size))
+        return jsonify(status='ok',data={'items':[view(x) for x in c.fetchall()],**paging})
+
+
 @blueprint.get('/statistics')
 def statistics():
     check_parameters({'scope','range','project','item_id','chip_id','data_scope','test_batch_id','style_id','issue_id','page','page_size'})
@@ -882,7 +997,7 @@ def statistics():
         for key,column in [('style_id','r.style_id'),('issue_id','d.issue_id'),('item_id','i.id')]:
             if request.args.get(key):item_conditions.append(column+'=%s');item_args.append(positive_integer(key,1,2147483647))
         if request.args.get('project'):item_conditions.append('i.project_id=%s');item_args.append(project_id(c,request.args['project']))
-        item_join=' FROM item i LEFT JOIN digital_item d ON d.item_id=i.id LEFT JOIN product_issue r ON r.id=d.issue_id LEFT JOIN ownership o ON o.active_item_id=i.id LEFT JOIN user u ON u.id=o.user_id'
+        item_join=' FROM item i LEFT JOIN digital_item d ON d.item_id=i.id LEFT JOIN product_issue r ON r.id=d.issue_id LEFT JOIN ownership o ON o.active_item_id=i.id LEFT JOIN user u ON u.uid=o.user_id'
         item_where=' AND '.join(item_conditions)
         counts=row(c,'SELECT COUNT(*) AS items,COALESCE(SUM(COALESCE(d.sold,0)),0) AS sold_items,COUNT(o.user_id) AS claimed_items,COUNT(DISTINCT o.user_id) AS holders'+item_join+' WHERE '+item_where,item_args)
         event_query='SELECT s.item_id,COUNT(*) AS tap_count,MAX(s.created_at) AS last_tap'+joined+' GROUP BY s.item_id'
@@ -890,16 +1005,16 @@ def statistics():
         page,size=positive_integer('page',1,2147483647),positive_integer('page_size',10,100)
         total=row(c,'SELECT COUNT(*) AS total'+item_join+' WHERE '+' AND '.join(eligible),item_args)['total']
         paging=pagination(total,page,size)
-        c.execute('SELECT i.id,i.item_uid,d.edition_number,d.issue_id,d.sold,r.total AS issue_total,u.id AS owner_id,u.nickname AS owner_name,COALESCE(events.tap_count,0) AS tap_count,events.last_tap'+item_join+' LEFT JOIN ('+event_query+') events ON events.item_id=i.id WHERE '+' AND '.join(eligible)+' ORDER BY i.id DESC LIMIT %s OFFSET %s',(*values,*item_args,size,(paging['page']-1)*size))
+        c.execute('SELECT i.id,i.item_uid,d.edition_number,d.issue_id,d.sold,r.total AS issue_total,u.uid AS owner_id,BIN_TO_UUID(u.public_uid) AS owner_public_uid,u.nickname AS owner_name,COALESCE(events.tap_count,0) AS tap_count,events.last_tap'+item_join+' LEFT JOIN ('+event_query+') events ON events.item_id=i.id WHERE '+' AND '.join(eligible)+' ORDER BY i.id DESC LIMIT %s OFFSET %s',(*values,*item_args,size,(paging['page']-1)*size))
         details={'items':[view(x) for x in c.fetchall()],**paging}
-        holder_filter,holder_args=filter_source('user','u.id',data_scope,batch)
-        holder_query='SELECT u.id,u.nickname,COUNT(*) AS held_items'+item_join+' WHERE '+item_where+' AND u.id IS NOT NULL AND '+holder_filter+' GROUP BY u.id,u.nickname'
+        holder_filter,holder_args=filter_source('user','u.uid',data_scope,batch)
+        holder_query='SELECT u.uid AS id,BIN_TO_UUID(u.public_uid) AS public_uid,u.nickname,COUNT(*) AS held_items'+item_join+' WHERE '+item_where+' AND u.uid IS NOT NULL AND '+holder_filter+' GROUP BY u.uid,u.public_uid,u.nickname'
         holder_total=row(c,'SELECT COUNT(*) AS total FROM ('+holder_query+') holder_groups',(*item_args,*holder_args))['total']
         holder_paging=pagination(holder_total,page,size)
-        c.execute(holder_query+' ORDER BY u.id DESC LIMIT %s OFFSET %s',(*item_args,*holder_args,size,(holder_paging['page']-1)*size))
+        c.execute(holder_query+' ORDER BY u.uid DESC LIMIT %s OFFSET %s',(*item_args,*holder_args,size,(holder_paging['page']-1)*size))
         holders={'items':c.fetchall(),**holder_paging}
         for kind in ('chip','user'):
-            clause,args=filter_source(kind,'x.id',data_scope,batch)
+            clause,args=filter_source(kind,'x.uid' if kind=='user' else 'x.id',data_scope,batch)
             counts[kind+'s']=row(c,'SELECT COUNT(*) AS n FROM '+kind+' x WHERE '+clause,args)['n']
     return jsonify(status='ok',data={**summary,'daily':daily,'by_chip':by_chip,'counts':counts,'inventory':inventory,'details':details,'holders':holders,'as_of':iso_time(timestamp),'scope':scope,'range':period,'timezone':'Asia/Shanghai','claim_service_available':False})
 

@@ -8,6 +8,7 @@ export default [
     icon: "dashboard",
     component: "./Overview",
   },
+  { path: "/overview/activity", component: "./Activity", hideInMenu: true },
   {
     path: "/catalog",
     name: "款式与发行",

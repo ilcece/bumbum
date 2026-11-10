@@ -12,6 +12,7 @@ import sys
 import uuid
 import pymysql
 
+from core.account_uid import ACCOUNT_UID
 from core.catalog_testdata import validate_test_target
 from core.media_assets import media_root
 from core.media_backup import create_bundle,inspect_bundle,digest
@@ -24,7 +25,7 @@ def inventory(connection):
         c.execute('SELECT c.id,c.chip_uid,c.item_id,c.chip_status,c.provisioned_at IS NOT NULL AS configured,c.last_verified_counter IS NOT NULL AS has_counter,EXISTS(SELECT 1 FROM chip_key k WHERE k.chip_id=c.id) AS has_keys FROM chip c ORDER BY c.id');chips=c.fetchall()
         c.execute('SELECT asset_id,storage_key,sha256 FROM media_asset ORDER BY asset_id');images=c.fetchall()
         c.execute('SELECT id,image_urls FROM product_style ORDER BY id');styles=c.fetchall()
-        c.execute('SELECT id,EXISTS(SELECT 1 FROM ownership o WHERE o.user_id=u.id) AS has_holdings FROM user u ORDER BY id');users=c.fetchall()
+        c.execute('SELECT uid AS id,EXISTS(SELECT 1 FROM ownership o WHERE o.user_id=u.uid) AS has_holdings FROM user u ORDER BY uid');users=c.fetchall()
         c.execute('SELECT id,style_id,name FROM product_issue ORDER BY id');issues=c.fetchall()
         c.execute('SELECT item_id,chip_id FROM whole_item ORDER BY id');wholes=c.fetchall()
         result={**target,'wholes':wholes,'users':users,'issues':issues,'items':items,'chips':chips,'legacy_images':images,'styles':styles}
@@ -45,7 +46,8 @@ def cleanup(connection,plan,admin_id):
         ids=plan.get('delete_items',[]);chips=plan.get('delete_chips',[])
         extras={kind:plan.get('delete_'+kind+'s',[]) for kind in ('user','issue','style')}
         if any(not isinstance(v,list) for v in [ids,chips,*extras.values()]):raise ValueError('清理对象须为ID列表。')
-        if any(type(n) is not int or n<1 for n in [*ids,*chips,*extras['user'],*extras['issue'],*extras['style']]):raise ValueError('清理清单只接受明确正整数ID。')
+        if any(type(n) is not int or n<1 for n in [*ids,*chips,*extras['issue'],*extras['style']]):raise ValueError('清理清单只接受明确正整数物品、芯片、发行和款式ID。')
+        if any(not isinstance(uid,str) or not ACCOUNT_UID.fullmatch(uid) for uid in extras['user']):raise ValueError('清理清单必须使用账户UID。')
         known_items={r['id']:r for r in current['items']};known_chips={r['id']:r for r in current['chips']}
         if not set(ids)<=set(known_items) or not set(chips)<=set(known_chips):raise ValueError('清理对象不属于盘点清单。')
         protected={r['id'] for r in current['chips'] if r['configured'] or r['has_counter'] or r['has_keys'] or r['chip_status'] in {'lost','retired'}}
@@ -67,7 +69,8 @@ def cleanup(connection,plan,admin_id):
                         c.execute('SELECT id FROM ownership_history WHERE from_user_id=%s OR to_user_id=%s LIMIT 1',(ident,ident))
                         if c.fetchone():raise ValueError('用户仍有持有历史，未清理。')
                     if kind=='style':c.execute('DELETE FROM style_image WHERE style_id=%s',(ident,))
-                    c.execute(f'DELETE FROM {table} WHERE id=%s',(ident,))
+                    key='uid' if kind=='user' else 'id'
+                    c.execute(f'DELETE FROM {table} WHERE {key}=%s',(ident,))
             # 所有历史图片已明确获准清理，新数据包在本命令之后创建。
             for table in ('fashion_item_profile','jewelry_item_profile','product_style'):c.execute(f'UPDATE {table} SET image_urls=JSON_ARRAY()')
             c.execute('DELETE FROM style_image');c.execute('DELETE FROM media_asset')

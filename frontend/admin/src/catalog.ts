@@ -14,7 +14,7 @@ export async function list(
 ): Promise<Page> {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(
-    ["styles", "issues", "items", "chips", "users", "physical-items"].includes(resource)
+    ["styles", "issues", "items", "chips", "users", "physical-items", "activity"].includes(resource)
       ? { ...params, ...dataScope() }
       : params,
   ))

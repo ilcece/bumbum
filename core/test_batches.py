@@ -5,12 +5,20 @@ from core.catalog_testdata import validate_test_target
 
 TABLES={'style':'product_style','issue':'product_issue','item':'item','chip':'chip','user':'user','scan':'scan_log','physical':'physical_item'}
 
+def primary_key(kind):
+    return 'uid' if kind=='user' else 'id'
+
+
+def batch_key(kind, column):
+    return column if kind=='user' else f'CAST({column} AS CHAR CHARACTER SET ascii) COLLATE ascii_bin'
+
+
 def require_test_environment(config):
     try:validate_test_target(config)
     except ValueError as error:raise AuthRequestError(403,'test_only',str(error)) from None
 
 def source(c,kind,ident):
-    c.execute('SELECT batch_id FROM test_batch_object WHERE kind=%s AND object_id=%s',(kind,ident))
+    c.execute('SELECT batch_id FROM test_batch_object WHERE kind=%s AND object_id=%s',(kind,str(ident)))
     r=c.fetchone()
     return r['batch_id'] if r else None
 
@@ -24,7 +32,7 @@ def mark(c,kind,ident,batch):
     lock_batch(c,batch)
     old=source(c,kind,ident)
     if old is not None and old!=batch:raise AuthRequestError(409,'batch_conflict','对象已有其他测试来源，不能改写。')
-    c.execute('INSERT IGNORE INTO test_batch_object(kind,object_id,batch_id) VALUES (%s,%s,%s)',(kind,ident,batch))
+    c.execute('INSERT INTO test_batch_object(kind,object_id,batch_id) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE batch_id=batch_id',(kind,str(ident),batch))
 
 def same_source(c,left_kind,left,right_kind,right):
     a,b=source(c,left_kind,left),source(c,right_kind,right)
@@ -33,11 +41,12 @@ def same_source(c,left_kind,left,right_kind,right):
 
 def select_source(kind,alias):
     if kind not in TABLES:raise ValueError('未知来源类型')
-    return f"(SELECT batch_id FROM test_batch_object tb WHERE tb.kind='{kind}' AND tb.object_id={alias}.id) AS test_batch_id"
+    key=batch_key(kind,f'{alias}.{primary_key(kind)}')
+    return f"(SELECT batch_id FROM test_batch_object tb WHERE tb.kind='{kind}' AND tb.object_id={key}) AS test_batch_id"
 
 def filter_source(kind,column,scope,batch):
     if scope not in {'business','test','all'}:raise AuthRequestError(400,'invalid_param','数据范围只支持business、test、all。')
-    sql=f"SELECT 1 FROM test_batch_object tb WHERE tb.kind=%s AND tb.object_id={column}"
+    sql=f"SELECT 1 FROM test_batch_object tb WHERE tb.kind=%s AND tb.object_id={batch_key(kind,column)}"
     values=[kind]
     if batch is not None:
         if scope=='business':raise AuthRequestError(400,'invalid_param','选择批次时请切换测试或全部数据。')
@@ -49,7 +58,8 @@ def filter_source(kind,column,scope,batch):
 def objects(c,batch,*,lock=False):
     result={}
     for kind,table in TABLES.items():
-        c.execute(f'SELECT x.id FROM {table} x JOIN test_batch_object tb ON tb.object_id=x.id AND tb.kind=%s WHERE tb.batch_id=%s ORDER BY x.id'+(' FOR UPDATE' if lock else ''),(kind,batch))
+        key=f'x.{primary_key(kind)}'
+        c.execute(f'SELECT {key} AS id FROM {table} x JOIN test_batch_object tb ON tb.object_id={batch_key(kind,key)} AND tb.kind=%s WHERE tb.batch_id=%s ORDER BY {key}'+(' FOR UPDATE' if lock else ''),(kind,batch))
         result[kind]=[r['id'] for r in c.fetchall()]
     return result
 
@@ -88,6 +98,6 @@ def cleanup(c,batch):
     for kind in ('scan','physical','issue','style','user'):
         for ident in ids[kind]:
             if kind=='style':c.execute('DELETE FROM style_image WHERE style_id=%s',(ident,))
-            c.execute(f'DELETE FROM {TABLES[kind]} WHERE id=%s',(ident,))
+            c.execute(f'DELETE FROM {TABLES[kind]} WHERE {primary_key(kind)}=%s',(ident,))
     c.execute("UPDATE test_batch SET status='deleted',deleted_at=UTC_TIMESTAMP(6) WHERE id=%s",(batch,))
     return {'id':batch,'status':'deleted','removed':p['counts']}

@@ -203,8 +203,8 @@ export function RemoteSelect({
   id?: string;
   resource: string;
   params?: Record<string, any>;
-  value?: number;
-  onChange?: (v: number) => void;
+  value?: number | string;
+  onChange?: (v: number | string) => void;
   placeholder?: string;
 }) {
   const [options, setOptions] = useState<Row[]>([]),
@@ -282,7 +282,7 @@ export function RemoteSelect({
               ? `${r.code} · ${r.name}`
               : resource === "issues"
                 ? `${r.name} · ${r.mode === "period" && !r.sealed_at ? "限时待核定" : r.total ? `总量${r.total}个身份` : "非限定"}`
-                : `${r.nickname || "账户"}${r.phone ? " · " + r.phone : ""} · ID ${r.id}`),
+                : `${r.nickname || "账户"}${r.phone ? " · " + r.phone : ""} · UID ${r.public_uid || r.id}`),
         }))}
         onPopupScroll={(e) => {
           const el = e.currentTarget;

@@ -61,8 +61,8 @@ def test_replace_old_simulated_batch_after_preview(auth_app,admin_account,accept
 
 def test_external_reference_blocks_whole_batch_and_production_denies(auth_app,logged_in,acceptance,monkeypatch):
     batch=acceptance['batch_id'];s=logged_in
-    user=query(auth_app,"INSERT INTO user(phone,nickname) VALUES ('TEST-EXTERNAL','批次外账户')")
-    uid=query(auth_app,"SELECT id FROM user WHERE phone='TEST-EXTERNAL'")[0]['id']
+    query(auth_app,"INSERT INTO user(uid,public_uid,phone,nickname) VALUES ('01976f70-4504-7edc-a1e0-efac15c9ee3c',UUID_TO_BIN('6f4a21d7-3b8c-4e92-9f15-0d71ab384c60'),'TEST-EXTERNAL','批次外账户')")
+    uid=query(auth_app,"SELECT uid FROM user WHERE phone='TEST-EXTERNAL'")[0]['uid']
     i=acceptance['manifest']['items'][0]['item_id']
     query(auth_app,"INSERT INTO ownership(item_id,user_id,bind_source) VALUES (%s,%s,'import')",(i,uid))
     assert ok(s[0].get(f'/api/admin/catalog/test-batches/{batch}/preview'))['conflicts']

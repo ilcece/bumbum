@@ -87,12 +87,15 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
     uid=query(auth_app,'SELECT chip_uid FROM chip WHERE id=%s',(chips[0],))[0]['chip_uid']
     with auth_app.app_context():keys=target_keys('fashion',uid)
     payloads=[]
+    public_uids=[]
     for offset,client in enumerate(clients):
         phone=f'1390000970{offset}'
         challenge=ok(client.post('/api/public/sms/send',headers=ORIGIN,json={'phone':phone}))['challenge_id']
         assert client.post('/api/public/sms/send',headers=ORIGIN,json={'phone':phone}).status_code==429
         session=ok(client.post('/api/public/sms/verify',headers=ORIGIN,json={'challenge_id':challenge,'code':sms[phone]}))['account']
         assert session['phone']!=phone
+        assert uuid.UUID(session['uid']).version == 4
+        public_uids.append(session['uid'])
         view=ok(client.post('/api/tap/verify',headers=ORIGIN,json={**reading(keys,uid,3+offset),'browser_view':True}))
         assert view['claim_state']=='available'
         payloads.append({'tap_token':view['tap_token'],'claim_code':fresh})
@@ -106,6 +109,38 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
     assert ok(clients[winner].post(path,headers=ORIGIN,json=payloads[winner]))['state']=='mine'
     assert ok(clients[winner].get(f'/api/public/me/items/{item}'))['item']['item_id']==item
     assert clients[1-winner].get(f'/api/public/me/items/{item}').status_code==404
+    detail = admin[0].get(f'/api/admin/catalog/items/{item}')
+    owners = ok(detail)['owners']
+    assert len(owners) == 1 and owners[0]['is_active']
+    assert owners[0]['masked_phone'] == f'139****970{winner}'
+    assert f'1390000970{winner}' not in detail.get_data(as_text=True)
+    holder_uid = owners[0]['user_id']
+    assert uuid.UUID(holder_uid).version == 7
+    public_uid = public_uids[winner]
+    activity = ok(admin[0].get('/api/admin/catalog/activity',query_string={'item_id':item}))['items']
+    assert [(e['event'],e['user_uid']) for e in activity].count(('claim',public_uid)) == 1
+    assert [(e['event'],e['user_uid']) for e in activity].count(('tap',None)) == 2
+    card = ok(admin[0].get(f'/api/admin/catalog/users/{public_uid}/card'))
+    assert card == {'public_uid':public_uid,'nickname':None,'masked_phone':f'139****970{winner}'}
+    accounts = ok(admin[0].get('/api/admin/catalog/users', query_string={'keyword':public_uid}))['items']
+    assert [(a['id'],a['public_uid']) for a in accounts] == [(holder_uid,public_uid)]
+    reveal = f"/api/admin/catalog/items/{item}/owners/{owners[0]['id']}/phone"
+    assert auth_app.test_client().post(reveal, headers={'Origin':'http://localhost:5174'}, json={}).status_code == 401
+    assert admin[0].post(reveal, headers={'Origin':'http://localhost:5174'}, json={}).status_code == 403
+    response = admin[0].post(reveal, headers=admin[1], json={})
+    assert ok(response)['phone'] == f'1390000970{winner}'
+    assert 'no-store' in response.headers['Cache-Control']
+    events = query(auth_app,"SELECT detail FROM admin_audit WHERE action='catalog.viewHolderPhone'")
+    assert len(events) == 1 and public_uid in events[0]['detail']
+    assert f'1390000970{winner}' not in events[0]['detail']
+    assert ok(admin[0].post(f'/api/admin/catalog/users/{public_uid}/phone',headers=admin[1],json={}))['phone'] == f'1390000970{winner}'
+    account_events = query(auth_app,"SELECT target_id,detail FROM admin_audit WHERE action='catalog.viewUserPhone'")
+    assert [event['target_id'] for event in account_events] == [public_uid]
+    assert f'1390000970{winner}' not in account_events[0]['detail']
+    query(auth_app, 'UPDATE user SET phone=%s WHERE uid=%s', ('13900009799', holder_uid))
+    account = ok(clients[winner].get('/api/public/account/session'))['account']
+    assert account == {'uid': public_uid, 'phone': '139****9799'}
+    assert query(auth_app, 'SELECT uid FROM user WHERE phone=%s', ('13900009799',))[0]['uid'] == holder_uid
     assert len(query(auth_app,"SELECT id FROM ownership_history WHERE item_id=%s AND action='bind'",(item,)))==1
     assert query(auth_app,'SELECT consumed_at FROM item_claim_code WHERE id=%s',(receipt['claim_code_id'],))[0]['consumed_at'] is None
     assert len(query(auth_app,'SELECT id FROM item_claim_code WHERE item_id=%s AND consumed_at IS NOT NULL',(item,)))==1

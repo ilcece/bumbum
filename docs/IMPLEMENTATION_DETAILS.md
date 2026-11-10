@@ -103,7 +103,7 @@ chip_key 使用 encrypted_keys、nonce、dek_ciphertext、dek_nonce、storage_ke
 | Cookie | 名 bumbum_admin_session；生产 HttpOnly（网页脚本不能读取）、Secure（只经 HTTPS）、SameSite=Strict（限制跨站携带）、Path=/api/admin；不设 Domain |
 | 正式凭证位置 | 登录 token 只放 Cookie，不返回 JSON，不放 URL、本地存储或正式 Bearer 认证 |
 | Origin | 管理请求写入数据时，精确匹配生产管理域名或开发 ADMIN_ORIGIN；缺失或不符返回 403 forbidden；命令行联调也须带合法 Origin |
-| 写请求 | 只接受 JSON；除 login 外都需要有效登录 Cookie 和 X-CSRF-Token。login 不依赖已有 Cookie 或口令，但仍强制检查 Origin 和 JSON，避免跨站登录 |
+| 写请求 | 密码和通行密钥的登录入口强制校验 Origin 与 JSON。其余管理写入要求有效 Cookie 和 X-CSRF-Token，文件上传按接口契约处理。通行密钥的单次挑战、来源限制及撤销见[技术说明](../TECH_SPEC.md#43-杭州-test-通行密钥)。 |
 | CORS | 开发环境管理 API 仅允许 ADMIN_ORIGIN，允许 credentials 携带 Cookie；生产同域调用不加跨域放行头，不套用 CORS_ORIGINS 总清单 |
 | 本地开发 | 仅 APP_ENV=development 且 ADMIN_ORIGIN 明确为本机 HTTP 来源时可关闭 Cookie Secure；生产必须 HTTPS，缺省环境按 production 处理 |
 

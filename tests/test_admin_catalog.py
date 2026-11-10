@@ -6,6 +6,7 @@ import uuid
 from PIL import Image
 import pytest
 
+from core.account_uid import new_account_identity
 from core.catalog_migration import catalog_schema
 from tests.test_admin_auth import query
 from tests.test_admin_chips import logged_in
@@ -51,8 +52,8 @@ def config_chip(app,session,chip_id):
 
 
 def owner(app,ident,n):
-    query(app,'INSERT INTO user(phone,nickname,phone_verified_at) VALUES (%s,%s,%s) ON DUPLICATE KEY UPDATE phone_verified_at=VALUES(phone_verified_at)',(f'1390000{n:04d}',f'临时账户{n}',app.test_clock[0]))
-    uid=query(app,'SELECT id FROM user WHERE phone=%s',(f'1390000{n:04d}',))[0]['id']
+    query(app,'INSERT INTO user(uid,public_uid,phone,nickname,phone_verified_at) VALUES (%s,%s,%s,%s,%s) ON DUPLICATE KEY UPDATE phone_verified_at=VALUES(phone_verified_at)',(*new_account_identity(),f'1390000{n:04d}',f'临时账户{n}',app.test_clock[0]))
+    uid=query(app,'SELECT uid FROM user WHERE phone=%s',(f'1390000{n:04d}',))[0]['uid']
     if ident:query(app,"INSERT INTO ownership(item_id,user_id,bind_source,bound_at) VALUES (%s,%s,'import',%s)",(ident,uid,app.test_clock[0]))
     return uid
 
@@ -111,8 +112,11 @@ def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration
     assert '已用 1 次' in by_operation['确认换新交付']['summary']
     assert by_operation['准备转售']['detail']['work_id']==resale['id']
     transferred=by_operation['确认转售交付']
-    assert f'U{a} 变更为 U{b}' in transferred['summary'] and '剩余 0 次' in transferred['summary']
+    uids = {r['uid']:r['public_uid'] for r in query(auth_app,'SELECT uid,BIN_TO_UUID(public_uid) AS public_uid FROM user WHERE uid IN (%s,%s)',(a,b))}
+    assert f"{uids[a]} 变更为 {uids[b]}" in transferred['summary'] and '剩余 0 次' in transferred['summary']
     assert transferred['detail']['after']['generation']==3
+    activity=ok(s[0].get('/api/admin/catalog/activity',query_string={'item_uid':result['item_uid'],'event':'resale'}))['items']
+    assert [(event['event'],event['user_uid']) for event in activity]==[('resale',uids[b])]
 
 
 def test_release_uniqueness_validation_cleanup_and_receipt(auth_app,catalog):
@@ -209,8 +213,9 @@ def test_real_event_statistics_do_not_depend_on_current_chip_or_holder(auth_app,
 
 
 def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_app,logged_in):
-    from core.catalog_migration import migrate
+    from core.catalog_migration import CatalogMigrationError, migrate
     from core.assembly_migration import migrate as migrate_assembly, schema as assembly_schema
+    from core.user_uid_migration import migrate as migrate_user_uid, schema as user_uid_schema
     from core.db import get_database
     for table in ('fashion_item_profile','jewelry_item_profile','item'):query(auth_app,f'DELETE FROM {table}')
     with auth_app.app_context():
@@ -218,8 +223,26 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
         with connection.cursor() as c:
             for table in ('item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
                 c.execute('DROP TABLE '+table)
-            c.execute('ALTER TABLE user DROP COLUMN phone_verified_at')
-            c.execute("ALTER TABLE test_batch_object MODIFY kind ENUM('style','issue','item','chip','user','scan') NOT NULL")
+            c.execute('DELETE FROM user')
+            for table, keys in (
+                ('ownership', {'user_id':'fk_ownership_user'}),
+                ('ownership_history', {'from_user_id':'fk_history_from_user', 'to_user_id':'fk_history_to_user'}),
+                ('jewelry_user_progress', {'user_id':'fk_progress_user'}),
+                ('jewelry_task_record', {'user_id':'fk_taskrecord_user'}),
+            ):
+                for key in keys.values():
+                    c.execute(f'ALTER TABLE {table} DROP FOREIGN KEY {key}')
+            c.execute('ALTER TABLE user DROP PRIMARY KEY, DROP COLUMN uid, DROP COLUMN public_uid, DROP COLUMN phone_verified_at, ADD id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY FIRST')
+            for table, keys in (
+                ('ownership', {'user_id':'fk_ownership_user'}),
+                ('ownership_history', {'from_user_id':'fk_history_from_user', 'to_user_id':'fk_history_to_user'}),
+                ('jewelry_user_progress', {'user_id':'fk_progress_user'}),
+                ('jewelry_task_record', {'user_id':'fk_taskrecord_user'}),
+            ):
+                for column, key in keys.items():
+                    nullable = 'NULL' if table == 'ownership_history' else 'NOT NULL'
+                    c.execute(f'ALTER TABLE {table} MODIFY {column} BIGINT UNSIGNED {nullable}, ADD CONSTRAINT {key} FOREIGN KEY({column}) REFERENCES user(id)')
+            c.execute("ALTER TABLE test_batch_object MODIFY kind ENUM('style','issue','item','chip','user','scan') NOT NULL, MODIFY object_id BIGINT UNSIGNED NOT NULL")
             c.execute("ALTER TABLE chip MODIFY chip_status ENUM('pending','bound','disabled','lost') NOT NULL DEFAULT 'pending'")
             c.execute("INSERT INTO item(project_id,item_uid) VALUES (1,'FASH-2026-900001')");ident=c.lastrowid
             c.execute("INSERT INTO chip(chip_uid,project_id,item_id,chip_status) VALUES ('04:00:00:00:00:99:01',1,%s,'lost')",(ident,))
@@ -232,7 +255,19 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
         with connection.cursor() as c:assert catalog_schema(c)=='ready'
         assert migrate_assembly(connection,lambda:backups.append(True))
         assert not migrate_assembly(connection,lambda:pytest.fail('重复升级无需备份'))
-        with connection.cursor() as c:assert assembly_schema(c)=='ready'
+        with connection.cursor() as c:
+            assert assembly_schema(c)=='ready'
+            assert user_uid_schema(c)=='legacy'
+            c.execute("INSERT INTO user(phone) VALUES ('TEST-LEGACY')")
+        connection.commit()
+        with pytest.raises(CatalogMigrationError, match='仍有账户记录'):
+            migrate_user_uid(connection,lambda:pytest.fail('未清空的结构不能迁移'))
+        with connection.cursor() as c:
+            c.execute("DELETE FROM user WHERE phone='TEST-LEGACY'")
+        connection.commit()
+        assert migrate_user_uid(connection,lambda:backups.append(True))
+        assert not migrate_user_uid(connection,lambda:pytest.fail('重复升级无需备份'))
+        with connection.cursor() as c:assert user_uid_schema(c)=='ready'
     d=query(auth_app,'SELECT * FROM digital_item WHERE item_id=%s',(ident,))[0]
     e=query(auth_app,'SELECT * FROM whole_item WHERE item_id=%s',(ident,))[0]
     assert d['issue_id'] is None and d['sold']==0 and d['first_sold_at'] is None
@@ -263,7 +298,7 @@ def test_jewelry_validation_cleanup_keeps_chip_account_and_task_definition(auth_
     task=query(auth_app,'SELECT id FROM jewelry_task WHERE code=%s',(code,))[0]['id'];query(auth_app,'INSERT INTO jewelry_task_record(task_id,item_id,user_id) VALUES (%s,%s,%s)',(task,ident,uid))
     ok(action(s,'deleteItem',{'item_id':ident}))
     assert query(auth_app,'SELECT id FROM chip WHERE id=%s',(chips[0],))
-    assert query(auth_app,'SELECT id FROM user WHERE id=%s',(uid,))
+    assert query(auth_app,'SELECT uid FROM user WHERE uid=%s',(uid,))
     assert query(auth_app,'SELECT id FROM jewelry_task WHERE id=%s',(task,))
     assert not query(auth_app,'SELECT id FROM jewelry_task_record WHERE item_id=%s',(ident,))
     assert not query(auth_app,'SELECT id FROM jewelry_user_progress WHERE item_id=%s',(ident,))

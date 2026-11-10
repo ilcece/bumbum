@@ -14,6 +14,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 from flask import Blueprint, Response, current_app, jsonify, request
 import pymysql
 
+from core.account_uid import new_account_identity
 from core.admin_auth import AuthRequestError, request_json, token_hash
 from core.aliyun_sms import ALIYUN_SMS_SETTINGS, MAINLAND_PHONE, send_aliyun_sms, valid_settings
 from core.auth_settings import client_ip, fingerprint, iso_time, secret_key, utc_now
@@ -142,7 +143,7 @@ def current_user(c, *, required=True, write=False):
     digest = token_hash(values[0]) if len(values)==1 else None
     session = None
     if digest:
-        session = row(c,'SELECT u.id,u.phone FROM user_session s JOIN user u ON u.id=s.user_id WHERE s.token_hash=%s AND s.revoked_at IS NULL AND s.expires_at>%s AND u.phone_verified_at IS NOT NULL'+(' FOR UPDATE' if write else ''),(digest,utc_now()))
+        session = row(c,'SELECT u.uid,BIN_TO_UUID(u.public_uid) AS public_uid,u.phone FROM user_session s JOIN user u ON u.uid=s.user_id WHERE s.token_hash=%s AND s.revoked_at IS NULL AND s.expires_at>%s AND u.phone_verified_at IS NOT NULL'+(' FOR UPDATE' if write else ''),(digest,utc_now()))
     if not session and required:
         fail(401,'login_required','请先验证手机号并登录。')
     return session, digest
@@ -150,7 +151,7 @@ def current_user(c, *, required=True, write=False):
 
 def account(user):
     phone = user['phone']
-    return {'uid':user['id'],'phone':phone[:3]+'****'+phone[-4:]}
+    return {'uid':user['public_uid'],'phone':phone[:3]+'****'+phone[-4:]}
 
 
 @blueprint.post('/sms/verify')
@@ -169,9 +170,11 @@ def sms_verify():
             if hmac.compare_digest(challenge_row['code_hash'],code_digest('sms',challenge,code)):
                 phone=challenge_row['phone']
                 c.execute('UPDATE user_sms_challenge SET consumed_at=%s WHERE challenge_id=%s',(now,challenge))
-                c.execute('INSERT INTO user(phone,phone_verified_at) VALUES (%s,%s) ON DUPLICATE KEY UPDATE phone_verified_at=VALUES(phone_verified_at)',(phone,now))
-                result=row(c,'SELECT id,phone FROM user WHERE phone=%s',(phone,))
-                c.execute('INSERT INTO user_session(token_hash,user_id,expires_at) VALUES (%s,%s,%s)',(token_hash(token),result['id'],now+timedelta(seconds=SESSION_SECONDS)))
+                c.execute('INSERT INTO user(uid,public_uid,phone,phone_verified_at) VALUES (%s,%s,%s,%s) ON DUPLICATE KEY UPDATE phone_verified_at=IF(phone=VALUES(phone),VALUES(phone_verified_at),phone_verified_at)',(*new_account_identity(),phone,now))
+                result=row(c,'SELECT uid,BIN_TO_UUID(public_uid) AS public_uid,phone FROM user WHERE phone=%s',(phone,))
+                if result is None:
+                    fail(503,'account_unavailable','暂时无法创建账户，请稍后重试。')
+                c.execute('INSERT INTO user_session(token_hash,user_id,expires_at) VALUES (%s,%s,%s)',(token_hash(token),result['uid'],now+timedelta(seconds=SESSION_SECONDS)))
             else:
                 c.execute('UPDATE user_sms_challenge SET failed_attempts=failed_attempts+1 WHERE challenge_id=%s',(challenge,))
     if not result:
@@ -247,7 +250,7 @@ def claim_status(item_id):
     with transaction() as c:
         user,_=current_user(c)
         owner=row(c,'SELECT user_id FROM ownership WHERE active_item_id=%s',(item_id,))
-        state='mine' if owner and owner['user_id']==user['id'] else 'claimed' if owner else 'pending'
+        state='mine' if owner and owner['user_id']==user['uid'] else 'claimed' if owner else 'pending'
     return ok(state=state)
 
 
@@ -263,27 +266,27 @@ def claim(item_id):
     limited('claim-ip',client_ip(),20)
     with transaction() as c:
         user,_=current_user(c)
-    limited('claim-user',user['id'],8)
+    limited('claim-user',user['uid'],8)
     with transaction() as c:
         if not row(c,'SELECT id FROM item WHERE id=%s FOR UPDATE',(item_id,)):
             fail(404,'not_found','物品不存在。')
         user,_=current_user(c,write=True)
         owner=row(c,'SELECT user_id FROM ownership WHERE active_item_id=%s FOR UPDATE',(item_id,))
         if owner:
-            if owner['user_id']==user['id']:return ok(state='mine',item_id=item_id)
+            if owner['user_id']==user['uid']:return ok(state='mine',item_id=item_id)
             fail(409,'already_claimed','这件物品已认领，如有疑问请联系 BUMBUM。')
         item=claimable_item(c,item_id)
         grant=row(c,"SELECT id FROM tap_grant WHERE token_hash=%s AND item_id=%s AND chip_id=%s AND allowed_action='bind' AND consumed_at IS NULL AND expires_at>%s FOR UPDATE",(token_hash(payload['tap_token']),item_id,item['chip_id'],utc_now())) if item else None
         if not grant:fail(403,'retap_required','请重新碰一下物品，再继续认领。')
         from core.test_batches import same_source
-        same_source(c,'item',item_id,'user',user['id'])
+        same_source(c,'item',item_id,'user',user['uid'])
         issued=row(c,'SELECT id,code_hash,expires_at FROM item_claim_code WHERE open_item_id=%s FOR UPDATE',(item_id,))
         if not issued or issued['expires_at']<=utc_now():fail(409,'claim_code_unavailable','请联系 BUMBUM 核对交付后补发。')
         if not hmac.compare_digest(issued['code_hash'],code_digest('claim',item_id,code)):
             fail(400,'invalid_claim_code','认领码与这件物品不匹配，请核对交付时收到的认领码。')
         now=utc_now()
-        c.execute("INSERT INTO ownership(item_id,user_id,bind_source,bound_at) VALUES (%s,%s,'user_self',%s)",(item_id,user['id'],now))
-        c.execute("INSERT INTO ownership_history(item_id,to_user_id,action,occurred_at) VALUES (%s,%s,'bind',%s)",(item_id,user['id'],now))
+        c.execute("INSERT INTO ownership(item_id,user_id,bind_source,bound_at) VALUES (%s,%s,'user_self',%s)",(item_id,user['uid'],now))
+        c.execute("INSERT INTO ownership_history(item_id,to_user_id,action,occurred_at) VALUES (%s,%s,'bind',%s)",(item_id,user['uid'],now))
         c.execute('UPDATE item_claim_code SET consumed_at=%s WHERE id=%s',(now,issued['id']))
         c.execute('UPDATE tap_grant SET consumed_at=%s WHERE id=%s',(now,grant['id']))
     return ok(state='mine',item_id=item_id)
@@ -320,7 +323,7 @@ def owned_view(c,data):
 def my_items():
     with transaction() as c:
         user,_=current_user(c)
-        result=[owned_view(c,item) for item in owned_query(c,user['id'])]
+        result=[owned_view(c,item) for item in owned_query(c,user['uid'])]
     return ok(items=result)
 
 
@@ -328,7 +331,7 @@ def my_items():
 def my_item(item_id):
     with transaction() as c:
         user,_=current_user(c)
-        items=owned_query(c,user['id'],item_id)
+        items=owned_query(c,user['uid'],item_id)
         if not items:fail(404,'not_found','未找到你当前持有的该物品。')
         result=owned_view(c,items[0])
     return ok(item=result)
@@ -340,7 +343,7 @@ def my_image(item_id,asset_id):
     if not re.fullmatch(r'[a-f0-9]{32}',asset_id):fail(404,'not_found','图片不存在。')
     with transaction() as c:
         user,_=current_user(c)
-        if not owned_query(c,user['id'],item_id):fail(404,'not_found','图片不存在。')
+        if not owned_query(c,user['uid'],item_id):fail(404,'not_found','图片不存在。')
         image=shared_image(c,item_id,asset_id)
     return Response(image['content'],mimetype='image/webp')
 

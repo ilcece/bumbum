@@ -35,6 +35,14 @@ def test_whole_item_from_preparation_through_loss_renewal_resale(desktop,tmp_pat
     button(drawer,'维护售出事实');d=p.get_by_role('dialog',name='维护售出事实');d.get_by_label('销售确认或更正依据',exact=True).fill('外部平台实际售出');save_dialog(p,'维护售出事实')
     a=owner(desktop.app,item,21);b=owner(desktop.app,None,22)
     button(p,'打开完整详情');p.reload(wait_until='networkidle')
+    expect(p.get_by_text('139****0021',exact=True)).to_be_visible()
+    assert p.get_by_text('13900000021',exact=True).count()==0
+    button(p,'查看完整手机号')
+    phone=p.get_by_role('dialog',name='完整手机号',exact=True)
+    expect(phone.get_by_text('13900000021',exact=True)).to_be_visible()
+    phone.get_by_role('button',name=re.compile(r'^关\s*闭$')).last.click()
+    phone.wait_for(state='hidden')
+    assert p.get_by_text('13900000021',exact=True).count()==0
     button(p,'办理换新');d=p.get_by_role('dialog',name='准备替换物品');fill_assembly(p,d,'PHY-BROWSER-RENEW','新实物L黑','04:00:00:00:00:00:CA');d.get_by_label('核对依据',exact=True).fill('核对年度资格');save_dialog(p,'准备替换物品')
     w=p.get_by_role('dialog',name='定期换新 · 整套物品办理');button(w,'查看密钥与配置');key_configuration(desktop,chips[1]);button(w,'关闭，保留办理记录');w.wait_for(state='hidden')
     button(p,'挂失物品');d=p.get_by_role('dialog',name='挂失物品',exact=True);d.get_by_label('核对依据',exact=True).fill('整套丢失，已核对原持有人');save_dialog(p,'挂失物品','确认挂失整套物品')

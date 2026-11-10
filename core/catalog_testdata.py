@@ -4,6 +4,8 @@ import json
 import sys
 import uuid
 
+from core.account_uid import new_account_identity
+
 import pymysql
 
 from core.db import get_database
@@ -37,7 +39,8 @@ def seed_holders(connection,item_id,username,*,apply=False):
                 suffix=uuid.uuid4().hex[:12];ids=[];names=[]
                 for role in ('A','B'):
                     name='测试持有人'+role+'-'+suffix[-4:]
-                    c.execute('INSERT INTO user(phone,nickname) VALUES (%s,%s)',('TEST'+role+suffix,name));ids.append(c.lastrowid);names.append(name)
+                    uid,public_uid=new_account_identity()
+                    c.execute('INSERT INTO user(uid,public_uid,phone,nickname) VALUES (%s,%s,%s,%s)',(uid,public_uid,'TEST'+role+suffix,name));ids.append(uid);names.append(name)
                 from core.test_batches import source,mark
                 batch=source(c,'item',item_id)
                 for ident in ids:mark(c,'user',ident,batch)

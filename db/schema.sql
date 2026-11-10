@@ -34,12 +34,14 @@ INSERT INTO project (id, code, name) VALUES
 -- 2. 用户表：同一个手机号只登记一次，在服装和饰品项目共用。
 -- ============================================================
 CREATE TABLE user (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  uid CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+  public_uid BINARY(16) NOT NULL,
   phone VARCHAR(20) NOT NULL,
   nickname VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_phone (phone)
+  UNIQUE KEY uk_phone (phone),
+  UNIQUE KEY uk_user_public_uid (public_uid)
 ) COMMENT='用户表，手机号唯一，跨项目共享';
 
 -- ============================================================
@@ -120,7 +122,7 @@ CREATE TABLE chip_key (
 CREATE TABLE ownership (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   item_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   bound_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   unbound_at DATETIME DEFAULT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -131,7 +133,7 @@ CREATE TABLE ownership (
   KEY idx_item_active (item_id, is_active),
   KEY idx_user_active (user_id, is_active),
   CONSTRAINT fk_ownership_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_ownership_user FOREIGN KEY (user_id) REFERENCES user(id),
+  CONSTRAINT fk_ownership_user FOREIGN KEY (user_id) REFERENCES user(uid),
   CONSTRAINT ck_ownership_active CHECK (is_active IN (0, 1)),
   CONSTRAINT ck_ownership_dates CHECK (
     (is_active = 1 AND unbound_at IS NULL) OR
@@ -145,15 +147,15 @@ CREATE TABLE ownership (
 CREATE TABLE ownership_history (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   item_id BIGINT UNSIGNED NOT NULL,
-  from_user_id BIGINT UNSIGNED DEFAULT NULL COMMENT 'NULL 表示首次绑定',
-  to_user_id BIGINT UNSIGNED DEFAULT NULL COMMENT 'NULL 表示解绑',
+  from_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT 'NULL 表示首次绑定',
+  to_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT 'NULL 表示解绑',
   action ENUM('bind','unbind','transfer') NOT NULL,
   occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   note VARCHAR(256) DEFAULT NULL,
   KEY idx_item_time (item_id, occurred_at),
   CONSTRAINT fk_history_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_history_from_user FOREIGN KEY (from_user_id) REFERENCES user(id),
-  CONSTRAINT fk_history_to_user FOREIGN KEY (to_user_id) REFERENCES user(id),
+  CONSTRAINT fk_history_from_user FOREIGN KEY (from_user_id) REFERENCES user(uid),
+  CONSTRAINT fk_history_to_user FOREIGN KEY (to_user_id) REFERENCES user(uid),
   CONSTRAINT ck_history_action CHECK (
     (action = 'bind' AND from_user_id IS NULL AND to_user_id IS NOT NULL) OR
     (action = 'unbind' AND from_user_id IS NOT NULL AND to_user_id IS NULL) OR
@@ -372,7 +374,7 @@ CREATE TABLE jewelry_item_profile (
 CREATE TABLE jewelry_user_progress (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   item_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   level INT NOT NULL DEFAULT 1,
   exp INT NOT NULL DEFAULT 0,
   total_taps INT NOT NULL DEFAULT 0,
@@ -380,7 +382,7 @@ CREATE TABLE jewelry_user_progress (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_item_user (item_id, user_id),
   CONSTRAINT fk_progress_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES user(id)
+  CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES user(uid)
 ) COMMENT='饰品养成进度';
 
 -- 任务定义：配置可以做什么任务、完成后得到多少经验，第三阶段细化。
@@ -401,13 +403,13 @@ CREATE TABLE jewelry_task_record (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   task_id BIGINT UNSIGNED NOT NULL,
   item_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_user_time (user_id, completed_at),
   KEY idx_item_task (item_id, task_id),
   CONSTRAINT fk_taskrecord_task FOREIGN KEY (task_id) REFERENCES jewelry_task(id),
   CONSTRAINT fk_taskrecord_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_taskrecord_user FOREIGN KEY (user_id) REFERENCES user(id)
+  CONSTRAINT fk_taskrecord_user FOREIGN KEY (user_id) REFERENCES user(uid)
 ) COMMENT='饰品任务完成记录';
 
 -- 奖励定义：配置奖励内容和所需等级，第三阶段细化。
@@ -554,8 +556,8 @@ CREATE TABLE item_handover (
  kind ENUM('periodic','loss','resale') NOT NULL,
  generation INT UNSIGNED NOT NULL,
  spec VARCHAR(256) NOT NULL,
- owner_id BIGINT UNSIGNED NOT NULL,
- recipient_id BIGINT UNSIGNED NOT NULL,
+ owner_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ recipient_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
  prepare_evidence VARCHAR(1000) NOT NULL,
  delivery_evidence VARCHAR(1000) NULL,
  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -568,8 +570,8 @@ CREATE TABLE item_handover (
  CONSTRAINT fk_work_source FOREIGN KEY(source_id) REFERENCES whole_item(id) ON DELETE CASCADE,
  CONSTRAINT fk_work_target FOREIGN KEY(target_id) REFERENCES whole_item(id) ON DELETE CASCADE,
  CONSTRAINT fk_work_chip FOREIGN KEY(chip_id) REFERENCES chip(id),
- CONSTRAINT fk_work_owner FOREIGN KEY(owner_id) REFERENCES user(id),
- CONSTRAINT fk_work_recipient FOREIGN KEY(recipient_id) REFERENCES user(id)
+ CONSTRAINT fk_work_owner FOREIGN KEY(owner_id) REFERENCES user(uid),
+ CONSTRAINT fk_work_recipient FOREIGN KEY(recipient_id) REFERENCES user(uid)
 ) COMMENT='两段办理记录，固定原新整套物品对应';
 CREATE TABLE chip_validation (
  chip_id BIGINT UNSIGNED PRIMARY KEY,
@@ -599,7 +601,7 @@ CREATE TABLE test_batch (
 ) COMMENT='测试批次与验收说明，清理后保留摘要';
 CREATE TABLE test_batch_object (
  kind ENUM('style','issue','item','chip','user','scan') NOT NULL,
- object_id BIGINT UNSIGNED NOT NULL,
+ object_id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
  batch_id BIGINT UNSIGNED NOT NULL,
  PRIMARY KEY(kind,object_id),
  KEY ix_test_batch(batch_id,kind),
@@ -649,10 +651,10 @@ ALTER TABLE test_batch_object MODIFY kind ENUM('style','issue','item','chip','us
 -- H5手机号账户会话与一次性认领；凭证仅保存校验摘要。
 CREATE TABLE user_session (
  token_hash BINARY(32) PRIMARY KEY,
- user_id BIGINT UNSIGNED NOT NULL,
+ user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
  expires_at DATETIME(6) NOT NULL,
  revoked_at DATETIME(6) NULL,
- CONSTRAINT fk_user_session_user FOREIGN KEY(user_id) REFERENCES user(id) ON DELETE CASCADE
+ CONSTRAINT fk_user_session_user FOREIGN KEY(user_id) REFERENCES user(uid) ON DELETE CASCADE
 ) COMMENT='独立于管理端的用户会话';
 CREATE TABLE user_sms_challenge (
  phone VARCHAR(20) PRIMARY KEY,
@@ -677,3 +679,24 @@ CREATE TABLE item_claim_code (
  KEY ix_claim_item(item_id),
  CONSTRAINT fk_claim_item FOREIGN KEY(item_id) REFERENCES item(id)
 ) COMMENT='按实际交付发放或补发的一次性认领码';
+
+-- 通行密钥只保存校验所需的凭据指纹、公钥和计数。
+CREATE TABLE admin_passkey (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ admin_id BIGINT UNSIGNED NOT NULL,
+ credential_hash BINARY(32) NOT NULL UNIQUE,
+ public_key VARBINARY(4096) NOT NULL,
+ sign_count BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME(6) NOT NULL,
+ last_used_at DATETIME(6) NULL,
+ revoked_at DATETIME(6) NULL,
+ CONSTRAINT fk_passkey_admin FOREIGN KEY(admin_id) REFERENCES admin_user(id) ON DELETE CASCADE
+) COMMENT='管理员登记的 WebAuthn 公钥凭据';
+
+CREATE TABLE admin_passkey_challenge (
+ challenge_hash BINARY(32) PRIMARY KEY,
+ session_id BIGINT UNSIGNED NULL,
+ expires_at DATETIME(6) NOT NULL,
+ KEY ix_passkey_challenge_expiry(expires_at),
+ CONSTRAINT fk_passkey_challenge_session FOREIGN KEY(session_id) REFERENCES admin_session(id) ON DELETE CASCADE
+) COMMENT='两分钟单次挑战，登记时绑定管理会话';

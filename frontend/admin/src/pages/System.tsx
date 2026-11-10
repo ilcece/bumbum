@@ -6,6 +6,9 @@ import { Copy } from "../components/CatalogUI";
 import ServerTable from "../components/ServerTable";
 import { useLocation, history } from "@umijs/max";
 import { statusNames, time } from "../catalog";
+import AdminPasskeys from "../components/AdminPasskeys";
+import { passkeysEnabled } from "../passkeys";
+import UserIdentity from "../components/UserIdentity";
 export default function System() {
   return (
     <PageContainer title={false}>
@@ -18,6 +21,7 @@ export default function System() {
         onChange={(tab) => history.replace("/system?tab=" + tab)}
         items={[
           { key: "settings", label: "设置", children: <TestBatches /> },
+          ...(passkeysEnabled() ? [{ key: "passkeys", label: "通行密钥", children: <AdminPasskeys /> }] : []),
           {
             key: "audit",
             label: "操作审计",
@@ -34,6 +38,8 @@ export default function System() {
                     "catalog.loseItem": { text: "登记挂失" }, "catalog.prepare": { text: "准备换新或转售" },
                     "catalog.complete": { text: "交付确认" }, "catalog.undoInstall": { text: "纠正安装" },
                     "catalog.issueClaimCode": { text: "首次发放认领码" }, "catalog.reissueClaimCode": { text: "核对后补发认领码" },
+                    "catalog.viewHolderPhone": { text: "查看持有人完整手机号" },
+                    "catalog.viewUserPhone": { text: "查看账户完整手机号" },
                   } },
                   { title: "操作人账号", dataIndex: "operator", hideInTable: true },
                   { title: "起日（北京时间）", dataIndex: "date_from", hideInTable: true, valueType: "date" },
@@ -73,7 +79,7 @@ export default function System() {
                 resource="users"
                 columns={[
                   { title: "关键词", dataIndex: "keyword", hideInTable: true },
-                  { title: "账户ID", dataIndex: "id", search: false },
+                  { title: "账户 UID", dataIndex: "public_uid", search: false, render: (_, row) => <UserIdentity uid={row.public_uid} /> },
                   { title: "昵称", dataIndex: "nickname", search: false },
                   {
                     title: "联系方式（脱敏）",
@@ -99,7 +105,7 @@ function auditSummary(value: Record<string, any>) {
   const parts = [
     statusNames[value.status], value.generation && `第 ${value.generation} 代`,
     value.physical_uid && `实体 ${value.physical_uid}`, value.chip_uid && `芯片 ${value.chip_uid}`,
-    value.user_id && `持有人 U${value.user_id}`, value.lost_at && "已挂失",
+    value.user_uid && `持有人 ${value.user_uid}`, value.lost_at && "已挂失",
     value.sold != null && (value.sold ? "已售出" : "未售出"),
     value.first_sold_at && `首次成交 ${time(value.first_sold_at)}`,
     value.quota_review ? "换新额度待核对" : value.quota_year && value.quota_used != null && `${value.quota_year} 年换新已用 ${value.quota_used} 次`,

@@ -253,8 +253,8 @@ def test_unique_event_constraint_and_snapshot_survive_unbind(auth_app, ready):
 
 
 def test_owned_item_read_grant_and_updated_profile(auth_app, ready):
-    query(auth_app, "INSERT INTO user(phone) VALUES ('13800000001') ON DUPLICATE KEY UPDATE phone=phone")
-    owner = query(auth_app, "SELECT id FROM user WHERE phone='13800000001'")[0]['id']
+    query(auth_app, "INSERT INTO user(uid,public_uid,phone) VALUES ('01976379-af87-7174-bcf2-47198e8c59b4',UUID_TO_BIN('ea9eed73-c9a9-420f-abaf-c81c980dfc3d'),'13800000001') ON DUPLICATE KEY UPDATE phone=phone")
+    owner = query(auth_app, "SELECT uid FROM user WHERE phone='13800000001'")[0]['uid']
     target = query(auth_app, 'SELECT item_id FROM chip')[0]['item_id']
     query(auth_app, 'INSERT INTO ownership(item_id,user_id) VALUES (%s,%s)', (target, owner))
     result = tap(auth_app, ready).json['data']

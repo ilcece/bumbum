@@ -1013,9 +1013,11 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 <a id="121-本轮test受控升级的已准备入口"></a>
 
-**当前test发布：28b1e748132a9c441de4b238b0cd039c9e983491，后台原型对照整改。** 已先更新分支规范，再实施33项整改并发布；手机公开字段/预览范围随H5暂缓，类别及改码规则不变。镜像为bumbum-hangzhou-backend:28b1e748132a9c441de4b238b0cd039c9e983491，远端内容ID为sha256:47bf507c1806ecf4a38e46fe6f60f74c8facdc66b3ce824245ce88433b7298de；管理端静态为/var/www/bumbum-hangzhou-test-releases/28b1e748132a9c441de4b238b0cd039c9e983491/admin，35文件与最终浏览器复验产物逐一匹配。用户端保持原静态及代码，不改生产或main。
+截至北京时间 2026-11-10，杭州 test 已发布账户双标识、通行密钥和用户动态。011 只增加公钥凭据和挑战两张表。发布前已在停写窗口完成 SQL 和媒体配套备份。实际发布及人工验收见[变更记录](../CHANGELOG.md#2026-11-10-杭州-test-接入通行密钥和用户动态)，操作入口见[管理员登录手册](ADMIN_LOGIN.md#杭州-test-的通行密钥)。下方按各次发布保留历史记录。
 
-本次只短暂停test做备份和代码切换，**未执行清理、重灌、迁移或账户/权限修改**。当前85件物品、114枚芯片、9条图片记录、138条触碰记录，以及持有/历代/办理、管理员、密钥、项目与审计摘要前后一致。固定test库/UUID/35表及VERIFY_IDENTITY连接保持；两槽ready200、新test镜像healthy、未登录管理API401、用户站200及管理API隔离404通过。生产容器/镜像、两槽runtime/CA/Nginx与生产及test用户端静态摘要不变，原管理白名单保留。
+**当时的 test 发布：28b1e748132a9c441de4b238b0cd039c9e983491，后台原型对照整改。** 已先更新分支规范，再实施33项整改并发布；手机公开字段/预览范围随H5暂缓，类别及改码规则不变。镜像为bumbum-hangzhou-backend:28b1e748132a9c441de4b238b0cd039c9e983491，远端内容ID为sha256:47bf507c1806ecf4a38e46fe6f60f74c8facdc66b3ce824245ce88433b7298de；管理端静态为/var/www/bumbum-hangzhou-test-releases/28b1e748132a9c441de4b238b0cd039c9e983491/admin，35文件与最终浏览器复验产物逐一匹配。用户端保持原静态及代码，不改生产或main。
+
+本次只短暂停test做备份和代码切换，**未执行清理、重灌、迁移或账户/权限修改**。当时的85件物品、114枚芯片、9条图片记录、138条触碰记录，以及持有/历代/办理、管理员、密钥、项目与审计摘要前后一致。固定test库/UUID/35表及VERIFY_IDENTITY连接保持；两槽ready200、新test镜像healthy、未登录管理API401、用户站200及管理API隔离404通过。生产容器/镜像、两槽runtime/CA/Nginx与生产及test用户端静态摘要不变，原管理白名单保留。
 
 本轮目录为/opt/bumbum-hangzhou/admin-review-28b1e748132a。完整私有SQL/媒体配套备份位于/opt/bumbum-hangzhou/admin-review-28b1e748132a/before-update/images-and-database-26434cccbed747dfb7ced2a8466c75ed，转储结束标记和配套自校验通过，未做本次恢复演练，不上传备份。compose-before.json与admin-before.txt保存代码/静态回退基线；protected-before.json、before-update/data-before.json、loaded-image.json及verified.json只在该私有目录保留保护摘要和发布证据。代码回退须同时核对旧镜像与管理静态，不自动恢复SQL或覆盖后来数据。
 

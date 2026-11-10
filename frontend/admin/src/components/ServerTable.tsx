@@ -55,6 +55,7 @@ export default function ServerTable({
               issues: "发行承诺与核定结果",
               users: "账户与持有",
               audit: "操作日志",
+              activity: "用户动态",
             } as Record<string, string>
           )[resource]
         }
