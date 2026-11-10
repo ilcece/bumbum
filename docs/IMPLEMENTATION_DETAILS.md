@@ -229,7 +229,7 @@ NFC 页/API 不在日志记录完整 picc_data、cmac、token URL 或请求体�
 
 ## 8. 配置与资料来源
 
-配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 app:create_app，依赖固定版本在根目录 requirements 文件和前端 package-lock.json；main已包含云测试requirements-deploy.in/txt及Docker构建，固定Python 3.12.14、Node 24.19.0、Gunicorn 26.2.0（两个进程，关闭未使用的控制socket）和MySQL 8.0.46；不代表正式部署已验收。香港配置、证书及操作见[云测试手册](CLOUD_TEST_DEPLOYMENT.md)，不复制到本机启动说明。
+配置名称和非敏感示例集中在 [.env.example](../.env.example)，秘密值留空。本机最小运行步骤见 [本地运行说明](LOCAL_DEVELOPMENT.md)。入口为 `app:create_app`，依赖固定版本见 [`requirements/`](../requirements/) 和前端 `package-lock.json`。Docker 使用 [部署清单](../requirements/deploy.txt)，固定 Python 3.12.14、Node 24.19.0、Gunicorn 26.2.0（两个进程，关闭未使用的控制 socket）和 MySQL 8.0.46。香港历史配置、证书及操作见 [云测试手册](CLOUD_TEST_DEPLOYMENT.md)。
 
 | 配置 | 用途 |
 |---|---|

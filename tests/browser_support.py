@@ -80,7 +80,7 @@ def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", c
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        pytest.fail('请先按联调手册安装requirements-browser.txt及Chromium，未跳过浏览器检查。')
+        pytest.fail('请先按联调手册安装 requirements/browser.txt 及 Chromium，未跳过浏览器检查。')
     if frontend_name not in {"admin", "user"}:
         raise ValueError("未知前端测试入口")
     port=5174 if frontend_name == "admin" else 5175

@@ -95,7 +95,7 @@ macOS / Linux：
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m pip install -r requirements/dev.txt
 .venv/bin/python scripts/setup_local.py
 ```
 
@@ -103,7 +103,7 @@ Windows PowerShell：
 
 ```powershell
 py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -X utf8 -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -X utf8 -m pip install -r requirements/dev.txt
 .\.venv\Scripts\python.exe -X utf8 scripts\setup_local.py
 ```
 
@@ -219,7 +219,7 @@ docker compose stop
 
 测试数据会保留。下次先启动 Docker，再执行 `docker compose up -d --wait --wait-timeout 120`，然后按第3节启动后端和网页；无需重新建表或重复首次准备。
 
-拉取代码或切换分支后，如果 `requirements-dev.txt` 变化，重跑第2节的 Python 依赖安装命令；如果前端 `package.json` 或 `package-lock.json` 变化，重跑网页依赖安装命令。遇到数据库升级时按专门的升级说明操作，不重新执行建表文件。
+拉取代码或切换分支后，如果 `requirements/dev.txt` 变化，重跑第2节的 Python 依赖安装命令；如果前端 `package.json` 或 `package-lock.json` 变化，重跑网页依赖安装命令。遇到数据库升级时按专门的升级说明操作，不重新执行建表文件。
 
 `.env` 和数据库卷要配套保留，不提交到 Git。不要删除配置后重新生成密码，也不要为重跑建表删除数据卷；修改 `db/schema.sql` 不会自动更新已有数据库。Windows双击工具的日常用法见第0节；不要与手动服务同时运行。
 
@@ -309,7 +309,7 @@ docker compose stop
 
 ```powershell
 .\.venv\Scripts\python.exe -m venv .venv-browser
-.\.venv-browser\Scripts\python.exe -m pip install -r requirements-browser.txt
+.\.venv-browser\Scripts\python.exe -m pip install -r requirements/browser.txt
 .\.venv-browser\Scripts\python.exe -m playwright install chromium
 npm --prefix frontend/admin ci
 .\.venv-browser\Scripts\python.exe -m pytest tests/test_admin_browser.py --auth-db --browser -q
@@ -319,7 +319,7 @@ Linux/Mac在项目根目录使用独立环境：
 
 ```bash
 python3 -m venv .venv-browser
-.venv-browser/bin/python -m pip install -r requirements-browser.txt
+.venv-browser/bin/python -m pip install -r requirements/browser.txt
 .venv-browser/bin/python -m playwright install chromium
 npm --prefix frontend/admin ci
 .venv-browser/bin/python -m pytest tests/test_admin_browser.py --auth-db --browser -q
@@ -329,7 +329,7 @@ Linux缺浏览器系统库时由开发者按Playwright提示安装；CI使用ins
 
 检查覆盖登录/刷新/退出、芯片批次/去重、物品资料/启停及失败输入保留，以及绑定选择、重复提交、未知结果查询和状态保护。失败截图保存在test-results下本次唯一子目录，不覆盖旧产物；截图前隐藏密码/验证码，不保存HAR、trace、页面正文或认证请求。产物不进入Git；需要反馈时仍先核对截图不含秘密。测试结束关闭自己的浏览器、前后端与临时数据库，保留失败截图。运行失败保留具体阶段，不清空本机数据库。
 
-浏览器依赖固定版本由requirements-browser.in解析生成requirements-browser.txt；生成命令为uv pip compile requirements-browser.in --universal --python-version 3.12 --output-file requirements-browser.txt，不手工改版本凑锁文件。
+在仓库根目录运行 `uv pip compile requirements/browser.in --universal --python-version 3.12 --output-file requirements/browser.txt` 生成浏览器依赖固定版本清单。
 
 ## 10. 首次准备本机密钥功能
 
@@ -462,7 +462,7 @@ Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction Si
 
 ## 13. 图片备份与离线恢复门槛
 
-本节复现[后台工程说明](proposals/admin-rebuild-implementation.md#6-保留图片配套备份恢复门槛)中的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
+本节复现[后台工程说明](proposals/admin-rebuild-implementation.md#6-保留图片配套备份恢复门槛)中的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的 `requirements/browser.txt` 及管理端 npm 依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
 
 在`frontend/admin`目录可执行以下官方检查；成功应显示doctor无失败、弃用检查无问题，不能代替实际业务验证。API查询显式指定当前antd版本，若失败先检查npm ci是否完成及Node版本。
 

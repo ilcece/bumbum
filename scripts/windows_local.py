@@ -157,9 +157,9 @@ def dependencies(node, npm):
     state = read_json(RUNTIME / "dependencies.json") or {}
     identity = str(ROOT) + str(PYTHON)
     for name, files, install, verify in (
-        ("python", ["requirements.in", "requirements.txt", "requirements-dev.in", "requirements-dev.txt"],
-         [PYTHON, "-X", "utf8", "-m", "pip", "install", "--disable-pip-version-check", "--retries", "1", "--timeout", "30", "-r", "requirements-dev.txt"],
-         [PYTHON, "-X", "utf8", "-c", "from importlib.metadata import version; from packaging.requirements import Requirement; from pathlib import Path; import sys; r=[Requirement(x) for x in Path('requirements-dev.txt').read_text(encoding='utf-8').splitlines() if x.strip() and not x.startswith('#')]; sys.exit(any(version(x.name) not in x.specifier for x in r if not x.marker or x.marker.evaluate()))"]),
+        ("python", ["requirements/base.in", "requirements/dev.in", "requirements/dev.txt"],
+         [PYTHON, "-X", "utf8", "-m", "pip", "install", "--disable-pip-version-check", "--retries", "1", "--timeout", "30", "-r", "requirements/dev.txt"],
+         [PYTHON, "-X", "utf8", "-c", "from importlib.metadata import version; from packaging.requirements import Requirement; from pathlib import Path; import sys; r=[Requirement(x) for x in Path('requirements/dev.txt').read_text(encoding='utf-8').splitlines() if x.strip() and not x.startswith('#')]; sys.exit(any(version(x.name) not in x.specifier for x in r if not x.marker or x.marker.evaluate()))"]),
         ("frontend", ["frontend/admin/package.json", "frontend/admin/package-lock.json"],
          [node, npm, "--prefix", "frontend/admin", "ci", "--no-audit", "--no-fund"],
          [node, npm, "--prefix", "frontend/admin", "ls", "--depth=0"]),

@@ -1,4 +1,4 @@
-# 后端直接依赖；完整固定版本见 requirements.txt。
+# 后端共用的直接依赖。按用途生成开发、浏览器和部署清单。
 Flask==3.1.3
 PyMySQL[rsa]==1.2.3
 python-dotenv==1.2.4
