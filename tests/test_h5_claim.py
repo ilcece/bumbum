@@ -76,10 +76,42 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
     ok(action(admin,'toggleItem',{'item_id':item,'status':'active'}))
     reference={'item_id':item,'confirmed':True,'delivery_reference':'隔离验收交付'}
     token=str(uuid.uuid4())
-    old=ok(action(admin,'issueClaimCode',reference,token))['claim_code']
+    issued=ok(action(admin,'issueClaimCode',reference,token))
+    old=issued['claim_code']
+    def reveal_path(code_id):
+        return f'/api/admin/catalog/items/{item}/claim-codes/{code_id}/reveal'
+
+    reveal_url=reveal_path(issued['claim_code_id'])
+    assert auth_app.test_client().post(reveal_url,headers={'Origin':'http://localhost:5174'},json={}).status_code==401
+    assert admin[0].post(reveal_url,headers={'Origin':'http://localhost:5174'},json={}).status_code==403
+    result=admin[0].post(reveal_url,headers=admin[1],json={})
+    assert ok(result)=={'claim_code':old,'expires_at':issued['expires_at']}
+    assert 'no-store' in result.headers['Cache-Control']
+    assert old not in admin[0].get(f'/api/admin/catalog/items/{item}').get_data(as_text=True)
+    audit=query(auth_app,"SELECT detail FROM admin_audit WHERE action='catalog.viewClaimCode'")
+    assert len(audit)==1 and old not in audit[0]['detail']
+
+    previous_expiry=query(auth_app,'SELECT expires_at FROM item_claim_code WHERE id=%s',(issued['claim_code_id'],))[0]['expires_at']
+    query(auth_app,'UPDATE item_claim_code SET expires_at=%s WHERE id=%s',(auth_app.test_clock[0],issued['claim_code_id']))
+    expired=admin[0].post(reveal_url,headers=admin[1],json={})
+    assert expired.status_code==409 and expired.json['code']=='claim_code_expired'
+    from core.public_account import code_digest
+    legacy=secrets.token_hex(8).upper()
+    with auth_app.app_context():
+        legacy_digest=code_digest('claim',item,legacy)
+    query(auth_app,'UPDATE item_claim_code SET expires_at=%s,code_hash=%s WHERE id=%s',
+          (previous_expiry,legacy_digest,issued['claim_code_id']))
+    unavailable=admin[0].post(reveal_url,headers=admin[1],json={})
+    assert unavailable.status_code==409 and unavailable.json['code']=='claim_code_not_recoverable'
+    assert len(query(auth_app,"SELECT id FROM admin_audit WHERE action='catalog.viewClaimCode'"))==1
     receipt=ok(action(admin,'receipt',{'request_id':token}))
     assert 'claim_code' not in receipt
-    fresh=ok(action(admin,'reissueClaimCode',reference))['claim_code']
+    replacement=ok(action(admin,'reissueClaimCode',reference))
+    fresh=replacement['claim_code']
+    assert fresh!=old
+    assert admin[0].post(reveal_url,headers=admin[1],json={}).status_code==409
+    fresh_url=reveal_path(replacement['claim_code_id'])
+    assert ok(admin[0].post(fresh_url,headers=admin[1],json={}))['claim_code']==fresh
     for event in query(auth_app,"SELECT detail FROM admin_audit WHERE action IN ('catalog.issueClaimCode','catalog.reissueClaimCode')"):
         assert old not in event['detail'] and fresh not in event['detail']
 
@@ -101,10 +133,11 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
         payloads.append({'tap_token':view['tap_token'],'claim_code':fresh})
     path=f'/api/public/items/{item}/claim'
     assert clients[0].post(path,headers=ORIGIN,json={**payloads[0],'tap_token':'0'*64}).status_code==403
-    assert clients[0].post(path,headers=ORIGIN,json={**payloads[0],'claim_code':old}).status_code==400
+    assert clients[0].post(path,headers=ORIGIN,json={**payloads[0],'claim_code':legacy}).status_code==400
     with ThreadPoolExecutor(max_workers=2) as pool:
         responses=list(pool.map(lambda pair:pair[0].post(path,headers=ORIGIN,json=pair[1]),zip(clients,payloads)))
     assert sorted(x.status_code for x in responses)==[200,409]
+    assert admin[0].post(fresh_url,headers=admin[1],json={}).status_code==409
     winner=next(i for i,x in enumerate(responses) if x.status_code==200)
     assert ok(clients[winner].post(path,headers=ORIGIN,json=payloads[winner]))['state']=='mine'
     assert ok(clients[winner].get(f'/api/public/me/items/{item}'))['item']['item_id']==item

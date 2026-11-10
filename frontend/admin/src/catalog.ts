@@ -84,7 +84,13 @@ export const wholeStatus = (w: Row) =>
 export const validationHelp =
   "用于验证的对象标记，与设置中的验收数据开关独立。标记后可直接删除该对象，保留另一侧档案及操作审计；不表示实卡核验通过。";
 
-export const orderPath = (orderId: number, unitId: number) => "/orders/" + orderId + "?unit=" + unitId;
+export function fromPath(path: string, from: string) {
+  return from ? path + (path.includes("?") ? "&" : "?") + "from=" + encodeURIComponent(from) : path;
+}
+
+export function orderPath(orderId: number, unitId?: number, from = "") {
+  return fromPath("/orders/" + orderId + (unitId ? "?unit=" + unitId : ""), from);
+}
 
 export function assemblyPath(from: string, fields: Record<string, number | undefined> = {}) {
   const query = new URLSearchParams({ from });

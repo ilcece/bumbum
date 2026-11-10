@@ -251,7 +251,7 @@ function Preparation({ storageKey, saved }: { storageKey: string; saved?: Draft 
         items={["准备实物", "确认安装", "核验与启用", "售出与交付"].map((text) => ({ title: text }))} />
       {error && <Alert type="error" showIcon title={error} />}
       {draft.pending && <Alert type="warning" showIcon title="先核对上一次操作的结果"
-        description="核对回执后恢复进度。认领码原文仅在发放成功时显示。"
+        description="核对回执后恢复进度。已发放时，可在物品档案查看有效认领码。"
         action={<Space wrap>
           <Button loading={busy} onClick={() => void send(draft, true)}>核对回执</Button>
           {retry && <Button loading={busy} onClick={() => void send(draft)}>重试原请求</Button>}

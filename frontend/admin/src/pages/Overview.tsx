@@ -29,6 +29,8 @@ import {
 } from "@ant-design/icons";
 import { history, useLocation } from "@umijs/max";
 import {
+  activityPath,
+  assemblyPath,
   list,
   statistics,
   Row as CatalogRow,
@@ -43,7 +45,6 @@ import {
 } from "../components/CatalogUI";
 import UserIdentity from "../components/UserIdentity";
 import ItemActivity from "../components/ItemActivity";
-import { activityPath } from "../catalog";
 export default function Overview() {
   const location = useLocation();
   const q = new URLSearchParams(location.search);
@@ -239,7 +240,7 @@ export default function Overview() {
             <Button onClick={() => go("/catalog/issue/new")}>
               新建发行约定
             </Button>
-            <Button onClick={() => go("/items?create=1")}>登记数字物品</Button>
+            <Button onClick={() => go(assemblyPath(location.pathname + location.search))}>登记数字物品</Button>
             <Button onClick={() => go("/chips")}>芯片登记与配置</Button>
           </div>
         </ProCard>

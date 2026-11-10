@@ -1,5 +1,6 @@
 """在正式后台构建产物上从空库建单，走完缺资料补建和订单件回跳。"""
 
+from datetime import datetime, timezone
 import re
 
 import pytest
@@ -91,9 +92,24 @@ def test_empty_order_workflow_in_admin(desktop):
     delivery.get_by_label("首次交付核对依据", exact=True).fill("已核对验收实物")
     delivery.get_by_role("checkbox").check()
     button(delivery, "核对实际交付并发码")
-    expect(p.get_by_role("dialog", name="交付认领码", exact=True)).to_be_visible()
-    button(p, "完成")
+    issued = p.get_by_role("dialog", name="交付认领码", exact=True)
+    expect(issued).to_be_visible()
+    original = issued.locator('[data-private]').get_by_text(re.compile(r'^[0-9A-F]{16}$')).inner_text()
+    button(issued, "完成")
     expect(p.get_by_text("已核对验收实物", exact=True)).to_be_visible()
+    p.clock.set_fixed_time(datetime(2026, 10, 25, tzinfo=timezone.utc))
+    p.reload(wait_until="networkidle")
+    button(p, "查看认领码")
+    expect(issued.locator('[data-private]').get_by_text(original, exact=True)).to_be_visible()
+    issued.get_by_role("button", name=re.compile(r'^关\s*闭$')).last.click()
+    button(p, "EMPTY-ITEM")
+    button(p, "查看认领码")
+    expect(issued.locator('[data-private]').get_by_text(original, exact=True)).to_be_visible()
+    issued.get_by_role("button", name=re.compile(r'^关\s*闭$')).last.click()
+    query(desktop.app, "UPDATE item_claim_code SET expires_at='2026-10-24 00:00:00'")
+    p.reload(wait_until="networkidle")
+    expect(p.get_by_text("已过期", exact=True)).to_be_visible()
+    expect(p.get_by_role("button", name="查看认领码", exact=True)).to_have_count(0)
 
 
 def test_existing_stock_stays_with_its_order_unit(desktop):
@@ -122,3 +138,59 @@ def test_existing_stock_stays_with_its_order_unit(desktop):
     p.get_by_role("menuitem", name="选用已就绪数字库存", exact=True).click()
     pick.get_by_label("可分配数字库存", exact=True).click()
     expect(p.locator(".ant-select-dropdown:visible .ant-select-item-option")).to_have_count(0)
+
+
+def test_workbench_and_filtered_list_return_paths(desktop):
+    from tests.admin_ui_helpers import setup
+
+    style, _, _, _ = setup(desktop)
+    api(desktop, "createPhysicalItem", {"style_id": style, "physical_uid": "ROUTE-PHY-01", "spec": "L黑"})
+    order = api(desktop, "createOrder", {"channel": "验收店铺", "external_order_no": "ROUTE-ORDER-01",
+                                      "units": [{"product_name": "A"}, {"product_name": "B"}]})
+    p = desktop.page
+    button(p, "登记数字物品")
+    expect(p.get_by_label("数字物品编号", exact=True)).to_be_visible()
+    button(p, "取消")
+    expect(p).to_have_url(re.compile(r"/overview$"))
+
+    def search(label, keyword):
+        field = p.get_by_role("textbox", name=re.compile(label))
+        field.fill(keyword)
+        field.press("Enter")
+        expect(p).to_have_url(re.compile(r"keyword="))
+        return field, p.url
+
+    back = p.get_by_role("button", name="back", exact=True)
+    p.get_by_role("link", name=re.compile("订单管理$")).click()
+    field, previous = search("订单号或渠道", "ROUTE-ORDER-01")
+    button(p, "ROUTE-ORDER-01")
+    button(p, "第 2 件 · 待核对款式规格")
+    expect(p).to_have_url(re.compile(r"/orders/" + str(order["id"]) + r"\?unit="))
+    back.click()
+    expect(p).to_have_url(previous)
+    expect(field).to_have_value("ROUTE-ORDER-01")
+
+    physical_link = p.get_by_role("link", name="实体物品", exact=True)
+    if not physical_link.is_visible():
+        p.get_by_role("menuitem", name=re.compile("数字物品管理")).click()
+    physical_link.click()
+    field, previous = search("实体编号或规格", "ROUTE-PHY-01")
+    button(p, "ROUTE-PHY-01")
+    button(p, "新建数字物品")
+    expect(p.get_by_text("ROUTE-PHY-01 · L黑", exact=True)).to_be_visible()
+    button(p, "取消")
+    back.click()
+    expect(p).to_have_url(previous)
+    expect(field).to_have_value("ROUTE-PHY-01")
+
+    p.get_by_role("link", name=re.compile("芯片管理$")).click()
+    chip_uid = "04:00:00:00:00:00:C9"
+    field, previous = search("关键词", chip_uid)
+    button(p, chip_uid)
+    chip = p.get_by_role("dialog", name="芯片详情", exact=True)
+    button(chip, "新建数字物品")
+    expect(p.get_by_text(chip_uid, exact=True)).to_be_visible()
+    button(p, "取消")
+    back.click()
+    expect(p).to_have_url(previous)
+    expect(field).to_have_value(chip_uid)

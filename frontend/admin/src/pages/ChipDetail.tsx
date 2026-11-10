@@ -12,8 +12,8 @@ import {
   Typography,
   Tooltip,
 } from "antd";
-import { assemblyPath } from "../catalog";
-import { history, useParams } from "@umijs/max";
+import { assemblyPath, fromPath } from "../catalog";
+import { history, useLocation, useParams } from "@umijs/max";
 import { Row, statistics, statusNames, time, validationHelp } from "../catalog";
 import {
   ActionForm,
@@ -38,6 +38,9 @@ export default function ChipDetail({
   onDeleted?: () => void;
 }) {
   const params = useParams();
+  const location = useLocation();
+  const here = location.pathname + location.search;
+  const from = embedded ? fromPath("/chips/" + id, here) : here;
   const ident = id || Number(params.id),
     { record: r, error, loading, reload } = useRecord("chips", ident),
     [action, setAction] = useState<string>(),
@@ -147,7 +150,7 @@ export default function ChipDetail({
                 </Space>
               ) : r.chip_status === "pending" ? (
                 <Space wrap>
-                  <Button type="primary" onClick={() => history.push(assemblyPath("/chips/" + r.id, { chip_id: r.id }))}>
+                  <Button type="primary" onClick={() => history.push(assemblyPath(from, { chip_id: r.id }))}>
                     新建数字物品
                   </Button>
                   <Button onClick={() => setAction("bind")}>配套已有待装配物品</Button>

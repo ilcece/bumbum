@@ -51,6 +51,7 @@ import ItemH5Preview from "../components/ItemH5Preview";
 import ItemActivity from "../components/ItemActivity";
 
 import UserIdentity, { PhoneReveal } from "../components/UserIdentity";
+import ClaimCodeStatus from "../components/ClaimCodeStatus";
 
 function HolderPhone({ itemId, holder }: { itemId: number; holder?: Row }) {
   if (!holder) return <>手机号未记录</>;
@@ -116,13 +117,15 @@ export default function ItemDetail({
       onDeleted?.();
       if (!embedded) history.push("/items");
     } else if (action === "bind" && r?.order) {
-      history.push(orderPath(r.order.order_id, r.order.id));
+      history.push(orderTarget);
     } else reload();
   };
   const e = r?.wholes?.find((x: Row) => !x.ended_at),
     pending = r?.handovers?.find((x: Row) => !x.completed_at);
   const owner = r?.owners?.find((holder: Row) => holder.is_active);
-  const orderTarget = r?.order && orderPath(r.order.order_id, r.order.id);
+  const canonicalOrder = r?.order && orderPath(r.order.order_id, r.order.id);
+  const originalPage = returnPath("");
+  const orderTarget = canonicalOrder && (originalPage.startsWith(canonicalOrder + "&") ? originalPage : canonicalOrder);
   const configurable = !!e && !(e.lost_at || e.loss_evidence) && r?.chip_status === "bound";
   const canConfigure = configurable && !r?.provisioned_at && r?.status !== "archived";
   const canEnable = configurable && !!r?.provisioned_at && !!r?.issue_id
@@ -358,7 +361,9 @@ export default function ItemDetail({
             </Descriptions>
             {!r.owner_id && (!r.order || r.order.delivered_at) && (
               <Space wrap>
-                <Typography.Text type="secondary">{r.claim_code_status ? (r.claim_code_status.revoked_at ? "认领码已撤销" : Date.parse(r.claim_code_status.expires_at) <= Date.now() ? "认领码已过期" : "认领码有效期至 " + time(r.claim_code_status.expires_at)) : "首次交付后可发放认领码"}</Typography.Text>
+                {r.claim_code_status
+                  ? <ClaimCodeStatus key={r.claim_code_status.id} itemId={r.id} status={r.claim_code_status} />
+                  : <Typography.Text type="secondary">首次交付后可发放认领码</Typography.Text>}
                 <Button disabled={!r.physical_item_id || r.status !== "active" || !r.provisioned_at || !!e?.lost_at || !!e?.loss_evidence || r.chip_status !== "bound"} onClick={() => setAction(r.claim_code_status ? "reissueClaimCode" : "issueClaimCode")}>
                   {r.claim_code_status ? "核对交付后补发" : "发放认领码"}
                 </Button>
@@ -794,7 +799,7 @@ export default function ItemDetail({
       )}
       {preview && r && <ItemH5Preview id={r.id} onClose={() => setPreview(false)} />}
       {claimResult && <Modal open title="交付认领码" onCancel={() => setClaimResult(undefined)} footer={<Button onClick={() => setClaimResult(undefined)}>完成</Button>}>
-        {claimResult.claim_code ? <><Typography.Paragraph copyable>{claimResult.claim_code}</Typography.Paragraph><p>有效期至 {time(claimResult.expires_at)}。关闭前请复制并交给接收人。</p></> : <Alert type="info" title="已核对发放记录" description="认领原码只显示一次。需要新的认领码时，请核对交付后补发。" />}
+        {claimResult.claim_code ? <><div data-private="true"><Typography.Paragraph copyable>{claimResult.claim_code}</Typography.Paragraph></div><p>有效期至 {time(claimResult.expires_at)}。请通过交付渠道交给接收人。</p></> : <Alert type="info" title="已核对发放记录" description="可在「订单与交付」查看有效码。旧码无法查看时，请核对交付后补发。" />}
       </Modal>}
     </Load>,
   );

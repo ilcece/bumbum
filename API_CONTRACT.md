@@ -553,7 +553,8 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | `actions/assembleOrderItem` | `issue_id`、`item_uid`、`physical_item_id`、`chip_id`、`installed=true`。依既有发行规则传 `edition_number`，可选 `is_validation`。数字身份与装配同事务，返回物品 ID。结构化订单可传 `order_unit_id`，同事务更新对应订单件。 |
 | `actions/orderSale` | `item_id`、`channel`（最多 40 字符）、`external_order_no`（最多 64 字符）、`first_sold_at`（带时区且不晚于当前）。事务锁定后重新校验库存资格，保存首次成交、售出依据和审计，不发码。 |
 | `actions/prepare`、`actions/complete` | 新版准备含 `physical_item_id` 和 `installed=true`，转售含接收账户和双方确认依据。有争议时提交核验结果引用。确认换新交付时按北京时间生效日计次。 |
-| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。旧成交依据流程首次发码时可传 `channel` 和 `external_order_no`，两者须与当前售出依据一致。成功响应展示原码一次。回执只返回发放记录和有效期。 |
+| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。旧成交依据流程首次发码时可传 `channel` 和 `external_order_no`，两者须与当前售出依据一致。成功响应返回原码。回执只返回发放记录和有效期。 |
+| `POST /api/admin/catalog/items/{item_id}/claim-codes/{code_id}/reveal` | 管理员会话、Origin、CSRF 和空 JSON 对象。仅返回指定物品当前可用认领码的原文与有效期，每次成功写审计并禁止缓存。过期返回 `409 claim_code_expired`，旧随机码仅有摘要时返回 `409 claim_code_not_recoverable`。核销、撤销、补发或不可认领时拒绝。 |
 | `GET /api/admin/catalog/items/{id}/h5-preview` | 读取指定物品已保存的展示资料，预设视角在后台界面切换。 |
 | `GET /api/admin/catalog/audit` | 支持 `keyword`、`action`、`operator`、`date_from`、`date_to`、`item_id`。返回动作说明、对象、结果和必要前后值。 |
 

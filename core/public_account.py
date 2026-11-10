@@ -217,11 +217,36 @@ def item_metadata(c,item_id,owner_bound=False):
     return data
 
 
+def issued_claim_value(item_id, code_id, issued_at):
+    # 使用独立用途的 HMAC，绑定物品、发放记录和发放时间。
+    return code_digest('claim-issued-v1', item_id, f'{code_id}|{issued_at.isoformat(timespec="microseconds")}')[:8].hex().upper()
+
+
 def record_claim_code(c, item_id, admin_id, reference):
-    code=secrets.token_hex(8).upper()
-    now=utc_now()
-    c.execute('INSERT INTO item_claim_code(item_id,code_hash,issued_by,delivery_reference,issued_at,expires_at) VALUES (%s,%s,%s,%s,%s,%s)',(item_id,code_digest('claim',item_id,code),admin_id,reference,now,now+timedelta(days=30)))
-    return {'id':item_id,'claim_code_id':c.lastrowid,'claim_code':code,'expires_at':iso_time(now+timedelta(days=30))}
+    now = utc_now()
+    expires_at = now + timedelta(days=30)
+    # 先取得发放记录编号，再在同一事务写入正式校验摘要。
+    c.execute("""INSERT INTO item_claim_code(item_id,code_hash,issued_by,delivery_reference,issued_at,expires_at)
+                 VALUES (%s,%s,%s,%s,%s,%s)""", (item_id, bytes(32), admin_id, reference, now, expires_at))
+    code_id = c.lastrowid
+    code = issued_claim_value(item_id, code_id, now)
+    c.execute('UPDATE item_claim_code SET code_hash=%s WHERE id=%s', (code_digest('claim', item_id, code), code_id))
+    return {'id': item_id, 'claim_code_id': code_id, 'claim_code': code, 'expires_at': iso_time(expires_at)}
+
+
+def claim_code_for_admin(c, item_id, code_id):
+    record = row(c, """SELECT id,code_hash,issued_at,expires_at FROM item_claim_code
+                       WHERE open_item_id=%s FOR SHARE""", (item_id,))
+    if not record or record['id'] != code_id:
+        fail(409, 'claim_code_unavailable', '这条认领码已核销、撤销或补发，请刷新状态。')
+    if record['expires_at'] <= utc_now():
+        fail(409, 'claim_code_expired', '认领码已过期，请核对交付后补发。')
+    if not claimable_item(c, item_id) or row(c, 'SELECT id FROM ownership WHERE active_item_id=%s FOR SHARE', (item_id,)):
+        fail(409, 'claim_code_unavailable', '物品当前不可认领，请先核对物品与持有状态。')
+    code = issued_claim_value(item_id, code_id, record['issued_at'])
+    if not hmac.compare_digest(record['code_hash'], code_digest('claim', item_id, code)):
+        fail(409, 'claim_code_not_recoverable', '这条认领码无法查看原码。若需重新交付，请从物品详情核对后补发。')
+    return {'claim_code': code, 'expires_at': iso_time(record['expires_at'])}
 
 
 def claimable_item(c, item_id):

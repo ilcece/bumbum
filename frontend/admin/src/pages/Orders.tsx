@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import { history, useLocation, useParams } from "@umijs/max";
 import { Alert, Button, Checkbox, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, Modal, Select, Space, Typography } from "antd";
-import { ActionForm, Load, RemoteSelect, State, required, useRecord } from "../components/CatalogUI";
+import { ActionForm, Load, RemoteSelect, State, required, returnPath, useRecord } from "../components/CatalogUI";
 import KeyConfiguration from "../components/KeyConfiguration";
+import ClaimCodeStatus from "../components/ClaimCodeStatus";
 import StyleEditor from "../components/StyleEditor";
 import ServerTable from "../components/ServerTable";
 import UserIdentity from "../components/UserIdentity";
@@ -37,20 +38,22 @@ function unitStatus(unit: Row) {
 
 export default function Orders() {
   const { id } = useParams();
+  const location = useLocation();
+  const from = location.pathname + location.search;
   const [creating, setCreating] = useState(false);
   if (id) return <OrderDetail id={Number(id)} />;
   return <PageContainer title={false}>
     <ServerTable resource="orders" columns={[
       { title: "订单号或渠道", dataIndex: "keyword", hideInTable: true },
       { title: "订单号", dataIndex: "external_order_no", search: false,
-        render: (_, r) => <Button type="link" onClick={() => history.push("/orders/" + r.id)}>{r.external_order_no}</Button> },
+        render: (_, r) => <Button type="link" onClick={() => history.push(orderPath(r.id, undefined, from))}>{r.external_order_no}</Button> },
       { title: "渠道", dataIndex: "channel", search: false },
       { title: "交付进度", search: false, render: (_, r) => r.delivered_count + " / " + r.unit_count + " 件" },
       { title: "登记时间", search: false, render: (_, r) => time(r.created_at) },
     ]} extra={[<Button key="create" type="primary" onClick={() => setCreating(true)}>新建订单</Button>]} />
     <OrderPreparationQueue />
     {creating && <ActionForm title="新建订单" action="createOrder" submitText="保存并打开订单"
-      initial={{ units: [{}] }} onClose={() => setCreating(false)} onDone={(r) => history.push("/orders/" + r.id)}>
+      initial={{ units: [{}] }} onClose={() => setCreating(false)} onDone={(r) => history.push(orderPath(r.id, undefined, from))}>
       <Form.Item name="channel" label="成交渠道" rules={required}><Input maxLength={40} /></Form.Item>
       <Form.Item name="external_order_no" label="外部订单号" rules={required}><Input maxLength={64} /></Form.Item>
       <Typography.Paragraph type="secondary">按订单原文录入，每件单独办理。款式和发行可以在准备时补齐。</Typography.Paragraph>
@@ -73,33 +76,34 @@ function OrderDetail({ id }: { id: number }) {
   const q = new URLSearchParams(useLocation().search);
   const unitId = Number(q.get("unit"));
   const order = state.record;
+  const source = returnPath("");
   useEffect(() => {
     if (order && unitId) document.getElementById("order-unit-" + unitId)?.scrollIntoView({ block: "nearest" });
   }, [order, unitId]);
   const canEdit = (order?.test_batch_id || undefined) === testBatch();
   return <PageContainer title={order?.external_order_no || "订单详情"} subTitle={order?.channel}
-    onBack={() => history.push("/orders")}>
+    onBack={() => history.push(source || "/orders")}>
     <Load error={state.error} loading={state.loading} retry={state.reload}>
       {order && <div className="page-stack">
         {!canEdit && <Alert type="warning" title="该订单属于另一数据范围，切换到对应范围后可继续办理。" />}
         <Space wrap aria-label="定位订单件">
           {order.units.map((unit: Row) => <Button key={unit.id} type={unitId === unit.id ? "primary" : "default"}
-            onClick={() => { history.replace(orderPath(id, unit.id)); document.getElementById("order-unit-" + unit.id)?.scrollIntoView({ block: "nearest" }); }}>
+            onClick={() => { history.replace(orderPath(id, unit.id, source)); document.getElementById("order-unit-" + unit.id)?.scrollIntoView({ block: "nearest" }); }}>
             第 {unit.position} 件 · {unitStatus(unit)}
           </Button>)}
         </Space>
         {order.units.map((unit: Row) => <OrderUnit key={unit.id} unit={unit} active={unitId === unit.id}
-          canEdit={canEdit} reload={state.reload} />)}
+          canEdit={canEdit} source={source} reload={state.reload} />)}
       </div>}
     </Load>
   </PageContainer>;
 }
 
-function OrderUnit({ unit, active, canEdit, reload }: { unit: Row; active: boolean; canEdit: boolean; reload: () => void }) {
+function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; active: boolean; canEdit: boolean; source: string; reload: () => void }) {
   const [dialog, setDialog] = useState<string>();
   const [claim, setClaim] = useState<Row>();
   const [configure, setConfigure] = useState(false);
-  const href = orderPath(unit.order_id, unit.id);
+  const href = orderPath(unit.order_id, unit.id, source);
   const itemHref = "/items/" + unit.item_id + "?from=" + encodeURIComponent(href);
   const status = unitStatus(unit);
   const action = (name: string, label: string, primary = false) =>
@@ -130,8 +134,8 @@ function OrderUnit({ unit, active, canEdit, reload }: { unit: Row; active: boole
           <Descriptions.Item label="实际交付时间">{time(unit.delivered_at)}</Descriptions.Item>
           <Descriptions.Item label="交付芯片与代次">第 {unit.delivered_generation} 代 · {unit.delivered_chip_uid}</Descriptions.Item>
           <Descriptions.Item label="首次交付依据">{unit.first_delivery_reference}</Descriptions.Item>
-          <Descriptions.Item label="认领码状态">{unit.claim_consumed_at ? "已核销" : unit.claim_revoked_at ? "已撤销" :
-            Date.parse(unit.claim_expires_at) <= Date.now() ? "已过期" : "有效至 " + time(unit.claim_expires_at)}</Descriptions.Item>
+          <Descriptions.Item label="认领码状态">{unit.claim_code_id ? <ClaimCodeStatus key={unit.claim_code_id} itemId={unit.item_id}
+            status={{ id: unit.claim_code_id, expires_at: unit.claim_expires_at, consumed_at: unit.claim_consumed_at, revoked_at: unit.claim_revoked_at }} /> : "未发放"}</Descriptions.Item>
           <Descriptions.Item label="当前持有人">{unit.holder_uid ? <UserIdentity uid={unit.holder_uid} /> : "待认领"}</Descriptions.Item>
         </>}
       </Descriptions>
@@ -198,8 +202,8 @@ function OrderUnit({ unit, active, canEdit, reload }: { unit: Row; active: boole
     </ActionForm>}
     {claim && <Modal open title="交付认领码" onCancel={() => setClaim(undefined)}
       footer={<Button onClick={() => setClaim(undefined)}>完成</Button>}>
-      {claim.claim_code ? <><Typography.Paragraph copyable>{claim.claim_code}</Typography.Paragraph><p>有效期至 {time(claim.expires_at)}。</p></> :
-        <Alert type="info" title="已核对发放记录" description="如需新码，从数字物品档案核对交付后补发。" />}
+      {claim.claim_code ? <><div data-private="true"><Typography.Paragraph copyable>{claim.claim_code}</Typography.Paragraph></div><p>有效期至 {time(claim.expires_at)}。</p></> :
+        <Alert type="info" title="已核对发放记录" description="可在本订单件查看有效码。旧码无法查看时，从数字物品档案核对交付后补发。" />}
     </Modal>}
   </section>;
 }

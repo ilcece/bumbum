@@ -32,7 +32,7 @@ AUDIT_LABELS = {
     'clearTestBatch':'清理验收批次','legacyProfile':'保存物品资料',
     'issueClaimCode':'首次发放认领码','reissueClaimCode':'核对后补发认领码',
     'viewHolderPhone':'查看持有人完整手机号',
-    'viewUserPhone':'查看账户完整手机号',
+    'viewUserPhone':'查看账户完整手机号','viewClaimCode':'查看交付认领码',
     'undoInstall':'纠正未配置的安装',
     'createOrder':'登记订单','matchOrderUnit':'核对订单款式与规格','orderPhysical':'为订单件准备实体','allocateOrderUnit':'确认订单件分配',
     'releaseOrderUnit':'释放订单件占用',
@@ -296,7 +296,7 @@ ORDER_UNIT_SELECT = """SELECT ou.*,so.channel,so.external_order_no,so.test_batch
     old.generation AS delivered_generation,old.spec AS delivered_spec,
     old_ph.physical_uid AS delivered_physical_uid,old_ch.chip_uid AS delivered_chip_uid,
     BIN_TO_UUID(u.public_uid) AS holder_uid,
-    first_code.delivery_reference AS first_delivery_reference,cc.expires_at AS claim_expires_at,cc.consumed_at AS claim_consumed_at,
+    first_code.delivery_reference AS first_delivery_reference,cc.id AS claim_code_id,cc.expires_at AS claim_expires_at,cc.consumed_at AS claim_consumed_at,
     cc.revoked_at AS claim_revoked_at
     FROM sales_order_unit ou JOIN sales_order so ON so.id=ou.order_id
     LEFT JOIN physical_item ph ON ph.id=ou.physical_item_id
@@ -758,6 +758,24 @@ def reveal_phone(query, args, *, item_id=None, ownership_id=None):
         connection.rollback()
         raise
     return jsonify(status='ok',data={'phone':holder['phone']})
+
+
+@blueprint.post('/items/<int:item_id>/claim-codes/<int:code_id>/reveal')
+def reveal_claim_code(item_id, code_id):
+    from core.public_account import claim_code_for_admin, transaction
+
+    check_parameters(set())
+    request_json(set(), max_bytes=1024)
+    with transaction() as cursor:
+        lock_admin_session(cursor)
+        item = view(row(cursor, 'SELECT item_uid FROM item WHERE id=%s FOR UPDATE', (item_id,)))
+        result = claim_code_for_admin(cursor, item_id, code_id)
+        audit(cursor, 'viewClaimCode', item_id, {
+            'object_type': 'item', 'object_code': item['item_uid'],
+            'operation': AUDIT_LABELS['viewClaimCode'], 'outcome': '已查看',
+            'summary': '查看了有效期内的交付认领码。', 'claim_code_id': code_id,
+        })
+    return jsonify(status='ok', data=result)
 
 
 def style_save(c,p):
