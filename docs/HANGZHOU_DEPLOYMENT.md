@@ -1013,7 +1013,9 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 <a id="121-本轮test受控升级的已准备入口"></a>
 
-北京时间 2026-11-10，杭州 test 已发布[工作台订单物品](../CHANGELOG.md#2026-11-10-杭州-test-上线工作台订单物品办理)。本轮复用现有表结构，后端与管理端静态版本对应提交 `c356ef2762f2d3cc5f0c80a88b804926735626fd`。发布前停写并核验 SQL 和媒体配套备份。测试槽回退资料、原 Compose、原静态路径及备份保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-order-preparation.fYhkmgLe`。回退应用时配对恢复原镜像与管理端静态目录，数据库恢复另行核对。
+北京时间 2026-11-10，杭州 test 已发布[订单逐件履约与数字物品集中管理](../CHANGELOG.md#2026-11-10-订单逐件履约与数字物品集中管理)。后端和管理端静态版本对应提交 `3ba757eb4e488bcdeb568e6718abb19ef789fa24`。停写后核验 SQL 和媒体配套备份，再执行 012，新增 `sales_order` 和 `sales_order_unit`。目标库 TLS、两张订单表、后端健康、管理会话校验和 H5 入口均已复核。回退资料和备份记录保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-sales-orders.NLICw3QK`。应用回退配对恢复原镜像和管理端静态目录，订单表及业务数据按数据库恢复流程单独核对。业务及实卡验收见[桌面管理端手册](ADMIN_DESKTOP.md#订单与数字物品统一流程验收)。
+
+此前同日，杭州 test 已发布[工作台订单物品](../CHANGELOG.md#2026-11-10-杭州-test-上线工作台订单物品办理)。本轮复用现有表结构，后端与管理端静态版本对应提交 `c356ef2762f2d3cc5f0c80a88b804926735626fd`。发布前停写并核验 SQL 和媒体配套备份。测试槽回退资料、原 Compose、原静态路径及备份保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-order-preparation.fYhkmgLe`。回退应用时配对恢复原镜像与管理端静态目录，数据库恢复另行核对。
 
 此前杭州 test 已发布账户双标识、通行密钥和用户动态。011 只增加公钥凭据和挑战两张表。实际发布及人工验收见[变更记录](../CHANGELOG.md#2026-11-10-杭州-test-接入通行密钥和用户动态)，操作入口见[管理员登录手册](ADMIN_LOGIN.md#杭州-test-的通行密钥)。下方按各次发布保留历史记录。
 
