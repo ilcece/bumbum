@@ -16,7 +16,7 @@ BUMBUM 通过 NFC 为实体物品建立可长期查阅的数字档案，让用�
 |---|---|---|---|
 | **数字物品与芯片** | 为每件实体建立档案，管理芯片的装配、核验与接续。 | 物品建档、配卡与实卡核验。 | 款式与发行、独立实体编号、历代装配记录及芯片停用恢复已接入。[芯片规则](docs/product/chip-lifecycle.md) · [新版后台](docs/proposals/admin-make-rebuild.md) |
 | **用户端与持有** | 用户从碰卡了解物品，再认领并回访自己持有的物品。 | 碰卡验证与服装档案。 | 手机号验证、实卡认领及「我的数字物品」已验收，权益摘要和后台手机预览已接入。[碰卡体验](docs/product/fashion-touch.md) · [H5 首版](docs/proposals/digital-item-h5-mvp.md) |
-| **交付、权益与流转** | 品牌管理售出与交付，并在换新、转售后接续数字物品身份。 | — | 补发认领码已完成实卡复验，售出记录、换新与转售后台流程已接入。[业务规则](docs/proposals/admin-make-rebuild.md#item-rights) · [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) |
+| **交付、权益与流转** | 品牌管理售出与交付，并在换新、转售后接续数字物品身份。 | — | 补发认领码已完成实卡复验，售出记录、换新与转售后台流程已接入。工作台准备订单物品随本轮测试版本交付。[办理规则](docs/product/admin-management.md#工作台准备订单物品) · [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) |
 | **后台运营与安全** | 管理员安全登录，查看物品使用情况，并追溯业务操作。 | 密码加动态码登录、基础触碰统计。 | Windows Hello、用户动态、账户卡及查看完整手机号的审计已验收，售出后触碰统计与业务审计已接入。[登录手册](docs/ADMIN_LOGIN.md) · [运营验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) |
 | **部署与验收环境** | 隔离正式服务和验收数据，支持备份、迁移与发布。 | 杭州基础接管已验收。 | 已隔离入口、业务库与应用身份，完成备份后已按批次替换模拟验收数据。[部署手册](docs/HANGZHOU_DEPLOYMENT.md) · [批次验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) |
 
@@ -38,8 +38,8 @@ BUMBUM 通过 NFC 为实体物品建立可长期查阅的数字档案，让用�
 | 芯片登记、首次来源、首次绑定、密钥与实卡配置核验 | [芯片生命周期规范](docs/product/chip-lifecycle.md) | 不把登记/绑定/配置当作所有权或可出厂证明 |
 | 用户真实触碰、验证、图片资料、持续查看与异常 | [服装用户体验规范](docs/product/fashion-touch.md) | 仅服装H5；共用验证不等于饰品新体验已交付 |
 | H5 首版物品详情、手机号账户、一次性码认领、我的物品与预览 | [数字物品 H5 首版](docs/proposals/digital-item-h5-mvp.md) | 杭州 test 范围见[能力总览](#0-项目能力总览) |
-| 后台定位、架构、字段、芯片接续和核心统计 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 初创阶段收口；定位、流程、字段、设计及Umi原型路线已通过；未定政策与正式技术整合另审 |
-| 发行数量怎样确定，订单物流是否重复维护 | [范围与核心流程](docs/proposals/admin-make-rebuild.md#scope) | 保留发行承诺/结果与数字身份，订单/工厂/物流退出后台；精简Umi原型已重建，真实能力另行整合 |
+| 后台定位、架构、字段、芯片接续和核心统计 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 已确认物品管理双入口和最小订单引用。工作台准备订单物品已进入测试交付。其余页面分区和统计穿透另行审核 |
+| 发行数量怎样确定，订单如何追溯 | [范围与核心流程](docs/proposals/admin-make-rebuild.md#scope) | 后台维护发行结果。单件成交来源引用已确认纳入方案，完整订单、工厂与物流由原渠道维护 |
 | 手串数字体验或权益为什么值得做 | [探索说明](docs/BRACELET_NFC_EXPLORATION.md) | 新体验未定，不是新PRD；不关联婚礼机会 |
 
 页面清单及验收跟随上述模块；不再复制一套“用户故事→页面→阶段验收”。操作从[OP_GUIDE](docs/OP_GUIDE.md)进入，精确技术、接口和数据定义分别看[TECH_SPEC](TECH_SPEC.md)、[API_CONTRACT](API_CONTRACT.md)、[schema](db/schema.sql)。

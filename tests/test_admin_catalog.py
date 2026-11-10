@@ -58,6 +58,35 @@ def owner(app,ident,n):
     return uid
 
 
+def test_order_assembly_and_sale_are_guarded_and_retryable(auth_app, catalog):
+    auth_app.config['SMS_CODE_HASH_KEY'] = 'aa' * 32
+    session, style, issue, _, chips = catalog
+    parts = assembly(session, style, chips[0], 'L黑')
+    payload = {'issue_id': issue, 'item_uid': 'FASH-ORDER', 'edition_number': 2, **parts}
+    bad = action(session, 'assembleOrderItem', {**payload, 'installed': False})
+    assert bad.status_code == 400
+    assert not query(auth_app, "SELECT id FROM item WHERE item_uid='FASH-ORDER'")
+    token = str(uuid.uuid4())
+    ident = ok(action(session, 'assembleOrderItem', payload, token))['id']
+    assert ok(action(session, 'assembleOrderItem', payload, token))['id'] == ident
+    sale = {'item_id': ident, 'channel': '品牌店铺', 'external_order_no': 'ORDER-12',
+            'first_sold_at': '2026-10-24T10:00:00+08:00'}
+    assert action(session, 'orderSale', sale).status_code == 409
+    config_chip(auth_app, session, chips[0])
+    ok(action(session, 'toggleItem', {'item_id': ident, 'status': 'active'}))
+    claim = {'item_id': ident, 'channel': sale['channel'], 'external_order_no': sale['external_order_no'],
+             'confirmed': True, 'delivery_reference': '接收人已核对'}
+    assert action(session, 'issueClaimCode', claim).status_code == 409
+    stock = lambda: ok(session[0].get('/api/admin/catalog/items?order_stock=true'))['items']
+    assert [record['id'] for record in stock()] == [ident]
+    ok(action(session, 'orderSale', sale))
+    assert not stock()
+    assert action(session, 'orderSale', {**sale, 'external_order_no': 'ORDER-OTHER'}).status_code == 409
+    assert action(session, 'issueClaimCode', {**claim, 'external_order_no': 'ORDER-OTHER'}).status_code == 409
+    assert not query(auth_app, 'SELECT id FROM item_claim_code WHERE item_id=%s', (ident,))
+    assert ok(action(session, 'issueClaimCode', claim))['claim_code']
+
+
 def test_audit_lists_current_and_historical_targets_with_mixed_collations(auth_app, catalog):
     session, _, _, item, _ = catalog
     operator = query(auth_app, 'SELECT id FROM admin_user')[0]['id']

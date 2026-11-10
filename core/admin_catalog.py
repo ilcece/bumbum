@@ -22,12 +22,12 @@ from core.test_batches import select_source,filter_source,source,mark,same_sourc
 blueprint = Blueprint('admin_catalog', __name__, url_prefix='/api/admin/catalog')
 KINDS = {'periodic', 'loss', 'resale'}
 STANDARD_RIGHTS = ('renewal', 'resale')
-ITEM_ACTIONS = {'linkIssue','validationItem','deleteItem','sale','toggleItem','bind','installAssembly','undoInstall','loseItem','prepare','legacyProfile','issueClaimCode','reissueClaimCode'}
+ITEM_ACTIONS = {'linkIssue','validationItem','deleteItem','sale','orderSale','toggleItem','bind','installAssembly','undoInstall','loseItem','prepare','legacyProfile','issueClaimCode','reissueClaimCode'}
 AUDIT_LABELS = {
     'style':'保存款式','issue':'保存发行约定','confirmIssue':'确认发行规则','deleteIssue':'删除发行草案','seal':'核定发行量',
     'item':'建立数字物品','linkIssue':'补齐发行关联','validationItem':'更新物品验证标记','deleteItem':'清理数字物品',
     'sale':'确认售出状态','saleBatch':'批量确认售出状态','toggleItem':'变更物品启用状态','bind':'配套芯片','installAssembly':'确认安装',
-    'createPhysicalItem':'登记实体物品','loseItem':'登记挂失','prepare':'准备替换物品','complete':'确认交付与生效',
+    'createPhysicalItem':'登记实体物品','assembleOrderItem':'新建数字物品并确认安装','orderSale':'确认订单首次售出','loseItem':'登记挂失','prepare':'准备替换物品','complete':'确认交付与生效',
     'register':'登记芯片','chipState':'调整芯片服务','chipBatch':'修改芯片批次','validationChip':'更新芯片验证标记','deleteChip':'清理芯片',
     'clearTestBatch':'清理验收批次','legacyProfile':'保存物品资料',
     'issueClaimCode':'首次发放认领码','reissueClaimCode':'核对后补发认领码',
@@ -126,7 +126,7 @@ def audit_snapshot(c,ident):
 
 
 def audit_detail(c,action,token,p,result,before):
-    is_item=action in ITEM_ACTIONS or action in {'complete','item'}
+    is_item=action in ITEM_ACTIONS or action in {'complete','item','assembleOrderItem'}
     after=audit_snapshot(c,result.get('id')) if is_item else None
     current_item=after or before or {}
     code=current_item.get('item_uid') or result.get('physical_uid') or result.get('deleted_uid') or result.get('chip_uid')
@@ -139,7 +139,7 @@ def audit_detail(c,action,token,p,result,before):
                       LEFT JOIN physical_item ph ON ph.id=w.physical_item_id
                       JOIN chip ch ON ch.id=w.chip_id WHERE w.id=%s''',(work_id,))
     else:work=None
-    if action=='installAssembly':summary=f"确认将芯片 {after['chip_uid']} 安装到实体 {after['physical_uid']}，待配置核验。"
+    if action in {'installAssembly','assembleOrderItem'}:summary=f"确认将芯片 {after['chip_uid']} 安装到实体 {after['physical_uid']}，待配置核验。"
     if action=='prepare' and work:
         operation={'periodic':'准备换新','loss':'准备挂失换新','resale':'准备转售'}[work['kind']]
         summary=f"已{operation}，第 {work['generation']} 代整套物品待交付。"
@@ -156,7 +156,7 @@ def audit_detail(c,action,token,p,result,before):
                     used=renewal_usage(c,{**after,'item_id':result['id']},(now()+timedelta(hours=8)).year)
                     summary+=f"本年换新剩余 {max(0,1-used)} 次。"
         else:summary+=f"本年换新已用 {after['quota_used']} 次。"
-    if action=='sale' and after:
+    if action in {'sale','orderSale'} and after:
         sold_at=datetime.fromisoformat(after['first_sold_at']).astimezone(timezone(timedelta(hours=8))) if after['sold'] else None
         summary=f"确认已售出，首次成交时间 {sold_at:%Y-%m-%d %H:%M}（北京时间）。" if sold_at else '撤销售出标记。'
     if action=='loseItem' and after:summary=f"第 {after['generation']} 代整套物品已挂失，配套芯片停止服务。"
@@ -166,6 +166,9 @@ def audit_detail(c,action,token,p,result,before):
             'before':before,'after':after,'work_id':work_id}
     if candidate:detail['candidate']=candidate
     if p.get('evidence'):detail['evidence']=p['evidence']
+    if action=='orderSale':
+        detail.update(channel=p['channel'].strip(), external_order_no=p['external_order_no'].strip(),
+                      evidence=order_reference(p))
     if result.get('claim_code_id'):detail.update(claim_code_id=result['claim_code_id'],expires_at=result['expires_at'],evidence=p.get('delivery_reference'))
     if result.get('deleted_uid'):detail['deleted_uid']=result['deleted_uid']
     return detail
@@ -190,6 +193,14 @@ def sale_time(data):
     except (ValueError,TypeError,AttributeError,OverflowError):invalid('首次售出时间须为数据库支持范围内、带时区的有效时间。')
     if value>now():invalid('首次售出时间不能晚于当前时间。')
     return value
+
+
+def order_reference(p):
+    channel = text(p, 'channel', 40, required=True)
+    order_no = text(p, 'external_order_no', 64, required=True)
+    if any(ord(char) < 32 or ord(char) == 127 for char in channel + order_no) or '｜' in channel:
+        invalid('成交渠道和订单号不能包含控制字符，渠道不能包含全角竖线。')
+    return f'成交渠道：{channel}｜外部订单号：{order_no}'
 
 
 def project_id(cursor, project):
@@ -249,7 +260,7 @@ CHIP_JOIN = '''FROM chip c LEFT JOIN project p ON p.id=c.project_id LEFT JOIN it
 
 @blueprint.get('/<resource>')
 def listing(resource):
-    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner','bindable'},'chips':{'project','status','is_validation','available','configured','registration_source','compatible_project'},'users':{'exclude_id','verified'},'physical-items':{'style_id','available'},'audit':{'action','operator','date_from','date_to','item_id'}}
+    allowed={'styles':{'project'},'issues':{'project','style_id','status','mode'},'items':{'project','status','issue_id','is_validation','sold','whole_status','style_id','owner','bindable','order_stock'},'chips':{'project','status','is_validation','available','configured','registration_source','compatible_project'},'users':{'exclude_id','verified'},'physical-items':{'style_id','available'},'audit':{'action','operator','date_from','date_to','item_id'}}
     if resource not in allowed:fail('未知查询资源。',404,'not_found')
     check_parameters({'page','page_size','keyword','data_scope','test_batch_id'}|allowed[resource])
     keyword = request.args.get('keyword','').strip()
@@ -275,7 +286,10 @@ def listing(resource):
     elif resource == 'items':
         select, joined, order = ITEM_SELECT, ITEM_JOIN, 'i.id DESC'
         if keyword:
-            conditions.append('(i.item_uid LIKE %s ESCAPE \'!\' OR s.name LIKE %s ESCAPE \'!\' OR c.chip_uid LIKE %s ESCAPE \'!\')');values.extend([contains(keyword)]*3)
+            columns = ['i.item_uid', 's.name', 'c.chip_uid']
+            if 'order_stock' in request.args: columns.append('ph.physical_uid')
+            conditions.append('(' + ' OR '.join(f"{column} LIKE %s ESCAPE '!'" for column in columns) + ')')
+            values.extend([contains(keyword)] * len(columns))
         for name, column in [('status','i.status'),('issue_id','d.issue_id'),('style_id','r.style_id')]:
             if request.args.get(name):
                 if name=='status' and request.args[name] not in {'draft','active','disabled','archived'}:invalid('档案状态不支持。')
@@ -287,6 +301,13 @@ def listing(resource):
         if 'bindable' in request.args:
             if request.args['bindable']!='true':invalid('bindable仅接受true。')
             conditions.extend(["i.status!='archived'",'d.issue_id IS NOT NULL','w.id IS NULL','c.id IS NULL'])
+        if 'order_stock' in request.args:
+            if request.args['order_stock'] != 'true': invalid('order_stock 仅接受 true。')
+            conditions.extend(["i.status='active'", 'd.issue_id IS NOT NULL', 'd.sold=0', 'd.first_sold_at IS NULL',
+                               'w.physical_item_id IS NOT NULL', 'w.lost_at IS NULL', 'w.loss_evidence IS NULL',
+                               "c.chip_status='bound'", 'c.id=w.chip_id', 'c.provisioned_at IS NOT NULL',
+                               'c.last_verified_counter IS NOT NULL', 'o.user_id IS NULL',
+                               'NOT EXISTS (SELECT 1 FROM item_claim_code cc WHERE cc.item_id=i.id)'])
         state=request.args.get('whole_status')
         if state:
             if state not in {'lost','normal','missing'}: invalid('整套物品状态不支持。')
@@ -341,7 +362,11 @@ def listing(resource):
         # 审计的对象编号按原值匹配，不依赖连接与历史表的排序规则。
         select,joined,order="SELECT a.id,a.action,a.target_type,a.target_id,a.detail,a.created_at,u.username,EXISTS(SELECT 1 FROM item i WHERE a.target_type='item' AND CAST(i.id AS BINARY)=CAST(a.target_id AS BINARY)) AS object_exists",'FROM admin_audit a LEFT JOIN admin_user u ON u.id=a.admin_id','a.id DESC'
         if keyword:
-            conditions.append("(a.action LIKE %s ESCAPE '!' OR a.target_id=%s OR JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.object_code')) LIKE %s ESCAPE '!' OR JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.summary')) LIKE %s ESCAPE '!')");values.extend([contains(keyword),keyword,contains(keyword),contains(keyword)])
+            conditions.append("""(a.action LIKE %s ESCAPE '!' OR a.target_id=%s
+                OR JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.object_code')) LIKE %s ESCAPE '!'
+                OR JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.summary')) LIKE %s ESCAPE '!'
+                OR JSON_UNQUOTE(JSON_EXTRACT(a.detail,'$.external_order_no'))=%s)""")
+            values.extend([contains(keyword), keyword, contains(keyword), contains(keyword), keyword])
         for name, column in [('action','a.action'),('operator','u.username')]:
             if request.args.get(name):conditions.append(column+'=%s');values.append(request.args[name])
         if 'item_id' in request.args:
@@ -665,12 +690,25 @@ def item_action(c,action,p,*,installed_by=None):
         if r['total'] and row(c,'SELECT COUNT(*) AS n FROM digital_item WHERE issue_id=%s',(r['id'],))['n']>=r['total']:fail('发行身份上限已满。')
         c.execute('UPDATE digital_item SET issue_id=%s,edition_number=%s WHERE item_id=%s',(r['id'],number,ident));c.execute('UPDATE product_issue SET ever_used=1 WHERE id=%s',(r['id'],))
         if r['rights'] is not None:grant_item_rights(c,ident,r)
-    elif action=='sale':
-        field_set(p,{'item_id','confirmed','evidence'},{'first_sold_at'});evidence=text(p,'evidence',1000,required=True)
+    elif action in {'sale','orderSale'}:
+        if action=='orderSale':
+            from core.public_account import claimable_item
+            field_set(p, {'item_id','channel','external_order_no','first_sold_at'})
+            evidence = order_reference(p)
+            if d['sold'] or d['first_sold_at'] or not d['issue_id'] or not claimable_item(c,ident):
+                fail('此物品不再满足首次售出条件，请刷新并核对物品档案。')
+            if (row(c,'SELECT id FROM ownership WHERE active_item_id=%s FOR UPDATE',(ident,)) or
+                    row(c,'SELECT id FROM item_claim_code WHERE item_id=%s LIMIT 1 FOR UPDATE',(ident,))):
+                fail('此物品已有持有人或交付记录，不能按新库存出售。')
+            confirmed = True
+        else:
+            field_set(p,{'item_id','confirmed','evidence'},{'first_sold_at'})
+            evidence = text(p,'evidence',1000,required=True)
+            confirmed = boolean(p,'confirmed')
         sold_at=sale_time(p)
         if p.get('first_sold_at') is not None and d['first_sold_at'] and sold_at!=d['first_sold_at']:
             fail('已有首次售出时间不能通过普通维护改写。')
-        c.execute('UPDATE digital_item SET sold=%s,first_sold_at=IF(%s,COALESCE(first_sold_at,%s),first_sold_at),sale_evidence=%s WHERE item_id=%s',(boolean(p,'confirmed'),boolean(p,'confirmed'),sold_at,evidence,ident))
+        c.execute('UPDATE digital_item SET sold=%s,first_sold_at=IF(%s,COALESCE(first_sold_at,%s),first_sold_at),sale_evidence=%s WHERE item_id=%s',(confirmed,confirmed,sold_at,evidence,ident))
     elif action=='toggleItem':
         field_set(p,{'item_id','status'})
         if not isinstance(p['status'],str) or p['status'] not in {'active','disabled'}:invalid('只支持启用或停用。')
@@ -878,13 +916,24 @@ def command(action):
                 elif action=='issue':result=issue_save(c,p)
                 elif action in {'confirmIssue','deleteIssue','seal'}:result=issue_action(c,action,p)
                 elif action=='item':result=create_item(c,p)
+                elif action=='assembleOrderItem':
+                    identity_fields = {'issue_id','item_uid','edition_number','is_validation'}
+                    assembly_fields = {'chip_id','physical_item_id','installed'}
+                    field_set(p, {'issue_id','item_uid'} | assembly_fields, {'edition_number','is_validation'})
+                    result = create_item(c, {key:p[key] for key in identity_fields if key in p})
+                    item_action(c, 'installAssembly', {'item_id':result['id'], **{key:p[key] for key in assembly_fields}})
                 elif action=='createPhysicalItem':result=create_physical(c,p)
                 elif action in {'issueClaimCode','reissueClaimCode'}:
                     from core.public_account import issue_claim_code
-                    field_set(p,{'item_id','delivery_reference','confirmed'})
+                    field_set(p,{'item_id','delivery_reference','confirmed'},{'channel','external_order_no'} if action=='issueClaimCode' else set())
                     if p['confirmed'] is not True:invalid('请确认已核对实际首次交付。')
                     item_id=integer(p,'item_id')
                     lock_batch(c,source(c,'item',item_id))
+                    if 'channel' in p or 'external_order_no' in p:
+                        if not {'channel','external_order_no'} <= p.keys(): invalid('请提供完整成交来源。')
+                        sale = row(c, 'SELECT sold,sale_evidence FROM digital_item WHERE item_id=%s FOR UPDATE', (item_id,))
+                        if not sale or not sale['sold'] or sale['sale_evidence'] != order_reference(p):
+                            fail('当前售出记录与本订单不一致，请核对后再确认交付。')
                     result=issue_claim_code(c,item_id,g.admin_session['admin_id'],text(p,'delivery_reference',128,required=True),reissue=action=='reissueClaimCode')
                     transient['claim_code']=result.pop('claim_code')
                 elif action=='complete':result=complete(c,p)

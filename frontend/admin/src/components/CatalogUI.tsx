@@ -199,6 +199,7 @@ export function RemoteSelect({
   value,
   onChange,
   placeholder,
+  optionLabel,
 }: {
   id?: string;
   resource: string;
@@ -206,6 +207,7 @@ export function RemoteSelect({
   value?: number | string;
   onChange?: (v: number | string) => void;
   placeholder?: string;
+  optionLabel?: (row: Row) => string;
 }) {
   const [options, setOptions] = useState<Row[]>([]),
     [page, setPage] = useState(1),
@@ -275,6 +277,7 @@ export function RemoteSelect({
         ).map((r) => ({
           value: r.id,
           label:
+            optionLabel?.(r) ||
             (r.physical_uid && `${r.physical_uid} · ${r.spec || "规格不适用"}`) ||
             r.chip_uid ||
             r.item_uid ||

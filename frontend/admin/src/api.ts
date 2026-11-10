@@ -19,6 +19,7 @@ export type AdminSession = {
   authenticated: true;
   expires_at: string;
   csrf_token: string;
+  draft_scope?: string;
 };
 
 export async function request<T>(

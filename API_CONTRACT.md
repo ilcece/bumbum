@@ -171,6 +171,8 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 ```
 示例口令只是占位内容，实际是独立随机生成的 64 位小写十六进制文字。页面在内存中保存，写请求放 X-CSRF-Token，不能长期保存在浏览器。无效或过期登录返回 401 unauthorized。
 
+支持订单待办的版本另返回 `draft_scope`。该字段是管理员专用的 64 位十六进制浏览器存储分区标识，不能用来认证或提交写入。
+
 ### 2.3 POST /api/admin/auth/logout：退出
 
 有效 Cookie 加防冒用口令，检查 Origin，请求体 `{}`。撤销当前登录并清除相同 Path 的 Cookie，返回 data.logged_out=true；失败时不伪报已退出。禁用账号或通过服务器重置验证器后，该账号全部旧登录立即失效。
@@ -532,8 +534,11 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | `GET /api/admin/catalog/physical-items` | 管理登录后按 `style_id`、`available`、编号关键词和批次筛选；详情按 ID 查看。实体包含编号、实际规格及装配状态。 |
 | `actions/createPhysicalItem` | 传 `style_id`、`physical_uid`、适用的 `spec`，可选 `batch_no`、`supplier_serial`。返回实体 ID 及编号。 |
 | `actions/installAssembly`、`actions/undoInstall` | 安装传 `item_id`、`physical_item_id`、`chip_id`、`installed=true`。纠正限未配置草稿，传 `item_id`、`whole_id`、`evidence`、`confirmed=true`。 |
+| `GET /api/admin/catalog/items?order_stock=true` | 仅返回已有实体装配、有效芯片核验、启用、未登记首次成交、无持有人和发码记录的库存，仍按数据范围筛选。 |
+| `actions/assembleOrderItem` | `issue_id`、`item_uid`、`physical_item_id`、`chip_id`、`installed=true`。依既有发行规则传 `edition_number`，可选 `is_validation`。数字身份与装配同事务，返回物品 `id`。 |
+| `actions/orderSale` | `item_id`、`channel`（最多 40 字符）、`external_order_no`（最多 64 字符）、`first_sold_at`（带时区且不晚于当前）。事务锁定后重新校验库存资格，保存首次成交、售出依据和审计，不发码。 |
 | `actions/prepare`、`actions/complete` | 新版准备含 `physical_item_id` 和 `installed=true`，转售含接收账户和双方确认依据。有争议时提交核验结果引用。确认换新交付时按北京时间生效日计次。 |
-| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。首次成功响应展示原码一次。回执只返回发放记录和有效期。 |
+| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。订单流程首次发码时另传 `channel` 和 `external_order_no`，两者须与当前售出依据一致。成功响应展示原码一次。回执只返回发放记录和有效期。 |
 | `GET /api/admin/catalog/items/{id}/h5-preview` | 读取指定物品已保存的展示资料，预设视角在后台界面切换。 |
 | `GET /api/admin/catalog/audit` | 支持 `keyword`、`action`、`operator`、`date_from`、`date_to`、`item_id`。返回动作说明、对象、结果和必要前后值。 |
 

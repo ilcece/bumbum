@@ -42,6 +42,7 @@ import {
   RemoteSelect,
 } from "../components/CatalogUI";
 import UserIdentity from "../components/UserIdentity";
+import { OrderPreparationQueue } from "./OrderPreparation";
 export default function Overview() {
   const q = new URLSearchParams(useLocation().search);
   const [filter, setFilter] = useState<Record<string, any>>({
@@ -153,6 +154,7 @@ export default function Overview() {
   return (
     <PageContainer header={{ title: false, breadcrumb: {} }}>
       <div className="page-stack">
+        <OrderPreparationQueue />
         {error && (
           <Alert
             type="error"

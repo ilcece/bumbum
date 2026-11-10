@@ -9,6 +9,7 @@ export default [
     component: "./Overview",
   },
   { path: "/overview/activity", component: "./Activity", hideInMenu: true },
+  { path: "/overview/order-preparation", component: "./OrderPreparation", hideInMenu: true },
   {
     path: "/catalog",
     name: "款式与发行",

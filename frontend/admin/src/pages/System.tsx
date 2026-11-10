@@ -35,6 +35,7 @@ export default function System() {
                   { title: "对象或结果关键词", dataIndex: "keyword", hideInTable: true },
                   { title: "操作筛选", dataIndex: "action", hideInTable: true, valueType: "select", valueEnum: {
                     "catalog.installAssembly": { text: "确认安装" }, "catalog.sale": { text: "确认售出" },
+                    "catalog.assembleOrderItem": { text: "新建数字物品并确认安装" }, "catalog.orderSale": { text: "确认订单首次售出" },
                     "catalog.loseItem": { text: "登记挂失" }, "catalog.prepare": { text: "准备换新或转售" },
                     "catalog.complete": { text: "交付确认" }, "catalog.undoInstall": { text: "纠正安装" },
                     "catalog.issueClaimCode": { text: "首次发放认领码" }, "catalog.reissueClaimCode": { text: "核对后补发认领码" },

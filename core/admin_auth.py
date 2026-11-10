@@ -184,7 +184,8 @@ def login_response(token, expires):
 @blueprint.get("/session")
 def session():
     row = g.admin_session
-    return jsonify(status="ok", data={"authenticated": True, "expires_at": iso_time(row["expires_at"]), "csrf_token": row["csrf_token"]})
+    return jsonify(status="ok", data={"authenticated": True, "expires_at": iso_time(row["expires_at"]),
+                                     "csrf_token": row["csrf_token"], "draft_scope": fingerprint("admin-drafts", str(row["admin_id"]))})
 
 
 @blueprint.post("/logout")
