@@ -101,15 +101,20 @@ function OrderDetail({ id }: { id: number }) {
 
 function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; active: boolean; canEdit: boolean; source: string; reload: () => void }) {
   const [dialog, setDialog] = useState<string>();
+  const [stockSelected, setStockSelected] = useState(false);
+  function openDialog(name?: string) {
+    setStockSelected(false);
+    setDialog(name);
+  }
   const [claim, setClaim] = useState<Row>();
   const [configure, setConfigure] = useState(false);
   const href = orderPath(unit.order_id, unit.id, source);
   const itemHref = "/items/" + unit.item_id + "?from=" + encodeURIComponent(href);
   const status = unitStatus(unit);
   const action = (name: string, label: string, primary = false) =>
-    <Button key={name} type={primary ? "primary" : "default"} onClick={() => setDialog(name)}>{label}</Button>;
+    <Button key={name} type={primary ? "primary" : "default"} onClick={() => openDialog(name)}>{label}</Button>;
   function done() {
-    setDialog(undefined);
+    openDialog();
     setConfigure(false);
     history.replace(href);
     reload();
@@ -148,7 +153,7 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
             { key: "allocate", label: "选用已就绪数字库存" },
             { key: "physical", label: "选用已有实物" },
             { key: "new", label: "登记新实物" },
-          ], onClick: ({ key }) => setDialog(key) }}>
+          ], onClick: ({ key }) => openDialog(key) }}>
             <Button type="primary">准备物品</Button>
           </Dropdown>
           {action("match", "更正款式与规格")}
@@ -166,34 +171,35 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
       </Space>}
     </ProCard>
     {configure && unit.chip_id && <KeyConfiguration id={unit.chip_id} onUpdated={reload} onClose={done} />}
-    {dialog === "match" && <OrderMatchDialog unit={unit} onClose={() => setDialog(undefined)} onDone={done} />}
-    {dialog === "new" && <RegisterPhysical orderUnit={unit} onClose={() => setDialog(undefined)} onDone={done} />}
+    {dialog === "match" && <OrderMatchDialog unit={unit} onClose={() => openDialog()} onDone={done} />}
+    {dialog === "new" && <RegisterPhysical orderUnit={unit} onClose={() => openDialog()} onDone={done} />}
     {dialog && dialog !== "new" && dialog !== "match" && <ActionForm key={dialog}
       title={dialog === "allocate" && !unit.item_id ? "选择可分配数字库存" : titleFor[dialog]}
       submitText={titleFor[dialog]}
       action={({ physical: "orderPhysical", allocate: "allocateOrderUnit", release: "releaseOrderUnit",
         sale: "orderSale", delivery: "issueClaimCode", enable: "toggleItem" } as Record<string, string>)[dialog]}
       initial={{ order_unit_id: unit.id, item_id: unit.item_id || undefined, status: "active", first_sold_at: inputISO(inputDate()) }}
-      onClose={() => setDialog(undefined)} onDone={(r) => { if (dialog === "delivery") setClaim(r); done(); }}>
+      submitDisabled={(dialog === "physical" || (dialog === "allocate" && !unit.item_id)) && !stockSelected}
+      onClose={() => openDialog()} onDone={(r) => { if (dialog === "delivery") setClaim(r); done(); }}>
       <OrderFacts unit={unit} />
       {dialog === "enable" && <Alert type="info" title="启用后可继续分配，首次售出另行确认。" />}
       {dialog === "release" && <Alert type="warning" title="释放后该件需重新准备物品，已登记的实物和装配记录保留。" />}
       {["physical", "allocate", "release", "sale"].includes(dialog) && <Form.Item name="order_unit_id" hidden><InputNumber /></Form.Item>}
       {dialog === "physical" && <Form.Item name="physical_item_id" label="可用实物" rules={required}>
-        <RemoteSelect resource="physical-items" params={{ order_unit_id: unit.id }} placeholder="搜索已核对款式和规格的可用实物"
+        <RemoteSelect resource="physical-items" params={{ order_unit_id: unit.id }} onChange={(id) => setStockSelected(!!id)} placeholder="搜索已核对款式和规格的可用实物"
           emptyState={<Alert type="info" showIcon title="没有符合该订单件款式和规格的可用实物"
             description="可为当前订单件登记新实物，保存后继续装配。"
-            action={<Button onClick={() => setDialog("new")}>登记新实物</Button>} />} />
+            action={<Button onClick={() => openDialog("new")}>登记新实物</Button>} />} />
       </Form.Item>}
       {dialog === "allocate" && !unit.item_id ?
         <Form.Item name="item_id" label="可分配数字库存" rules={required}>
-          <RemoteSelect resource="items" params={{ order_unit_id: unit.id }} placeholder="搜索同款同规格的就绪库存"
+          <RemoteSelect resource="items" params={{ order_unit_id: unit.id }} onChange={(id) => setStockSelected(!!id)} placeholder="搜索同款同规格的就绪库存"
             optionLabel={(r) => [r.item_uid, r.name, r.spec].filter(Boolean).join(" · ")}
             emptyState={<Alert type="info" showIcon title="没有符合该订单件款式和规格的可分配库存"
               description="先为当前订单件准备实物，再装配、核验并启用。"
               action={<Space wrap>
-                <Button onClick={() => setDialog("physical")}>选用已有实物</Button>
-                <Button onClick={() => setDialog("new")}>登记新实物</Button>
+                <Button onClick={() => openDialog("physical")}>选用已有实物</Button>
+                <Button onClick={() => openDialog("new")}>登记新实物</Button>
               </Space>} />} />
         </Form.Item> : ["allocate", "sale", "delivery", "enable"].includes(dialog) &&
         <Form.Item name="item_id" hidden><InputNumber /></Form.Item>}
