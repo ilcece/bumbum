@@ -283,13 +283,18 @@ export function RemoteSelect({
           },
         }}
         loading={!result}
-        notFoundContent={!result ? <Spin size="small" /> :
-          result.error ? "读取失败" : q ? "没有符合搜索词的记录" : undefined}
+        disabled={hasEmptyState && !q && (result?.total === 0 || !!result?.error)}
+        notFoundContent={!result ? <Spin size="small" /> : result.error ? "读取失败" :
+          q && hasEmptyState ? <Space wrap>
+            <Typography.Text type="secondary">没有符合搜索词的记录</Typography.Text>
+            <Button size="small" onMouseDown={(event) => event.preventDefault()}
+              onClick={() => { setQ(""); setPage(1); }}>清除搜索</Button>
+          </Space> : q ? "没有符合搜索词的记录" : undefined}
         value={value}
         onChange={onChange}
         onOpenChange={(open) => {
           if (open) {
-            setQ("");
+            if (!hasEmptyState) setQ("");
             setPage(1);
             setRefresh((n) => n + 1);
           }
@@ -322,8 +327,7 @@ export function RemoteSelect({
       {result?.error && (hasEmptyState ? <Alert type="error" showIcon title="库存读取失败"
         description={result.error} action={<Button onClick={() => setRefresh((n) => n + 1)}>重试</Button>} /> :
         <Typography.Text type="danger">{result.error}</Typography.Text>)}
-      {hasEmptyState && result?.total === 0 && (q ? <Alert type="info" showIcon title="没有符合搜索词的记录"
-        action={<Button onClick={() => { setQ(""); setPage(1); }}>清除搜索</Button>} /> : emptyState)}
+      {hasEmptyState && !q && result?.total === 0 && emptyState}
     </>
   );
 }
