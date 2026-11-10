@@ -121,7 +121,7 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
         <Descriptions.Item label="购买规格">{unit.ordered_spec || "未提供"}</Descriptions.Item>
         <Descriptions.Item label="核对后要求">{unit.expected_style_name ?
           unit.expected_style_name + " · " + (unit.expected_spec || "无指定规格") : "待核对"}</Descriptions.Item>
-        <Descriptions.Item label={unit.delivered_at ? "交付时实物" : "已准备实物"}>
+        <Descriptions.Item label={unit.delivered_at ? "交付时实物" : unit.allocated_at ? "已分配实物" : "已准备实物"}>
           {(unit.delivered_at ? unit.delivered_physical_uid : unit.physical_uid) || "未选择"}
           {(unit.delivered_at ? unit.delivered_spec : unit.spec) && " · " + (unit.delivered_at ? unit.delivered_spec : unit.spec)}
         </Descriptions.Item>
@@ -229,7 +229,7 @@ function OrderFacts({ unit }: { unit: Row }) {
     {unit.physical_uid && <Descriptions.Item label={unit.allocated_at ? "已分配实物" : "已准备实物"}>
       {[unit.physical_uid, unit.physical_style_name, unit.spec || "无规格"].filter(Boolean).join(" · ")}
     </Descriptions.Item>}
-    {unit.item_uid && <Descriptions.Item label={unit.allocated_at ? "已分配数字物品" : "已装配数字物品"}>
+    {unit.item_uid && <Descriptions.Item label={unit.allocated_at ? "已分配数字物品" : unit.whole_id ? "已装配数字物品" : "数字物品档案"}>
       {unit.item_uid}
     </Descriptions.Item>}
   </Descriptions>;
