@@ -7,7 +7,6 @@ body {
 }
 .brand-symbol {
   display: block;
-  height: auto;
   flex-shrink: 0;
 }
 .brand-lockup {
@@ -195,7 +194,7 @@ body {
     box-shadow 0.15s;
 }
 .inventory-card:hover {
-  border-color: var(--ant-color-primary-border-hover);
+  border-color: #91caff;
   box-shadow: 0 2px 8px #0f172a08;
 }
 .inventory-card:focus-visible,
@@ -316,7 +315,7 @@ body {
 .trend-bar {
   width: 100%;
   min-height: 2px;
-  background: var(--ant-color-primary-hover);
+  background: #60a5fa;
   border-radius: 4px 4px 0 0;
   transition: background 0.15s;
 }

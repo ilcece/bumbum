@@ -1,6 +1,6 @@
 // 使用官方布局 Token 承接浅色侧栏、主题选中态和紧凑顶栏。
 import type { ProLayoutProps } from "@ant-design/pro-components";
-const colorPrimary = "#2d5a4a";
+const colorPrimary = "#1677ff";
 const settings: ProLayoutProps = {
   navTheme: "light",
   colorPrimary,
@@ -22,7 +22,7 @@ const settings: ProLayoutProps = {
     },
     sider: {
       colorMenuBackground: "#ffffff",
-      colorBgMenuItemSelected: "#eaf2ed",
+      colorBgMenuItemSelected: "#e6f4ff",
       colorBgMenuItemHover: "#f1f5f9",
       colorTextMenuSelected: colorPrimary,
       colorTextMenu: "#334155",

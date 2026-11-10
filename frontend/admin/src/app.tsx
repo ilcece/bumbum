@@ -108,7 +108,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...settings,
   headerTitleRender: () => (
     <div className="brand-lockup">
-      <img className="brand-symbol" src={brandSymbol} alt="" width={32} height={18} />
+      <img className="brand-symbol" src={brandSymbol} alt="" width={32} style={{ height: "auto" }} />
       <div>
         <strong>BUMBUM 管理后台</strong>
         <small>数字物品档案与芯片关联</small>
@@ -144,7 +144,6 @@ export function rootContainer(container: React.ReactNode) {
       theme={{
         token: {
           colorPrimary: settings.colorPrimary,
-          colorLink: settings.colorPrimary,
           borderRadius: 8,
           colorText: "#0f172a",
           colorTextSecondary: "#64748b",
@@ -161,7 +160,7 @@ export function rootContainer(container: React.ReactNode) {
           Table: {
             headerBg: "#f8fafc",
             headerColor: "#334155",
-            rowHoverBg: "#f6faf8",
+            rowHoverBg: "#f8fbff",
             cellPaddingBlock: 12,
             cellPaddingInline: 12,
             fontSize: 14,
