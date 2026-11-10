@@ -5,20 +5,10 @@ body {
   background: #f5f7fa;
   -webkit-font-smoothing: antialiased;
 }
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+.brand-symbol {
+  display: block;
+  height: auto;
   flex-shrink: 0;
-  border-radius: 8px;
-  background: #1677ff;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  box-shadow: 0 2px 4px #1677ff1c;
 }
 .brand-lockup {
   display: flex;
@@ -63,7 +53,7 @@ body {
   white-space: nowrap;
 }
 .admin-profile .ant-avatar {
-  background: #1677ff;
+  background: var(--ant-color-primary);
 }
 .admin-profile .ant-badge-status-text {
   font-size: 11px;
@@ -151,7 +141,7 @@ body {
 .gallery-main { width: 100%; height: 240px; object-fit: contain; background: #f1f5f9; border-radius: 8px; }
 .gallery-thumbnails { display: flex; align-items: center; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px; }
 .gallery-thumbnails button { width: 46px; height: 46px; flex-shrink: 0; border: 1px solid #e2e8f0; border-radius: 5px; background: white; padding: 2px; cursor: pointer; }
-.gallery-thumbnails button.selected { border: 2px solid #1677ff; }
+.gallery-thumbnails button.selected { border: 2px solid var(--ant-color-primary); }
 .gallery-thumbnails img { width: 100%; height: 100%; object-fit: contain; }
 .gallery-thumbnails .ant-typography { white-space: nowrap; font-size: 12px; }
 .product-profile { display: grid; grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); gap: 24px; }
@@ -205,12 +195,12 @@ body {
     box-shadow 0.15s;
 }
 .inventory-card:hover {
-  border-color: #91caff;
+  border-color: var(--ant-color-primary-border-hover);
   box-shadow: 0 2px 8px #0f172a08;
 }
 .inventory-card:focus-visible,
 .trend-day:focus-visible {
-  outline: 2px solid #1677ff;
+  outline: 2px solid var(--ant-color-primary);
   outline-offset: 3px;
 }
 .inventory-neutral {
@@ -247,7 +237,7 @@ body {
   color: #64748b;
 }
 .inventory-caption > .anticon {
-  color: #1677ff;
+  color: var(--ant-color-primary);
 }
 .filter-panel {
   padding: 16px;
@@ -326,14 +316,14 @@ body {
 .trend-bar {
   width: 100%;
   min-height: 2px;
-  background: #60a5fa;
+  background: var(--ant-color-primary-hover);
   border-radius: 4px 4px 0 0;
   transition: background 0.15s;
 }
 .trend-day:hover .trend-bar,
 .trend-day:focus-visible .trend-bar,
 .trend-day:last-child .trend-bar {
-  background: #1677ff;
+  background: var(--ant-color-primary);
 }
 .ant-pro-layout .ant-pro-layout-content {
   min-width: 0;
@@ -368,6 +358,12 @@ body {
   padding: 12px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 12px 40px #0f172a0a;
+}
+.login-wordmark {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 16px;
 }
 @media (max-width: 1350px) {
   .header-context > .ant-typography:last-child {

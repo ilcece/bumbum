@@ -4,6 +4,7 @@ import { ApiError, readView, verify, type ItemView, type Reading } from "./api";
 import { ImageGallery } from "./ImageGallery";
 import { ClaimPanel, MyItemsPage } from "./AccountPages";
 import { itemFacts } from "../../shared/itemPresentation";
+import brandWordmark from "../../shared/brand/bumbum-wordmark-black.svg?no-inline";
 import "./style.css";
 
 // 在加载任何外部图片之前移除触碰参数，只在当前内存中保留到本次请求结束。
@@ -254,8 +255,7 @@ function App() {
   return (
     <div className="app">
       <header className="brand">
-        <span className="brand-mark">b.</span>
-        <strong>BUMBUM</strong>
+        <img className="brand-wordmark" src={brandWordmark} alt="bumbum" width={108} height={19} />
         <a className="brand-caption" href="/mine">我的数字物品</a>
       </header>
       <main>

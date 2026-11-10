@@ -1,8 +1,9 @@
-// 使用官方布局Token承接附件的浅色侧栏、蓝色选中态和紧凑顶栏。
+// 使用官方布局 Token 承接浅色侧栏、主题选中态和紧凑顶栏。
 import type { ProLayoutProps } from "@ant-design/pro-components";
+const colorPrimary = "#2d5a4a";
 const settings: ProLayoutProps = {
   navTheme: "light",
-  colorPrimary: "#1677ff",
+  colorPrimary,
   layout: "mix",
   splitMenus: false,
   siderWidth: 248,
@@ -21,9 +22,9 @@ const settings: ProLayoutProps = {
     },
     sider: {
       colorMenuBackground: "#ffffff",
-      colorBgMenuItemSelected: "#e6f4ff",
+      colorBgMenuItemSelected: "#eaf2ed",
       colorBgMenuItemHover: "#f1f5f9",
-      colorTextMenuSelected: "#1677ff",
+      colorTextMenuSelected: colorPrimary,
       colorTextMenu: "#334155",
       colorTextMenuTitle: "#0f172a",
       colorMenuItemDivider: "#e2e8f0",

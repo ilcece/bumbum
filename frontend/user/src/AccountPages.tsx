@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { itemFacts } from "../../shared/itemPresentation";
+import brandWordmark from "../../shared/brand/bumbum-wordmark-black.svg?no-inline";
 import { accountView, ApiError, ownedItem, publicAccount, type Account, type ItemView, type OwnedItem } from "./api";
 import { ImageGallery } from "./ImageGallery";
 
@@ -186,7 +187,10 @@ export function MyItemsPage({ itemId }: { itemId?: number }) {
   }
   return (
     <div className="app">
-      <header className="brand"><span className="brand-mark">b.</span><strong>BUMBUM</strong><a className="brand-caption" href={itemId ? "/mine" : "/tap"}>{itemId ? "返回我的" : "碰卡查看"}</a></header>
+      <header className="brand">
+        <img className="brand-wordmark" src={brandWordmark} alt="bumbum" width={108} height={19} />
+        <a className="brand-caption" href={itemId ? "/mine" : "/tap"}>{itemId ? "返回我的" : "碰卡查看"}</a>
+      </header>
       <main className="profile">
         <h1>{itemId && items?.[0]?.name ? items[0].name : "我的数字物品"}</h1>
         {error && <div className="notice" role="alert"><p>{error}</p><button onClick={() => { setError(""); retry(version + 1); }}>重试</button></div>}

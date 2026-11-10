@@ -52,17 +52,9 @@ summary:focus-visible {
   border-bottom: 1px solid #e7eae6;
   letter-spacing: 0.12em;
 }
-.brand-mark {
-  font-size: 26px;
-  line-height: 1;
-  background: #244936;
-  color: white;
-  border-radius: 8px;
-  padding: 3px 9px;
-  letter-spacing: 0;
-}
-.brand strong {
-  font-size: 15px;
+.brand-wordmark {
+  display: block;
+  height: auto;
 }
 .brand-caption {
   margin-left: auto;

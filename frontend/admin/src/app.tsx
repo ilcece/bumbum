@@ -15,6 +15,7 @@ import { UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { list } from "./catalog";
 import { testBatch } from "./testDataMode";
 import settings from "../config/defaultSettings";
+import brandSymbol from "../../shared/brand/bumbum-symbol-black.svg";
 import { ApiError, readSession, signOut } from "./api";
 import "./global.css";
 export async function getInitialState() {
@@ -107,7 +108,7 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...settings,
   headerTitleRender: () => (
     <div className="brand-lockup">
-      <span className="brand-mark">BB</span>
+      <img className="brand-symbol" src={brandSymbol} alt="" width={32} height={18} />
       <div>
         <strong>BUMBUM 管理后台</strong>
         <small>数字物品档案与芯片关联</small>
@@ -142,7 +143,8 @@ export function rootContainer(container: React.ReactNode) {
       }
       theme={{
         token: {
-          colorPrimary: "#1677ff",
+          colorPrimary: settings.colorPrimary,
+          colorLink: settings.colorPrimary,
           borderRadius: 8,
           colorText: "#0f172a",
           colorTextSecondary: "#64748b",
@@ -159,7 +161,7 @@ export function rootContainer(container: React.ReactNode) {
           Table: {
             headerBg: "#f8fafc",
             headerColor: "#334155",
-            rowHoverBg: "#f8fbff",
+            rowHoverBg: "#f6faf8",
             cellPaddingBlock: 12,
             cellPaddingInline: 12,
             fontSize: 14,
