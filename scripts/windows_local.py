@@ -323,7 +323,7 @@ def ready():
                     return False
         for address in (URL, USER_URL + "/tap"):
             with OPENER.open(address, timeout=2) as response:
-                if response.status != 200 or b"/@vite/client" not in response.read(65536):
+                if response.status != 200 or (b"/@vite/client" if address == USER_URL + "/tap" else b"umi") not in response.read(65536):
                     return False
         return True
     except (OSError, URLError, ValueError):
@@ -345,8 +345,7 @@ def serve(node, version):
         with (RUNTIME / "backend.log").open("wb") as backend, (RUNTIME / "frontend.log").open("wb") as frontend, (RUNTIME / "user.log").open("wb") as user:
             job.launch([PYTHON, "-X", "utf8", "-u", "-m", "flask", "--app", "app:create_app", "--no-debug",
                         "run", "--host", "127.0.0.1", "--port", "5000", "--no-reload"], ROOT, backend)
-            job.launch([node, ROOT / "frontend/admin/node_modules/vite/bin/vite.js",
-                        "--host", "127.0.0.1", "--port", "5174", "--strictPort"], ROOT / "frontend/admin", frontend)
+            job.launch([node, ROOT / "frontend/admin/scripts/dev.mjs"], ROOT / "frontend/admin", frontend)
             job.launch([node, ROOT / "frontend/user/node_modules/vite/bin/vite.js",
                         "--host", "127.0.0.1", "--port", "5175", "--strictPort"], ROOT / "frontend/user", user)
             deadline = time.monotonic() + 60
@@ -354,7 +353,7 @@ def serve(node, version):
                 if stop_requested(run_id):
                     return
                 if not job.healthy() or time.monotonic() >= deadline:
-                    raise LocalError("后端或网页未能启动。旧库更新后若health通过但ready为503，先按docs/LOCAL_DEVELOPMENT.md第11及12节检查触碰日志与持续查看资格升级，不要重建库。其他情况查看.local-run中的backend.log / frontend.log / user.log；分享前隐藏个人信息。")
+                    raise LocalError("后端或网页未能启动。旧库更新后若health通过但ready为503，先按docs/LOCAL_DEVELOPMENT.md第11、12及15节检查触碰日志、持续查看资格和数字档案006升级，不要重建库。其他情况查看.local-run中的backend.log / frontend.log / user.log；分享前隐藏个人信息。")
                 time.sleep(1)
             state["phase"] = "ready"
             write_json(RUNTIME / "services.json", state)

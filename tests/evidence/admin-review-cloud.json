@@ -1,0 +1,41 @@
+{
+  "both_ready": 200,
+  "cloud_browser_login_verified": false,
+  "preserved": true,
+  "revision": "28b1e748132a9c441de4b238b0cd039c9e983491",
+  "static_files_match": true,
+  "test_updated": true,
+  "whitelist_unchanged": true,
+  "loaded_image": {
+    "image": "bumbum-hangzhou-backend:28b1e748132a9c441de4b238b0cd039c9e983491",
+    "id": "sha256:47bf507c1806ecf4a38e46fe6f60f74c8facdc66b3ce824245ce88433b7298de"
+  },
+  "preserved_counts": {
+    "admin_audit": 170,
+    "admin_user": 1,
+    "chip": 114,
+    "chip_key": 0,
+    "digital_item": 85,
+    "item": 85,
+    "item_handover": 24,
+    "ownership": 60,
+    "ownership_history": 60,
+    "product_issue": 11,
+    "product_style": 7,
+    "project": 2,
+    "scan_log": 138,
+    "style_image": 9,
+    "test_batch": 1,
+    "test_batch_object": 361,
+    "user": 6,
+    "whole_item": 90
+  },
+  "private_backup": "/opt/bumbum-hangzhou/admin-review-28b1e748132a/before-update/images-and-database-26434cccbed747dfb7ced2a8466c75ed",
+  "test_admin_files": 35,
+  "schema_tables_checked": 35,
+  "sql_media_backup_verified": true,
+  "restore_rehearsal": false,
+  "production_modified": false,
+  "user_frontend_modified": false,
+  "data_reseeded": false
+}

@@ -37,11 +37,39 @@ def inspect(connection):
     with connection.cursor() as cursor: return view_grant_schema(cursor)
 
 
+def readiness_states(connection):
+    """失败时只显示结构识别状态，不输出账号、数据或数据库转储。"""
+    from core import db
+    from core.catalog_migration import catalog_schema
+    from core.testdata_migration import schema as testdata_schema
+    from core.assembly_migration import schema as assembly_schema
+    from core.user_uid_migration import schema as user_uid_schema
+    from core.passkey_migration import schema as passkey_schema
+    checks = {
+        'chip_project': db.chip_project_schema,
+        'registration_source': db.registration_source_schema,
+        'tap_event': db.tap_event_schema,
+        'view_grant': db.view_grant_schema,
+        'media_asset': db.media_asset_schema,
+        'catalog': catalog_schema,
+        'testdata': testdata_schema,
+        'assembly': assembly_schema,
+        'user_uid': user_uid_schema,
+        'passkey': passkey_schema,
+    }
+    with connection.cursor() as cursor:
+        states = {name: check(cursor) for name, check in checks.items()}
+    expected = {'chip_project': 'optional'}
+    failures = {name: state for name, state in states.items() if state != expected.get(name, 'ready')}
+    return '非就绪结构：' + repr(failures)
+
+
 def test_upgrade_preserves_grant_backup_restore_and_idempotence(auth_app,ready,auth_database,tmp_path):
     data=tap(auth_app,ready).json['data']
     original=query(auth_app,'SELECT * FROM tap_grant')
     with auth_app.app_context():
         connection=get_database()
+        assert auth_app.test_client().get('/api/ready').status_code==200, readiness_states(connection)
         with connection.cursor() as cursor: cursor.execute("ALTER TABLE tap_grant MODIFY allowed_action ENUM('read','bind') NOT NULL")
         assert inspect(connection)=='missing'
         assert auth_app.test_client().get('/api/ready').status_code==503
@@ -59,7 +87,7 @@ def test_upgrade_preserves_grant_backup_restore_and_idempotence(auth_app,ready,a
         assert inspect(connection)=='missing'
         assert query(auth_app,'SELECT * FROM tap_grant')==original
         assert migrate(connection,lambda:None)
-        assert auth_app.test_client().get('/api/ready').status_code==200
+        assert auth_app.test_client().get('/api/ready').status_code==200, readiness_states(connection)
 
 
 def test_failed_backup_does_not_change_old_schema(old_views):

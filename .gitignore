@@ -50,3 +50,6 @@ Thumbs.db
 # 浏览器回归失败截图，只保留在本机或CI产物中。
 test-results/
 .venv-browser/
+
+# 私有上传图片只进入独立持久目录与配套备份。
+media/

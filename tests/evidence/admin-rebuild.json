@@ -1,0 +1,68 @@
+{
+  "date": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "scope": "本机正式Umi构建、独立临时MySQL 8.0.46与Chromium/HTTPS网关；全部合成数据。未部署现有测试或生产环境。",
+  "checks": [
+    {
+      "group": "existing-business-security-media",
+      "passed": 377,
+      "skipped": 0
+    },
+    {
+      "group": "final-backend-startup-recovery",
+      "passed": 90,
+      "skipped": 2
+    },
+    {
+      "group": "catalog-rds-contract",
+      "passed": 37,
+      "skipped": 0
+    },
+    {
+      "group": "final-shared-media-authorization-recovery",
+      "passed": 66,
+      "skipped": 0
+    },
+    {
+      "group": "final-validation-target-cleanup",
+      "passed": 1,
+      "skipped": 0
+    },
+    {
+      "group": "test-holder-command",
+      "passed": 2,
+      "skipped": 0
+    },
+    {
+      "group": "gateway-static",
+      "passed": 34,
+      "skipped": 4
+    },
+    {
+      "group": "https-gateway-container",
+      "passed": 3,
+      "skipped": 0
+    }
+  ],
+  "counting": "测试组存在重叠，不相加作为独立覆盖总数。",
+  "business_ui": {
+    "distinct_cases_passed": 11,
+    "final_source_regression_cases_passed": 4,
+    "note": "首次完整轮10通过、1因返回按钮可访问名称错误失败；修正定位后该项及整套售后2项通过。最终源码4项回归全部通过，不将中断/失败轮次算作通过。"
+  },
+  "build": "正式Umi类型检查与生产构建通过；同源码容器构建通过。官方传递依赖仍有peer警告，未声明strict-peer-deps通过。",
+  "corrections": "隔离验证发现并修复MySQL生成列外键限制、网关共用款图白名单/正文大小、短期凭证读取共用款图，以及生产验证目标的饰品任务关联清理。",
+  "not_verified": [
+    "真实卡写入与触碰",
+    "现有测试环境部署及RDS升级",
+    "生产部署",
+    "Windows实际启动",
+    "React 19独立组件矩阵（按既有决定未执行）",
+    "真实首次用户认领（未交付）"
+  ],
+  "screenshots": {
+    "admin-rebuild-item.png": "da5e81db45df2642d30a1a5639b87a339ae7ab7d44a3b663541cb216b2abdff6",
+    "admin-rebuild-whole-history.png": "402cfadb6f7653e130f1e4a00e0816b9b8d82716437d11c9da1c4698a10dcfbc",
+    "admin-rebuild-statistics.png": "747a656b5875c6069b0198d97420661a112ccd3b13599bf60d7bc20aa188aaa9"
+  }
+}

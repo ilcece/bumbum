@@ -1,0 +1,42 @@
+flowchart LR
+    subgraph commonBoundary ["关系一：款式管通用内容，发行管当次承诺"]
+        commonEdit["维护共用款式资料"]
+        commonDisplay["所有引用物品的通用展示更新"]
+        promise["原发行颜色、总量和权益承诺保留"]
+        commonEdit -->|"保存成功"| commonDisplay
+        commonEdit -.->|"不追改"| promise
+    end
+    subgraph identityBoundary ["关系二：数字身份稳定，实体可以多次交付"]
+        identity["同一数字物品与限定编号"]
+        oldEntity["原正式实体：M码及旧芯片"]
+        candidate["候选新实体：L码及新芯片"]
+        handover["收到后核验交付并明确接续"]
+        newEntity["新实体成为当前实体"]
+        historyEntity["旧实体及交付历史保留"]
+        identity -->|"当前关联"| oldEntity
+        identity -->|"办理中候选"| candidate
+        candidate -->|"不因发货提前切换"| handover
+        handover -->|"正式接续后"| newEntity
+        handover -->|"旧芯片退出当前授权"| historyEntity
+        oldEntity -.->|"旧实体无需回收"| historyEntity
+    end
+    subgraph referenceBoundary ["关系三：当前信息通过引用或计算取得"]
+        source["生效的关联与业务记录"]
+        derived["当前持有人、实体、芯片、项目及余额"]
+        views["列表与详情读取同一来源"]
+        source -->|"引用或计算"| derived
+        derived -->|"只读展示而非多处手填"| views
+    end
+    subgraph factBoundary ["关系四：办理保存过程，实体与流转保存事实"]
+        process["申请、准备、发货和收到"]
+        explicitConfirm["管理员核验后明确确认"]
+        effective["生效结果：当前实体、芯片及必要归属"]
+        businessHistory["实体交付与所有权历史引用同一结果"]
+        process -->|"保存进度不提前生效"| explicitConfirm
+        explicitConfirm -->|"正式接续"| effective
+        effective -->|"统一留存生效事实"| businessHistory
+    end
+    style commonBoundary fill:#C2E5FF,stroke:#3DADFF
+    style identityBoundary fill:#C6FAF6,stroke:#5AD8CC
+    style referenceBoundary fill:#DCCCFF,stroke:#874FFF
+    style factBoundary fill:#FFECBD,stroke:#FFC943

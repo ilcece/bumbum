@@ -1,0 +1,19 @@
+flowchart LR
+    currentRoot["当前原型：发行关联未形成操作闭环"]
+    styleRecord["款式资料"]
+    draft["保存发行草案"]
+    noConfirm["断点：没有发行约定确认入口"]
+    item["创建物品只选择款式"]
+    disabledLink["详情中的关联发行不可选择"]
+    noLink["断点：新物品不能保存发行引用与限定序号"]
+    fixtures["预置的限定物品样例"]
+    readable["能查看发行和限定编号"]
+    conclusion["样例可查看，不代表新建关联流程可走通"]
+    currentRoot --> styleRecord
+    styleRecord --> draft --> noConfirm
+    styleRecord --> item --> disabledLink --> noLink
+    currentRoot --> fixtures --> readable --> conclusion
+    style noConfirm fill:#FFCDC2,stroke:#FF7556
+    style disabledLink fill:#FFE0C2,stroke:#FF9E42
+    style noLink fill:#FFCDC2,stroke:#FF7556
+    style conclusion fill:#FFECBD,stroke:#FFC943

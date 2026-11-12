@@ -31,6 +31,10 @@ def test_slots_have_distinct_database_identity_ports_directories_and_volumes():
         assert service["mem_limit"] == service["memswap_limit"]
         assert service["command"][3].startswith("127.0.0.1:")
         assert service["volumes"][1]["bind"]["create_host_path"] is False
+        media = service['volumes'][2]
+        assert media['source'] == '/opt/bumbum-hangzhou/' + service['environment']['HANGZHOU_SLOT'] + '/media'
+        assert media['target'] == service['environment']['MEDIA_ROOT'] == '/app/media'
+        assert media['bind']['create_host_path'] is False and 'MEDIA_ENABLED' not in service['environment']
     assert prod["services"]["backend"]["env_file"] != test["services"]["backend"]["env_file"]
     assert prod["services"]["backend"]["command"][3] != test["services"]["backend"]["command"][3]
 
@@ -66,6 +70,8 @@ def test_rendered_gateways_keep_user_allowlist_and_separate_limits():
     assert "127.0.0.1:15001" in a["user.conf"] and "127.0.0.1:15000" in b["user.conf"]
     assert "zone=bumbum_hz_test_user_view" in a["user.conf"]
     assert "zone=bumbum_hz_production_user_view" in b["user.conf"]
+    assert 'zone=bumbum_hz_test_user_image' in a['user.conf'] and 'burst=40 nodelay' in a['user.conf']
+    assert 'client_max_body_size 9m;' in a['admin.conf'] and 'return 413' in a['admin.conf']
     assert "location / { return 404; }" in a["user.conf"]
     assert "location = /api/webhook/admin/scan" in a["admin.conf"]
     assert "allow 192.0.2.1;" in a["admin.conf"]
@@ -73,6 +79,22 @@ def test_rendered_gateways_keep_user_allowlist_and_separate_limits():
     assert "$request_uri" not in a["admin.conf"].split("log_format", 1)[1].split(";", 1)[0]
     with pytest.raises(hangzhou.DeploymentError):
         hangzhou.render_nginx("test", "test.bumbum.cc", "nfc-test.bumbum.cc", "0.0.0.0/0")
+
+
+def test_media_directory_only_creates_new_private_target_and_preserves_unknown(tmp_path,monkeypatch):
+    import os
+    calls = []
+    monkeypatch.setattr(hangzhou.os,'chown',lambda path,uid,gid: calls.append((path,uid,gid)))
+    path = tmp_path / 'media'
+    hangzhou.prepare_media_directory(path)
+    assert calls == [(path,10001,10001)] and path.stat().st_mode & 0o077 == 0
+    # 测试操作者不拥有容器UID；已有错误属主不能被悄悄接管。
+    if os.getuid() != 10001:
+        with pytest.raises(hangzhou.DeploymentError):
+            hangzhou.prepare_media_directory(path)
+    link = tmp_path / 'link'; link.symlink_to(path,target_is_directory=True)
+    with pytest.raises(hangzhou.DeploymentError):
+        hangzhou.prepare_media_directory(link)
 
 
 def test_existing_generated_or_manual_configuration_is_not_overwritten(tmp_path):

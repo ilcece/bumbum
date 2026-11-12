@@ -1,0 +1,30 @@
+.tap-chart {
+  margin: 20px 0;
+}
+.tap-chart-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.tap-chart-scroll svg {
+  min-width: 100%;
+  display: block;
+}
+.tap-chart-scroll text {
+  fill: var(--color-ink-soft, #4b5563);
+  font-size: 11px;
+}
+.tap-chart-axis {
+  stroke: #d1d5db;
+}
+.tap-chart-bar {
+  fill: #80a7f8;
+}
+.tap-chart-bar.selected {
+  fill: #245eea;
+}
+.tap-chart-readout {
+  min-height: 22px;
+  color: var(--color-ink-soft, #4b5563);
+  font-size: 13px;
+}

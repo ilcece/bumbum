@@ -62,7 +62,8 @@ def render_manifest(slot, image, image_id, admin_host, user_host):
            "ADMIN_TOTP_ISSUER": "BUMBUM-" + slot, "STORAGE_KEY_VERSION": "v1",
            "DB_HOST": RDS_HOST, "DB_PORT": "3306", "DB_NAME": target["database"],
            "DB_USER": target["user"], "DB_SSL_MODE": "VERIFY_IDENTITY",
-           "DB_SSL_CA": "/run/bumbum-rds-ca.pem"}
+           "DB_SSL_CA": "/run/bumbum-rds-ca.pem", "MEDIA_ROOT": "/app/media",
+           "MEDIA_MAX_TOTAL_BYTES": "2147483648"}
     service = {
         "image": image, "pull_policy": "never", "network_mode": "host",
         "env_file": [{"path": base + "/secrets/runtime.env", "format": "raw"}],
@@ -74,7 +75,9 @@ def render_manifest(slot, image, image_id, admin_host, user_host):
         "cpus": 1.25 if slot == "production" else 0.5,
         "volumes": ["operation_logs:/app/logs", {"type": "bind",
                     "source": base + "/public/rds-ca.pem", "target": "/run/bumbum-rds-ca.pem",
-                    "read_only": True, "bind": {"create_host_path": False}}],
+                    "read_only": True, "bind": {"create_host_path": False}},
+                    {"type": "bind", "source": base + "/media", "target": "/app/media",
+                     "bind": {"create_host_path": False}}],
         "command": ["gunicorn", "--no-control-socket", "--bind", f"127.0.0.1:{target['port']}",
                     "--workers", "2" if slot == "production" else "1", "--worker-tmp-dir", "/tmp",
                     "--timeout", "30", "app:create_app()"],
@@ -135,7 +138,8 @@ def prepare_test_runtime(destination, password, username):
               "IP_HASH_KEY": secrets.token_hex(32), "WEBHOOK_ADMIN_USERNAME": username,
               "WEBHOOK_SHARED_SECRET": secrets.token_hex(32),
               "MASTER_KEY_FASHION": secrets.token_hex(16), "MASTER_KEY_JEWELRY": secrets.token_hex(16),
-              "SDM_META_KEY_V1": secrets.token_hex(16), "SDM_META_KEY_VERSION": "v1", "TAP_VERIFY_PER_MINUTE": "60"}
+              "SDM_META_KEY_V1": secrets.token_hex(16), "SDM_META_KEY_VERSION": "v1", "TAP_VERIFY_PER_MINUTE": "60",
+              "MEDIA_ENABLED": "false"}
     if destination.exists() or destination.is_symlink():
         raise DeploymentError("已有测试秘密文件，未读取或覆盖。")
     destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -150,6 +154,23 @@ def docker_environment():
     """统一清理远端Docker选择器，保留现有代理、证书和注册表配置。"""
     return {name: value for name, value in os.environ.items()
             if name not in {"DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_TLS", "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"}}
+
+
+def prepare_media_directory(path):
+    """仅显式准备对应环境的新目录，不修复、接管或遍历未知已有内容。"""
+    if not path.is_absolute() or path.parent.resolve(strict=True) != path.parent:
+        raise DeploymentError('图片父目录须已经存在且不是符号链接。')
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or not path.is_dir() or path.stat().st_uid != 10001 or stat.S_IMODE(path.stat().st_mode) != 0o700:
+            raise DeploymentError('已有图片目录的类型、属主或权限不符，未自动修改。')
+        return
+    path.mkdir(mode=0o700)
+    try:
+        os.chown(path, 10001, 10001)
+    except OSError:
+        # 仅撤去本次独占创建的空目录，便于按正确操作者重试；不修改已有目录。
+        path.rmdir()
+        raise
 
 
 def docker(arguments):
@@ -223,6 +244,9 @@ def check_deployment(path, slot, *, require_runtime=True):
         ca = Path(service["volumes"][1]["source"])
         if not ca.is_file():
             raise DeploymentError("公开CA尚未放在专用目录；未创建空目录代替证书。")
+        media = Path(service['volumes'][2]['source'])
+        if not media.is_dir() or media.is_symlink() or media.resolve(strict=True) != media or media.stat().st_uid != 10001 or stat.S_IMODE(media.stat().st_mode) != 0o700:
+            raise DeploymentError('须先显式准备该环境的10001属主、700权限私有图片目录；未自动创建或修改。')
         # 只安静验证，不把插值后的秘密或运行配置打印到终端。
         docker(["compose", "-f", str(path.resolve()), "config", "--quiet"])
     return document
@@ -230,7 +254,7 @@ def check_deployment(path, slot, *, require_runtime=True):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="杭州独立环境准备及受保护启停；不自动初始化数据库、启用Nginx或切换DNS。")
-    parser.add_argument("action", choices=["prepare", "prepare-runtime", "check", "start", "status", "stop", "admin-create", "export-qr"])
+    parser.add_argument("action", choices=["prepare", "prepare-runtime", "prepare-media", "check", "start", "status", "stop", "admin-create", "export-qr"])
     parser.add_argument("--slot", required=True, choices=SLOTS)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--image")
@@ -243,13 +267,17 @@ def main(argv=None):
     parser.add_argument("--qr-path")
     args = parser.parse_args(argv)
     try:
-        if args.action != "prepare-runtime" and args.manifest is None:
+        if args.action not in {'prepare-runtime','prepare-media'} and args.manifest is None:
             raise DeploymentError("此操作须明确指定公开Compose清单的--manifest路径。")
         if args.action in {'admin-create', 'export-qr'}:
             if args.slot != 'test':
                 raise DeploymentError('本入口只允许独立测试管理员设置，未操作生产账号。')
             if args.action == 'admin-create' and (not sys.stdin.isatty() or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', args.username or '')):
                 raise DeploymentError('须在操作者终端设置已确认的测试账号名，密码及验证码仅隐藏输入。')
+        if args.action == 'prepare-media':
+            prepare_media_directory(Path('/opt/bumbum-hangzhou') / args.slot / 'media')
+            print('对应环境的私有图片目录已就绪；未启用上传或启动服务。')
+            return 0
         if args.action == "prepare-runtime":
             if args.slot != "test":
                 raise DeploymentError("此入口只生成独立测试配置；生产必须按批准的数据迁移方案安全注入并保留必要原密钥。")

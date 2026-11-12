@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "typecheck": "passed",
+  "umiBuild": "passed",
+  "domainChecks": 14,
+  "browserChecks": {
+    "ui": 7,
+    "core": 8
+  },
+  "artifactSha256": "7d2407741e96f3727e374b96747c95b9079561e3fd3a434ecd90bc17ec9147a3",
+  "artifactBytes": 2879511,
+  "scope": "prototype only; no real API/database/chip operations",
+  "manualAcceptance": "pending"
+}

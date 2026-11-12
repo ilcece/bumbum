@@ -1,0 +1,52 @@
+flowchart LR
+    capabilityRoot["后台功能架构｜按场景组织，待审核"]
+    subgraph contentArea ["一、商品与发行维护"]
+        styleMaintain["款式资料维护｜类别唯一来源"]
+        contentSave["共用内容与图片｜未保存预览及影响确认"]
+        issueMaintain["发行约定维护｜已发行承诺保护"]
+        rightDefinition["权益规则引用｜费用及版本细则待审"]
+        styleMaintain --> contentSave
+        styleMaintain --> issueMaintain --> rightDefinition
+    end
+    subgraph dailyArea ["二、日常登记与配卡"]
+        chipRegister["芯片扫描或手工连续登记"]
+        itemCreate["物品连续创建｜选择款式引用"]
+        bindVerify["关联核对、首次绑定、配卡及真实核验"]
+        queryStatus["查询与详情往返｜启停分别确认"]
+        chipRegister --> bindVerify
+        itemCreate --> bindVerify --> queryStatus
+    end
+    subgraph serviceArea ["三、挂失换新与后台转售"]
+        lossProtect["挂失保护｜阻断旧卡不扣次数"]
+        renewal["定期或挂失换新｜共享年度额度"]
+        resale["后台转售｜继承余额不重置"]
+        workStages["申请、准备、交付、核验后明确接续"]
+        effectiveFacts["生效事实｜实体、芯片、必要归属与历史"]
+        lossProtect -->|"需要时另申请"| renewal
+        renewal --> workStages
+        resale --> workStages --> effectiveFacts
+    end
+    subgraph historyArea ["四、按数字物品查询事实"]
+        itemContext["物品详情关联核对｜不是另建账户"]
+        entityHistory["当前与历史实体｜尺码颜色及芯片"]
+        ownershipHistory["持有人引用及流转｜服务与公开范围待补"]
+        annualHistory["年度权益及使用记录｜计次节点待审"]
+        itemContext --> entityHistory & ownershipHistory & annualHistory
+    end
+    subgraph protectionArea ["五、共用保护与受控维护"]
+        authentication["管理员登录、会话与权限"]
+        interactionGuards["未保存保护、失败保留与未知结果核对"]
+        cleanup["废弃芯片与物品处理｜B资格待审"]
+        correction["身份及关联纠错｜C规则待审"]
+        auditAndState["操作追溯及运行诊断｜完整查询待补"]
+        authentication --> interactionGuards & cleanup & correction & auditAndState
+    end
+    capabilityRoot --> styleMaintain & chipRegister & lossProtect & itemContext & authentication
+    capabilityRoot --> itemCreate & resale
+    styleMaintain -->|"类别与内容引用"| itemCreate
+    effectiveFacts -->|"统一生效后可查"| itemContext
+    style contentArea fill:#C2E5FF,stroke:#3DADFF
+    style dailyArea fill:#C6FAF6,stroke:#5AD8CC
+    style serviceArea fill:#DCCCFF,stroke:#874FFF
+    style historyArea fill:#D9D9D9,stroke:#B3B3B3
+    style protectionArea fill:#FFECBD,stroke:#FFC943

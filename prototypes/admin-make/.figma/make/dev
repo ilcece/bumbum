@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export HOST="${FIGMA_DEV_SERVER_HOST:-0.0.0.0}"
+exec npm run dev

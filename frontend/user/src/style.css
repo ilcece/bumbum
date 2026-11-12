@@ -70,6 +70,36 @@ summary:focus-visible {
   letter-spacing: 0.06em;
   color: #65746c;
 }
+.account-form, .account-form label {
+  display: grid;
+  gap: 8px;
+}
+.account-form {
+  padding: 16px 0;
+  gap: 12px;
+}
+.account-form input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #bcc9c1;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font: inherit;
+}
+.account-actions, .owned-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+.account-actions { justify-content: space-between; }
+.owned-row {
+  padding: 12px;
+  border: 1px solid #e7eae6;
+  border-radius: 10px;
+  color: inherit;
+}
+.owned-row img { width: 64px; height: 64px; object-fit: cover; border-radius: 6px; }
 h1,
 h2,
 p {

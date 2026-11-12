@@ -1,4 +1,5 @@
 // 用户接口不读取管理会话，不在浏览器存储凭证或触碰原文。
+import type { ItemFacts } from "../../shared/itemPresentation";
 export type Profile = {
   name: string;
   description: string | null;
@@ -6,13 +7,15 @@ export type Profile = {
   care_instructions: string | null;
   image_urls: string[];
 };
-export type ItemView = {
+export type ItemView = ItemFacts & {
   project: "fashion";
   item_id: number;
   item_uid: string;
   verified_at: string;
   retrieved_at: string;
   profile: Profile;
+  claim_state?: "available" | "claimed" | "unavailable" | "expired";
+  tapToken?: string;
 };
 export type Reading = { picc_data: string; cmac: string };
 export class ApiError extends Error {
@@ -69,7 +72,7 @@ export function itemView(value: unknown): ItemView {
     !Number.isSafeInteger(d.item_id) ||
     Number(d.item_id) <= 0 ||
     typeof d.item_uid !== "string" ||
-    !/^FASH-[0-9]{4}-[0-9]{6}$/.test(d.item_uid) ||
+    !d.item_uid.trim() || d.item_uid.length > 32 ||
     ![d.verified_at, d.retrieved_at].every(
       (x) =>
         typeof x === "string" &&
@@ -85,6 +88,11 @@ export function itemView(value: unknown): ItemView {
     verified_at: d.verified_at as string,
     retrieved_at: d.retrieved_at as string,
     profile: profile(d.profile),
+    issue_name: typeof d.issue_name === "string" ? d.issue_name : null,
+    edition_number: typeof d.edition_number === "number" ? d.edition_number : null,
+    issue_total: typeof d.issue_total === "number" ? d.issue_total : null,
+    rights: Array.isArray(d.rights) ? d.rights.filter((x) => x && typeof x.kind === "string") : undefined,
+    claim_state: d.claim_state === "available" || d.claim_state === "claimed" || d.claim_state === "unavailable" || d.claim_state === "expired" ? d.claim_state : undefined,
   };
 }
 async function request(
@@ -164,7 +172,33 @@ export async function verify(
     );
   if (d.project === "jewelry") return "unsupported";
   if (d.view_path !== `/tap/items/${d.item_id}`) invalid();
-  return itemView({ ...d, profile: d.item_detail });
+  const item = itemView({ ...d, profile: d.item_detail });
+  if (typeof d.tap_token === "string" && /^[a-f0-9]{64}$/.test(d.tap_token)) item.tapToken = d.tap_token;
+  return item;
+}
+
+export type Account = { uid: string; phone: string };
+export type OwnedItem = ItemFacts & {
+  item_id: number; item_uid: string; name: string | null; image_urls: string[];
+  bound_at: string; spec: string | null; generation: number | null;
+  quota_year: number | null; quota_used: number | null; quota_review: boolean;
+};
+
+export function publicAccount(path: string, body?: unknown) {
+  return request(`/api/public${path}`, new AbortController().signal, body);
+}
+
+export function accountView(value: unknown): Account | null {
+  if (value === null) return null;
+  const data = object(value);
+  if (typeof data.uid !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(data.uid) || typeof data.phone !== "string") invalid();
+  return { uid: data.uid, phone: data.phone };
+}
+
+export function ownedItem(value: unknown): OwnedItem {
+  const data = object(value);
+  if (!Number.isSafeInteger(data.item_id) || typeof data.item_uid !== "string" || typeof data.bound_at !== "string" || !Array.isArray(data.image_urls)) invalid();
+  return { ...data, image_urls: data.image_urls.filter((x) => typeof x === "string" && /^(?:https?:\/\/|\/api\/public\/me\/items\/)/.test(x)) } as OwnedItem;
 }
 export async function readView(
   id: number,

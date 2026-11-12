@@ -94,7 +94,7 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
         def call(path, *, method="GET", body=None, headers=None):
             connection = http.client.HTTPSConnection("127.0.0.1", tls_port, context=context, timeout=3)
             try:
-                connection.request(method, path, body=json.dumps(body).encode() if body is not None else None,
+                connection.request(method, path, body=body if isinstance(body,bytes) else json.dumps(body).encode() if body is not None else None,
                                    headers={"Host": "test.bumbum.cc", "Content-Type": "application/json", **(headers or {})})
                 response = connection.getresponse()
                 return response.status, dict(response.getheaders()), response.read()
@@ -151,12 +151,27 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
             # 大于8k的真实资料穿过TLS代理；其他入口仍维持原限制。
             status, _, data = call(f"/api/admin/items/{item_id}/profile", method="PUT", body={"name": "服装", "description": "中" * 4000}, headers=write_headers)
             assert status == 200 and json.loads(data)["data"]["description"] == "中" * 4000
+            status, _, data = call(f'/api/admin/items/{item_id}',method='PATCH',body={'sku_code':'合并维护','profile':{'name':'服装','description':'文'*4000}},headers=write_headers)
+            assert status == 200 and json.loads(data)['data']['sku_code'] == '合并维护' and json.loads(data)['data']['profile']['description'] == '文'*4000
+            # 大正文只放行精确上传路由；此容器默认禁止上传，应抵达应用503而非被8k误拦。
+            upload_headers={**write_headers,'Content-Type':'multipart/form-data; boundary=synthetic'}
+            assert call(f'/api/admin/items/{item_id}/images')[0]==404
             status, _, data = call(f"/api/admin/items/{item_id}", method="PATCH", body={"status": "active"}, headers=write_headers)
             assert status == 200 and json.loads(data)["data"]["status"] == "active"
             status, _, data = call(f"/api/admin/items/{item_id}/profile", method="PUT", body={"name": "x" * (256 * 1024)}, headers=write_headers)
             assert status == 400 and json.loads(data)["code"] == "invalid_param"
             status, _, data = call("/api/admin/chips", headers={"Cookie": cookie})
             assert status == 200 and json.loads(data)["data"]["items"][0]["chip_uid"] == UID
+            # 共用资料超过8KiB仍能实际保存；只有精确图片路径允许9MiB。
+            style_payload={"project":"fashion","code":"GATEWAY-STYLE","name":"网关共用款式","description":"d"*4000,"care_instructions":"c"*2000,"specs":["S"*128]*80,"image_urls":[]}
+            status,_,data=call('/api/admin/catalog/actions/style',method='POST',body={"request_id":str(uuid.uuid4()),"payload":style_payload},headers=write_headers)
+            assert status==200
+            style_id=json.loads(data)['data']['id'];asset=uuid.uuid4().hex
+            shared=f'/api/admin/catalog/styles/{style_id}/images/{asset}'
+            status,_,data=call(shared,method='POST',body=b'x'*(1024**2),headers=upload_headers)
+            assert status==503 and json.loads(data)['message'].startswith('图片上传未启用')
+            status,_,data=call(shared,method='POST',body=b'x'*(9*1024**2+1),headers=upload_headers)
+            assert status==413 and json.loads(data)['code']=='payload_too_large'
             assert docker(["exec", backend, "python", "-c", "import getpass; print(getpass.getuser())"]) == "bumbum"
             docker(["restart", backend])
             for _ in range(80):

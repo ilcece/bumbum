@@ -2,6 +2,7 @@
 
 from datetime import datetime, timedelta, timezone
 import http.client
+from io import BytesIO
 import ipaddress
 import json
 import os
@@ -12,11 +13,13 @@ import ssl
 import subprocess
 import time
 import uuid
+from urllib.parse import urlsplit
 
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
+from PIL import Image
 import pytest
 
 from tests.test_admin_auth import query
@@ -40,10 +43,27 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
         result=subprocess.run(command+args,env=env,capture_output=True,text=True,timeout=120)
         assert result.returncode==0,'独立用户网关测试命令失败，不输出配置或秘密'
         return result.stdout.strip()
+    # 合成20张真实上传图，验证新精确网关路由及首屏并发额度，不使用公开静态文件。
+    private_root=tmp_path/'private-media';private_root.mkdir(mode=0o700)
+    auth_app.config.update(MEDIA_ENABLED=True,MEDIA_ROOT=str(private_root),MEDIA_MAX_TOTAL_BYTES=2*1024**3,PUBLIC_ORIGIN='http://127.0.0.1:5175')
+    item_id=query(auth_app,'SELECT item_id FROM chip')[0]['item_id']
+    from tests.test_admin_catalog import action,ok
+    session=ready[0][0];urls=[]
+    style_payload={'project':'fashion','code':'TLS-COMMON','name':'HTTPS图片验证','specs':['标准'],'image_urls':[]}
+    style_id=ok(action(session,'style',style_payload))['id']
+    for _ in range(20):
+        stream=BytesIO();Image.new('RGB',(24,16),'blue').save(stream,'PNG');stream.seek(0)
+        uploaded=session[0].post(f'/api/admin/catalog/styles/{style_id}/images/{uuid.uuid4().hex}',headers=session[1],data={'file':(stream,'synthetic.png')})
+        assert uploaded.status_code==200
+        urls.append(uploaded.json['data']['url'])
+    ok(action(session,'style',{**style_payload,'id':style_id,'image_urls':urls}))
+    issue_id=ok(action(session,'issue',{'style_id':style_id,'name':'HTTPS发行','mode':'fixed','total':20,'description':'受控图片读取','rights':[]}))['id']
+    ok(action(session,'confirmIssue',{'issue_id':issue_id}))
+    ok(action(session,'linkIssue',{'item_id':item_id,'issue_id':issue_id,'edition_number':1,'evidence':'隔离HTTPS图片验收'}))
     backend='bumbum-user-api-'+uuid.uuid4().hex[:10]; gateway='bumbum-user-gateway-'+uuid.uuid4().hex[:10]
     api_port,tls_port,http_port=unused_port(),unused_port(),unused_port()
     config={name:auth_app.config[name] for name in ('DB_HOST','DB_PORT','DB_USER','DB_PASSWORD','DB_NAME','STORAGE_ENCRYPTION_KEY','IP_HASH_KEY','MASTER_KEY_FASHION','MASTER_KEY_JEWELRY','SDM_META_KEY_V1','SDM_META_KEY_VERSION')}
-    config.update(APP_ENV='production',ADMIN_ORIGIN='https://test.bumbum.cc',PUBLIC_ORIGIN='https://nfc.bumbum.cc')
+    config.update(APP_ENV='production',ADMIN_ORIGIN='https://test.bumbum.cc',PUBLIC_ORIGIN='https://nfc.bumbum.cc',MEDIA_ENABLED='false',MEDIA_ROOT='/app/media')
     settings=tmp_path/'gateway.env';settings.write_text(''.join(f'{key}={value}\n' for key,value in config.items()));settings.chmod(0o600)
     private=rsa.generate_private_key(public_exponent=65537,key_size=2048)
     subject=x509.Name([x509.NameAttribute(NameOID.COMMON_NAME,'nfc.bumbum.cc')]);now=datetime.now(timezone.utc)
@@ -57,7 +77,7 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
         (tmp_path/f'{name}.conf').write_text(site)
     (tmp_path/'nginx.conf').write_text('events {}\nhttp { include /etc/nginx/mime.types; include /etc/nginx/admin.conf; include /etc/nginx/user.conf; }\n')
     context=ssl.create_default_context(cafile=str(tmp_path/'cert.pem'))
-    created=[]
+    created=[];volume=backend+'-media'
     def call(path,method='GET',body=None,headers=None):
         connection=http.client.HTTPSConnection('127.0.0.1',tls_port,context=context,timeout=6)
         try:
@@ -75,8 +95,11 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
             time.sleep(.1)
         pytest.fail('独立后端未就绪，未操作现有服务')
     try:
+        docker(['volume','create','--label','bumbum.test=user-gateway',volume])
+        docker(['run','--rm','--network=none','--user','0:0','--mount',f'type=bind,src={private_root},dst=/in,readonly','--volume',volume+':/app/media','--entrypoint','python',image,'-c',
+                "import os,pathlib,shutil; shutil.copytree('/in','/app/media',dirs_exist_ok=True); os.chown('/app/media',10001,10001); os.chmod('/app/media',0o700); [(os.chown(p,10001,10001),os.chmod(p,0o600)) for p in pathlib.Path('/app/media').iterdir()]"])
         runtime=json.loads(docker(['image','inspect','--format','{{json .Config.Cmd}}',image]));runtime[runtime.index('--bind')+1]=f'127.0.0.1:{api_port}'
-        docker(['create','--name',backend,'--label','bumbum.test=user-gateway','--network=host','--read-only','--tmpfs','/tmp','--volume','/app/logs','--cap-drop=ALL','--security-opt=no-new-privileges:true','--env-file',str(settings),image,*runtime]);created.append(backend);docker(['start',backend]);backend_ready()
+        docker(['create','--name',backend,'--label','bumbum.test=user-gateway','--network=host','--read-only','--tmpfs','/tmp','--volume','/app/logs','--volume',volume+':/app/media:ro','--cap-drop=ALL','--security-opt=no-new-privileges:true','--env-file',str(settings),image,*runtime]);created.append(backend);docker(['start',backend]);backend_ready()
         docker(['create','--name',gateway,'--label','bumbum.test=user-gateway','--network=host','nginx:1.28-alpine']);created.append(gateway)
         for name,dest in [('nginx.conf','nginx.conf'),('admin.conf','admin.conf'),('user.conf','user.conf'),('cert.pem','test-cert.pem'),('key.pem','test-key.pem')]:docker(['cp',str(tmp_path/name),gateway+':/etc/nginx/'+dest])
         docker(['cp',str(ROOT/'deploy/cloud_test/nginx-proxy.conf'),gateway+':/etc/nginx/bumbum-cloud-test-proxy.conf'])
@@ -102,6 +125,7 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
         for path in ('/api/admin/chips','/api/admin/auth/login','/api/health','/api/ready','/api/webhook/admin/scan','/api/public/bind','/api/fashion/items/1/detail'):
             assert call(path)[0]==404
         assert call('/api/admin/chips',headers={'Host':'test.bumbum.cc'})[0]==403
+        assert call(f"/api/tap/items/{item_id}/style-images/"+'a'*32)[0]==403
         payload={**reading(ready[1],ready[0][1]['chip_uid'],9),'browser_view':True}
         status,headers,body=call('/api/tap/verify','POST',payload,{'Origin':'https://nfc.bumbum.cc'})
         assert status==200 and json.loads(body)['data']['verified']
@@ -109,11 +133,23 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
         data=json.loads(body)['data'];endpoint=f"/api/tap/items/{data['item_id']}/view";cookie=cookie.split(';',1)[0]
         assert call(data['view_path'])[0]==200
         assert call(endpoint,headers={'Cookie':cookie})[0]==200
+        picture_paths=[urlsplit(url).path for url in data['item_detail']['image_urls']]
+        assert len(picture_paths)==20
+        grants=query(auth_app,'SELECT * FROM tap_grant ORDER BY id')
+        for picture_path in picture_paths:
+            image_status,image_headers,image_body=call(picture_path,headers={'Cookie':cookie})
+            assert image_status==200 and image_headers['Content-Type']=='image/webp' and image_headers['Cache-Control']=='no-store'
+            with Image.open(BytesIO(image_body)) as decoded:assert decoded.size==(24,16)
+        assert query(auth_app,'SELECT * FROM tap_grant ORDER BY id')==grants
+        assert call(picture_paths[0])[0]==403
+        assert call(picture_paths[0],'POST',{}, {'Cookie':cookie})[0]==405
+        assert call(picture_paths[0],headers={'Cookie':cookie,'Origin':'https://other.example'})[0]==403
         assert call(endpoint,headers={'Cookie':cookie,'Origin':'https://other.example'})[0]==403
         assert call(endpoint,'POST',{}, {'Cookie':cookie})[0]==405
         assert query(auth_app,"SELECT COUNT(*) AS n FROM scan_log WHERE verify_result='pass'")[0]['n']==1
         docker(['restart',backend]);backend_ready()
         assert call(endpoint,headers={'Cookie':cookie})[0]==200
+        assert call(picture_paths[0],headers={'Cookie':cookie})[0]==200
         query(auth_app,"UPDATE item SET status='disabled'")
         assert call(endpoint,headers={'Cookie':cookie})[0]==409
         for _ in range(35):
@@ -128,3 +164,4 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
         assert 'PRIVATE_TEST_VALUE' not in log and cookie not in log and data['tap_token'] not in log
     finally:
         for container in reversed(created):docker(['rm','--force','--volumes',container])
+        docker(['volume','rm',volume])

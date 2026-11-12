@@ -8,3 +8,7 @@ WTForms==3.3.0
 qrcode==8.2
 # 使用成熟加密库保护数据库中的验证器秘密。
 cryptography==50.0.2
+# 管理员通行密钥的 WebAuthn 标准验证。
+webauthn==3.0.1
+# 自管图片的重编码与离线备份恢复校验。
+Pillow==13.0.0

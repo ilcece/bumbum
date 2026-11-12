@@ -5,6 +5,7 @@ WORKDIR /src
 COPY frontend/admin/package.json frontend/admin/package-lock.json ./
 RUN --mount=type=secret,id=proxy_ca,required=true NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca npm ci --strict-ssl=true
 COPY frontend/admin/ ./
+COPY frontend/shared/ /shared/
 RUN npm run build
 
 # 用户页独立构建及导出，不覆盖管理页的入口和资源。
@@ -13,16 +14,25 @@ WORKDIR /user-src
 COPY frontend/user/package.json frontend/user/package-lock.json ./
 RUN --mount=type=secret,id=proxy_ca,required=true NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca npm ci --strict-ssl=true
 COPY frontend/user/ ./
+COPY frontend/shared/ /shared/
 RUN npm run build
 
 FROM python:3.12.14-slim-bookworm
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
-COPY requirements-deploy.txt ./
-RUN --mount=type=secret,id=proxy_ca,required=true PIP_CERT=/run/secrets/proxy_ca pip install --no-cache-dir -r requirements-deploy.txt
+COPY requirements-deploy.txt requirements-hangzhou-test-sms.txt ./
+ARG HANGZHOU_TEST_SMS=0
+RUN --mount=type=secret,id=proxy_ca,required=true \
+    export PIP_CERT=/run/secrets/proxy_ca; \
+    if [ "$HANGZHOU_TEST_SMS" = 1 ]; then \
+        pip install --no-cache-dir -r requirements-deploy.txt -r requirements-hangzhou-test-sms.txt; \
+    else \
+        pip install --no-cache-dir -r requirements-deploy.txt; \
+    fi
 COPY app.py ./
 COPY core/ ./core/
 COPY db/ ./db/
+COPY scripts/media_backup.py scripts/media_cleanup.py ./scripts/
 COPY --from=frontend /src/dist/ ./frontend-dist/
 COPY --from=user_frontend /user-src/dist/ ./frontend-user-dist/
 RUN chmod -R a+rX /app && groupadd --gid 10001 bumbum && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin bumbum && mkdir /app/logs && chown 10001:10001 /app/logs

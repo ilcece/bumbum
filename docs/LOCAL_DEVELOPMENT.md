@@ -2,7 +2,7 @@
 
 目标：按步骤启动后，网页的后端程序和测试数据库两项均显示检查通过。main已包含运行检查、管理员登录和手动芯片登记；本页先验证环境，芯片操作另见对应手册，不涉及写卡、短信或正式上线。
 
-香港ECS部署和手机扫描请看[云测试手册](CLOUD_TEST_DEPLOYMENT.md)，本页不用于服务器部署。main已包含Windows工具和手动芯片登记。已有测试库先按第7节检查升级，再启动；运行检查通过后用已有管理员登录，不重复创建账号。浏览器统一使用本页的localhost地址。
+当前云端维护和手机扫描入口请看[杭州手册](HANGZHOU_DEPLOYMENT.md)，香港旧步骤仅供追溯，本页不用于服务器部署。main已包含Windows工具和手动芯片登记。已有测试库先按各项升级说明核对当前结构，再启动；运行检查通过后用已有管理员登录，不重复创建账号。浏览器统一使用本页的localhost地址。
 
 ## 0. Windows：GitHub Desktop＋双击运行
 
@@ -69,7 +69,7 @@ PowerShell常用命令（先双击上面的打开入口）：
 
 cece已确认Windows工具其余验收通过，并授权修正Ctrl+C提示后合入main；本次提示调整有回归检查，Windows原生自动检查在云端仍会跳过。下方保留各系统手动步骤，用于其他系统和故障排查；日常启动不必每次执行完整测试。
 
-当前main已包含桌面管理端，登录前从“检查运行环境”展开运行检查，登录后可从顶栏“运行检查”或侧栏“系统状态”检查。默认登录成功进入工作台，芯片和物品通过侧栏进入；启动命令与端口不变，不支持手机后台适配。
+当前桌面管理端登录前从“检查运行环境”展开运行检查，登录后从“系统管理 → 系统与环境”检查。默认登录成功进入工作台，芯片和物品通过侧栏进入；启动命令与端口不变，不支持手机后台适配。
 
 ## 1. 准备工具和目录
 
@@ -115,7 +115,7 @@ py -3.12 -m venv .venv
 docker compose up -d --wait --wait-timeout 120
 ```
 
-首次需要下载 MySQL 镜像；空数据卷会初始化24张表和服装、饰品两个项目，已有数据不会重复建表。数据库就绪后命令成功退出，后端使用普通测试账号，不用数据库管理账号。
+首次需要下载 MySQL 镜像；空数据卷会初始化当前schema的42张表和服装、饰品两个项目，已有数据不会重复建表。数据库就绪后命令成功退出，后端使用普通测试账号，不用数据库管理账号。
 
 再安装网页依赖，按系统选择一条：
 
@@ -159,7 +159,7 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 | 检查 | macOS / Linux | Windows PowerShell |
 |---|---|---|
 | 已运行服务 | `.venv/bin/python scripts/verify_local.py` | `.\.venv\Scripts\python.exe -X utf8 scripts\verify_local.py` |
-| 自动检查 | `.venv/bin/python -m pytest -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest -q` |
+| 自动检查 | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q` |
 
 服务检查应显示两行“通过”；任一失败会以非零状态退出。普通自动检查不要求数据库，真实数据库检查默认显示 `skipped`（跳过），不算通过。出现 `failed` 表示未通过。
 
@@ -167,8 +167,8 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 
 | 系统 | 命令 |
 |---|---|
-| macOS / Linux | `.venv/bin/python -m pytest -q --auth-db` |
-| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pytest -q --auth-db` |
+| macOS / Linux | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
+| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
 
 命令新建专属临时MySQL，结束后删除测试容器及专属卷，不占用33306端口，不修改已有测试库。包含认证、芯片、旧库升级和备份恢复检查；你的已有库按第7节单独升级，不由测试命令代为修改。下方RUN_DB_TESTS只读检查已启动的原测试库。
 
@@ -176,14 +176,14 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 
 ```bash
 # macOS / Linux
-RUN_DB_TESTS=1 .venv/bin/python -m pytest -q
+RUN_DB_TESTS=1 .venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q
 ```
 
 ```powershell
 # Windows PowerShell
 $env:RUN_DB_TESTS="1"
 try {
-    .\.venv\Scripts\python.exe -X utf8 -m pytest -q
+    .\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q
 } finally {
     Remove-Item Env:RUN_DB_TESTS -ErrorAction SilentlyContinue
 }
@@ -312,6 +312,7 @@ docker compose stop
 .\.venv-browser\Scripts\python.exe -m pip install -r requirements-browser.txt
 .\.venv-browser\Scripts\python.exe -m playwright install chromium
 npm --prefix frontend/admin ci
+npm --prefix frontend/admin run build
 .\.venv-browser\Scripts\python.exe -m pytest tests/test_admin_browser.py --auth-db --browser -q
 ```
 
@@ -322,6 +323,7 @@ python3 -m venv .venv-browser
 .venv-browser/bin/python -m pip install -r requirements-browser.txt
 .venv-browser/bin/python -m playwright install chromium
 npm --prefix frontend/admin ci
+npm --prefix frontend/admin run build
 .venv-browser/bin/python -m pytest tests/test_admin_browser.py --auth-db --browser -q
 ```
 
@@ -406,7 +408,7 @@ macOS/Linux使用相同API契约；本轮自动测试负责接口、并发和故
 
 ## 12. 已有测试库升级及手机资料页本机验收
 
-本节用于交付的手机页功能分支。本机预览与手机公网是两套验收：电脑浏览器打开127.0.0.1可以验证页面和本地数据，手机打开同一地址只会访问手机自身，不会连接电脑。实际手机移动网络访问按[云测试第10节](CLOUD_TEST_DEPLOYMENT.md#10-手机用户站点公开部署与验收)另行授权部署。
+本节用于交付的手机页功能分支。本机预览与手机公网是两套验收：电脑浏览器打开127.0.0.1可以验证页面和本地数据，手机打开同一地址只会访问手机自身，不会连接电脑。实际手机移动网络访问按[杭州手册](HANGZHOU_DEPLOYMENT.md)核对当前部署和授权，不执行香港历史步骤。
 
 ### 12.1 先检查004，不重建数据库
 
@@ -457,3 +459,166 @@ Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction Si
 应自动验证并显示服装资料，地址变为/tap/items/数字ID，无密钥或凭证。刷新无需再次碰卡，只查最新资料；超过五分钟仍可继续查询。页面前台每60秒自动更新、返回前台立即更新、后台暂停；失败标明上次内容，不能假装最新；仅新有效验证计数。通过原后台修改名称或停用该物品后，用户页下一次查询应显示修改或不可查看，测试后恢复状态使用原已验收入口，不直接改库。
 
 持续查看以最后一次成功查询计算24小时，成功查询续期；Cookie被浏览器清理可更早失效，不承诺跨设备或持有人身份。测试24小时边界由AI可控时钟覆盖，不要求cece等一天。图片及五组验收见[真实卡手册第6节](NFC_CARD_VERIFICATION.md#6-手机服装资料页与自动更新验收)，软件通过不等于手机公网通过。
+
+<a name="13-a方案生效门槛组件冒烟与图片离线恢复"></a>
+
+## 13. 图片备份与离线恢复门槛
+
+本节复现[后台工程说明](proposals/admin-rebuild-implementation.md#6-保留图片配套备份恢复门槛)中的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的requirements-browser.txt及管理端npm依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
+
+在`frontend/admin`目录可执行以下官方检查；成功应显示doctor无失败、弃用检查无问题，不能代替实际业务验证。API查询显式指定当前antd版本，若失败先检查npm ci是否完成及Node版本。
+
+```bash
+npx --no-install antd info Upload --version 6.6.8 --format json
+npx --no-install antd doctor --format json
+npx --no-install antd lint ./src --only deprecated --format json
+```
+
+在项目根目录、使用上述测试依赖所在的Python执行：
+
+```bash
+python -m pytest tests/test_media_backup.py --auth-db -q
+```
+
+原独立组件矩阵不再例行执行。上面的图片恢复检查使用专属临时MySQL及合成图片；具体冻结窗口、配套备份和离线上传服务恢复仍按下文执行。
+
+按本次范围执行的检查应无失败，跳过不是通过；实际业务优先App上下文。不要通过历史BUMBUM_ANTD_PROJECT或其他入口例行恢复已取消的组件矩阵，构建也不能替代受影响业务验证。
+
+### 13.1 离线工具怎样分工
+
+[配套备份工具](../scripts/media_backup.py)只初始化数据库连接/TLS配置，不启动create_app或上传服务。数据库仍由原生备份/恢复工具处理；本工具不会自动导入SQL、停止服务、修改数据库或覆盖已有文件目录。下面的路径都须替换成获准环境的私有绝对路径，恢复连接必须指向已用该备份database.sql还原的全新隔离目标，不能拿现有业务库试恢复。
+
+```bash
+python scripts/media_backup.py inspect --bundle /私有绝对路径/配套备份
+python scripts/media_backup.py restore-files --bundle /私有绝对路径/配套备份 --media-root /私有绝对路径/不存在的新图片目录
+python scripts/media_backup.py verify --bundle /私有绝对路径/配套备份 --media-root /私有绝对路径/新图片目录
+```
+
+inspect仅证明包内清单、SQL摘要及完整图片自洽；restore-files先比对目标数据库实际元数据/引用与清单，匹配才新建目录并还原文件；verify再次逐项核对目标。成功信息不会启用上传。失败时保留源图、原备份及已有目标，不因“文件数量一样”忽略错配；未通过不宣告恢复成功。
+
+制作备份须先停止上传、图片关联写入和清理、等待在途写入结束，在同一冻结窗口取得原生SQL转储，再使用snapshot动作：
+
+```bash
+python scripts/media_backup.py snapshot --dump /私有绝对路径/冻结窗口转储.sql --media-root /私有绝对路径/原图片目录 --bundle /私有绝对路径/不存在的新备份目录 --writes-frozen
+```
+
+--writes-frozen是操作者对前提的明确声明，不能自动证明已停写。工具前后重读数据库清单并核对文件摘要；备份目录700、文件600，不写凭证或业务正文到日志，不提交备份到Git。完整pending/attached/retired文件须保留；未发布uploading/deleting的半文件不冒充已保存图片，旧外部URL不下载或改写，未知孤立文件不自动清理。
+
+离线恢复演练中，上传服务须停止，恢复过程不得调用上传API、重新上传或在线补元数据；先完成离线校验，再按需启动只读入口。门槛工具与正式图片后端相互独立；已有库先按第14节检查005，旧库缺表或结构不符时ready拒绝，不自动升级。完整管理页面进度见TODO，不能把后端/恢复通过写成页面或生产验收。
+
+上述新库/目录演练不证明生产已有异盘备份、PITR或完整灾难恢复。生产仍须另行核实实际备份去向和恢复前提，并获得部署授权；不得以隔离门槛通过直接生产启用上传。
+
+
+## 14. 物品与私有图片后端升级
+
+目的：保留原账号、物品及图片，升级005后运行新后端。本节不授权部署或操作真实数据库；管理端物品详情/编辑、连续创建和Upload已接入；本节先准备后端与私有目录，再按物品手册验收。准备前停止旧前后端，核对交付分支和本机目标，不删除卷或重新初始化。
+
+| 操作 | macOS/Linux（仓库目录） | Windows PowerShell（仓库目录） |
+|---|---|---|
+| 只读检查 | `.venv/bin/python scripts/migrate_local.py --media-assets` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --media-assets` |
+| 显示缺表后，先完整备份再升级 | `.venv/bin/python scripts/migrate_local.py --media-assets --apply` | `.\.venv\Scripts\python.exe -X utf8 scripts\migrate_local.py --media-assets --apply` |
+
+成功显示媒体005结构已就绪或已完成；重复执行不新建备份、不改原记录。备份路径/权限按第8.1节，支持同一--backup-dir。入口仍只允许默认本机库、专属容器和实际server_uuid匹配；表已存在但列、索引、外键或CHECK不符时拒绝，不自动删除/重建。失败保留备份和现场，停止在本步，不直接恢复整库覆盖后来数据。
+
+本机图片需要单独的私有绝对目录。macOS/Linux可由当前运行用户在仓库运行`python -c "from pathlib import Path; Path('media').mkdir(mode=0o700)"`，只创建不存在的新目录，700权限；已有目录不通过该命令修复，交AI核对。默认位置为仓库media，已被Git/Docker忽略。Windows使用本人LOCALAPPDATA下独立目录，先核对只有本人可访问的ACL，再将绝对路径填入MEDIA_ROOT；POSIX权限检查不能证明Windows ACL安全，该系统实测仍待cece环境验证。不放在网页静态目录或备份包内，不移动未知已有目录。
+
+MEDIA_ENABLED默认false；已有图读取仍要求原私有目录和正确元数据。在获准开发目标显式改为true前，先核005、目录、磁盘与第13节配套恢复；容量默认2GiB，文件/像素限制见API第4.1节。目录缺失、可写权限不符或容量不足时拒绝，不写镜像层或随意临时目录。生产目录准备与已有RDS升级只按杭州手册第10节，不能用本机脚本连接RDS。
+
+后端定向复现使用已按第13节准备的开发依赖和专属临时MySQL：
+
+```bash
+python -m pytest tests/test_admin_items.py tests/test_admin_item_maintenance.py tests/test_media_assets.py tests/test_media_migration.py tests/test_media_cleanup.py tests/test_media_backup.py tests/test_rds_media_migration.py --auth-db -q
+```
+
+真实Gunicorn资源/持久化检查另用AI独立构建的临时镜像，加`--cloud-image 临时镜像标签`运行tests/test_media_resources.py；不接受服务器或日常容器代替临时目标。测试按256MiB/单worker及512MiB/双worker限制实测JPEG/PNG/WebP、超限提前拒绝、跨worker忙、重启和重建文件保留。无镜像参数的跳过不算通过，不推断生产容量或Windows上传可用。
+
+到期技术资源维护由AI在获准目标操作，默认只预览：
+
+```bash
+python scripts/media_cleanup.py --media-root /私有绝对路径/图片目录
+python scripts/media_cleanup.py --media-root /私有绝对路径/图片目录 --apply --backup-bundle /私有绝对路径/已核对配套备份
+```
+
+第二条只在明确获准清理、按第13节冻结窗口取得并核对配套备份后执行。先预览对象和到期状态；apply重新检查所有资料引用及文件归属，仅删到期本功能技术资源，未知文件保留。完整图须有包含实际文件的备份，不能用deleting阶段不带文件的新包代替；中断保留deleting，核对后可用原有效备份重试。符号链接、未知硬链接、摘要变化或引用不明时停止，不据报错手工删物品/图片或直接恢复数据库；不设置定时清理，不执行B生产验证数据清理。
+
+
+### 14.1 物品完整页面的浏览器复测
+
+使用第9节准备的Playwright/Chromium、仓库锁定npm和Python依赖，在项目根目录运行：
+
+```bash
+python -m pytest tests/test_admin_item_browser.py tests/test_admin_browser.py tests/test_admin_maintenance_browser.py tests/test_tap_stats_browser.py --auth-db --browser -q
+```
+
+独立MySQL和合成图覆盖物品连续创建/确切定位、同字段详情与编辑、关联/查询返回、普通保存/启停、真实Upload暂存/关联/移除/取消、未知回执核对及原登录/绑定/密钥/统计回归；不单独追加React19组件矩阵；业务行为仍不能只靠构建判断。不连接现有库、不启用生产上传；故障回执按测试明确合成，实际文件处理仍走真实接口。失败保留脱敏截图与测试提示，不上传秘密或完整浏览器网络记录。
+
+
+## 14. 隔离Umi管理原型
+
+此节仅用于当前任务分支的prototypes/admin-make，不启动真实API、数据库或芯片服务；根目录Windows日常入口仍运行正式frontend/admin。Node/npm沿用.mise.toml版本。
+
+在仓库根目录执行：
+
+```bash
+npm --prefix prototypes/admin-make ci --ignore-scripts
+npm --prefix prototypes/admin-make run setup
+npm --prefix prototypes/admin-make run typecheck
+npm --prefix prototypes/admin-make run dev
+```
+
+打开终端显示的本机地址，点击“使用演示身份进入”；页面与会话均为合成数据。首次setup会生成被Git忽略的src/.umi；失败先检查安装日志与锁文件，不使用force/legacy-peer-deps。
+
+构建和导出：
+
+```bash
+npm --prefix prototypes/admin-make run build
+python prototypes/admin-make/scripts/export-preview.py --output /tmp/bumbum-admin-preview
+node prototypes/admin-make/checks/domain.test.mjs
+```
+
+构建成功产生dist/index.html；导出生成单HTML、源码ZIP并更新preview.html。单HTML包含真实Umi路由块，无需安装依赖；下载后用桌面Chrome/Edge打开。交互步骤及验证范围见[原型说明](../prototypes/admin-make/README.md)。会话仅供产品审核；真实认证、所有权、密钥及API不能用演示替代。停止开发服务在终端按Ctrl+C。
+
+## 15. 正式Umi后台与数字档案006测试
+
+适用于当前重构分支的正式frontend/admin，隔离原型仍在prototypes/admin-make，不把原型会话、演示账户或故障开关导入真实后台。管理员、芯片密钥和现有资料继续原配置，用户页仍独立Vite。先在对应分支更新依赖和构建：
+
+```bash
+npm --prefix frontend/admin ci
+npm --prefix frontend/admin run build
+```
+
+管理端实际为Umi Max/Ant Design Pro。默认npm ci可能提示官方未启用Dva/Utoo插件的peer告警，不能把它写成严格peer检查通过；不使用force/legacy-peer-deps。实际启用的Webpack构建和本页业务检查须通过。Node版本沿项目约定；Windows启动工具已改为管理端自己的跨平台Umi脚本，用户端不变。手动管理端使用`npm --prefix frontend/admin run dev`，只监听127.0.0.1:5174，API代理5000；原VITE_API_BASE_URL不再控制管理端，用户端仍沿用。
+
+已有本机测试库先停止对应应用写入（管理、触碰验证与上传），按第7节的同库/容器核对和私有备份前提运行。默认只检查，apply会先完整备份再做006：
+
+```bash
+python scripts/migrate_local.py --digital-catalog
+python scripts/migrate_local.py --digital-catalog --apply
+```
+
+工具仅接受原本机测试目标，不用于RDS。升级不修改原账户、密钥、计数和事件；不从SKU猜共用款式、不推断售出/发行/持有人。原绑定补第一代整套，历史规格和关联时间未知时保持待核对/未记录。缺少或部分006时ready拒绝，不重新运行schema.sql，不删库重建。DDL无法承诺事务回滚，失败保留备份与现场；已有新业务写入后不能直接恢复整库覆盖后来数据。
+
+AI本地验证应先构建，再按第9节开启临时MySQL和浏览器参数。新版管理端浏览器检查直接使用dist和同源真实API，用户端检查继续启动原Vite；不会连接现有本机测试库。受影响UI脚本已更新为新菜单/整套流程，不运行取消的React19独立组件矩阵：
+
+```bash
+python -m pytest tests/test_admin_catalog.py --auth-db -q
+python -m pytest tests/test_admin_browser.py tests/test_admin_item_browser.py tests/test_admin_maintenance_browser.py tests/test_tap_stats_browser.py --auth-db --browser -q
+```
+
+人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。首次用户认领与标准计次已接入，按[数字物品与H5清单](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)核对；解除挂失及未定费用不通过测试数据冒充开放；更换芯片仍须按原真实配卡手册实际配置，不把服务端生成密钥当作写卡完成。
+
+
+## 16. 验收批次007与本机测试数据
+
+已有本机库先完成006，再默认检查007；apply会核对原本机配置、容器与实例并先完整备份：
+
+```bash
+python scripts/migrate_local.py --test-batches
+python scripts/migrate_local.py --test-batches --apply
+```
+
+本机旧样例/图片清理及新数据包命令、前提和成功/失败解释与[杭州第12节](HANGZHOU_DEPLOYMENT.md#12-验收批次007与测试数据重建)一致，但使用原本机开发配置，不能装载杭州或生产配置。清理备份需要MySQL8.0 mysqldump客户端和旧私有图片目录。清理命令默认只盘点，执行需要显式清单、实例UUID、停写和备份目录。
+
+旧单件图片在线上传/读取和外链已退役，第14节对应旧页面操作不再适用；保留005结构和第13节离线工具用于旧图清理前的配套备份，清理后新款图随数据库备份。当前所有图片在款式维护，当前验收以管理端第8/9节为准。
+
+当前装配、认领、账户双标识及通行密钥还分别依赖008/009、010、011。`scripts/migrate_local.py --assembly-h5`仅覆盖008/009，不能将其成功视为全部结构已就绪；该本地CLI目前没有010/011入口。已有本地库升级到当前版本前，由AI核对实际结构并按现有迁移实现准备同库备份、执行与复核方案，不手工跳过ready检查、不拿空库schema覆盖旧库。全新隔离开发库可直接使用当前schema；已有杭州环境只按杭州手册的受控升级与授权执行。

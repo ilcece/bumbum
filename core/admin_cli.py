@@ -15,6 +15,7 @@ import pyotp
 from werkzeug.security import generate_password_hash
 
 from core.admin_auth import matching_step, revoke_sessions
+from core.admin_passkeys import revoke_all_passkeys
 from core.admin_qr import show_qr
 from core.auth_settings import AuthUnavailable, auth_settings, iso_time, utc_now
 from core.db import get_database
@@ -136,6 +137,7 @@ def reset_totp(username):
         admin_id = row["id"]
         cursor.execute("UPDATE admin_user SET totp_enabled=0,totp_secret_encrypted=NULL,totp_last_step=NULL,failed_login_attempts=0,locked_until=NULL WHERE id=%s", (admin_id,))
         revoke_sessions(cursor, admin_id, now)
+        revoke_all_passkeys(cursor, admin_id, now)
     connection.commit()
     try:
         secret, step = enroll(username)
@@ -172,7 +174,9 @@ def disable_admin(username):
             connection.rollback()
             raise click.ClickException("账号不存在。")
         cursor.execute("UPDATE admin_user SET status='disabled' WHERE id=%s", (row[0],))
-        revoke_sessions(cursor, row[0], utc_now())
+        now = utc_now()
+        revoke_sessions(cursor, row[0], now)
+        revoke_all_passkeys(cursor, row[0], now)
     connection.commit()
     audit("disable", username, "committed", committed=True)
     click.echo("账号已停用，全部旧登录已失效。")

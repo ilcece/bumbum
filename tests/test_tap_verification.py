@@ -43,7 +43,7 @@ def test_success_get_detail_and_statistics_source(auth_app, ready):
     assert response.status_code == 200 and response.headers['Cache-Control'] == 'no-store'
     data = response.json['data']
     assert data['verified'] and data['project'] == 'fashion' and data['expires_in'] == 300
-    assert data['item_detail']['name'] == '测试外套' and data['item_detail']['image_urls'] == ['https://example.com/item.jpg']
+    assert data['item_detail']['name'] == '测试外套' and data['item_detail']['image_urls'] == []
     assert not data['owner_bound']
     token = data['tap_token']
     grant = query(auth_app, 'SELECT * FROM tap_grant')[0]
@@ -253,8 +253,8 @@ def test_unique_event_constraint_and_snapshot_survive_unbind(auth_app, ready):
 
 
 def test_owned_item_read_grant_and_updated_profile(auth_app, ready):
-    query(auth_app, "INSERT INTO user(phone) VALUES ('13800000001') ON DUPLICATE KEY UPDATE phone=phone")
-    owner = query(auth_app, "SELECT id FROM user WHERE phone='13800000001'")[0]['id']
+    query(auth_app, "INSERT INTO user(uid,public_uid,phone) VALUES ('01976379-af87-7174-bcf2-47198e8c59b4',UUID_TO_BIN('ea9eed73-c9a9-420f-abaf-c81c980dfc3d'),'13800000001') ON DUPLICATE KEY UPDATE phone=phone")
+    owner = query(auth_app, "SELECT uid FROM user WHERE phone='13800000001'")[0]['uid']
     target = query(auth_app, 'SELECT item_id FROM chip')[0]['item_id']
     query(auth_app, 'INSERT INTO ownership(item_id,user_id) VALUES (%s,%s)', (target, owner))
     result = tap(auth_app, ready).json['data']
@@ -264,4 +264,9 @@ def test_owned_item_read_grant_and_updated_profile(auth_app, ready):
     assert response.json['data']['profile']['name'] == '更新后的名称'
     assert '13800000001' not in str(response.json)
     assert auth_app.test_client().post('/api/public/bind',json={}).status_code == 404
-    assert auth_app.test_client().post('/api/public/sms/send',json={}).status_code == 404
+    # 短信账户入口已接入，但缺少来源或有效字段仍须拒绝，不能发送短信。
+    client = auth_app.test_client()
+    assert client.post('/api/public/sms/send',json={}).status_code == 403
+    response = client.post('/api/public/sms/send',headers={'Origin':auth_app.config['PUBLIC_ORIGIN']},json={})
+    assert response.status_code == 400 and response.json['code'] == 'invalid_param'
+    assert not query(auth_app, 'SELECT phone FROM user_sms_challenge')

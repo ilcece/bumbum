@@ -1,6 +1,7 @@
 """用户触碰路由及按物品核对的临时查看凭证，不提供认领接口。"""
 
 import os
+import re
 from datetime import timedelta
 from urllib.parse import urlsplit
 
@@ -69,7 +70,7 @@ def invalid_token(view=False):
     raise AuthRequestError(403, 'invalid_view_session' if view else 'invalid_tap_token', '查看资格已失效，请重新触碰实物。')
 
 
-def read_detail(item_id, *, view=False):
+def read_detail(item_id, *, view=False, image_id=None):
     if view:
         public_settings()
         require_view_schema()
@@ -111,13 +112,22 @@ def read_detail(item_id, *, view=False):
                     raise AuthRequestError(409, 'view_unavailable', '该物品当前暂不可查看。')
                 invalid_token(view)
             profile, owner_bound = detail
+            if image_id is not None:
+                from core.admin_catalog import shared_image
+                data = shared_image(cursor, item_id, image_id[6:])
+                connection.commit()
+                return data
+            from core.media_assets import map_profile_images
+            map_profile_images(cursor, {item_id: profile}, context='tap' if view else 'fashion')
             data = {'item_uid': item['item_uid'], 'profile': {name: value for name, value in profile.items() if name not in {'trace', 'story', 'channel'}},
                     'trace': profile['trace'], 'story': profile['story'], 'channel': profile['channel'], 'owner_bound': owner_bound}
             if view:
+                from core.public_account import item_metadata
                 now = utc_now()
                 data = {'project': 'fashion', 'item_id': item_id, 'item_uid': item['item_uid'],
                         'verified_at': iso_time(grant['created_at']), 'retrieved_at': iso_time(now),
                         'profile': {name: profile[name] for name in ('name','description','material','care_instructions','image_urls')}}
+                data.update(item_metadata(cursor,item_id,owner_bound))
                 cursor.execute('UPDATE tap_grant SET expires_at=%s WHERE id=%s', (now + timedelta(hours=24), grant['id']))
         connection.commit()
         return data
@@ -138,6 +148,26 @@ def item_view(item_id):
     if not valid_id(item_id):
         raise AuthRequestError(400, 'invalid_param', '物品ID须为有效正整数。')
     return jsonify(status='ok', data=read_detail(item_id, view=True))
+
+
+@blueprint.get('/api/tap/items/<int:item_id>/style-images/<asset_id>')
+def style_image(item_id, asset_id):
+    return shared_image_response(item_id,asset_id,view=True)
+
+
+@blueprint.get('/api/fashion/items/<int:item_id>/style-images/<asset_id>')
+def fashion_style_image(item_id,asset_id):
+    return shared_image_response(item_id,asset_id,view=False)
+
+
+def shared_image_response(item_id,asset_id,*,view):
+    from flask import Response
+    if not valid_id(item_id) or request.content_length or not re.fullmatch(r'[a-f0-9]{32}', asset_id):
+        raise AuthRequestError(404,'not_found','图片不存在。')
+    data = read_detail(item_id, view=view, image_id='style:'+asset_id)
+    response = Response(data['content'],mimetype='image/webp')
+    response.headers['X-Content-Type-Options']='nosniff'
+    return response
 
 
 def public_settings(*, require_origin=False):

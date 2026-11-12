@@ -92,7 +92,11 @@ def auth_database(request):
                 except pymysql.MySQLError:
                     time.sleep(0.5)
             else:
-                pytest.fail("临时认证数据库在30秒内未就绪；已有数据库未修改")
+                report = subprocess.run(command + ['logs',container],env=env,capture_output=True,text=True)
+                # 仅保留结构错误，不输出容器环境、认证请求或随机测试密码。
+                diagnostics = '\n'.join(line for line in (report.stdout+report.stderr).splitlines() if 'ERROR' in line or 'Permission denied' in line)
+                diagnostics = diagnostics.replace(password,'[已隐藏]').replace(root_password,'[已隐藏]')
+                pytest.fail("临时认证数据库在30秒内未就绪；已有数据库未修改。" + diagnostics[-1500:])
             yield config
     finally:
         if created:
@@ -114,7 +118,7 @@ def auth_app(auth_database, tmp_path):
     with app.app_context():
         connection = get_database()
         with connection.cursor() as cursor:
-            for table in ("sms_challenge", "tap_grant", "scan_log", "security_rate_limit", "ownership_history", "ownership", "admin_login_event", "admin_session", "admin_audit", "admin_user", "chip_key", "chip"):
+            for table in ("test_batch_object", "test_batch", "admin_operation", "item_claim_code", "user_session", "user_sms_challenge", "item_handover", "whole_item", "physical_item", "digital_item", "style_image", "product_issue", "product_style", "chip_validation", "media_asset", "sms_challenge", "tap_grant", "scan_log", "security_rate_limit", "ownership_history", "ownership", "jewelry_task_record", "jewelry_user_progress", "admin_login_event", "admin_session", "admin_audit", "admin_user", "chip_key", "chip"):
                 cursor.execute(f"DELETE FROM {table}")
         connection.commit()
     return app

@@ -1,5 +1,6 @@
 # 浏览器测试固定依赖，由uv解析生成，版本不手工调整。
 blinker==1.9.0
+cbor2==6.2.1
 cffi==2.1.1 ; platform_python_implementation != 'PyPy'
 click==8.5.0
 colorama==0.4.6 ; sys_platform == 'win32'
@@ -11,16 +12,21 @@ itsdangerous==2.2.0
 jinja2==3.1.6
 markupsafe==3.0.4
 packaging==26.3
+pillow==13.0.0
 playwright==1.62.0
 pluggy==1.7.0
+pyasn1-modules==0.4.2
+pyasn1==0.6.5
 pycparser==3.12 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
 pyee==13.0.1
 pygments==2.21.0
 pymysql==1.2.3
+pyopenssl==26.4.0
 pyotp==2.10.0
 pytest==9.1.1
 python-dotenv==1.2.4
 qrcode==8.2
 typing-extensions==4.16.0
+webauthn==3.0.1
 werkzeug==3.1.9
 wtforms==3.3.0

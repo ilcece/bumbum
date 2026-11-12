@@ -52,6 +52,9 @@ services:
       SDM_META_KEY_V1: ${SDM_META_KEY_V1:-}
       SDM_META_KEY_VERSION: ${SDM_META_KEY_VERSION:-v1}
       TAP_VERIFY_PER_MINUTE: ${TAP_VERIFY_PER_MINUTE:-60}
+      SMS_CODE_HASH_KEY: ${SMS_CODE_HASH_KEY:-}
+      SMS_GATEWAY_URL: ${SMS_GATEWAY_URL:-}
+      SMS_GATEWAY_TOKEN: ${SMS_GATEWAY_TOKEN:-}
     restart: unless-stopped
     read_only: true
     tmpfs:

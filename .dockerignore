@@ -20,3 +20,13 @@ logs
 
 # 独立浏览器检查的截图不进入镜像构建上下文。
 test-results
+
+# 私有上传图片只进入独立持久目录与配套备份。
+media/
+
+# 正式镜像不需要隔离原型及其验收素材。
+prototypes/
+
+# Umi生成文件在镜像内由max setup创建，不复制本机版本。
+**/.umi/
+**/.umi-production/

@@ -1,0 +1,78 @@
+{
+  "results": [
+    {
+      "case": "新建限定发行草案，独立保存总量/款式/承诺",
+      "status": "passed"
+    },
+    {
+      "case": "未确认草案不能用于新物品登记",
+      "status": "passed"
+    },
+    {
+      "case": "确认约定冻结承诺，不生成物品或提前启用",
+      "status": "passed"
+    },
+    {
+      "case": "确认后关联款式/总量/颜色及权益承诺不可普通改写",
+      "status": "passed"
+    },
+    {
+      "case": "新建只选发行，款式与类别自动引用且只读",
+      "status": "passed"
+    },
+    {
+      "case": "限定序号超过总量被拒绝且不产生半条身份",
+      "status": "passed"
+    },
+    {
+      "case": "创建时原子保存物品/发行/序号，仍未绑定未归属未启用",
+      "status": "passed"
+    },
+    {
+      "case": "连续创建保留发行，重复发行内序号拒绝覆盖",
+      "status": "passed"
+    },
+    {
+      "case": "系统物品编号与本件序号分开检查，重复身份不覆盖",
+      "status": "passed"
+    },
+    {
+      "case": "非限定草案保存无总量并可确认，仍绑定款式承诺",
+      "status": "passed"
+    },
+    {
+      "case": "新增发行字段后1280×720物品创建弹窗操作仍可达",
+      "status": "passed"
+    },
+    {
+      "case": "非限定允许大于100的本件序号，无发行数量上限",
+      "status": "passed"
+    },
+    {
+      "case": "非限定详情仅显示本件编号，已登记身份不能普通重分配",
+      "status": "passed"
+    },
+    {
+      "case": "刷新后保留准确发行引用与非限定序号",
+      "status": "passed"
+    },
+    {
+      "case": "非限定约定详情不伪造总量或限定规则",
+      "status": "passed"
+    },
+    {
+      "case": "旧的未绑定未归属草稿可补同款约定与序号，其他物品事实不变",
+      "status": "passed"
+    },
+    {
+      "case": "已启用/绑定/归属身份不开放普通重分配",
+      "status": "passed"
+    },
+    {
+      "case": "全程无页面运行错误及真实业务请求",
+      "status": "passed"
+    }
+  ],
+  "page_errors": [],
+  "business_requests": []
+}

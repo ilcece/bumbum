@@ -37,11 +37,11 @@ def status(drafts, garment, value):
 def test_save_replace_preserve_size_and_identity(auth_app, drafts, garment):
     query(auth_app, "UPDATE item SET updated_at='2020-01-01 00:00:00' WHERE id=%s", (garment,))
     original = query(auth_app, "SELECT * FROM item WHERE id=%s", (garment,))[0]
-    result = save(drafts, garment, name=" 名称😀 ", description=" 介绍\n换行 ", material=" 纯棉 ", care_instructions=" 冷水洗 ", image_urls=[" https://example.com/a.png "])
+    result = save(drafts, garment, name=" 名称😀 ", description=" 介绍\n换行 ", material=" 纯棉 ", care_instructions=" 冷水洗 ", image_urls=[])
     assert result.status_code == 200
     profile = result.json["data"]
     assert profile["name"] == "名称😀" and profile["description"] == "介绍\n换行"
-    assert profile["image_urls"] == ["https://example.com/a.png"]
+    assert profile["image_urls"] == []
     query(auth_app, "UPDATE fashion_item_profile SET size_chart=%s WHERE item_id=%s", (json.dumps({"S": "90cm"}), garment))
     assert save(drafts, garment, name="新名", material="  ").status_code == 200
     found = drafts[0].get(f"/api/admin/items/{garment}").json["data"]
@@ -75,7 +75,8 @@ def test_invalid_profile_never_writes(auth_app, drafts, garment, changes):
 
 
 def test_payload_and_character_boundaries(drafts, garment):
-    assert save(drafts, garment, name="😀" * 128, description="中" * 4000, material="棉" * 256, care_instructions="洗" * 2000, image_urls=["https://example.com/" + "a" * 2000] * 20).status_code == 200
+    assert save(drafts, garment, name="😀" * 128, description="中" * 4000, material="棉" * 256, care_instructions="洗" * 2000, image_urls=[]).status_code == 200
+    assert save(drafts,garment,image_urls=["https://example.com/a.png"]).status_code==400
     client, headers = drafts
     assert client.put(f"/api/admin/items/{garment}/profile", data="x" * (256 * 1024 + 1), content_type="application/json", headers=headers).status_code == 400
     assert client.post("/api/admin/items", data="x" * 9000, content_type="application/json", headers=headers).status_code == 400

@@ -1,6 +1,7 @@
 """桌面浏览器夹具只接收auth_database生成的专属临时库。"""
 
 from datetime import timezone
+import os
 from pathlib import Path
 import re
 import shutil
@@ -13,6 +14,8 @@ import threading
 import pyotp
 import pytest
 from werkzeug.serving import make_server, WSGIRequestHandler
+from werkzeug.middleware.shared_data import SharedDataMiddleware
+from werkzeug.wrappers import Response
 
 from core.db import get_database
 
@@ -20,9 +23,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def frontend_ready(output, port=5174):
-    """忽略终端颜色码，仍只识别本次Vite日志中的固定本地地址。"""
+    """忽略终端颜色码，仍只识别本次前端日志中的固定本地地址。"""
     plain = re.sub(r'\x1b\[[0-9;]*m', '', output)
-    return f'http://127.0.0.1:{port}/' in plain or f'http://localhost:{port}/' in plain
+    return re.search(rf'http://(?:127\.0\.0\.1|localhost):{port}(?:/|\s|$)', plain) is not None
 
 
 class QuietHandler(WSGIRequestHandler):
@@ -40,16 +43,27 @@ class BrowserSession:
 
     def login(self):
         page = self.page
+        # 页面时钟与临时服务时钟一致，日期录入不使用宿主真实时间。
+        page.clock.set_fixed_time(self.app.test_clock[0].replace(tzinfo=timezone.utc))
         page.goto('http://localhost:5174', wait_until='networkidle')
         page.get_by_label('账号', exact=True).fill(self._account['username'])
         page.get_by_label('密码', exact=True).fill(self._account['password'])
         clock = self.app.test_clock[0].replace(tzinfo=timezone.utc).timestamp()
         page.get_by_label('Authenticator 验证码', exact=True).fill(pyotp.TOTP(self._account['secret']).at(clock))
-        page.get_by_role('button', name='登录', exact=True).click()
-        page.get_by_role('heading', name='你好，cece', exact=True).wait_for()
+        page.get_by_role('button', name=re.compile(r'^登\s*录$')).click()
+        page.get_by_role('link', name=re.compile('工作台$')).wait_for()
+        page.get_by_role('button',name='退出登录',exact=True).wait_for()
 
     def navigate(self, name):
-        self.page.get_by_role('navigation', name='基础功能').get_by_role('button', name=name, exact=True).click()
+        link = self.page.locator('aside').get_by_role('link', name=re.compile(re.escape(name)+'$'))
+        if self.page.locator('.ant-modal:visible, .ant-drawer:visible').count():
+            # 弹层遮罩阻止点击侧栏；这里显式触发路由以验证离开保护，物理关闭另有专测。
+            link.evaluate('(node) => node.click()')
+        else:
+            link.click()
+        routes={'工作台':'/overview','款式与发行':'/catalog','数字物品':'/items','芯片管理':'/chips','系统管理':'/system'}
+        self.page.wait_for_url(re.compile(re.escape(routes[name])+r'(\?.*)?$'))
+
 
 
 def assert_ports_available(ports=(5000, 5174)):
@@ -72,7 +86,10 @@ def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", c
     port=5174 if frontend_name == "admin" else 5175
     address=f"http://127.0.0.1:{port}" if frontend_name == "user" else "http://localhost:5174"
     assert_ports_available((5000,port))
-    if not shutil.which('node') or not (ROOT/f'frontend/{frontend_name}/node_modules/vite/bin/vite.js').is_file():
+    entry = '@umijs/max/bin/max.js' if frontend_name == 'admin' else 'vite/bin/vite.js'
+    if frontend_name=='admin' and not (ROOT/'frontend/admin/dist/index.html').is_file():
+        pytest.fail('请先npm --prefix frontend/admin run build；正式后台浏览器检查使用实际构建产物。')
+    if frontend_name=='user' and (not shutil.which('node') or not (ROOT/f'frontend/{frontend_name}/node_modules'/entry).is_file()):
         pytest.fail('请先准备Node和前端依赖；未启动或接管任何已有服务。')
     if clear_items:
         with app.app_context():
@@ -81,13 +98,24 @@ def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", c
                 for table in ('fashion_item_profile','jewelry_item_profile','item'):
                     cursor.execute(f'DELETE FROM {table}')
             conn.commit()
-    server = make_server('127.0.0.1', 5000, app, threaded=True, request_handler=QuietHandler)
+    target=app
+    if frontend_name=='admin':
+        dist=ROOT/'frontend/admin/dist'
+        def fallback(environ,start_response):
+            path=environ.get('PATH_INFO','/')
+            if path=='/' or re.fullmatch(r'/(?:login|overview|catalog(?:/(?:style|issue)/(?:[0-9]+|new))?|items(?:/[0-9]+)?|chips(?:/[0-9]+)?|system)',path):
+                return Response((dist/'index.html').read_bytes(),mimetype='text/html',headers={'Cache-Control':'no-store'})(environ,start_response)
+            return app(environ,start_response)
+        # 静态文件与API同源，模拟正式网关；API未知地址继续由后端返回JSON 404。
+        target=SharedDataMiddleware(fallback,{'/':str(dist)},cache=False)
+    server = make_server('127.0.0.1', port if frontend_name=='admin' else 5000, target, threaded=True, request_handler=QuietHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     frontend = None
     with open(tmp_path/'frontend.log', 'w', encoding='utf-8') as output:
         try:
-            frontend = subprocess.Popen(['node', 'node_modules/vite/bin/vite.js'], cwd=ROOT/f'frontend/{frontend_name}', stdout=output, stderr=output)
+            if frontend_name=='user':
+                frontend = subprocess.Popen(['node', 'node_modules/'+entry, *(['dev'] if frontend_name=='admin' else [])], cwd=ROOT/f'frontend/{frontend_name}', env={**os.environ, 'HOST':'127.0.0.1','PORT':str(port),'BROWSER':'none'}, stdout=output, stderr=output)
             with sync_playwright() as playwright:
                 options = {'headless': True}
                 executable = request.config.getoption('--browser-executable')
@@ -99,21 +127,24 @@ def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", c
                 failures = []
                 page.on('pageerror', lambda error: failures.append(type(error).__name__))
                 try:
-                    # 只等待自己启动的Vite；端口预检已拒绝接管其他服务。
-                    for _ in range(150):
-                        if frontend.poll() is not None:
-                            pytest.fail('本次前端启动失败，请核对Node与锁定依赖；日志不包含认证请求。')
-                        ready = (tmp_path/'frontend.log').read_text(encoding='utf-8', errors='replace')
-                        if not frontend_ready(ready,port):
-                            threading.Event().wait(.1)
-                            continue
-                        try:
-                            page.goto(address, timeout=1000)
-                            break
-                        except Exception:
-                            threading.Event().wait(.1)
+                    if frontend_name=='admin':
+                        page.goto(address,wait_until='networkidle')
                     else:
-                        pytest.fail('本次前端在限定时间内未就绪。')
+                        # 只等待自己启动的前端；端口预检已拒绝接管其他服务。
+                        for _ in range(150):
+                            if frontend.poll() is not None:
+                                pytest.fail('本次前端启动失败，请核对Node与锁定依赖；日志不包含认证请求。')
+                            ready = (tmp_path/'frontend.log').read_text(encoding='utf-8', errors='replace')
+                            if not frontend_ready(ready,port):
+                                threading.Event().wait(.1)
+                                continue
+                            try:
+                                page.goto(address, timeout=1000)
+                                break
+                            except Exception:
+                                threading.Event().wait(.1)
+                        else:
+                            pytest.fail('本次前端在限定时间内未就绪。')
                     yield BrowserSession(page, app, account)
                     assert not failures, '浏览器出现未捕获错误；只报告类型，未记录请求或控制台原文。'
                 finally:

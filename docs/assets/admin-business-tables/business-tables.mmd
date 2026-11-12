@@ -1,0 +1,100 @@
+erDiagram
+    direction LR
+    styleData["01 款式资料"] {
+        text code "款式编号与项目"
+        text name "名称与设计介绍"
+        text material "材质与养护或寓意"
+        text pictures "共用参考图片"
+        text sizes "尺码表与可选尺码"
+    }
+    issueTerms["02 发行约定"] {
+        ref style "关联款式"
+        text series "发行名称与系列"
+        number total "限定总量或非限定无上限"
+        text colors "允许颜色及例外"
+        ref rights "适用权益规则"
+        text version "保留当次适用承诺"
+    }
+    digitalItem["03 数字物品"] {
+        text code "唯一物品编号与项目"
+        ref style "关联款式"
+        ref issue "适用发行约定"
+        text edition "本件序号：限定与非限定均保留"
+        text enabled "物品启用状态且新名称待审"
+        derived owner "当前持有人与首次绑定时间"
+        derived current "当前实体与芯片"
+    }
+    entityDelivery["04 实体交付"] {
+        ref item "所属数字物品"
+        number order "第几次交付"
+        text sizeColor "实际尺码与实际颜色"
+        ref chip "本次芯片"
+        text delivery "准备与交付核验"
+        time activation "正式接续与退出时间"
+        ref work "来源办理或首次交付来源"
+    }
+    chipRecord["05 芯片"] {
+        text uid "芯片UID"
+        text batch "批次与首次登记来源"
+        text test "验证标记及备注"
+        text state "服务状态与配置核验摘要"
+        derived item "关联实体和数字物品"
+        derived project "项目从关联物品读取"
+    }
+    holderAccount["06 持有人"] {
+        text account "稳定账户标识"
+        text name "显示名称若有"
+        private contact "受权限保护的联系方式"
+        derived items "当前持有物品"
+        derived history "持有起止与流转摘要"
+    }
+    rightRule["07 权益规则"] {
+        text name "权益名称与类型"
+        ref issue "适用发行及版本"
+        text scenes "定期换新及挂失换新"
+        text quota "共享自然年一次"
+        text start "首次绑定所有人起具备资格"
+        text transfer "转售不扣减也不重置"
+    }
+    annualRight["08 年度权益记录"] {
+        ref item "额度归属数字物品"
+        number year "自然年度且时区待定"
+        ref rule "共享额度规则"
+        number allowed "年度可用次数"
+        derived used "有效使用记录及已用次数"
+        derived balance "剩余次数"
+        ref work "使用所对应的办理且计次节点待定"
+    }
+    businessWork["09 业务办理"] {
+        text code "办理编号与业务类型"
+        ref item "目标数字物品"
+        ref people "原持有人及接收人"
+        ref targets "新旧实体与芯片"
+        ref right "权益依据与资格核对"
+        text process "准备和物流及交付核验"
+        text result "阶段与处理结果"
+        time confirm "正式接续时间及处理管理员"
+    }
+    ownershipFlow["10 所有权流转"] {
+        ref item "目标数字物品"
+        text event "首次绑定或归属变更"
+        ref people "原持有人与新持有人"
+        time duration "持有起止与确认时间"
+        ref work "关联办理及确认来源"
+        derived publicSummary "公开摘要范围待定"
+    }
+    styleData ||..o{ issueTerms : "同款可多次发行"
+    styleData o|..o{ digitalItem : "共用资料引用"
+    issueTerms o|..o{ digitalItem : "适用当次承诺"
+    digitalItem ||..o{ entityDelivery : "保留历次交付"
+    chipRecord o|..o{ entityDelivery : "本次关联及历史规则另审"
+    holderAccount o|..o{ digitalItem : "当前归属并非碰卡者"
+    issueTerms }o..o{ rightRule : "引用适用规则"
+    digitalItem ||..o{ annualRight : "按物品按年记录"
+    rightRule ||..o{ annualRight : "共享额度依据"
+    digitalItem ||..o{ businessWork : "发起与追溯办理"
+    businessWork o|..o{ entityDelivery : "产生交付记录"
+    businessWork o|..o{ ownershipFlow : "归属生效后记录"
+    digitalItem ||..o{ ownershipFlow : "保留归属历史"
+    holderAccount o|..o{ ownershipFlow : "原持有人"
+    holderAccount o|..o{ ownershipFlow : "新持有人"

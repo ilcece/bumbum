@@ -53,6 +53,8 @@ def bind_chip_item(chip_id, item_id):
             project = cursor.fetchone()["code"]
             if project not in {"fashion", "jewelry"}:
                 raise AuthRequestError(409, "project_mismatch", "目标物品项目不支持绑定。")
+            from core.test_batches import same_source
+            same_source(cursor,'item',item_id,'chip',chip_id)
             previous_project = None if chip["project_id"] is None else project
             try:
                 cursor.execute(
@@ -64,6 +66,14 @@ def bind_chip_item(chip_id, item_id):
                 if error.args[0] == 1062:
                     raise AuthRequestError(409, "item_already_has_chip", "该物品已关联其他芯片，请重新查询选择。") from None
                 raise
+            cursor.execute("SELECT id FROM item_handover WHERE pending_chip_id=%s", (chip_id,))
+            if cursor.fetchone():
+                raise AuthRequestError(409, "invalid_state", "该芯片已用于整套物品准备，不能通过首次绑定抢占。")
+            cursor.execute("SELECT id FROM whole_item WHERE chip_id=%s", (chip_id,))
+            if not cursor.fetchone():
+                cursor.execute("SELECT COALESCE(MAX(generation),0)+1 AS n FROM whole_item WHERE item_id=%s", (item_id,))
+                generation = cursor.fetchone()["n"]
+                cursor.execute("INSERT INTO whole_item(item_id,chip_id,generation,spec) VALUES (%s,%s,%s,%s)", (item_id,chip_id,generation,"历史规格待核对"))
             record_binding(cursor, chip_id, item_id, project, previous_project)
             cursor.execute(CHIP_VIEW + " WHERE c.id=%s", (chip_id,))
             result = chip_view(cursor.fetchone())

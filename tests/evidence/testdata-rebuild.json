@@ -1,0 +1,76 @@
+{
+  "date": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "environment": "本机独立临时MySQL8.0.46、Chromium及本机HTTPS容器，全部合成数据",
+  "runs": [
+    {
+      "scope": "正式生产构建",
+      "summary": "构建完成"
+    },
+    {
+      "scope": "原有绑定/密钥/验签/媒体恢复等回归（外链旧预期后续修订）",
+      "summary": "1 failed, 183 passed in 126.57s (0:02:06)"
+    },
+    {
+      "scope": "原有升级/查看/资料回归（夹具及外链旧预期后续修订）",
+      "summary": "2 failed, 146 passed, 1 error in 75.22s (0:01:15)"
+    },
+    {
+      "scope": "最终批次事务/回执/来源及旧图清理",
+      "summary": "7 passed in 33.92s"
+    },
+    {
+      "scope": "最终旧图备份清理与真实配置卡历史关系保护",
+      "summary": "3 passed in 23.13s"
+    },
+    {
+      "scope": "007真实迁移与文字资料边界",
+      "summary": "36 passed in 34.60s"
+    },
+    {
+      "scope": "修订外链退役后的读取及批次/清理",
+      "summary": "7 passed in 29.71s"
+    },
+    {
+      "scope": "原有四项核心浏览器主线",
+      "summary": "1 failed, 4 passed in 105.70s (0:01:45)"
+    },
+    {
+      "scope": "新批次完整UI与统计范围",
+      "summary": "2 passed in 34.59s"
+    },
+    {
+      "scope": "最终批次UI证据",
+      "summary": "1 passed in 34.19s"
+    },
+    {
+      "scope": "本机HTTPS网关及20张新版款图资格/重启",
+      "summary": "3 passed in 46.16s"
+    },
+    {
+      "scope": "图片编码及部署静态检查",
+      "summary": "42 passed, 4 skipped in 0.97s"
+    }
+  ],
+  "counting": "组间重复，不相加作为唯一测试总数；浏览器6项不同业务案例最终均通过。",
+  "failures_resolved": [
+    "整批清理表单缺少注册batch_id字段已修复，最终UI通过。",
+    "旧外链图片预期按已批准退役规则修订，读取/资料测试复测通过。",
+    "旧清理测试夹具缺少drafts导入已修复，备份清理及保护复测通过。"
+  ],
+  "skipped": "静态检查的4项需要显式auth-db容器开关；实际HTTPS网关3项已另行执行。未执行React19独立组件矩阵、Windows实机或真实卡。",
+  "remote": "本轮未连接/修改现有杭州测试或生产库。Workbench临时授权过期；实际盘点、配套备份、清理和灌入待恢复有效授权。",
+  "initial_pack": {
+    "styles": 3,
+    "issues": 5,
+    "digital_items": 20,
+    "chips": 27,
+    "synthetic_users": 2,
+    "lifecycle_taps": 18,
+    "sold_taps": 17
+  },
+  "screenshots": {
+    "testdata-test-cleanup.png": "bee3d2f5af85430e22dbd9389a69692b46fdf763602608dbfc1adf2838ed0812",
+    "testdata-test-statistics.png": "d00e520dcd4f3b4bd4401436a6623021097d3416e33cd5981203b7028c65530c"
+  }
+}

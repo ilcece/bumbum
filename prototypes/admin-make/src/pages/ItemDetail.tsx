@@ -1,0 +1,584 @@
+import React, { useState } from "react";
+import {
+  PageContainer,
+  ProCard,
+  ProDescriptions,
+  ProTable,
+  ModalForm,
+  ProFormSelect,
+  ProFormDigit,
+  ProFormTextArea,
+} from "@ant-design/pro-components";
+import { Alert, Button, Space, Tag, Statistic, Tabs, Select, Collapse, Typography } from "antd";
+import { history, useParams } from "@umijs/max";
+import { useStore } from "../data/store";
+import {
+  edition,
+  issueText,
+  itemStates,
+  chipStates,
+  userName,
+  users,
+  timeText,
+  statistics,
+  kindNames,
+  Handover,
+  wholeName,
+  wholeState,
+} from "../data/domain";
+import { useReturnPath, useAction, go, required, ErrorState } from "../ui";
+import { BindEditor, ProvisionPanel } from "../components/ChipActions";
+import SaleEditor from "../components/SaleEditor";
+import HandoverEditor from "../components/HandoverEditor";
+import StyleEditor from "./StyleEditor";
+import ValidationControls from "../components/ValidationControls";
+import ItemLossEditor from "../components/ItemLossEditor";
+import { CopyValue, StatusTag, ProductGallery, DetailContainer, EditionValue, HolderValue } from "../components/RecordPresentation";
+export default function ItemDetail({ itemId, embedded = false, onDeleted }: { itemId?: number; embedded?: boolean; onDeleted?: () => void }) {
+  const p = useStore(),
+    d = p.data,
+    { id } = useParams(),
+    i = d.items.find((x) => x.id === (itemId ?? Number(id))),
+    back = useReturnPath("/items"),
+    a = useAction(),
+    [bind, setBind] = useState(false),
+    [sale, setSale] = useState(false),
+    [claim, setClaim] = useState(false),
+    [assign, setAssign] = useState(false),
+    [editStyle, setEditStyle] = useState(false),
+    [assignId, setAssignId] = useState<string>(),
+    [handover, setHandover] = useState(false),
+    [workId, setWorkId] = useState<string>(),
+    [initialKind, setInitialKind] = useState<Handover["kind"]>("periodic"),
+    [loss, setLoss] = useState(false),
+    [lossEntityId, setLossEntityId] = useState<string>(),
+    [scope, setScope] = useState<"sold" | "all">("sold"),
+    [range, setRange] = useState<"7d" | "30d" | "all">("all");
+  if (!i)
+    return (
+      <PageContainer
+        title="数字物品不存在"
+        onBack={() => history.push("/items")}
+      />
+    );
+  const style = d.styles.find((s) => s.id === i.styleId),
+    issue = d.issues.find((s) => s.id === i.issueId),
+    entity = i.entities.find((e) => !e.to),
+    chip = d.chips.find((c) => c.id === entity?.chipId),
+    stats = statistics(d, { scope, range, itemId: i.id }),
+    works = d.handovers.filter((w) => w.itemId === i.id),
+    pending = works.find((w) => !w.completedAt && !w.legacy),
+    assignIssue = d.issues.find((x) => x.id === assignId);
+  const begin = (work?: string, kind: Handover["kind"] = "periodic") => {
+    setWorkId(work);
+    setInitialKind(kind);
+    setHandover(true);
+  };
+  return (
+    <DetailContainer
+      embedded={embedded}
+      title={<CopyValue value={i.uid} />}
+      subTitle={`${style?.name || "款式待核对"} · ${edition(i, issue)}`}
+      onBack={() => history.push(back)}
+      extra={
+        <Space>
+          {!embedded && <Button onClick={() => history.push(back)}>返回来源</Button>}
+          <Button onClick={() => setSale(true)}>维护售出确认</Button>
+          <Button
+            type={i.status === "active" ? "default" : "primary"}
+            danger={i.status === "active"}
+            disabled={i.status === "archived" || a.unknown}
+            onClick={() =>
+              a.run(
+                "toggleItem",
+                { itemId: i.id },
+                i.status === "active"
+                  ? "物品已停用，身份与持有人保留"
+                  : "物品已启用，尚未自动认领",
+              )
+            }
+          >
+            {i.status === "active" ? "停用物品" : "启用物品"}
+          </Button>
+        </Space>
+      }
+    >
+      <div className="page-stack">
+        {a.feedback}
+        {p.readError ? (
+          <ErrorState />
+        ) : (
+          <>
+            <ProCard
+              size="small"
+              headerBordered
+              variant="outlined"
+              title="数字身份与发行"
+              extra={
+                <StatusTag value={itemStates[i.status]} />
+              }
+            >
+              <ProDescriptions
+                size="small"
+                bordered
+                style={{ marginBottom: 12 }}
+                column={2}
+                dataSource={i}
+                columns={[
+                  { title: "系统物品编号", dataIndex: "uid", copyable: true },
+                  { title: "发行编号", render: () => <EditionValue value={edition(i, issue)} /> },
+                  {
+                    title: "商品款式",
+                    render: () => (
+                      <Button
+                        type="link"
+                        onClick={() => go("/catalog/style/" + i.styleId)}
+                      >
+                        {style?.name}
+                      </Button>
+                    ),
+                  },
+                  {
+                    title: "发行约定",
+                    render: () =>
+                      issue ? (
+                        <Button
+                          type="link"
+                          onClick={() => go("/catalog/issue/" + issue.id)}
+                        >
+                          {issue.name + " · " + issueText(issue)}
+                        </Button>
+                      ) : (
+                        <Button onClick={() => setAssign(true)}>
+                          补齐原发行关系
+                        </Button>
+                      ),
+                  },
+                  {
+                    title: "售出确认",
+                    render: () => <StatusTag value={i.sold ? "已确认售出" : "未确认售出"} />,
+                  },
+                  {
+                    title: "首次售出时间",
+                    render: () => timeText(i.firstSoldAt),
+                  },
+                  { title: "当前持有人", render: () => <HolderValue id={i.ownerId} name={userName(i.ownerId)} /> },
+                  {
+                    title: "首次认领时间",
+                    render: () => timeText(i.firstOwnerAt),
+                  },
+                ]}
+              />
+              <ValidationControls kind="items" id={i.id} checked={i.isValidation} onDeleted={() => embedded ? onDeleted?.() : history.push(back)} />
+              <Typography.Text type="secondary">售出与认领分别维护。更正售出标记保留首次时间、身份、持有人及触碰历史。</Typography.Text>
+            </ProCard>
+            <ProCard size="small" headerBordered variant="outlined" title="共用商品资料" extra={style && <Button onClick={() => setEditStyle(true)}>编辑共用资料</Button>}>
+              <div className="product-profile"><ProductGallery pictures={style?.pictures} /><div><Typography.Title level={5} style={{marginTop: 0}}>{style?.name || "款式待核对"}</Typography.Title><Typography.Paragraph type="secondary">来自共用款式 <CopyValue value={style?.code} />，统一维护引用物品的商品资料。</Typography.Paragraph><ProDescriptions size="small" column={1} columns={[
+                { title: "商品介绍", render: () => style?.description || "未填写" },
+                { title: "材质说明", render: () => style?.material || "未填写" },
+                { title: "养护或寓意", render: () => style?.care || "未填写" },
+                { title: "适用规格", render: () => style?.specs.join("、") || "未填写" },
+              ]} /></div></div>
+            </ProCard>
+            <ProCard
+              size="small"
+              headerBordered
+              variant="outlined"
+              title="当前物品（实物＋芯片）"
+              extra={
+                !entity ? (
+                  <Button type="primary" onClick={() => setBind(true)}>
+                    {i.entities.length ? "补齐当前物品" : "准备首套物品"}
+                  </Button>
+                ) : (
+                  <Space wrap>
+                    <Button danger disabled={!!entity.lost || i.status === "archived" || !chip} onClick={() => { setLossEntityId(entity.id); setLoss(true); }}>挂失物品</Button>
+                    {pending ? <Button type="primary" onClick={() => begin(pending.id)}>继续办理{pending.kind === "resale" ? "转售" : "换新"}</Button> : i.ownerId && <><Button type="primary" onClick={() => begin(undefined, entity.lost ? "loss" : "periodic")}>办理换新</Button><Button onClick={() => begin(undefined, "resale")}>办理转售</Button></>}
+                  </Space>
+                )
+              }
+            >
+              {entity ? (
+                <ProDescriptions
+                  size="small"
+                  bordered
+                  style={{ marginBottom: 12 }}
+                  column={2}
+                  columns={[
+                    { title: "物品代次", render: () => wholeName(entity) },
+                    { title: "物品状态", render: () => <StatusTag value={wholeState(entity)} /> },
+                    { title: "实物规格", render: () => entity.spec },
+                    {
+                      title: "配套芯片",
+                      render: () => (
+                        <CopyValue value={chip?.uid} onClick={() => go("/chips/" + chip?.id)} />
+                      ),
+                    },
+                    {
+                      title: "芯片服务状态",
+                      render: () => <StatusTag value={chip ? chipStates[chip.state] : "待核对"} />,
+                    },
+                    {
+                      title: "配置状态",
+                      render: () =>
+                        <StatusTag value={chip?.configuredAt ? "演示核验就绪" : "待准备/核验"} />,
+                    },
+                    { title: "关联时间", render: () => timeText(entity.from) },
+                    ...(entity.lost ? [{ title: "挂失时间", render: () => entity.lostAt ? timeText(entity.lostAt) : "旧记录未记时间" }, { title: "挂失依据", render: () => entity.lossEvidence || "旧记录未记依据" }] : []),
+                  ]}
+                />
+              ) : (
+                <Alert
+                  type="info"
+                  title="尚未准备首套物品"
+                  description="为此数字身份准备实物及配套芯片，完成配置核验后再启用。"
+                />
+              )}
+              {entity?.lost && <Alert type="warning" showIcon title="当前整套物品已挂失" description="配套芯片已停止服务。挂失记录属于这一代物品；换新后的新物品不会继承旧物品的挂失状态，解除挂失政策仍待定。" />}
+              {chip && chip.state !== "retired" && <ProvisionPanel chipId={chip.id} title="当前物品的芯片配置" />}
+            </ProCard>
+            <ProCard
+              size="small"
+              headerBordered
+              variant="outlined"
+              title="持有人与权益"
+              extra={
+                !i.ownerId ? (
+                  <Button
+                    data-demo-only
+                    disabled={i.status !== "active"}
+                    onClick={() => setClaim(true)}
+                  >
+                    〔演示〕模拟首次认领
+                  </Button>
+                ) : undefined
+              }
+            >
+              <ProDescriptions
+                size="small"
+                bordered
+                style={{ marginBottom: 12 }}
+                column={2}
+                columns={[
+                  { title: "当前持有人", render: () => <HolderValue id={i.ownerId} name={userName(i.ownerId)} /> },
+                  {
+                    title: "已约定权益",
+                    render: () =>
+                      issue?.rights
+                        .map((r) => (r === "resale" ? "转售" : "换新"))
+                        .join("、") || "未约定",
+                  },
+                  {
+                    title: "年度共享换新额度",
+                    render: () =>
+                      i.firstOwnerAt
+                        ? "1次 / 年，已核定使用 " + i.used + " 次"
+                        : "首次认领后起算",
+                  },
+                  {
+                    title: "计次核对",
+                    render: () =>
+                      i.quotaReview ? (
+                        <Tag color="orange">待核对计次</Tag>
+                      ) : (
+                        <StatusTag value="暂无待核对" />
+                      ),
+                  },
+                ]}
+              />
+              <Collapse ghost items={[{ key: "works", label: `物品办理记录（${works.length}）`, children: <ProTable
+                rowKey="id"
+                search={false}
+                scroll={{ x: "max-content" }}
+                options={false}
+                pagination={{ pageSize: 10, showSizeChanger: false }}
+                dataSource={works}
+                columns={[
+                  { title: "类型", render: (_, w) => kindNames[w.kind] },
+                  {
+                    title: "准备时间",
+                    render: (_, w) => timeText(w.createdAt),
+                  },
+                  {
+                    title: "状态",
+                    render: (_, w) =>
+                      <StatusTag value={w.legacy
+                        ? "旧版记录待核对"
+                        : w.completedAt
+                          ? "已完成"
+                          : "待确认接续"} />,
+                  },
+                  {
+                    title: "接收账户",
+                    render: (_, w) => <HolderValue id={w.recipientId} name={userName(w.recipientId)} />,
+                  },
+                  {
+                    title: "操作",
+                    render: (_, w) => (
+                      <Button type="link" onClick={() => begin(w.id)}>
+                        {w.completedAt || w.legacy ? "查看" : "继续接续"}
+                      </Button>
+                    ),
+                  },
+                ]}
+              /> }]} />
+            </ProCard>
+            <ProCard
+              size="small"
+              headerBordered
+              variant="outlined"
+              title="物品触碰统计"
+              extra={
+                <Space>
+                  <Select
+                    aria-label="统计对象"
+                    value={scope}
+                    onChange={setScope}
+                    options={[
+                      { value: "sold", label: "售出后的有效触碰" },
+                      { value: "all", label: "全生命周期有效触碰" },
+                    ]}
+                  />
+                  <Select
+                    aria-label="统计时间"
+                    value={range}
+                    onChange={setRange}
+                    options={[
+                      { value: "7d", label: "近7天" },
+                      { value: "30d", label: "近30天" },
+                      { value: "all", label: "全部时间" },
+                    ]}
+                  />
+                </Space>
+              }
+            >
+              <Space size={24} align="start" wrap>
+                <Statistic
+                  title={
+                    scope === "sold" ? "售出后有效触碰" : "全生命周期有效触碰"
+                  }
+                  value={stats.total}
+                  suffix="次"
+                />
+                <div>
+                  按此稳定数字身份汇总历代整套物品。
+                  <br />
+                  北京时间；配置核验、失败和重复刷新不计次。
+                </div>
+              </Space>
+              <ProTable
+                rowKey="id"
+                search={false}
+                scroll={{ x: "max-content" }}
+                options={false}
+                pagination={{ pageSize: 10, showSizeChanger: false }}
+                dataSource={d.chips.filter((c) =>
+                  i.entities.some((e) => e.chipId === c.id),
+                )}
+                columns={[
+                  { title: "物品代次", render: (_, c) => wholeName(i.entities.find(e => e.chipId === c.id)) },
+                  {
+                    title: "配套芯片",
+                    render: (_, c) => (
+                      <CopyValue value={c.uid} onClick={() => go("/chips/" + c.id)} />
+                    ),
+                  },
+                  { title: "当前状态", render: (_, c) => <StatusTag value={chipStates[c.state]} /> },
+                  {
+                    title: "所选口径有效触碰",
+                    render: (_, c) =>
+                      stats.events.filter((e) => e.chipId === c.id).length,
+                  },
+                ]}
+              />
+              <Space>
+                <Button
+                  data-demo-only
+                  disabled={!chip}
+                  onClick={() =>
+                    a.run("touch", { chipId: chip?.id }, "已记录合成有效触碰")
+                  }
+                >
+                  〔演示〕模拟当前卡触碰
+                </Button>
+                <Button
+                  data-demo-only
+                  disabled={!chip}
+                  onClick={() =>
+                    a.run("touch", { chipId: chip?.id, counter: chip?.counter })
+                  }
+                >
+                  〔演示〕重复同一读数
+                </Button>
+              </Space>
+            </ProCard>
+            <ProCard
+              size="small"
+              headerBordered
+              variant="outlined"
+              title="关系历史"
+            >
+              <Tabs
+                items={[
+                  {
+                    key: "entities",
+                    label: "物品历程（实物＋芯片）",
+                    children: (
+                      <ProTable
+                        rowKey="id"
+                        search={false}
+                        scroll={{ x: "max-content" }}
+                        options={false}
+                        pagination={{ pageSize: 10, showSizeChanger: false }}
+                        dataSource={i.entities}
+                        columns={[
+                          { title: "物品代次", render: (_, e) => wholeName(e) },
+                          { title: "实际规格", dataIndex: "spec" },
+                          {
+                            title: "配套芯片UID",
+                            render: (_, e) => (
+                              <CopyValue value={d.chips.find((c) => c.id === e.chipId)?.uid} onClick={() => go("/chips/" + e.chipId)} />
+                            ),
+                          },
+                          {
+                            title: "开始时间",
+                            render: (_, e) => timeText(e.from),
+                          },
+                          {
+                            title: "结束时间",
+                            render: (_, e) =>
+                              e.to ? timeText(e.to) : <StatusTag value="当前关联" />,
+                          },
+                          { title: "变更原因", dataIndex: "reason" },
+                          { title: "物品状态", render: (_, e) => <Space><StatusTag value={wholeState(e)} />{e.to && e.lost && <StatusTag value="曾挂失" />}</Space> },
+                          { title: "挂失记录", render: (_, e) => e.lost ? <Space direction="vertical" size={0}><span>{e.lostAt ? timeText(e.lostAt) : "旧记录未记时间"}</span><span>{e.lossEvidence || "旧记录未记依据"}</span></Space> : "—" },
+                        ]}
+                      />
+                    ),
+                  },
+                  {
+                    key: "owners",
+                    label: "持有人历程",
+                    children: (
+                      <ProTable
+                        rowKey={(o) => o.ownerId + o.from}
+                        search={false}
+                        scroll={{ x: "max-content" }}
+                        options={false}
+                        pagination={{ pageSize: 10, showSizeChanger: false }}
+                        dataSource={i.owners}
+                        columns={[
+                          {
+                            title: "持有人",
+                            render: (_, o) => <HolderValue id={o.ownerId} name={userName(o.ownerId)} />,
+                          },
+                          {
+                            title: "开始时间",
+                            render: (_, o) => timeText(o.from),
+                          },
+                          {
+                            title: "结束时间",
+                            render: (_, o) =>
+                              o.to ? timeText(o.to) : <StatusTag value="当前持有人" />,
+                          },
+                        ]}
+                      />
+                    ),
+                  },
+                ]}
+              />
+            </ProCard>
+          </>
+        )}
+        <BindEditor itemId={i.id} open={bind} onOpenChange={setBind} />
+        {loss && <ItemLossEditor itemId={i.id} entityId={lossEntityId} open onOpenChange={setLoss} />}
+        {editStyle && <StyleEditor styleId={i.styleId} modalMode onClose={() => setEditStyle(false)} />}
+        <SaleEditor ids={[i.id]} open={sale} onOpenChange={setSale} />
+        {handover && (
+          <HandoverEditor
+            itemId={i.id}
+            workId={workId}
+            initialKind={initialKind}
+            open={handover}
+            onOpenChange={setHandover}
+          />
+        )}
+        <ModalForm
+          title="〔演示〕模拟首次认领"
+          open={claim}
+          onOpenChange={setClaim}
+          modalProps={{ destroyOnHidden: true }}
+          onFinish={async (v) => {
+            const ok = a.run(
+              "demoClaim",
+              { itemId: i.id, ...v },
+              "已建立演示持有关系，售出标记不变",
+            );
+            if (ok) setClaim(false);
+            return ok;
+          }}
+        >
+          <Alert
+            type="warning"
+            title="仅为合成账户演示"
+            description="未实现真实首次认领、短信、账号验证或实名流程。"
+          />
+          <ProFormSelect
+            name="ownerId"
+            label="演示认领账户"
+            options={users}
+            rules={[{ required: true }]}
+          />
+          {a.feedback}
+        </ModalForm>
+        <ModalForm
+          title="补齐原发行关系"
+          open={assign}
+          onOpenChange={setAssign}
+          modalProps={{ destroyOnHidden: true }}
+          onFinish={async (v) => {
+            const ok = a.run("assignIssue", {
+              itemId: i.id,
+              ...v,
+              number:
+                assignIssue?.mode === "timed" && !assignIssue.sealedAt
+                  ? null
+                  : v.number,
+            });
+            if (ok) setAssign(false);
+            return ok;
+          }}
+        >
+          <Alert
+            type="warning"
+            title="只修复缺失关系，不重新发行"
+            description="核对原始依据，保留已有身份、实体、芯片、持有人、触碰和历史。"
+          />
+          <ProFormSelect
+            name="issueId"
+            label="原款式的已确认发行"
+            options={d.issues
+              .filter(
+                (s) => s.styleId === i.styleId && s.status === "confirmed",
+              )
+              .map((s) => ({ value: s.id, label: s.name }))}
+            rules={[{ required: true }]}
+            fieldProps={{ onChange: (v) => setAssignId(v as string) }}
+          />
+          <ProFormDigit
+            name="number"
+            label="原正式序号"
+            min={1}
+            disabled={assignIssue?.mode === "timed" && !assignIssue.sealedAt}
+          />
+          <ProFormTextArea
+            name="evidence"
+            label="原发行核对依据"
+            rules={required}
+          />
+          {a.feedback}
+        </ModalForm>
+      </div>
+    </DetailContainer>
+  );
+}

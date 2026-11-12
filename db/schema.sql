@@ -34,12 +34,14 @@ INSERT INTO project (id, code, name) VALUES
 -- 2. 用户表：同一个手机号只登记一次，在服装和饰品项目共用。
 -- ============================================================
 CREATE TABLE user (
-  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  uid CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+  public_uid BINARY(16) NOT NULL,
   phone VARCHAR(20) NOT NULL,
   nickname VARCHAR(64) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  UNIQUE KEY uk_phone (phone)
+  UNIQUE KEY uk_phone (phone),
+  UNIQUE KEY uk_user_public_uid (public_uid)
 ) COMMENT='用户表，手机号唯一，跨项目共享';
 
 -- ============================================================
@@ -70,7 +72,7 @@ CREATE TABLE chip (
   registration_source ENUM('unknown','manual','nfc_cool') NOT NULL DEFAULT 'unknown' COMMENT '首次登记来源：历史未知、网页手工、手机扫描；重扫不改写',
   project_id TINYINT UNSIGNED DEFAULT NULL COMMENT '空值表示尚未分配项目，绑定物品时确定',
   item_id BIGINT UNSIGNED DEFAULT NULL,
-  chip_status ENUM('pending','bound','disabled','lost') NOT NULL DEFAULT 'pending',
+  chip_status ENUM('pending','bound','disabled','lost','retired') NOT NULL DEFAULT 'pending',
   batch_no VARCHAR(64) DEFAULT NULL,
   provisioned_at DATETIME DEFAULT NULL,
   last_verified_counter BIGINT UNSIGNED DEFAULT NULL COMMENT '第二阶段：仅保存防伪码CMAC核对通过的最大读取序号',
@@ -120,7 +122,7 @@ CREATE TABLE chip_key (
 CREATE TABLE ownership (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   item_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   bound_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   unbound_at DATETIME DEFAULT NULL,
   is_active TINYINT(1) NOT NULL DEFAULT 1,
@@ -131,7 +133,7 @@ CREATE TABLE ownership (
   KEY idx_item_active (item_id, is_active),
   KEY idx_user_active (user_id, is_active),
   CONSTRAINT fk_ownership_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_ownership_user FOREIGN KEY (user_id) REFERENCES user(id),
+  CONSTRAINT fk_ownership_user FOREIGN KEY (user_id) REFERENCES user(uid),
   CONSTRAINT ck_ownership_active CHECK (is_active IN (0, 1)),
   CONSTRAINT ck_ownership_dates CHECK (
     (is_active = 1 AND unbound_at IS NULL) OR
@@ -145,15 +147,15 @@ CREATE TABLE ownership (
 CREATE TABLE ownership_history (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   item_id BIGINT UNSIGNED NOT NULL,
-  from_user_id BIGINT UNSIGNED DEFAULT NULL COMMENT 'NULL 表示首次绑定',
-  to_user_id BIGINT UNSIGNED DEFAULT NULL COMMENT 'NULL 表示解绑',
+  from_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT 'NULL 表示首次绑定',
+  to_user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT 'NULL 表示解绑',
   action ENUM('bind','unbind','transfer') NOT NULL,
   occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   note VARCHAR(256) DEFAULT NULL,
   KEY idx_item_time (item_id, occurred_at),
   CONSTRAINT fk_history_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_history_from_user FOREIGN KEY (from_user_id) REFERENCES user(id),
-  CONSTRAINT fk_history_to_user FOREIGN KEY (to_user_id) REFERENCES user(id),
+  CONSTRAINT fk_history_from_user FOREIGN KEY (from_user_id) REFERENCES user(uid),
+  CONSTRAINT fk_history_to_user FOREIGN KEY (to_user_id) REFERENCES user(uid),
   CONSTRAINT ck_history_action CHECK (
     (action = 'bind' AND from_user_id IS NULL AND to_user_id IS NOT NULL) OR
     (action = 'unbind' AND from_user_id IS NOT NULL AND to_user_id IS NULL) OR
@@ -372,7 +374,7 @@ CREATE TABLE jewelry_item_profile (
 CREATE TABLE jewelry_user_progress (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   item_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   level INT NOT NULL DEFAULT 1,
   exp INT NOT NULL DEFAULT 0,
   total_taps INT NOT NULL DEFAULT 0,
@@ -380,7 +382,7 @@ CREATE TABLE jewelry_user_progress (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_item_user (item_id, user_id),
   CONSTRAINT fk_progress_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES user(id)
+  CONSTRAINT fk_progress_user FOREIGN KEY (user_id) REFERENCES user(uid)
 ) COMMENT='饰品养成进度';
 
 -- 任务定义：配置可以做什么任务、完成后得到多少经验，第三阶段细化。
@@ -401,13 +403,13 @@ CREATE TABLE jewelry_task_record (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   task_id BIGINT UNSIGNED NOT NULL,
   item_id BIGINT UNSIGNED NOT NULL,
-  user_id BIGINT UNSIGNED NOT NULL,
+  user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   completed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   KEY idx_user_time (user_id, completed_at),
   KEY idx_item_task (item_id, task_id),
   CONSTRAINT fk_taskrecord_task FOREIGN KEY (task_id) REFERENCES jewelry_task(id),
   CONSTRAINT fk_taskrecord_item FOREIGN KEY (item_id) REFERENCES item(id),
-  CONSTRAINT fk_taskrecord_user FOREIGN KEY (user_id) REFERENCES user(id)
+  CONSTRAINT fk_taskrecord_user FOREIGN KEY (user_id) REFERENCES user(uid)
 ) COMMENT='饰品任务完成记录';
 
 -- 奖励定义：配置奖励内容和所需等级，第三阶段细化。
@@ -422,3 +424,279 @@ CREATE TABLE jewelry_reward (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uk_reward_code (code)
 ) COMMENT='饰品奖励定义（第三阶段细化）';
+
+-- A：自管图片，独立文件与数据库须配套备份；上传接口尚未接入。
+-- A方案门槛验证与后续图片上传共用的元数据定义；已有库须先备份再获准执行。
+SET NAMES utf8mb4;
+CREATE TABLE media_asset (
+  asset_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+  item_id BIGINT UNSIGNED NOT NULL,
+  created_by BIGINT UNSIGNED NOT NULL,
+  storage_key VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  reference_url VARCHAR(2048) NOT NULL,
+  mime_type VARCHAR(32) NOT NULL DEFAULT 'image/webp',
+  byte_size INT UNSIGNED NOT NULL DEFAULT 0,
+  width INT UNSIGNED DEFAULT NULL,
+  height INT UNSIGNED DEFAULT NULL,
+  source_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL,
+  state ENUM('uploading','pending','attached','retired','deleting') NOT NULL,
+  reserved_bytes INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+  updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+  expires_at DATETIME(6) DEFAULT NULL,
+  UNIQUE KEY uk_media_storage (storage_key),
+  KEY idx_media_item_state (item_id,state),
+  KEY idx_media_expiry (state,expires_at),
+  KEY idx_media_creator (created_by,state),
+  CONSTRAINT fk_media_item FOREIGN KEY (item_id) REFERENCES item(id),
+  CONSTRAINT fk_media_creator FOREIGN KEY (created_by) REFERENCES admin_user(id),
+  CONSTRAINT ck_media_size CHECK (byte_size<=8388608 AND reserved_bytes<=8388608),
+  CONSTRAINT ck_media_expiry CHECK (expires_at IS NULL OR expires_at>=created_at),
+  CONSTRAINT ck_media_complete CHECK (
+    state NOT IN ('pending','attached','retired') OR
+    (byte_size>0 AND width IS NOT NULL AND width BETWEEN 1 AND 2048 AND
+     height IS NOT NULL AND height BETWEEN 1 AND 2048 AND sha256 IS NOT NULL AND
+     source_sha256 IS NOT NULL AND mime_type='image/webp')
+  ),
+  CONSTRAINT ck_media_lifetime CHECK (
+    (state='attached' AND expires_at IS NULL) OR (state<>'attached' AND expires_at IS NOT NULL)
+  )
+) COMMENT='物品自管图片元数据；文件独立持久化，不含上传服务凭证';
+
+CREATE TABLE product_style (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ project_id TINYINT UNSIGNED NOT NULL,
+ code VARCHAR(64) NOT NULL,
+ name VARCHAR(128) NOT NULL,
+ description TEXT NULL,
+ material VARCHAR(256) NULL,
+ care_instructions TEXT NULL,
+ specs JSON NOT NULL,
+ image_urls JSON NOT NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+ UNIQUE KEY uk_style_code(project_id,code),
+ CONSTRAINT fk_style_project FOREIGN KEY(project_id) REFERENCES project(id)
+) COMMENT='共用款式资料，不承载发行承诺';
+CREATE TABLE style_image (
+ asset_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ style_id BIGINT UNSIGNED NOT NULL,
+ created_by BIGINT UNSIGNED NOT NULL,
+ source_sha256 CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ content MEDIUMBLOB NOT NULL,
+ expires_at DATETIME(6) NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ CONSTRAINT fk_style_image FOREIGN KEY(style_id) REFERENCES product_style(id),
+ CONSTRAINT fk_style_image_admin FOREIGN KEY(created_by) REFERENCES admin_user(id),
+ CONSTRAINT ck_style_image_size CHECK(OCTET_LENGTH(content) BETWEEN 1 AND 8388608)
+) COMMENT='小规模共用款图，随数据库备份，不公开暴露';
+CREATE TABLE product_issue (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ style_id BIGINT UNSIGNED NOT NULL,
+ name VARCHAR(128) NOT NULL,
+ series VARCHAR(128) NULL,
+ mode ENUM('fixed','period','unlimited') NOT NULL,
+ total INT UNSIGNED NULL,
+ starts_at DATETIME NULL,
+ ends_at DATETIME NULL,
+ counting_rule TEXT NULL,
+ description TEXT NOT NULL,
+ rights JSON NOT NULL,
+ confirmed_at DATETIME(6) NULL,
+ sealed_at DATETIME(6) NULL,
+ seal_evidence VARCHAR(1000) NULL,
+ ever_used BOOLEAN NOT NULL DEFAULT FALSE,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+ CONSTRAINT fk_issue_style FOREIGN KEY(style_id) REFERENCES product_style(id),
+ CONSTRAINT ck_issue_total CHECK(total IS NULL OR total>0),
+ CONSTRAINT ck_issue_period CHECK(mode<>'period' OR (starts_at IS NOT NULL AND ends_at>starts_at))
+) COMMENT='独立发行约定及人工核定结果';
+CREATE TABLE digital_item (
+ item_id BIGINT UNSIGNED PRIMARY KEY,
+ issue_id BIGINT UNSIGNED NULL,
+ edition_number INT UNSIGNED NULL,
+ sold BOOLEAN NOT NULL DEFAULT FALSE,
+ first_sold_at DATETIME(6) NULL,
+ sale_evidence VARCHAR(1000) NULL,
+ is_validation BOOLEAN NOT NULL DEFAULT FALSE,
+ quota_year SMALLINT UNSIGNED NULL,
+ quota_used INT UNSIGNED NOT NULL DEFAULT 0,
+ quota_review BOOLEAN NOT NULL DEFAULT FALSE,
+ UNIQUE KEY uk_digital_edition(issue_id,edition_number),
+ CONSTRAINT fk_digital_item FOREIGN KEY(item_id) REFERENCES item(id) ON DELETE CASCADE,
+ CONSTRAINT fk_digital_issue FOREIGN KEY(issue_id) REFERENCES product_issue(id),
+ CONSTRAINT ck_digital_number CHECK(edition_number IS NULL OR edition_number>0)
+) COMMENT='稳定数字身份的发行、售出及验证事实';
+CREATE TABLE whole_item (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ item_id BIGINT UNSIGNED NOT NULL,
+ chip_id BIGINT UNSIGNED NOT NULL,
+ generation INT UNSIGNED NOT NULL,
+ spec VARCHAR(256) NOT NULL,
+ started_at DATETIME(6) NULL,
+ ended_at DATETIME(6) NULL,
+ exit_reason VARCHAR(32) NULL,
+ lost_at DATETIME(6) NULL,
+ loss_evidence VARCHAR(1000) NULL,
+ current_item_id BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN ended_at IS NULL THEN item_id ELSE NULL END) STORED,
+ UNIQUE KEY uk_whole_current(current_item_id),
+ UNIQUE KEY uk_whole_chip(chip_id),
+ UNIQUE KEY uk_whole_generation(item_id,generation),
+ CONSTRAINT fk_whole_item FOREIGN KEY(item_id) REFERENCES item(id),
+ CONSTRAINT fk_whole_chip FOREIGN KEY(chip_id) REFERENCES chip(id) ON DELETE CASCADE
+) COMMENT='每代整套物品等于实物加芯片';
+CREATE TABLE item_handover (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ item_id BIGINT UNSIGNED NOT NULL,
+ source_id BIGINT UNSIGNED NOT NULL,
+ target_id BIGINT UNSIGNED NULL,
+ chip_id BIGINT UNSIGNED NOT NULL,
+ kind ENUM('periodic','loss','resale') NOT NULL,
+ generation INT UNSIGNED NOT NULL,
+ spec VARCHAR(256) NOT NULL,
+ owner_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ recipient_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ prepare_evidence VARCHAR(1000) NOT NULL,
+ delivery_evidence VARCHAR(1000) NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ completed_at DATETIME(6) NULL,
+ pending_item_id BIGINT UNSIGNED GENERATED ALWAYS AS(CASE WHEN completed_at IS NULL THEN item_id ELSE NULL END) STORED,
+ pending_chip_id BIGINT UNSIGNED GENERATED ALWAYS AS(CASE WHEN completed_at IS NULL THEN chip_id ELSE NULL END) STORED,
+ UNIQUE KEY uk_work_pending_item(pending_item_id),
+ UNIQUE KEY uk_work_pending_chip(pending_chip_id),
+ CONSTRAINT fk_work_item FOREIGN KEY(item_id) REFERENCES item(id),
+ CONSTRAINT fk_work_source FOREIGN KEY(source_id) REFERENCES whole_item(id) ON DELETE CASCADE,
+ CONSTRAINT fk_work_target FOREIGN KEY(target_id) REFERENCES whole_item(id) ON DELETE CASCADE,
+ CONSTRAINT fk_work_chip FOREIGN KEY(chip_id) REFERENCES chip(id),
+ CONSTRAINT fk_work_owner FOREIGN KEY(owner_id) REFERENCES user(uid),
+ CONSTRAINT fk_work_recipient FOREIGN KEY(recipient_id) REFERENCES user(uid)
+) COMMENT='两段办理记录，固定原新整套物品对应';
+CREATE TABLE chip_validation (
+ chip_id BIGINT UNSIGNED PRIMARY KEY,
+ is_validation BOOLEAN NOT NULL DEFAULT FALSE,
+ CONSTRAINT fk_validation_chip FOREIGN KEY(chip_id) REFERENCES chip(id) ON DELETE CASCADE
+) COMMENT='芯片生产验证标记';
+
+CREATE TABLE admin_operation (
+ request_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin PRIMARY KEY,
+ admin_id BIGINT UNSIGNED NOT NULL,
+ action VARCHAR(64) NOT NULL,
+ payload_hash CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ result JSON NOT NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ CONSTRAINT fk_operation_admin FOREIGN KEY(admin_id) REFERENCES admin_user(id)
+) COMMENT='管理写请求的已提交回执，防止响应丢失后重复办理';
+
+-- 验收数据007：来源与生产验证开关分开；先完整备份，停止写入后执行。
+CREATE TABLE test_batch (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ code VARCHAR(64) NOT NULL UNIQUE,
+ name VARCHAR(128) NOT NULL,
+ status ENUM('active','deleted') NOT NULL DEFAULT 'active',
+ manifest JSON NOT NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ deleted_at DATETIME(6) NULL
+) COMMENT='测试批次与验收说明，清理后保留摘要';
+CREATE TABLE test_batch_object (
+ kind ENUM('style','issue','item','chip','user','scan') NOT NULL,
+ object_id VARCHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ batch_id BIGINT UNSIGNED NOT NULL,
+ PRIMARY KEY(kind,object_id),
+ KEY ix_test_batch(batch_id,kind),
+ CONSTRAINT fk_test_batch_object FOREIGN KEY(batch_id) REFERENCES test_batch(id)
+) COMMENT='不可由生产验证开关改写的对象来源；业务行删除后仍可追溯';
+
+-- 实体、装配与物品权益；先备份并暂停写入。
+CREATE TABLE physical_item (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ physical_uid VARCHAR(64) NOT NULL UNIQUE,
+ style_id BIGINT UNSIGNED NOT NULL,
+ spec VARCHAR(256) NOT NULL,
+ batch_no VARCHAR(64) NULL,
+ supplier_serial VARCHAR(128) NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ CONSTRAINT fk_physical_style FOREIGN KEY(style_id) REFERENCES product_style(id)
+) COMMENT='具有独立编号的实体物品';
+CREATE TABLE digital_item_right (
+ item_id BIGINT UNSIGNED NOT NULL,
+ kind ENUM('renewal','resale') NOT NULL,
+ rule_version VARCHAR(32) NOT NULL,
+ PRIMARY KEY(item_id,kind),
+ CONSTRAINT fk_right_digital FOREIGN KEY(item_id) REFERENCES digital_item(item_id) ON DELETE CASCADE
+) COMMENT='数字物品适用的权益及版本';
+ALTER TABLE whole_item
+ ADD COLUMN physical_item_id BIGINT UNSIGNED NULL,
+ ADD COLUMN installed_at DATETIME(6) NULL,
+ ADD COLUMN installed_by BIGINT UNSIGNED NULL,
+ ADD COLUMN current_physical_id BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN ended_at IS NULL THEN physical_item_id ELSE NULL END) STORED,
+ ADD UNIQUE KEY uk_whole_current_physical(current_physical_id),
+ ADD CONSTRAINT fk_whole_physical FOREIGN KEY(physical_item_id) REFERENCES physical_item(id);
+ALTER TABLE item_handover
+ ADD COLUMN physical_item_id BIGINT UNSIGNED NULL,
+ ADD COLUMN installed_at DATETIME(6) NULL,
+ ADD COLUMN installed_by BIGINT UNSIGNED NULL,
+ ADD COLUMN seller_confirmation VARCHAR(1000) NULL,
+ ADD COLUMN recipient_confirmation VARCHAR(1000) NULL,
+ ADD COLUMN identity_verification_reference VARCHAR(128) NULL,
+ ADD COLUMN quota_year SMALLINT UNSIGNED NULL,
+ ADD COLUMN pending_physical_id BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN completed_at IS NULL THEN physical_item_id ELSE NULL END) STORED,
+ ADD UNIQUE KEY uk_handover_pending_physical(pending_physical_id),
+ ADD KEY ix_handover_quota(item_id,quota_year),
+ ADD CONSTRAINT fk_handover_physical FOREIGN KEY(physical_item_id) REFERENCES physical_item(id);
+ALTER TABLE user ADD COLUMN phone_verified_at DATETIME(6) NULL;
+ALTER TABLE test_batch_object MODIFY kind ENUM('style','issue','item','chip','user','scan','physical') NOT NULL;
+
+-- H5手机号账户会话与一次性认领；凭证仅保存校验摘要。
+CREATE TABLE user_session (
+ token_hash BINARY(32) PRIMARY KEY,
+ user_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+ expires_at DATETIME(6) NOT NULL,
+ revoked_at DATETIME(6) NULL,
+ CONSTRAINT fk_user_session_user FOREIGN KEY(user_id) REFERENCES user(uid) ON DELETE CASCADE
+) COMMENT='独立于管理端的用户会话';
+CREATE TABLE user_sms_challenge (
+ phone VARCHAR(20) PRIMARY KEY,
+ challenge_id CHAR(32) CHARACTER SET ascii COLLATE ascii_bin NOT NULL UNIQUE,
+ code_hash BINARY(32) NOT NULL,
+ expires_at DATETIME(6) NOT NULL,
+ consumed_at DATETIME(6) NULL,
+ failed_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0
+) COMMENT='手机号登录的最近一次短信挑战';
+CREATE TABLE item_claim_code (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ item_id BIGINT UNSIGNED NOT NULL,
+ code_hash BINARY(32) NOT NULL,
+ issued_by BIGINT UNSIGNED NOT NULL,
+ delivery_reference VARCHAR(128) NOT NULL,
+ issued_at DATETIME(6) NOT NULL,
+ expires_at DATETIME(6) NOT NULL,
+ consumed_at DATETIME(6) NULL,
+ revoked_at DATETIME(6) NULL,
+ open_item_id BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN consumed_at IS NULL AND revoked_at IS NULL THEN item_id ELSE NULL END) STORED,
+ UNIQUE KEY uk_claim_open_item(open_item_id),
+ KEY ix_claim_item(item_id),
+ CONSTRAINT fk_claim_item FOREIGN KEY(item_id) REFERENCES item(id)
+) COMMENT='按实际交付发放或补发的一次性认领码';
+
+-- 通行密钥只保存校验所需的凭据指纹、公钥和计数。
+CREATE TABLE admin_passkey (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ admin_id BIGINT UNSIGNED NOT NULL,
+ credential_hash BINARY(32) NOT NULL UNIQUE,
+ public_key VARBINARY(4096) NOT NULL,
+ sign_count BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME(6) NOT NULL,
+ last_used_at DATETIME(6) NULL,
+ revoked_at DATETIME(6) NULL,
+ CONSTRAINT fk_passkey_admin FOREIGN KEY(admin_id) REFERENCES admin_user(id) ON DELETE CASCADE
+) COMMENT='管理员登记的 WebAuthn 公钥凭据';
+
+CREATE TABLE admin_passkey_challenge (
+ challenge_hash BINARY(32) PRIMARY KEY,
+ session_id BIGINT UNSIGNED NULL,
+ expires_at DATETIME(6) NOT NULL,
+ KEY ix_passkey_challenge_expiry(expires_at),
+ CONSTRAINT fk_passkey_challenge_session FOREIGN KEY(session_id) REFERENCES admin_session(id) ON DELETE CASCADE
+) COMMENT='两分钟单次挑战，登记时绑定管理会话';

@@ -107,6 +107,11 @@ def close_database(_error=None):
 def database_ready():
     """检查表、初始项目及本次芯片结构版本；只读，不自动建表或修库。"""
     try:
+        from core.catalog_migration import catalog_schema
+        from core.testdata_migration import schema as testdata_schema
+        from core.assembly_migration import schema as assembly_schema
+        from core.user_uid_migration import schema as user_uid_schema
+        from core.passkey_migration import schema as passkey_schema
         with get_database().cursor() as cursor:
             cursor.execute("SHOW TABLES")
             actual_tables = {row[0] for row in cursor.fetchall()}
@@ -117,7 +122,13 @@ def database_ready():
                     and chip_project_schema(cursor) == "optional"
                     and registration_source_schema(cursor) == "ready"
                     and tap_event_schema(cursor) == "ready"
-                    and view_grant_schema(cursor) == "ready")
+                    and view_grant_schema(cursor) == "ready"
+                    and media_asset_schema(cursor) == "ready"
+                    and catalog_schema(cursor) == "ready"
+                    and testdata_schema(cursor) == "ready"
+                    and assembly_schema(cursor) == "ready"
+                    and user_uid_schema(cursor) == "ready"
+                    and passkey_schema(cursor) == "ready")
     except pymysql.MySQLError as error:
         record_failure(error)
         return False
@@ -228,3 +239,55 @@ def view_grant_schema(cursor):
     if set(cursor.fetchall()) != {('fk_tap_chip','chip_id','chip','id'),('fk_tap_item','item_id','item','id')}:
         return 'unknown'
     return 'ready' if action == "enum('read','bind','view')" else 'missing'
+
+
+def media_asset_schema(cursor):
+    """完整识别005媒体结构；未知列、索引、外键或失效CHECK不能冒充就绪。"""
+    cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,COLUMN_DEFAULT,EXTRA,CHARACTER_SET_NAME,COLLATION_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='media_asset' ORDER BY ORDINAL_POSITION")
+    columns = list(cursor.fetchall())
+    if not columns:
+        return 'missing'
+    expected = [
+        ('asset_id','char(32)','NO',None,''), ('item_id','bigint unsigned','NO',None,''),
+        ('created_by','bigint unsigned','NO',None,''), ('storage_key','varchar(64)','NO',None,''),
+        ('reference_url','varchar(2048)','NO',None,''), ('mime_type','varchar(32)','NO','image/webp',''),
+        ('byte_size','int unsigned','NO','0',''), ('width','int unsigned','YES',None,''),
+        ('height','int unsigned','YES',None,''), ('source_sha256','char(64)','YES',None,''),
+        ('sha256','char(64)','YES',None,''), ( 'state',"enum('uploading','pending','attached','retired','deleting')",'NO',None,''),
+        ('reserved_bytes','int unsigned','NO','0',''), ('created_at','datetime(6)','NO','CURRENT_TIMESTAMP(6)','DEFAULT_GENERATED'),
+        ('updated_at','datetime(6)','NO','CURRENT_TIMESTAMP(6)','DEFAULT_GENERATED on update CURRENT_TIMESTAMP(6)'),
+        ('expires_at','datetime(6)','YES',None,''),
+    ]
+    if [row[:5] for row in columns] != expected:
+        return 'unknown'
+    for row in columns:
+        if row[0] in {'asset_id','storage_key','source_sha256','sha256'} and row[5:] != ('ascii','ascii_bin'):
+            return 'unknown'
+        if row[0] in {'reference_url','mime_type','state'} and row[5] != 'utf8mb4':
+            return 'unknown'
+    cursor.execute("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='media_asset'")
+    if cursor.fetchone() != ('InnoDB',):
+        return 'unknown'
+    cursor.execute("SELECT INDEX_NAME,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX,SUB_PART,INDEX_TYPE,IS_VISIBLE FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='media_asset'")
+    expected_indexes = {('PRIMARY',0,'asset_id',1),('uk_media_storage',0,'storage_key',1),
+            ('idx_media_item_state',1,'item_id',1),('idx_media_item_state',1,'state',2),
+            ('idx_media_expiry',1,'state',1),('idx_media_expiry',1,'expires_at',2),
+            ('idx_media_creator',1,'created_by',1),('idx_media_creator',1,'state',2)}
+    if set(cursor.fetchall()) != {row + (None,'BTREE','YES') for row in expected_indexes}:
+        return 'unknown'
+    cursor.execute("SELECT k.CONSTRAINT_NAME,k.COLUMN_NAME,k.REFERENCED_TABLE_NAME,k.REFERENCED_COLUMN_NAME,r.UPDATE_RULE,r.DELETE_RULE FROM information_schema.KEY_COLUMN_USAGE k JOIN information_schema.REFERENTIAL_CONSTRAINTS r ON r.CONSTRAINT_SCHEMA=k.CONSTRAINT_SCHEMA AND r.CONSTRAINT_NAME=k.CONSTRAINT_NAME WHERE k.TABLE_SCHEMA=DATABASE() AND k.TABLE_NAME='media_asset' AND k.REFERENCED_TABLE_SCHEMA=DATABASE()")
+    foreign = cursor.fetchall()
+    if {row[:4] for row in foreign} != {('fk_media_item','item_id','item','id'), ('fk_media_creator','created_by','admin_user','id')} or any(row[4] not in {'RESTRICT','NO ACTION'} or row[5] not in {'RESTRICT','NO ACTION'} for row in foreign):
+        return 'unknown'
+    cursor.execute("SELECT tc.CONSTRAINT_NAME,cc.CHECK_CLAUSE FROM information_schema.TABLE_CONSTRAINTS tc JOIN information_schema.CHECK_CONSTRAINTS cc ON cc.CONSTRAINT_SCHEMA=tc.CONSTRAINT_SCHEMA AND cc.CONSTRAINT_NAME=tc.CONSTRAINT_NAME WHERE tc.TABLE_SCHEMA=DATABASE() AND tc.TABLE_NAME='media_asset' AND tc.CONSTRAINT_TYPE='CHECK' AND tc.ENFORCED='YES'")
+    def normalize(value):
+        # 保留分组括号，只去MySQL的标识引号、字符集标记及格式空白。
+        value = value.replace("\\'", "'").replace('`', '').lower()
+        return re.sub(r'\s+', '', re.sub(r"_(?:utf8mb4|ascii)(?=')", '', value))
+    expected_checks = {
+        'ck_media_size': '((byte_size<=8388608)and(reserved_bytes<=8388608))',
+        'ck_media_expiry': '((expires_atisnull)or(expires_at>=created_at))',
+        'ck_media_complete': "((statenotin('pending','attached','retired'))or((byte_size>0)and(widthisnotnull)and(widthbetween1and2048)and(heightisnotnull)and(heightbetween1and2048)and(sha256isnotnull)and(source_sha256isnotnull)and(mime_type='image/webp')))",
+        'ck_media_lifetime': "(((state='attached')and(expires_atisnull))or((state<>'attached')and(expires_atisnotnull)))",
+    }
+    return 'ready' if {name: normalize(clause) for name, clause in cursor.fetchall()} == expected_checks else 'unknown'

@@ -68,7 +68,7 @@ def test_bind_and_preserve_real_data(auth_app, inventory, project, assigned, sta
     assert len(audits(auth_app)) == 1 and record['target_type'] == 'chip'
     assert record['target_id'] == str(source['id']) and len(record['ip_hash']) == 64
     assert json.loads(record['detail']) == {'item_id':target['id'], 'project':project, 'previous_project':project if assigned else None, 'from_status':'pending','to_status':'bound'}
-    assert inventory[0].get('/api/admin/chips', query_string={'keyword':source['chip_uid']}).json['data']['items'] == [result]
+    assert inventory[0].get('/api/admin/chips', query_string={'keyword':source['chip_uid']}).json['data']['items'] == [{**result, 'item_name': None, 'keyword_matches': ['chip_uid']}]
     assert query(auth_app, 'SELECT COUNT(*) AS n FROM ownership')[0]['n'] == 0
     assert response.headers['Cache-Control'] == 'no-store'
 

@@ -107,6 +107,16 @@ def lock_admin_session(cursor):
         raise AuthRequestError(401, "unauthorized", "登录已失效，请重新登录。")
 
 
+def new_session(cursor, admin_id, now):
+    token, csrf_token = secrets.token_hex(32), secrets.token_hex(32)
+    expires = now + timedelta(seconds=SESSION_SECONDS)
+    old = token_hash(request.cookies.get(COOKIE_NAME))
+    if old:
+        cursor.execute("UPDATE admin_session SET revoked_at=%s WHERE token_hash=%s AND revoked_at IS NULL", (now, old))
+    cursor.execute("INSERT INTO admin_session (admin_id,token_hash,csrf_token,expires_at) VALUES (%s,%s,%s,%s)", (admin_id, token_hash(token), csrf_token, expires))
+    return token, expires
+
+
 def login_attempt(data):
     username, password, code = data["username"], data["password"], data["code"]
     if (
@@ -147,16 +157,11 @@ def login_attempt(data):
             record_login(cursor, admin_id, username, "locked" if locked else "failed")
             connection.commit()
             return None, 429 if locked else 401
-        token, csrf_token = secrets.token_hex(32), secrets.token_hex(32)
-        expires = now + timedelta(seconds=SESSION_SECONDS)
         cursor.execute("UPDATE admin_user SET totp_last_step=%s, last_login_at=%s, failed_login_attempts=0, locked_until=NULL WHERE id=%s", (step, now, admin_id))
-        old = token_hash(request.cookies.get(COOKIE_NAME))
-        if old:
-            cursor.execute("UPDATE admin_session SET revoked_at=%s WHERE token_hash=%s AND revoked_at IS NULL", (now, old))
-        cursor.execute("INSERT INTO admin_session (admin_id,token_hash,csrf_token,expires_at) VALUES (%s,%s,%s,%s)", (admin_id, token_hash(token), csrf_token, expires))
+        result = new_session(cursor, admin_id, now)
         record_login(cursor, admin_id, username, "success")
         connection.commit()
-        return (token, expires), 200
+        return result, 200
 
 
 @blueprint.post("/login")
@@ -166,7 +171,10 @@ def login():
         return failure(401, "unauthorized", "登录未通过，请核对账号、密码和当前验证码。")
     if status == 429:
         return failure(429, "rate_limited", "登录尝试过多，请稍后再试。")
-    token, expires = result
+    return login_response(*result)
+
+
+def login_response(token, expires):
     response = jsonify(status="ok", data={"authenticated": True, "expires_in": SESSION_SECONDS})
     response.set_cookie(COOKIE_NAME, token, max_age=SESSION_SECONDS, expires=expires.replace(tzinfo=timezone.utc),
                         httponly=True, secure=g.auth_settings["secure_cookie"], samesite="Strict", path=COOKIE_PATH)
@@ -194,6 +202,8 @@ def logout():
 def init_auth(app):
     load_auth_settings(app)
     app.register_blueprint(blueprint)
+    from core.admin_passkeys import blueprint as passkeys
+    app.register_blueprint(passkeys)
 
     @app.before_request
     def protect_admin_request():
@@ -214,9 +224,10 @@ def init_auth(app):
             return "", 204
         if request.args and (request.blueprint == "admin_auth" or request.method not in {"GET", "HEAD"}):
             raise AuthRequestError(400, "invalid_param", "此接口不接收查询参数。")
-        if request.method not in {"GET", "HEAD"} and request.mimetype != "application/json":
-            raise AuthRequestError(400, "invalid_param", "请使用JSON提交。")
-        if request.endpoint == "admin_auth.login":
+        upload = request.endpoint == 'admin_catalog.style_image' and request.method == 'POST'
+        if request.method not in {"GET", "HEAD"} and request.mimetype != ('multipart/form-data' if upload else 'application/json'):
+            raise AuthRequestError(400, "invalid_param", "上传图片请使用multipart/form-data。" if upload else "请使用JSON提交。")
+        if request.endpoint in {"admin_auth.login", "admin_passkeys.login_options", "admin_passkeys.login_finish"}:
             return None
         row = current_session()
         if row is None:

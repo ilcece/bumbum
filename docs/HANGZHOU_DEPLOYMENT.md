@@ -259,6 +259,8 @@ CLI安装成功不等于云授权或连接成功。先取得杭州实例ID、主
 
 授权就绪后先固定profile和cn-hangzhou，核对实例ID/公开身份，用无秘密的id/hostname/ready只读命令验收；通过后再用归属可核验的新公开文件做上传/下载哈希检查，拒绝覆盖已有文件。文件收发经OSS，不传真实运行配置、私钥、数据库备份或芯片秘密。不把关闭现有Tailscale或切换运维通道作为安装步骤；真实命令、文件传输、网络与凭据续用分别验证。
 
+当前接续已由cece确认改用官方RamRoleArn自动续期，见[第3.6.4节](#364-角色自动续期接续当前方式)。第3.6.1节是首轮一小时STS的历史步骤，其“长期AK拒绝/不创建AK/每次手填STS”等限制不再作为当前接入要求；不重新创建已存在身份或放宽角色权限。
+
 ### 3.6.1 首轮短期授权接入步骤
 
 使用的是**Workbench CLI产品，命令名workbench**，不是浏览器Workbench、ali-instance-cli或connect内置AI助手。既有Tailnet SSH保留；Workbench远程命令、文件收发与凭据续用分别验收，真实结果见CHANGELOG；仅识别角色或返回授权拒绝不等于ECS会话建立。官方指引见[外部Agent调用CLI](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-operate-ecs-instances-in-ai-agent)及[CLI实例管理](https://help.aliyun.com/zh/ecs/user-guide/use-workbench-cli-to-manage-ecs-instances)。
@@ -375,6 +377,34 @@ cece接受本轮Workbench命令连接已验证、原生OSS文件收发未通过�
 已定位的OSS代理原因、既有真实连接及文件失败/清理证据见CHANGELOG。此前完整技术提案仅作[历史备查](https://github.com/ilcece/bumbum/blob/8996fd4eb6e8cfef22e91b041136d736ab8692e6/docs/HANGZHOU_DEPLOYMENT.md#363-oss代理兼容与无人值守续期提案待cece确认后构建)，不作为当前实施清单。
 
 </details>
+
+### 3.6.4 角色自动续期接续（当前方式）
+
+cece已选择专用RAM用户AccessKey配合受限角色长期接入，两个个人保险库变量为BUMBUM_WB_ACCESS_KEY_ID、BUMBUM_WB_ACCESS_KEY_SECRET；已报告发布更新后的bumbum_ECS环境。环境安装脚本生成公开role_setup.py，启动说明改用官方RamRoleArn及新profile。脚本语法与合成配置检查通过；真实注入、AssumeRole、ECS命令和到期刷新仍待新实例验证，不能据发布或官方机制声称现场已通过。此前实例为旧声明/旧脚本；2026-11-06新实例两个个人变量就绪，已从发布稿恢复公开role_setup.py并完成官方角色配置及固定实例只读连接。仍不得读取保险库或手动复制密钥绕过注入。
+
+新会话选适用的bumbum_ECS环境及当次获授权的完整代码提交，先按AGENTS恢复远端/本地基线并保护已有修改。检查环境状态及变量是否存在，不输出值。若role_setup.py缺失，核对实际环境版本及安装结果，不执行旧sts_provider.py/init_profile.py，不索取聊天密钥。变量和工具就绪后，先只检查：
+
+```bash
+python3 /workspace/work/tools/workbench-cli/role_setup.py --check
+```
+
+再初始化新profile；此步骤会在运行时写入Workbench私有配置中的AK，文件600、目录700、仓库外，不在安装阶段读取密钥，不进源码、命令参数、日志或公开工件：
+
+```bash
+python3 /workspace/work/tools/workbench-cli/role_setup.py
+```
+
+固定角色acs:ram::1541265267012164:role/bumbum-codex-hz-workbench，签发用户bumbum-codex-hz-issuer；profile为bumbum-hz-ramrole。命令显式--profile bumbum-hz-ramrole --region cn-hangzhou，目标只限i-bp1cj6pt88wbxmhlsp1n。保持原受限角色授权，不将签发用户升级管理员。原profile不自动删除或覆盖，同名新profile不一致先核对。CLI v1.0.4及官方文档已确认原生模式/ram_role_arn字段与自动获取刷新机制，不另造签名协议或凭据服务。
+
+只读身份/主机验证通过后，继续已批准的test数据重建，按第11/12节核对test实际部署和006/007结构，先备份再处理明确清单；真实测试卡及必要历代关系保留。2026-11-06本轮已完成test盘点、备份升级、当前分支部署及验收包灌入，证据见第12.1节；生产RDS、生产发布及main合并不在本轮授权。认证/授权拒绝停止，不循环创建会话；只定向清理自己创建的会话和进程，保留既有SSH/Tailscale。
+
+### 杭州 test 阿里云短信
+
+构建杭州 test 镜像时传 `--build-arg HANGZHOU_TEST_SMS=1` 安装 [专用依赖锁](../requirements-hangzhou-test-sms.txt)，以启用阿里云 `SendSms`。发送身份仅授权 `dysms:SendSms`，由 cece 准备可用签名、验证码模板及专用 AccessKey。现有 HTTPS 网关仍使用 `SMS_GATEWAY_URL` 和 `SMS_GATEWAY_TOKEN`，请求 JSON 包含 `phone`、`code` 和 `purpose`，使用 Bearer 凭证。
+
+从本次已核验的发布源码目录，在指定杭州 ECS 的 Workbench root 交互终端执行 `python3 -m scripts.configure_hangzhou_test_sms`。按提示填签名和模板 CODE，并隐藏输入 AccessKey ID、Secret 和自己的中国大陆手机号。程序只写 test 的私有 `runtime.env`，已存在的有效 `SMS_CODE_HASH_KEY` 会保留，首次配置在服务器内随机生成。加载新版 test 后端后，检查真实短信、碰卡认领及「我的数字物品」。账号未获授权、签名模板未就绪或实际发送失败时，保留错误并核对发送记录。凭据和手机号不进入命令参数、聊天或日志。
+
+仅 `HANGZHOU_SLOT=test` 且 `SMS_PROVIDER=aliyun` 时启用。未配置或使用其他槽位时，该发送路径拒绝。唯一号码白名单在创建短信挑战之前检查。阿里云业务结果为 `OK` 时才返回发送受理成功，网络错误不自动重发。
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
@@ -822,9 +852,11 @@ cece明确当前杭州ECS与杭州RDS同VPC，继续使用同一RDS，不安排�
 
 生产部署与测试环境分开：固定main提交构建，部署到/opt/bumbum-hangzhou/production，回环15000；既有test目录、回环15001、独立库和密钥保持。生产域名仅admin.bumbum.cc、nfc.bumbum.cc，先做证书/本机定向验证；生产清单和Nginx生成入口都拒绝测试域名或角色互换。已有库有数据时沿用其必要加密配置，不把prepare-runtime的测试随机密钥生成器用于生产；该入口和管理员下载辅助入口当前明确只支持test，生产通过单独核验的安全配置/原生受控管理员命令准备。凭据只在服务器隐藏输入/受限配置中保存，不发聊天。
 
-香港业务全为测试数据，cece已允许不保留、不迁移，并于2026-10-30确认香港ECS已释放；这是用户控制台操作证据，非Codex云API复核。香港在线不再是部署或回退前提，不再连接旧实例或安排再次释放。释放ECS不等于删除RDS，既有杭州RDS继续使用；正式域名已按批准切至杭州，后续变更仍须单独核对和授权。随释放处理的磁盘/IP及账单细节未核实，不宣称所有资源费用已结束。
+当前沿用同一个RDS，必须以实际主机、实例UUID、数据库名和账号权限核对数据归属，不能根据ECS位于香港/杭州或“是否迁移”推断数据有无。cece本次明确旧、新环境连接同一RDS；此前按香港业务不迁移解释两卡缺失的结论证据不足，不能继续作为当前事实。香港ECS已于2026-10-30释放的历史记录不等于RDS数据库被删除，亦不授权重新建库或恢复整库。
 
-两枚现有服装实卡只继续用于杭州测试，不加入生产：04:84:81:CA:84:20:90、04:86:81:CA:84:20:90。cece确认服装根密钥及全局K1有安全副本；不读取或输出其内容，不把香港整份.env覆盖杭州。若对应芯片资料已在所用测试库中，直接核对复用，不迁移；若缺失，后续按实际UID与当前物理读数受控补齐最小身份/配对及防重放基线，先验证旧读数拒绝，不能只复制密钥就当作实卡接续通过。本轮不重写卡、不轮换密钥。旧管理员会话、登录限流、短期查看资格、演练日志/样品和无实际用途的测试记录不安排导入生产。
+2026-11-06业务重置前直接只读盘点固定RDS（以下为清理前证据，不是当前数据量；随后按cece明确授权清空两库业务，清空后的业务口径为0，后续仅test新建了独立模拟批次，见第12.1节）：test账号实际库为bumbum_hz_test，production账号实际库为bumbum_hz_production，实例UUID均为d8379dd3-cace-11f1-8fdd-00163e17e38a。test有27条本轮模拟芯片，005升级前备份的chip表无记录；production有5条2026-11-02 23:34（Asia/Shanghai）由NFC.cool登记的待绑定芯片，物品0、芯片密钥记录0、触碰日志2。生产UID为04:78:C2:EA:20:22:90、04:94:59:9A:96:20:90、04:10:49:02:9C:20:91、04:7A:14:53:C9:2A:81、04:79:14:53:C9:2A:81；只读查询，未移动或改写记录。两个应用账号仅可见各自业务库及系统元数据库，不能据此宣称整个RDS无其他库或旧记录。
+
+历史记录中的两枚已配置服装卡为04:84:81:CA:84:20:90、04:86:81:CA:84:20:90，在重置前所查两个库及当时已核对的备份中未找到；这不证明它们已从整个RDS删除。此前排查不能仅凭“两枚”或A/B标签认定对象，也不能把私密根密钥存在等同绑定、计数与历史已恢复。本次cece已明确放弃两库旧业务重新验证，原两卡记录恢复与继续追查取消；保留密钥系统不代表旧卡仍已登记或可直接接续，新验证须按实际卡片和当前读数建立可靠基线。
 
 执行前提：现有RDS目标与结构核验通过；生产秘密配置来源明确且不覆盖已有文件；主线代码回归、固定镜像及资源限制就绪。Codex负责构建、经受支持SSH传输、受保护启动和健康检查；cece只完成密码/验证器及控制台必要配置。公共用户入口、管理白名单、证书续期、RDS备份/PITR/恢复和容量/启动保留按上线清单分别验收，不把服务器发布成功当作全部业务已上线。若现有库需任何结构变更，先基于只读报告给具体升级/回退方案，不自动初始化或重跑迁移。
 
@@ -885,3 +917,170 @@ Workbench自动续期和原生OSS传输的既有限制保持，不重开专项�
 ## 9. 本轮操作边界
 
 已批准的适配、部署与接管范围及证据保留在TODO、CHANGELOG，第6.2节说明完成边界；本文记录证据与操作边界，不构成下一次服务器或控制台变更授权。继续使用现有杭州RDS，不重复创建或初始化已有库；后续启停、配置、DNS或恢复须按具体授权及窗口执行。香港ECS退出已完结，不再次安排连接或释放，不连带删除RDS。不输出现有秘密，不把技术检查、ICP备案或生成配置当作应用上线证据。
+
+
+## 10. 私有图片的升级与持久目录准备
+
+本节保留早期A后端图片能力的部署准备，当时尚未执行真实升级或启用上传；后来test升级/部署见第12.1节。旧单件图片在线入口现已退役，本节仅作历史兼容及配套备份参考，不据此重新开放上传。仅在已获准的环境/窗口由操作者执行；生产实际配套异盘备份、恢复前提未落实时保持MEDIA_ENABLED=false。本地及容器合成验证不能代替杭州PITR、Windows或生产验收。
+
+1. 核对目标test/production、当前库结构和固定镜像，停止该环境所有写入并等待在途请求结束，保留上一代码版本和对应备份；不要让两个环境共用目录或账号。运行用户仍为10001、根目录只读；新清单多一个固定媒体bind，create_host_path=false，不自动新建空目录冒充已准备。旧清单不会自动接管为新清单，按第5节在新版本目录准备并核对生成差异。
+2. 在杭州受控终端，从获准代码目录只读检查已有库，CA为第4节已核验的公开CA。该命令隐藏输入对应库_init账号密码，固定RDS端点/库/身份和VERIFY_IDENTITY；账号保持受控管理，若仍锁定由原数据库负责人按批准窗口处理，脚本不自动解锁或扩大应用权限：
+
+```bash
+python -m core.rds_media_migration --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem
+```
+
+3. 仅在显示missing、实际server_uuid已核对、写入确实停止且已获准升级时，按同一目标执行：
+
+```bash
+python -m core.rds_media_migration --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem --apply --confirm-database bumbum_hz_test --confirm-server-uuid 核对所得实例UUID --writes-stopped --backup-dir /私有绝对路径/升级备份
+```
+
+需要MySQL 8.0 mysqldump客户端，密码仅进入本次子进程环境，不进入命令参数/日志；先完整原生转储到700目录/600文件、检查结束标记并重新TLS连接核实例，再执行005单独建表。表完整时幂等；未知结构、备份/身份/TLS失败停止，保留partial与现场，不自动删表、恢复整库或重跑。MySQL DDL不当作可整笔回滚。生产改用production、对应CA/库/UUID及私有备份路径，不能只替换一个库名或复制测试秘密。
+
+4. 由获准的杭州操作者显式准备对应环境的新目录：
+
+```bash
+sudo python scripts/hangzhou.py prepare-media --slot test
+```
+
+固定目录/opt/bumbum-hangzhou/test/media，属主10001、700。已有目录必须恰好符合；符号链接、错误属主或权限拒绝，不自动改未知内容。生产用production固定到其独立目录。check/start要求该目录及原CA就绪，容器重建保留bind文件，不运行down -v或删目录。
+5. runtime.env新增非秘密开关MEDIA_ENABLED=false；新测试配置默认写false，已有秘密文件不由工具读出或覆盖。清单固定MEDIA_ROOT=/app/media和2GiB容量，不把开关强制为true。启用前再核实际磁盘、异盘配套备份去向/费用及可恢复性，第13节本地手册中的冻结窗口与离线命令同样适用；获准后才在对应私有配置设置true，按原启停流程生效。准备/升级成功不等于已启用。关闭上传仍保留受控读取能力。
+6. 网关继续继承管理IP/来源限制：仅精确图片上传入口9MiB、合并PATCH及原profile入口256KiB，其余JSON沿用原限制；应用status请求仍8KiB。用户站仅增加精确tap图片GET，独立20次/秒和burst40，支持20张首屏图；仍拒绝管理接口、旧fashion入口和目录列表。启用Nginx前按原步骤nginx -t，不直接复制生产模板覆盖在用配置。
+
+回退先关闭上传并保留本版本受控读取；已经保存新图时，不切换到不认识媒体的旧后端。必要时先回退管理UI或准备含读取能力的兼容版本，保留表和文件。真正整库/文件恢复、窗口内后来写入的处理另行确认；不因有备份直接覆盖业务库。媒体到期技术资源命令见[本地手册第14节](LOCAL_DEVELOPMENT.md#14-物品与私有图片后端升级)，生产执行须明确范围，不能替代B清理审批。
+
+## 11. 数字档案006与新版后台测试交付
+
+新版后台已迁入正式Umi工程并新增数字档案006；第11—12节保留006/007的历史升级步骤，当前代码还须按实际结构核对008—011，不能用完成006/007代替新版完整ready检查。代码构建或推送不代表杭州测试环境已部署；按本手册原镜像/运行清单流程单独更新test，不直接改生产。frontend/admin仍产出dist，由原管理网关交付；用户端独立构建、API域名隔离、Cookie/Origin/CSRF和原密钥配置保持。
+
+已有RDS先完成第10节媒体005，再核对test目标与实例。使用当前分支工具，默认只检查，不执行DDL：
+
+```bash
+python -m core.rds_media_migration --digital-catalog --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem
+```
+
+确认报告属于test，按本手册暂停test槽全部应用写入（管理、触碰验证与上传，其他槽不受影响）并准备私有备份目录后，执行升级的操作者才使用apply；初始化账号密码仍隐藏输入，不贴进聊天、命令或日志：
+
+```bash
+python -m core.rds_media_migration --digital-catalog --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem --apply --confirm-database bumbum_hz_test --confirm-server-uuid 核对所得实例UUID --writes-stopped --backup-dir /私有绝对路径/升级备份
+```
+
+升级前先完整原生转储，保留--hex-blob；共用款图的受控二进制随数据库一起备份。旧单件私有图仍须原目录与同窗口媒体配套备份，不能只留SQL。006失败或部分结构保留现场、不自动重跑删表，ready未通过前不恢复管理写入。006后新增retired与历代关系，回退程序不能代替数据恢复；不覆盖后来数据，不把旧程序直接当作兼容回退。
+
+测试步骤见[管理端四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)。旧档案发行/款式待人工核对补齐；迁移不重新生成密钥、不重置计数或授予持有人。真实芯片配置/手机触碰、公网和Windows结果由cece按实际环境验证，本轮云端临时MySQL/Chromium不替代它们。
+
+
+## 12. 验收批次007与测试数据重建
+
+仅操作test槽；代码发布与数据操作分开。先完成006；执行007前停止test写入、完整备份，工具默认只检查。初始化身份、CA和实例核对沿第11节，将--digital-catalog替换为--test-batches：
+
+```bash
+python -m core.rds_media_migration --test-batches --slot test --ca /opt/bumbum-hangzhou/test/public/rds-ca.pem
+```
+
+确认后使用第11节相同的apply/库名/实例UUID/停写/备份参数；不在production执行样例命令。007不自动删除旧业务数据或图片。失败保留现场与备份，不能重新执行schema.sql。
+
+在加载**测试应用运行配置**的受控终端或容器内，仓库根目录运行只读盘点：
+
+```bash
+python -m core.testdata_cleanup
+```
+
+盘点仅输出ID、UID及保护事实，不输出密钥、电话或配置。AI根据实际输出生成私有JSON清单，至少包含snapshot_sha256、delete_items、delete_chips；可选delete_users/delete_issues/delete_styles。各列表只列明确无价值对象；账户仍有持有历史或对象有外部引用时事务拒绝，管理员不在可删范围。已配置、有密钥、验证计数、挂失/退役或持有历史的对象及必要关联受保护；未知对象保留，不用批次清理变相强删真实卡。所有历史图片可清理，旧文字资料不自动猜测款式/发行。
+
+全部test写入停止并等待在途请求结束后执行；替换管理员、实例UUID、清单及私有备份目录：
+
+```bash
+python -m core.testdata_cleanup --apply --plan /私有绝对路径/清理清单.json --admin-username 你的测试管理员 --confirm-server-uuid 实际实例UUID --writes-stopped --backup-dir /私有绝对路径/清理备份
+```
+
+命令核对清单未过期、目标和管理员，使用MySQL8.0 mysqldump完整转储，再生成并核对SQL+私有图片配套备份；任一步失败不继续数据库删除。新批次已有活动数据则拒绝旧图片全清理，避免抹掉新样本。数据库事务清理引用/元数据后，仅删除与备份同摘要、合法命名的旧文件；未知文件保留，文件异常单列需核对，不能将其当全部成功。图片目录必须可读且私有；目录缺失或图片损坏先核对，不跳过备份。
+
+旧清理完成后，准备新场景。必须使用本轮提交的core/acceptance_data.py及完整core/acceptance_assets目录；维护前先核对实际镜像内模块与照片摘要，不能用旧包冒充新版；旧镜像缺失当前模块时，才将已核验模块和照片目录只读挂载进test维护容器。以下命令默认预览，apply才创建；当前验收包已保留，本轮整改不重复执行apply，实际状态见第12.1节：
+
+```bash
+python -m core.acceptance_data --admin-username 你的测试管理员
+python -m core.acceptance_data --admin-username 你的测试管理员 --apply
+```
+
+成功输出batch_id和manifest，包含84身份、6款式/10发行/114虚拟芯片/6模拟账户、照片来源许可、场景索引与初始预期统计。活动数据包重复执行复用；整批清理后重新执行创建新批次。虚拟UID随机生成并拒绝覆盖既有记录，合成配置不导入密钥、不通过真实验签；真实测试卡单独验证。恢复测试写入后按[三组验收](ADMIN_DESKTOP.md#9-验收数据包与整批清理)操作。
+
+模拟账户不构成真实认领验收；杭州 test 指定号码的实卡认领及回访证据见[验收清单](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)和本手册第12.1节。已有单件持有人辅助命令不替代本数据包，也不能拿模拟账户作为真实用户验收。备份不上传Git或聊天；回退程序不能撤销已清理的数据，恢复必须另行核对后来写入，不自动整库覆盖。
+
+
+### 12.1 本轮test升级、部署与验收接续
+
+<a id="121-本轮test受控升级的已准备入口"></a>
+
+截至北京时间 2026-11-10，杭州 test 已发布账户双标识、通行密钥和用户动态。011 只增加公钥凭据和挑战两张表。发布前已在停写窗口完成 SQL 和媒体配套备份。实际发布及人工验收见[变更记录](../CHANGELOG.md#2026-11-10-杭州-test-接入通行密钥和用户动态)，操作入口见[管理员登录手册](ADMIN_LOGIN.md#杭州-test-的通行密钥)。下方按各次发布保留历史记录。
+
+**当时的 test 发布：28b1e748132a9c441de4b238b0cd039c9e983491，后台原型对照整改。** 已先更新分支规范，再实施33项整改并发布；手机公开字段/预览范围随H5暂缓，类别及改码规则不变。镜像为bumbum-hangzhou-backend:28b1e748132a9c441de4b238b0cd039c9e983491，远端内容ID为sha256:47bf507c1806ecf4a38e46fe6f60f74c8facdc66b3ce824245ce88433b7298de；管理端静态为/var/www/bumbum-hangzhou-test-releases/28b1e748132a9c441de4b238b0cd039c9e983491/admin，35文件与最终浏览器复验产物逐一匹配。用户端保持原静态及代码，不改生产或main。
+
+本次只短暂停test做备份和代码切换，**未执行清理、重灌、迁移或账户/权限修改**。当时的85件物品、114枚芯片、9条图片记录、138条触碰记录，以及持有/历代/办理、管理员、密钥、项目与审计摘要前后一致。固定test库/UUID/35表及VERIFY_IDENTITY连接保持；两槽ready200、新test镜像healthy、未登录管理API401、用户站200及管理API隔离404通过。生产容器/镜像、两槽runtime/CA/Nginx与生产及test用户端静态摘要不变，原管理白名单保留。
+
+本轮目录为/opt/bumbum-hangzhou/admin-review-28b1e748132a。完整私有SQL/媒体配套备份位于/opt/bumbum-hangzhou/admin-review-28b1e748132a/before-update/images-and-database-26434cccbed747dfb7ced2a8466c75ed，转储结束标记和配套自校验通过，未做本次恢复演练，不上传备份。compose-before.json与admin-before.txt保存代码/静态回退基线；protected-before.json、before-update/data-before.json、loaded-image.json及verified.json只在该私有目录保留保护摘要和发布证据。代码回退须同时核对旧镜像与管理静态，不自动恢复SQL或覆盖后来数据。
+
+非浏览器回归759通过、5跳过；随后使用本轮实际镜像补过其中3项独立Nginx/TLS/Gunicorn网关检查，剩余2项仅适用Windows。受影响真实认证浏览器18项及基础219项（包含于回归，2平台跳过）、构建与文档检查通过；[本轮证据](../tests/evidence/admin-review.md)与[云端摘要](../tests/evidence/admin-review-cloud.json)分别记录。页面截图为本机隔离数据，不等同白名单内线上管理员浏览器登录或人工验收，实卡及未交付认领等仍需各自证据。
+
+**以下为验收数据包初始准备记录：641c6d4962b3f5790c55fbd628170005f544a472，活动批次2，acceptance-v2。** cece明确仅test新建真实照片、更丰富且贴合业务的模拟数据，已完整备份后灌入6款式/10发行/84身份/114虚拟芯片/6账户，初始生命周期138、售出后132；不是恢复旧业务。当前业务统计仍剔除本批样例。固定UUID、test35表、设置writable和活动批次可用、六张DB图片SHA256、统计与剔除、整批预览无外部冲突通过；网页整批清理未提交，数据完整保留供验收。
+
+验收包当时的版本目录/opt/bumbum-hangzhou/admin-acceptance-v2-641c6d4962b3，管理端静态位于/var/www/bumbum-hangzhou-test-releases/641c6d4962b3f5790c55fbd628170005f544a472/admin，35文件逐一匹配最终复验包。旧管理端目标在admin-before.txt。维护源模块及六张照片在tooling/core/，9文件摘要在tooling-manifest.json；只在一次性test维护容器只读挂载新版模块及照片，原服务后端镜像和用户端仍保持3292c13版本，不直接复用旧镜像内置的v1数据包命令。
+
+新私有SQL/媒体配套备份在before-seed/images-and-database-fa577982347b4a0d9f9acfc143a2d983（均相对本轮版本目录），完整转储结束标记与配套包自校验通过；不上传备份，未做本次恢复演练。只暂停test完成备份与新增后恢复原容器；before-seed/protected-before.json与seed-verified.json保留系统/既有业务及旧审计摘要核对，pack-result.json为新批次结果；根目录final-verification.json为恢复后服务层记录。管理员、认证、会话、项目字典、密钥表和旧审计不变；新虚拟卡不生成密钥，登记来源/配置/持有/交付和触碰均为明确模拟事实，实卡/认领及最终年度计次不冒称通过。两槽Compose/runtime/Nginx、原容器/镜像及生产与test用户端静态摘要保持，双方ready200；本轮不写生产，不合并main。
+
+类型/构建、基础219项（2原跳过）、隔离数据7项及相关浏览器3项通过，最后布尔展示修正后最终包再过2项浏览器。首轮数据验证因未分类虚拟芯片带配置事实被原约束拒绝，修正后通过；空态测试目标夹具补齐后通过。页面图片实际解码、全局设置切换、清理和过期模式恢复已在隔离真实认证下验证；云端服务层核对不代替白名单内浏览器登录。照片来源/许可随core/acceptance_assets/catalog.json及批次manifest保留，未采用绘画、模糊图或重复候选。用户人工步骤见[后台第9节](ADMIN_DESKTOP.md#9-验收数据包与整批清理)。
+
+本轮005→006→007已由cece在隐藏输入密码的终端执行成功，初始化账号原锁定错误3118解锁后只读连接通过。AI随后复核35表及三个阶段SQL备份，另在停止写入窗口创建SQL/媒体配套备份并检查。**不要再次运行下方旧交互升级脚本或启动旧版；后续以当前部署及数据为准。**
+
+**此前业务重置记录：2026-11-06 cece曾授权清空test和production业务，保留系统数据重新验证。** 当时两库业务均为0，旧活动模拟批次已删除；随后cece明确仅test新建真实照片丰富模拟包，当前状态以本节开头的最新发布记录为准。test仍为35表，production仍为24表；未改表或重置自增编号。两边各1个启用验证器的管理员、认证资料、原会话、原审计、项目字典、任务/奖励定义及芯片密钥表均保留。清理前两库每卡密钥表本来均为0；运行密钥配置、算法代码、容器和镜像均未更换。原两卡和旧业务恢复仍取消；新独立虚拟样本不是原卡恢复。
+
+本次私有备份与维护记录位于/opt/bumbum-hangzhou/business-reset-20261106-user-authorized/{test,production}/：database.sql为600权限完整转储，含结束标记及全表结构数量校验；test的media.tar保存空媒体目录（test款图原为数据库二进制，随SQL保留）；production当时无媒体目录且无媒体记录，backup.json记录该检查结果，故没有media.tar。before.json/after.json/backup.json/complete.json仅在私有目录保存计数与摘要。备份各在删除前完成；管理员等系统表逐表内容摘要一致，旧审计前缀摘要一致，每库仅追加1条maintenance.business_reset审计。按外键顺序在各自事务内DELETE业务行，未用TRUNCATE、禁用外键或删库重建；不自动整库恢复、覆盖后来写入或上传备份。本次未进行备份恢复演练。
+
+一次性维护片段maintenance.py及其SHA256保留在该版本目录；先通过2项独立MySQL验证。首轮备份因RDS聚合数值的JSON序列化失败，仅产生不完整元数据、未执行业务删除；定向修复并重验后两库完整备份通过。服务恢复核验首次受宿主依赖影响，改用标准库解析范围后只读核对通过。两个原后端均healthy/ready200，原容器ID/镜像、Compose、Nginx及私有runtime文件摘要未变；原管理入口与白名单保持。重新验证前刷新后台；若旧标签页仍开启测试数据模式，先在设置关闭，因为原批次已删除。新建数据、实卡配置/计数核验及业务验收分别留证，不把业务清空当作原型视觉验收通过。
+
+**上一轮管理端静态版本：c54b61feb884b4b4e5a6d7bc0f59b160a53a58e6，款式编辑原型还原修复。** 本轮仅有管理端前端变化，直接发布本机最终复验的35个静态文件，不重建或切换后端镜像、不停服务、不写数据库。静态目录为/var/www/bumbum-hangzhou-test-releases/c54b61feb884b4b4e5a6d7bc0f59b160a53a58e6/admin，原子切换/var/www/bumbum-hangzhou-test-admin；test用户端仍指向原3292c13版本。线上35文件逐一SHA256与通过复验的发布包一致，不能再用后端镜像标签推断当前管理端页面版本。
+
+本轮静态回退和公开产物记录在/opt/bumbum-hangzhou/admin-style-review-c54b61feb884：admin-before.txt保留上一管理端目标，before.json保存配置/服务/未变静态及业务计数摘要，admin.tar.gz为已校验公开构建包，verified.json为切换后通过记录。回退仅恢复该管理端符号链接，不改数据库、后端或用户端，不自动恢复SQL。没有执行新的数据清理或灌入；此前两库私有备份仍在上文业务重置目录，本次不宣称新增SQL备份或恢复演练。
+
+实际发布前通过13条独立MySQL真实认证浏览器回归；最后仅补文件名后最终包再过2条受影响流程；1440/1920实际截图及局部审查见[款式页证据](../tests/evidence/admin-style-review.md)。切换后固定test库/UUID/35表、原管理员和15类计数保持，双方原容器/镜像healthy/ready200，两个槽的Compose/runtime/Nginx摘要、生产与test用户端静态内容不变。管理域名本机403仍符合既有白名单，用户页200及用户域名管理API404通过；未完成白名单内线上管理员浏览器登录，未验证实卡或后台所有页面视觉，不以静态一致代替cece验收。首轮只读预检误要求生产静态目录必须为符号链接，按实际目录修正后通过，失败阶段未切换或写数据。
+
+以下为旧后端及静态发布历史，已由本节开头的新发布替代，仅保留回退与历史取证依据。
+
+上一轮后端源代码为3292c13428179689459534950bc66f6c14373c7a（已被本节开头的新版本替代，仅保留回退依据），包含密钥三步窗口、受控查看/复制/清除、候选查询恢复、同对象刷新保留输入及完整发行只读详情修复。远端OCI镜像ID为sha256:bd500542918d43badf2d72b266d118536455a3627a121152ddef39d6093cd220，镜像配置摘要为sha256:dc3cf972267b7ac0890a746b6d11a34c8166ebc61080b35b5312a63660648b64。固定清单仍为/opt/bumbum-hangzhou/test/compose.json，不改Nginx或白名单。
+
+本次版本目录为/opt/bumbum-hangzhou/admin-key-review-3292c13，旧清单compose-before.json和admin-before.txt/user-before.txt保存前版程序/静态回退目标；当前静态位于/var/www/bumbum-hangzhou-test-releases/3292c13428179689459534950bc66f6c14373c7a。停写窗口完整SQL/图片配套备份在before-update/images-and-database-94cee794395243c5870c7713af750f7b，SQL结束标记和配套包自校验通过，未进行本次恢复演练；不上传备份或自动恢复整库。复用并核对现有公开MySQL8.0客户端，无改表、账号权限或运行变量改写。
+
+业务重置前的版本发布曾直接导出待部署镜像的管理端产物，在隔离MySQL/真实认证下重跑12条核心浏览器路径全部通过（含受控查看/模板复制/清除、候选未知恢复、完整新建、款图、挂失换新转售、分页清理、回执/CSRF/过期和测试开关）。切换后云端38个管理端/用户端文件逐一SHA256匹配该镜像，用户站两个JS/CSS资源经本机定向HTTPS为200；初次静态校验回传缺少可见输出，追加完成标记后再次确认通过。test ready200、未登录管理API401、用户域名管理API404及白名单外403保持；固定UUID/35表及15类业务对象计数与切换前一致，原管理员、20身份/27虚拟芯片/18触碰保留，业务统计剔除正确。三个已有芯片密钥配置只返回格式就绪布尔状态，未查看/生成/写卡，不以格式通过宣称实卡通过。test私有runtime和生产公开配置摘要不变，生产healthy。AI不能从白名单外完成真实管理员网页登录，人工界面及实卡验收仍按后台手册执行。
+
+上一轮fa0d9cd的公开产物及回退记录仍保留。
+
+上一轮版本目录为/opt/bumbum-hangzhou/admin-test-fidelity，旧公开清单在compose-before.json，旧静态链接目标保存在admin-before.txt及user-before.txt；新静态位于/var/www/bumbum-hangzhou-test-releases/fa0d9cd9021be5b9d2ddbd9b23684794b78939f0。停写窗口的完整SQL/媒体配套备份在before-update/images-and-database-e63df4b8499a4851b4807fc10f6237e4，SQL600/目录700及结束标记、配套包自校验通过；尚未进行本次备份恢复演练，不上传备份。首轮备份因原公开客户端目录仅root可遍历而未生成文件，复制并校验公开客户端到本次public-client目录后验证MySQL8.0并完成备份；原维护包未改。切换后test ready200、未登录管理API401、用户域名管理API404、管理白名单外403；早期检查片段误用15000，已按固定test端口15001复核。当时既有管理员、35表、20身份/27芯片/18生命周期触碰保留（业务数据随后已按用户授权清空），业务统计排除验收包；test私有runtime和生产公开配置摘要不变，生产healthy。原11d7698版本及工具仍在/opt/bumbum-hangzhou/admin-test-deploy-11d7698-v2，保留作程序回退参考；程序回退不等于数据库恢复，不启动升级前旧程序覆盖新结构。
+
+test媒体目录10001/700，非秘密MEDIA_ENABLED开启，其他runtime条目逐字保留。旧test公开清单/网关保存在原11d7698版本目录before-public-deploy，旧静态产物保存在/var/www/bumbum-hangzhou-test-releases/before-11d7698，此前静态使用同目录完整源提交版本，当前版本见上段。005/006/007的SQL在原升级目录backups；灌入前完整SQL及媒体配套包在原11d7698版本目录pre-seed-backup（images-and-database-4c811555168f46258004f70deb62b996）。SQL结束标记、600权限及配套包检查通过；不上传备份，不以程序回退替代数据恢复。旧库无芯片/物品/密钥/用户/持有/触碰或历史图片，故没有对不明旧对象执行删除。
+
+重置前的发布记录：现有管理员保留，当时验收包批次1、3款式/5发行/20身份/27虚拟芯片/2合成账户已准备（现已按用户授权清空），初始触碰生命周期18/售出后17/去重物品14。服务层统一筛选、详情/历代对应、清理预览通过；整批删除事务验证后回滚保留包。管理入口https://test.bumbum.cc/login，用户入口https://nfc-test.bumbum.cc/tap。杭州本机定向HTTPS验证用户页及JS/CSS为200，用户域名管理/ready为404，未登录管理API为401；管理白名单仍为111.192.247.76，本机与AI出口管理访问403符合原限制，未声称cece当前公网已登录。test/production容器均healthy，生产公开Compose/网关摘要未变，未改生产业务或main。人工验收从ADMIN_DESKTOP第8/9节进入。
+
+升级窗口结束后，由原维护负责人使用已有维护账号在安全终端重新锁定初始化登录，不改变其库级权限或密码：
+
+```sql
+ALTER USER 'bumbum_hz_test_init'@'%' ACCOUNT LOCK;
+```
+
+AI未持有维护密码，尚未执行此锁定；它不阻塞test应用DML服务及后台人工验收。下面保留本轮升级准备的准确参数和失败停止条件，仅供追溯，不是当前应重复执行的待办。
+
+2026-11-06核对：任务代码为feat/admin-a-validation-gates的11d7698e5f1b9cea438db907a5b305f6a88f286d；目标仍为杭州固定实例i-bp1cj6pt88wbxmhlsp1n、bumbum_hz_test，server_uuid为d8379dd3-cace-11f1-8fdd-00163e17e38a。实际test旧库24表且芯片/物品/密钥/持有/触碰/用户均为空，管理员保留；005/006/007及媒体目录缺失，不据此推断其他槽的数据状态。
+
+宿主mysqldump为8.4.11，不用于本次升级。已在构建环境用现有固定MySQL8.0.46镜像提取转储客户端，在Python3.12维护运行时验证；杭州仅挂载公开维护包，不安装替换系统客户端、不构建镜像。公开源码/客户端/脚本位于/opt/bumbum-hangzhou/admin-upgrade-11d7698，56个文件SHA256逐项核对通过。运行时复用已存在的固定test旧镜像，只执行当前提交的迁移模块，不启动旧应用。维护容器不加载应用runtime.env，根目录只读、能力清空，仅挂载公开CA及私有备份目录。
+
+公开CA为/opt/bumbum-hangzhou/test/public/rds-ca.pem，SHA256为2dc6de20eab8451cc779001466f42b5ed05e554bbf479de6f194c35a1bfbc436，有效期截至2036-04-30；连接继续使用VERIFY_IDENTITY和固定RDS内网主机名。维护工具mysqldump --version及Python迁移入口在杭州无网络只读容器中通过；没有提前登录初始化账号或声称DDL已通过。
+
+由cece在该杭州实例的阿里云Workbench交互终端，以root完整执行下列命令；不使用管道、密码环境变量、参数、密码文件或终端录屏。脚本先验证归档/56个公开文件/CA、当前test镜像、实例UUID及空数据前提，状态变化则停止。密码由既有迁移模块的getpass隐藏输入，不传给AI：
+
+```bash
+bash /opt/bumbum-hangzhou/admin-upgrade-11d7698/upgrade-test-interactive.sh
+```
+
+预计提示四次bumbum_hz_test_init密码：第一次只读检查，随后005、006、007各一次。只读检查应显示正确库/UUID、media_assets=missing及TLS信息；通过后仅停止test后端并等待在途请求，生产不停止。各升级先以MySQL8.0.46完整转储并核对结束标记、再次TLS核对实例，再执行已实现迁移；成功依次显示media_assets=ready、digital_catalog=ready、test_batches=ready及changed=true。备份位于/opt/bumbum-hangzhou/admin-upgrade-11d7698/backups/005、006、007，目录700、SQL文件600。没有旧媒体表和目录，本轮不存在待配套复制的历史图片；状态变化时脚本拒绝继续，由AI重新盘点，不跳过图片备份。
+
+首次只读检查失败时不停止服务；若初始化账号仍锁定或密码/权限不符，反馈脱敏错误，由原账号负责人处理既有账号，不扩大应用权限、不重置或索取密码。停写后任一步失败保持test停止及备份现场，不自行重跑部分DDL、启动旧版或整库恢复。全部升级成功后同样保持test停止，反馈三个脱敏JSON，AI继续当前分支正式后台test部署、数据包灌入和核心流程检查；不能以升级或数据包成功代替后台人工验收。初始化账号的后续锁定沿既有账号维护流程由原负责人处理，不把密码交给AI。

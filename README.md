@@ -1,8 +1,10 @@
 # BUMBUM NFC 数字项目
 
-为服装、饰品等实体物品嵌入 NFC 芯片，让用户用手机碰一下，就能查看资料、验证真伪，并逐步体验数字收藏。
+为服装、饰品等实体物品嵌入 NFC 芯片，让用户用手机碰一下，就能验证芯片读数、查看物品资料，并逐步体验数字收藏。
 
 **产品愿景：** [让每一件实体产品，都有机会成为一件可以持续体验、长期收藏、可信流转的数字藏品。](PRODUCT.md)
+
+[项目能力总览](PRD.md#0-项目能力总览)汇总用户端、运营后台、部署和探索能力，并标明生产与测试状态。
 
 维护人cece是产品经理，尚无代码基础，但理解和学习能力没有问题，能学习技术原理、审查逻辑、操作命令行并完成构建验证。**项目文件以 cece 能读懂、判断、操作为标准：先讲目的、步骤和结果；必要术语用大白话解释。**具体要求见 [文件可读性原则](AGENTS.md#7-文件可读性以-cece-能理解为标准)。
 
@@ -11,11 +13,11 @@
 - **基础管理已验收并合入main：** 管理员登录、本机运行、芯片登记、物品建档、服装资料维护与桌面后台可用，操作见[管理端手册](docs/ADMIN_DESKTOP.md)。
 - **芯片接入与服装触碰闭环已验收并合入main：** 首次绑定、密钥及配置核验、动态验证、有效触碰统计和手机资料持续查看已有交付；[登记与实卡的验收边界](docs/product/chip-lifecycle.md)、[手机体验规则](docs/product/fashion-touch.md)分别查阅。
 - **杭州正式入口基础接管已验收：** 香港ECS已释放，生产与测试隔离；[最后已知部署版本及运维验证边界](docs/HANGZHOU_DEPLOYMENT.md#62-杭州基础接管完成范围与后续运维验证)单独记录，合入main不代表服务器已更新。
-- **第一阶段尚未整体完成：** 短信认领、试用准备及扩展实卡验证等仍有待办；后台改版和手串数字体验分别处于方案审核与探索阶段，范围见[产品导航](PRD.md)，进度见TODO。
+- **第一阶段处于试用准备：** 杭州 test 已完成实卡认领、Windows Hello 登录和用户动态等验收；后台装配、权益/转售、手机预览及普通芯片停用恢复收到“基本都验收通过了”的总体反馈，不等同全部细项逐项通过。可用范围见[项目能力总览](PRD.md#0-项目能力总览)，后续安排见 [TODO](TODO.md)。
 
 当前任务、分支和待反馈只看[TODO](TODO.md)；验收日期、提交和历史证据查[CHANGELOG](CHANGELOG.md)；逐接口实现范围集中在[接口实现概览](API_CONTRACT.md#04-当前能做到哪一步)。
 
-产品入口已按“共用规则→现行模块→独立提案→历史归档”整理，先读[PRD导航](PRD.md)。后台统一改版、生产验证清理、专用纠错与挂失换新分别审核，已确认的组件复用原则见[A提案](docs/proposals/admin-management-update.md#31-官方复用定制与迁移约定已确认)。整理文档不代表新增能力已实现、验收或部署。
+产品入口按用途分开。业务规则和改动方案从 [PRD 导航](PRD.md) 查阅，长期方向见 [PRODUCT](PRODUCT.md)，历史提案和复盘集中在 [历史归档](docs/archive/README.md)。
 
 <a name="先启动这一小步"></a>
 
@@ -36,7 +38,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 | 部分 | 使用什么 | 负责什么 |
 |---|---|---|
-| 用户页、管理页 | React + Vite + TypeScript | 浏览器中看到和操作的页面 |
+| 用户页、管理页 | React + TypeScript；用户端Vite、管理端Umi Max/Ant Design Pro | 浏览器中看到和操作的页面 |
 | 后端 | Python 3 + Flask | 接收页面请求，检查身份，处理业务 |
 | 数据库 | MySQL 8.0 | 保存芯片、物品、用户和操作记录 |
 | 正式运行 | Gunicorn + Nginx | 分别运行后端、接收网站访问并转交请求 |
@@ -44,7 +46,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 一个仓库；每个环境各有一个后端和业务库，生产与测试可共用RDS实例，但不共用业务库和应用身份。共同功能放在 `core/`；服装 `fashion` 和饰品 `jewelry` 的业务分开组织，避免同一功能写两遍。
 
-分别提供桌面管理端与用户手机端两个网页应用（SPA，主要由浏览器切换页面）；用户端本期只开放触碰验证及服装资料查看，香港历史服装样品验收已通过，当前正式入口由杭州接管；生产库不导入旧样品，新增业务与实卡验收另行执行。`nfc.bumbum.cc`给用户，`admin.bumbum.cc`给管理员，`bumbum.cc`品牌页可选。目标芯片为NXP NTAG424 DNA；NFC.cool的当前单卡配置及核验方式见[真实卡手册](docs/NFC_CARD_VERIFICATION.md)，不承诺其他版本或批量流程已通过。
+分别提供桌面管理端与用户手机端两个网页应用（SPA，主要由浏览器切换页面）。`nfc.bumbum.cc` 给用户，`admin.bumbum.cc` 给管理员，`bumbum.cc` 品牌页可选。目标芯片为 NXP NTAG424 DNA，当前单卡配置、实卡核验及适用范围见[真实卡手册](docs/NFC_CARD_VERIFICATION.md)。
 
 已有资源记录：杭州ECS（已核对Ubuntu 26.04.1、2核、约1.7GiB内存）、同VPC杭州RDS、已完成ICP备案的bumbum.cc，以及iPhone、Windows 11和MacBook Air 2024。香港ECS已由cece释放，仅保留历史验收证据，不再作为运行或恢复依赖。手机/App版本与实卡证据见[技术附录第14.1节](docs/IMPLEMENTATION_DETAILS.md#141-已有证据与复用来源)，杭州生产/测试入口及隔离规则见[杭州手册](docs/HANGZHOU_DEPLOYMENT.md)，不沿用旧香港地址或把旧实卡验收当作新环境验收。当前不增加微服务、Redis、消息队列等额外运行服务，避免维护负担；改变部署方式前须说明理由并获cece确认。
 
@@ -53,8 +55,8 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 | 文件 | 什么时候看 | 注意什么 |
 |---|---|---|
 | [PRODUCT.md](PRODUCT.md) | 理解 BUMBUM 的长期愿景、统一数字藏品体系与跨业务线原则 | 长期方向不代表功能已实现或当前迭代承诺 |
-| [PRD.md](PRD.md) | 按问题进入现行模块、共用规则、后续范围与改动提案 | 详细规范在docs/product/，提案在docs/proposals/；不定义数据库字段或算法 |
-| [手串 NFC 数字价值探索](docs/BRACELET_NFC_EXPLORATION.md) | 两版复盘、候选价值与探索边界 | 不是新 PRD；[旧祈愿 PRD](docs/NFC_PRAYER_H5_PRD.md)已废弃，仅供追溯 |
+| [PRD.md](PRD.md) | 查看项目能力总览，再按问题进入现行模块、共用规则和改动提案 | 详细规范在 `docs/product/`，提案在 `docs/proposals/` |
+| [手串 NFC 数字价值探索](docs/BRACELET_NFC_EXPLORATION.md) | 核对手串价值问题、候选体验及验证边界 | 探索范围，待选出具体产品方案 |
 | [TECH_SPEC.md](TECH_SPEC.md) | 理解运行、绑定、密钥、登录和部署流程 | 精确计算和长配置见附录 |
 | [技术附录](docs/IMPLEMENTATION_DETAILS.md) | AI 写代码时查固定参数、保存规则和部署示例 | 是技术规范的一部分，不能省略 |
 | [API_CONTRACT.md](API_CONTRACT.md) | 核对页面提交内容、后台返回结果、权限和失败原因 | 接口定义不等于接口已经可用 |
@@ -71,7 +73,7 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 ## 代码和配置在哪里
 
-后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py，触碰入口在core/tap_grants.py，验证事务在core/tap_verification.py，共用验签在core/sdm_verification.py，管理统计入口在core/admin_stats.py，快照聚合在core/tap_statistics.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py，管理前端在frontend/admin/，手机用户前端在frontend/user/，各自构建并使用独立样式。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库；触碰记录升级见[本地运行第11节](docs/LOCAL_DEVELOPMENT.md#11-已有测试库升级触碰记录及后端验收)，持续查看资格004及用户页预览见[第12节](docs/LOCAL_DEVELOPMENT.md#12-已有测试库升级及手机资料页本机验收)。
+后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py，触碰入口在core/tap_grants.py，验证事务在core/tap_verification.py，共用验签在core/sdm_verification.py，管理统计入口在core/admin_stats.py，快照聚合在core/tap_statistics.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py及数字档案服务core/admin_catalog.py，006升级在core/catalog_migration.py，管理前端在frontend/admin/，手机用户前端在frontend/user/，各自构建并使用独立样式。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库；触碰记录升级见[本地运行第11节](docs/LOCAL_DEVELOPMENT.md#11-已有测试库升级触碰记录及后端验收)，持续查看资格004及用户页预览见[第12节](docs/LOCAL_DEVELOPMENT.md#12-已有测试库升级及手机资料页本机验收)。
 
 云测试部署依赖在requirements-deploy.in/txt，通过容器固定版本，不替换Ubuntu系统Python。Python 的本机直接依赖在 `requirements.in`，完整固定版本在 `requirements.txt`；开发检查对应 `requirements-dev.in` 和 `requirements-dev.txt`。前端依赖与固定版本在 `package.json`、`package-lock.json`。更新依赖时同步对应清单，不手工改锁文件凑版本。
 
