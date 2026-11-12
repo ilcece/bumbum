@@ -151,7 +151,7 @@ def test_gallery_fullscreen_and_poll_preserves_scroll(phone,ready,tmp_path):
                                       'total':1,'description':'隔离浏览器图片回归','rights':['renewal','resale']}))['id']
     ok(action(session,'confirmIssue',{'issue_id':issue_id}))
     ok(action(session,'linkIssue',{'item_id':item_id,'issue_id':issue_id,'edition_number':1,'evidence':'合成旧档案关联当前共用款图'}))
-    urls=[f'/api/tap/items/{item_id}/style-images/{asset}' for asset in assets]
+    urls=[f'http://127.0.0.1:5175/api/tap/items/{item_id}/style-images/{asset}' for asset in assets]
     payload=reading(ready[1],ready[0][1]['chip_uid'],9)
     page.goto('http://127.0.0.1:5175/tap?'+urlencode(payload))
     expect(page.get_by_role('heading',name='测试外套',exact=True)).to_be_visible()

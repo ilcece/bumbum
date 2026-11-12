@@ -274,6 +274,7 @@ export default function Overview() {
               </ProForm>
               <div className="filter-summary">
                 <Tag color="blue">已生效</Tag>
+                {error && data && <Tag color="orange">上次成功结果</Tag>}
                 {filterDirty && <Tag color="orange">筛选已修改，尚未应用</Tag>}
                 <span>
                   款式：

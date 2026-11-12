@@ -58,7 +58,10 @@ def readiness_states(connection):
         'passkey': passkey_schema,
     }
     with connection.cursor() as cursor:
-        return {name: check(cursor) for name, check in checks.items()}
+        states = {name: check(cursor) for name, check in checks.items()}
+    expected = {'chip_project': 'optional'}
+    failures = {name: state for name, state in states.items() if state != expected.get(name, 'ready')}
+    return '非就绪结构：' + repr(failures)
 
 
 def test_upgrade_preserves_grant_backup_restore_and_idempotence(auth_app,ready,auth_database,tmp_path):
