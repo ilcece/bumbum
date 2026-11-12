@@ -2,7 +2,7 @@
 
 目标：按步骤启动后，网页的后端程序和测试数据库两项均显示检查通过。main已包含运行检查、管理员登录和手动芯片登记；本页先验证环境，芯片操作另见对应手册，不涉及写卡、短信或正式上线。
 
-香港ECS部署和手机扫描请看[云测试手册](CLOUD_TEST_DEPLOYMENT.md)，本页不用于服务器部署。main已包含Windows工具和手动芯片登记。已有测试库先按第7节检查升级，再启动；运行检查通过后用已有管理员登录，不重复创建账号。浏览器统一使用本页的localhost地址。
+当前云端维护和手机扫描入口请看[杭州手册](HANGZHOU_DEPLOYMENT.md)，香港旧步骤仅供追溯，本页不用于服务器部署。main已包含Windows工具和手动芯片登记。已有测试库先按各项升级说明核对当前结构，再启动；运行检查通过后用已有管理员登录，不重复创建账号。浏览器统一使用本页的localhost地址。
 
 ## 0. Windows：GitHub Desktop＋双击运行
 
@@ -69,7 +69,7 @@ PowerShell常用命令（先双击上面的打开入口）：
 
 cece已确认Windows工具其余验收通过，并授权修正Ctrl+C提示后合入main；本次提示调整有回归检查，Windows原生自动检查在云端仍会跳过。下方保留各系统手动步骤，用于其他系统和故障排查；日常启动不必每次执行完整测试。
 
-当前main已包含桌面管理端，登录前从“检查运行环境”展开运行检查，登录后可从顶栏“运行检查”或侧栏“系统状态”检查。默认登录成功进入工作台，芯片和物品通过侧栏进入；启动命令与端口不变，不支持手机后台适配。
+当前桌面管理端登录前从“检查运行环境”展开运行检查，登录后从“系统管理 → 系统与环境”检查。默认登录成功进入工作台，芯片和物品通过侧栏进入；启动命令与端口不变，不支持手机后台适配。
 
 ## 1. 准备工具和目录
 
@@ -115,7 +115,7 @@ py -3.12 -m venv .venv
 docker compose up -d --wait --wait-timeout 120
 ```
 
-首次需要下载 MySQL 镜像；空数据卷会初始化24张表和服装、饰品两个项目，已有数据不会重复建表。数据库就绪后命令成功退出，后端使用普通测试账号，不用数据库管理账号。
+首次需要下载 MySQL 镜像；空数据卷会初始化当前schema的42张表和服装、饰品两个项目，已有数据不会重复建表。数据库就绪后命令成功退出，后端使用普通测试账号，不用数据库管理账号。
 
 再安装网页依赖，按系统选择一条：
 
@@ -159,7 +159,7 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 | 检查 | macOS / Linux | Windows PowerShell |
 |---|---|---|
 | 已运行服务 | `.venv/bin/python scripts/verify_local.py` | `.\.venv\Scripts\python.exe -X utf8 scripts\verify_local.py` |
-| 自动检查 | `.venv/bin/python -m pytest -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest -q` |
+| 自动检查 | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q` |
 
 服务检查应显示两行“通过”；任一失败会以非零状态退出。普通自动检查不要求数据库，真实数据库检查默认显示 `skipped`（跳过），不算通过。出现 `failed` 表示未通过。
 
@@ -167,8 +167,8 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 
 | 系统 | 命令 |
 |---|---|
-| macOS / Linux | `.venv/bin/python -m pytest -q --auth-db` |
-| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pytest -q --auth-db` |
+| macOS / Linux | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
+| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
 
 命令新建专属临时MySQL，结束后删除测试容器及专属卷，不占用33306端口，不修改已有测试库。包含认证、芯片、旧库升级和备份恢复检查；你的已有库按第7节单独升级，不由测试命令代为修改。下方RUN_DB_TESTS只读检查已启动的原测试库。
 
@@ -176,14 +176,14 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 
 ```bash
 # macOS / Linux
-RUN_DB_TESTS=1 .venv/bin/python -m pytest -q
+RUN_DB_TESTS=1 .venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q
 ```
 
 ```powershell
 # Windows PowerShell
 $env:RUN_DB_TESTS="1"
 try {
-    .\.venv\Scripts\python.exe -X utf8 -m pytest -q
+    .\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q
 } finally {
     Remove-Item Env:RUN_DB_TESTS -ErrorAction SilentlyContinue
 }
@@ -312,6 +312,7 @@ docker compose stop
 .\.venv-browser\Scripts\python.exe -m pip install -r requirements-browser.txt
 .\.venv-browser\Scripts\python.exe -m playwright install chromium
 npm --prefix frontend/admin ci
+npm --prefix frontend/admin run build
 .\.venv-browser\Scripts\python.exe -m pytest tests/test_admin_browser.py --auth-db --browser -q
 ```
 
@@ -322,6 +323,7 @@ python3 -m venv .venv-browser
 .venv-browser/bin/python -m pip install -r requirements-browser.txt
 .venv-browser/bin/python -m playwright install chromium
 npm --prefix frontend/admin ci
+npm --prefix frontend/admin run build
 .venv-browser/bin/python -m pytest tests/test_admin_browser.py --auth-db --browser -q
 ```
 
@@ -406,7 +408,7 @@ macOS/Linux使用相同API契约；本轮自动测试负责接口、并发和故
 
 ## 12. 已有测试库升级及手机资料页本机验收
 
-本节用于交付的手机页功能分支。本机预览与手机公网是两套验收：电脑浏览器打开127.0.0.1可以验证页面和本地数据，手机打开同一地址只会访问手机自身，不会连接电脑。实际手机移动网络访问按[云测试第10节](CLOUD_TEST_DEPLOYMENT.md#10-手机用户站点公开部署与验收)另行授权部署。
+本节用于交付的手机页功能分支。本机预览与手机公网是两套验收：电脑浏览器打开127.0.0.1可以验证页面和本地数据，手机打开同一地址只会访问手机自身，不会连接电脑。实际手机移动网络访问按[杭州手册](HANGZHOU_DEPLOYMENT.md)核对当前部署和授权，不执行香港历史步骤。
 
 ### 12.1 先检查004，不重建数据库
 
@@ -480,7 +482,7 @@ python -m pytest tests/test_media_backup.py --auth-db -q
 
 原独立组件矩阵不再例行执行。上面的图片恢复检查使用专属临时MySQL及合成图片；具体冻结窗口、配套备份和离线上传服务恢复仍按下文执行。
 
-两条命令都应真实执行且无失败；跳过不是门槛通过。静态弹层不能继承动态主题上下文是官方既有限制，冒烟只识别这一准确警告，不屏蔽其他运行异常；实际业务优先App上下文。临时依赖副本复现时可用BUMBUM_ANTD_PROJECT指定已严格安装同一锁定组合的副本；默认检查frontend/admin。构建通过不能替代这些运行结果。
+按本次范围执行的检查应无失败，跳过不是通过；实际业务优先App上下文。不要通过历史BUMBUM_ANTD_PROJECT或其他入口例行恢复已取消的组件矩阵，构建也不能替代受影响业务验证。
 
 ### 13.1 离线工具怎样分工
 
@@ -603,7 +605,7 @@ python -m pytest tests/test_admin_catalog.py --auth-db -q
 python -m pytest tests/test_admin_browser.py tests/test_admin_item_browser.py tests/test_admin_maintenance_browser.py tests/test_tap_stats_browser.py --auth-db --browser -q
 ```
 
-人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。首次用户认领、解除挂失及未定计次/费用不通过测试数据冒充开放；更换芯片仍须按原真实配卡手册实际配置，不把服务端生成密钥当作写卡完成。
+人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。首次用户认领与标准计次已接入，按[数字物品与H5清单](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)核对；解除挂失及未定费用不通过测试数据冒充开放；更换芯片仍须按原真实配卡手册实际配置，不把服务端生成密钥当作写卡完成。
 
 
 ## 16. 验收批次007与本机测试数据
@@ -618,3 +620,5 @@ python scripts/migrate_local.py --test-batches --apply
 本机旧样例/图片清理及新数据包命令、前提和成功/失败解释与[杭州第12节](HANGZHOU_DEPLOYMENT.md#12-验收批次007与测试数据重建)一致，但使用原本机开发配置，不能装载杭州或生产配置。清理备份需要MySQL8.0 mysqldump客户端和旧私有图片目录。清理命令默认只盘点，执行需要显式清单、实例UUID、停写和备份目录。
 
 旧单件图片在线上传/读取和外链已退役，第14节对应旧页面操作不再适用；保留005结构和第13节离线工具用于旧图清理前的配套备份，清理后新款图随数据库备份。当前所有图片在款式维护，当前验收以管理端第8/9节为准。
+
+当前装配、认领、账户双标识及通行密钥还分别依赖008/009、010、011。`scripts/migrate_local.py --assembly-h5`仅覆盖008/009，不能将其成功视为全部结构已就绪；该本地CLI目前没有010/011入口。已有本地库升级到当前版本前，由AI核对实际结构并按现有迁移实现准备同库备份、执行与复核方案，不手工跳过ready检查、不拿空库schema覆盖旧库。全新隔离开发库可直接使用当前schema；已有杭州环境只按杭州手册的受控升级与授权执行。

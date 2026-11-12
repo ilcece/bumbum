@@ -1,6 +1,6 @@
 # 管理后台高保真交互原型
 
-按cece已批准的[管理后台重构方案](../../docs/proposals/admin-make-rebuild.md)，以实际Ant Design Pro官方工程组织重建到Umi Max。当前目录为独立产品原型，正式frontend/admin、H5、后端及数据库保持原状。
+本目录保留2026-11-05至11-06的独立产品原型及当时验证记录：按cece已批准的[管理后台重构方案](../../docs/proposals/admin-make-rebuild.md)，以实际Ant Design Pro官方工程组织重建到Umi Max。下文“当前／本轮”“待验收”“尚未接入”及依赖选型边界均指该原型交付时点，不代表正式系统的最新状态。正式后台、H5及后端后来已有对应实现；实际可用范围见[接口概览](../../API_CONTRACT.md#04-当前能做到哪一步)，任务与验收状态见[TODO](../../TODO.md)。本目录仍是合成数据演示，不连接真实服务。
 
 <a id="当前样式与验证"></a>
 

@@ -38,7 +38,7 @@
 
 手动登记先在事务中按账号、会话的顺序锁定并重查登录状态，再保存芯片。`INSERT ... ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)` 只取回重复记录ID，不改项目、批次或状态；使用当前PyMySQL默认连接选项，首次插入的影响行数为1，重复为0。 取回摘要时使用只锁chip表的当前读（FOR UPDATE OF c），避免并发时旧快照读不到另一事务刚提交的记录；不把项目或物品表升级为排他锁。新增时审计仅保存项目和来源manual，目标ID关联芯片，IP沿用指纹规则；重复未修改资料，不新增变更审计。数据库提交失败返回503，不能提前返回成功。
 
-列表使用LEFT JOIN保留空项目记录，project=unassigned筛选c.project_id IS NULL；未分配不是第三个项目。首次绑定按既定锁顺序，空项目时在同一事务设为目标物品项目，已有项目严格匹配；后续解绑保留项目。未分配或未绑定不能生成chip_key，生成入口在事务内重查；密钥与配置实现见第14节，实际接口范围见API第0.4节。
+列表使用LEFT JOIN保留空项目记录，project=unassigned筛选c.project_id IS NULL；未分配不是第三个项目。首次绑定按既定锁顺序，空项目时在同一事务设为目标物品项目，已有项目严格匹配；后续解绑保留项目。普通绑定路径未分配或未绑定不能生成chip_key；已保存接续办理的候选芯片按API第11节例外处理，不授予用户触碰资格，生成入口在事务内重查；密钥与配置实现见第14节，实际接口范围见API第0.4节。
 
 已有库通过migrate_local.py先完整备份再执行001迁移：使用一条原子ALTER将project_id改可空、添加ck_chip_project_assignment，并用不同名称的_v2外键重建相同关联规则，避免MySQL同一ALTER重用旧外键名失败；不关闭外键检查。回退同样单条ALTER，已有空项目记录时提前拒绝。ready检查本次字段及外键/检查约束版本，未完成升级时503。命令只接受默认本机测试库，备份容器与实际连接须同一server_uuid；不擅自升级生产或导入备份覆盖数据。步骤见[本地运行第7节](LOCAL_DEVELOPMENT.md#7-已有测试库升级允许芯片暂不分配项目)。
 
@@ -48,7 +48,7 @@
 
 同版本全局共享 K1、单芯片独立 K2 已获确认。K1 负责解密编号，K2 按 SDM 规则参与核验防伪码；K0 管理芯片，K3/K4 预留。项目根密钥只在服务器使用，K0/K2/K3/K4 按项目根密钥、UID、槽位和用途算出；不同项目和用途必须分开计算。具体计算方法称为 KDF，须固定实现、输入编码和正确答案测试，旧版随手写的 CMAC 输入公式不能直接投产。
 
-芯片尚未分配项目时，不能选择根密钥、生成芯片密钥或写卡；未来用户验证入口也不能替它猜项目、尝试其他项目根密钥或签发tap_token。当前密钥流程要求项目确定且已绑定物品，见第14节；全局K1/独立K2的分工不变。
+芯片尚未分配项目时，不能选择根密钥、生成芯片密钥或写卡；未来用户验证入口也不能替它猜项目、尝试其他项目根密钥或签发tap_token。普通密钥流程要求项目确定且已绑定物品，见第14节；接续候选的受控配置例外见API第11节；全局K1/独立K2的分工不变。
 
 | 配置或字段 | 如何使用 |
 |---|---|
@@ -127,11 +127,11 @@ GET /api/admin/auth/session 检查有效登录及账号状态，返回 authentic
 | 已锁定 | 返回 429，不增加次数、不延长锁期；到期后的首次尝试先清旧计数和锁定时间，再按新尝试判断；成功登录也清零 |
 | 未知账号 | 不创建管理员或账号计数记录；返回同样的 unauthorized，并记录经指纹处理的账号标识；IP 频率限制仍有效 |
 | 同一 IP 登录频率 | Nginx 仅对准确的登录路径限制，平均每分钟 5 次、允许瞬时额外 4 次；超过返回 429 rate_limited。阈值上线前联调验证，不用于整个管理后台 |
-| 第二阶段短信发送 | 同手机号 60 秒一次；同 IP 每小时最多 10 次，仍需多进程共用计数 |
-| 第二阶段短信码 | 最多 5 次错误；新码使同 grant 同手机号旧码失效 |
+| 当前用户短信发送 | 同手机号每60秒最多1次，同IP每60秒最多6次；数据库共用计数，不依赖单进程内存 |
+| 当前用户短信码 | 最多5次错误，5分钟有效；同手机号新挑战替换旧挑战，不绑定tap_grant |
 | 第二阶段芯片验证 | 多进程共用计数；阈值经负载测试和共享 IP 情况确认，不预先保证固定次数或零开销 |
 
-账号失败计数更新时锁定 admin_user 行，在事务内检查和更新；不再为登录维护多种计数桶或分级锁期。security_rate_limit 仅作第二阶段短信、芯片验证的预留表，不参与第一阶段登录；其 bucket_key 仍用 IP_HASH_KEY 对用途和统一格式的标识计算 HMAC-SHA256。第二阶段开发时处理唯一键、锁行与保存，不能用单个进程内存代替。
+账号失败计数更新时锁定 admin_user 行，在事务内检查和更新；不再为登录维护多种计数桶或分级锁期。security_rate_limit已用于用户短信及芯片验证，不参与原密码/验证器登录计数；其 bucket_key 仍用 IP_HASH_KEY 对用途和统一格式的标识计算 HMAC-SHA256。实现使用唯一键、锁行与独立保存，不用单个进程内存代替。
 
 记录范围限定为：
 
@@ -152,15 +152,15 @@ SDM 是芯片生成动态信息和防伪码的机制。PICC 数据是其中包�
 - 检查 bound/active、密钥和写卡完成；事务里先锁物品后锁芯片，重查绑定、配置版本和状态；只接受大于 last_verified_counter 的读数，写成功日志并创建 tap_grant 一起提交。旧读数、错误防伪码、未提交事务都不能推进计数器。解绑不清零；计数器耗尽、换卡换钥的恢复另定。
 - 失败日志另记；没得到 UID 时用 NULL，不造 UID，未验签的候选 UID 不视为认证身份。旧 URL/乱序读数返回 replay_suspect 并提示重触碰；服务故障和过密请求不假装成假货。
 
-临时凭证 tap_token 至少 256 位安全随机数、5 分钟有效，在 tap_grant 只存摘要，绑定芯片、物品和 allowed_action。未绑定给 bind，已绑定给 read。允许重复查看，发短信不消耗；仅成功绑定时事务内设 consumed_at。失败不消耗；过期、用掉、停用或原绑定改变均不能继续使用。读请求用 X-Tap-Token，写请求用 JSON，不用 query 参数，不在浏览器长期保存。它不是用户登录或所有者身份，也不能阻止未用链接被转发抢先消费。
+临时凭证 tap_token 至少 256 位安全随机数、5 分钟有效，在 tap_grant 只存摘要，绑定芯片、物品和 allowed_action。物品无当前持有人时给bind，已有当前持有人时给read；两者都必须先通过已绑定且配置可用芯片的真实验证，这里的bind不表示芯片未关联。允许重复查看；短信登录不依赖tap_token，首次认领另须有效且未消费的bind型tap_token，成功认领同事务消费。过期、用掉、停用或原绑定改变均不能继续使用。读请求用 X-Tap-Token，写请求用 JSON，不用 query 参数，不在浏览器长期保存。它不是用户登录或所有者身份，也不能阻止未用链接被转发抢先消费。
 
-短信挑战保存到 sms_challenge，以独立 SMS_CODE_HASH_KEY 对 grant、手机号和用途做 HMAC-SHA256。有效期不超过 5 分钟且不超过 grant 剩余时间。绑定时同事务用掉挑战与 bind 凭证、创建/复用 user、写 ownership/history；处理 phone 唯一键争抢，错误验证码的失败计数仍须保存。服务商未选，重试/幂等和外部发送失败办法待补，不伪报发送成功。养成身份与权限未定，不签发 touch，不从 ownership 推断操作者。
+旧sms_challenge/grant绑定认领方案仅为历史预留，不是当前注册路由。当前短信挑战存user_sms_challenge，以独立SMS_CODE_HASH_KEY对用途、challenge_id和验证码计算HMAC-SHA256；登录独立于碰卡资格，有效期5分钟。成功登录消费挑战并创建/复用账户和7天会话，错误计数独立保留。认领另校验已验证账户、匹配当前物品和芯片且有效未消费的bind型tap_token、有效交付码和可交付物品，同事务保存唯一持有及历史；认领失败不撤销已成功的登录。杭州test阿里云与HTTPS网关发送边界见API“用户账户及认领”及杭州手册，发送失败不伪报成功、不自动重发。养成仍不签发touch，不从ownership推断操作者。
 
 ## 7. 网站入口配置
 
 Nginx 是网站的接待入口：用户和管理网站各自限定能转交哪些地址。安全组按端口/IP 限制，不能在共享 443 端口上按域名单独拦管理网站，所以管理域名必须另配站点 IP 白名单。
 
-下面只是骨架，真实证书、目录和 IP 需替换；不是完整可运行配置。上线前运行 nginx -t 检查。TLS 是 HTTPS 的加密连接，下面由 Nginx 接收它，再转交本机后端。
+下面只是拒绝优先的骨架，真实用户路由必须从已审核的对应环境模板逐条加入，不能按API前缀整段代理；真实证书、目录和IP需替换，不是完整可运行配置。上线前运行 nginx -t 检查。TLS 是 HTTPS 的加密连接，下面由 Nginx 接收它，再转交本机后端。
 
 ```nginx
 # 置于 http {} 内；真实证书指令在 server 中另配。
@@ -173,20 +173,8 @@ server {
 
     location = /api/admin { return 404; }
     location ^~ /api/admin/ { return 404; }
-    location = /api/webhook/admin/scan {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-    location ~ ^/api/(tap|public|fashion|jewelry)/ {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
+    location = /api/webhook/admin/scan { return 404; }
+    # 精确用户接口另按已审核环境模板逐条配置；不代理整个API前缀。
     location /api/ { return 404; }
     location / { try_files $uri $uri/ /index.html; }
 }
@@ -268,6 +256,8 @@ NFC.cool官方资料于2026-10-24读取：[开发说明](https://nfc.cool/develo
 
 ## 9. 服装资料与启停实现
 
+本节记录旧单件资料/图片实现。旧私有图片在线服务已退役，当前仅保留历史文件备份/恢复与清理职责；新版共用款图见API第11.3节，不能按下文重新开放旧上传。
+
 产品规则见[后台规范](product/admin-management.md#3-服装基础资料编辑与启停)，字段、限制和错误只维护在[API第4节](../API_CONTRACT.md#4-管理物品)；任务/证据见TODO/CHANGELOG。物品扩展查询、款式与服装五项资料的原子保存和私有图片后端已接入，物品管理端完整迁移已接入，前端分工见第10节，仍不以自动检查代替人工验收。
 
 读取复用admin_queries的一致性快照和北京时间日期过滤；列表以真实唯一关系关联芯片/配置，profile批量读取，自管图片再批量映射，避免逐行请求。写依次锁管理员→会话→item→按asset_id排序的媒体记录，先检查项目/归档/来源状态再写。普通PATCH仅更新款式和明确五项profile，既有size_chart保留；实际修改、updated_at、媒体关联状态和最小审计一起commit，失败rollback，无变化不写时间/审计。旧PUT及单独status分支复用同一函数并保留返回形状；最后成功保存的整份可编辑资料为准，不新增版本冲突系统。
@@ -286,6 +276,8 @@ Pillow完整解码、缩小后修正方向并重编码去元数据；WebP使用�
 
 ## 10. 桌面管理端接入
 
+本节保留原Vite/React Router管理端的迁移历史与交互保护依据，不是当前目录结构；正式管理端现采用Umi Max，组件与构建入口见FRONTEND_COLLABORATION及后台工程迁移说明。
+
 管理端保留React、TypeScript、Vite和npm，锁定依赖以package.json/lock为准。共享入口使用antd 6原生React 19支持，ConfigProvider/App统一中文和主题；AdminLayout采用Layout/Menu及React Router的数据路由，LoginPanel仍持有会话。工作台保留原统计聚合及SVG图表，RuntimeChecks复用health/ready；不将连接检查视为业务或部署验收。
 
 ChipPanel使用官方Table与Form查询、Descriptions详情及Form批次编辑；详情/编辑共用业务字段定义，CreateChip使用Modal/Form登记并继续。已提交查询及页码在URL，安全返回位置与滚动在站内路由state；未提交草稿、密钥及凭证不进入URL或浏览器持久存储。表单只在URL条件变化时初始化，不能用外部同步覆盖未提交输入；分页回调读取最新URL而非旧渲染闭包，以免快速翻页丢失刚提交条件；查询用Form.getFieldsValue(true)保留未挂载的高级字段，日期框回车不触发整张表单提交；列表、详情与关联通过真实ID/API读取。ItemPanel以Table/Form承接URL条件，CreateItem以Modal/Form连续创建并定位确切ID，ItemDetailPage与itemFields共用详情/编辑字段；ItemImages负责受控Upload适配，不维护第二套表单/文件列表。新普通保存一次PATCH，只提交变化的款式和profile，无变化不发写请求；只读尺码与饰品资料不写回。
@@ -301,6 +293,8 @@ NavigationGuard结合useBlocker及beforeunload保护普通编辑；保存后继�
 
 ## 12. 产品规则的技术对应位置
 
+下表及第13—17节保留各基础模块交付时的实现约束和前端路径；旧页面目录、当时后置能力和部署域名不代表新版当前实现。新版Umi后台、装配/接续、共用图及账户认领以API第11节、TECH_SPEC和现行环境模板为准；历史代码回退基线不得直接用于当前库。
+
 [产品模块规范](../PRD.md#1-按问题找到规则)只维护操作、业务限制和验收结果；移出表名、字段名和状态编码不改变现有实现或接口。技术实现仍须读取下面的定义，不依据中文页面文字猜字段或删除兼容规则。
 
 | PRD中的业务概念 | 技术对应及定义位置 |
@@ -311,7 +305,7 @@ NavigationGuard结合useBlocker及beforeunload保护普通编辑；保存后继�
 | 草稿创建及未填写资料 | 只创建item；不创建fashion_item_profile/jewelry_item_profile资料行，接口profile组装为null。item.create审计与业务同事务；编号冲突的HTTP/code见物品接口，不能沿用芯片重复返回原记录的策略 |
 | 可空款式及资料清空 | sku_code省略/null/去空白后空字符串统一存NULL；资料可选文字清空为NULL、图片为空数组，整份资料PUT省略可选项会清除对应值。具体输入与字段以物品接口为准 |
 | 服装编辑及状态记录 | 保存仅涉及本次五项资料，不读取回传、不比较、不改size_chart；业务修改、item.updated_at及审计一起提交。字段和锁顺序见第9节，既有ItemView兼容属性保留 |
-| 列表最新在前、工作台真实统计、内部滚动 | 物品列表按id倒序；概况使用接口total，不用当前页计数；body保留overflow:hidden，各内容区独立滚动。实现说明见物品接口及第10节，不因PRD去掉代码写法改变界面行为 |
+| 列表最新在前、工作台真实统计、内部滚动 | 物品列表按id倒序；概况使用接口total，不用当前页计数；旧版曾采用body overflow:hidden；新版使用官方布局的页面滚动、表格按需横向滚动。实现说明见物品接口及第10节，不因PRD去掉代码写法改变界面行为 |
 
 首次绑定沿用POST /api/admin/chips/{id}/bind-item及item_id；路径与目标ID为正整数，拒绝以业务编号代替内部ID，不接收额外项目/状态/来源。精确类型边界、上限、锁顺序和错误优先级见API第3.1节及本附录第13节。项目分配、chip.item_id、chip_status与审计必须同事务，依托uk_chip_item及项目复合外键防止冲突；是否需迁移须核对实际旧库，不重建数据库。
 
