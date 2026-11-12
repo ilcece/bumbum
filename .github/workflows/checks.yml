@@ -69,6 +69,11 @@ jobs:
         working-directory: frontend/admin
       - run: npm ci
         working-directory: frontend/user
+      # 每个作业使用独立工作区；浏览器回归须验证本作业实际构建的页面。
+      - run: npm run build
+        working-directory: frontend/admin
+      - run: npm run build
+        working-directory: frontend/user
       - run: docker pull mysql:8.0.46
       # React 19 独立组件矩阵仅在 cece 另行批准后专项执行。
       - run: python -m pytest --ignore=tests/test_antd_compatibility.py --auth-db --browser --browser-artifacts test-results -q

@@ -121,17 +121,41 @@ def test_rate_limit_wait_is_not_bypassed_by_online_or_visibility(phone,ready):
 
 
 def test_gallery_fullscreen_and_poll_preserves_scroll(phone,ready,tmp_path):
-    import base64
+    from io import BytesIO
+    import uuid
+    from PIL import Image
+    from tests.test_admin_catalog import action, ok
+
     page=phone.page
     page.clock.install()
-    urls=['https://example.com/a.png','https://example.com/b.png']
-    query(phone.app,'UPDATE fashion_item_profile SET image_urls=%s,description=%s',(json.dumps(urls),'很长的服装介绍\n'*120))
-    # 仅提供合成像素，不请求真实图片网站。
-    image=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aP9sAAAAASUVORK5CYII=')
-    page.route('https://example.com/**',lambda route:route.fulfill(status=200,content_type='image/png',body=image))
+    session=ready[0][0]
+    item_id=query(phone.app,'SELECT item_id FROM chip')[0]['item_id']
+    style_fields={'project':'fashion','code':'MOBILE-GALLERY','name':'测试外套','specs':[],
+                  'description':'很长的服装介绍\n'*120,'material':'棉','image_urls':[]}
+    style_id=ok(action(session,'style',style_fields))['id']
+    phone.app.config['MEDIA_ENABLED']=True
+    uploaded=[]
+    assets=[]
+    # 通过真实共用款图上传与保存接口准备合成图片，不恢复已退役的旧外链图片入口。
+    for color in ('blue','red'):
+        content=BytesIO()
+        Image.new('RGB',(32,24),color).save(content,format='PNG')
+        asset=uuid.uuid4().hex
+        assets.append(asset)
+        response=session[0].post(f'/api/admin/catalog/styles/{style_id}/images/{asset}',
+                                headers=session[1],data={'file':(BytesIO(content.getvalue()),color+'.png')},
+                                content_type='multipart/form-data')
+        uploaded.append(ok(response)['url'])
+    ok(action(session,'style',{**style_fields,'id':style_id,'image_urls':uploaded}))
+    issue_id=ok(action(session,'issue',{'style_id':style_id,'name':'图片回归发行','mode':'fixed',
+                                      'total':1,'description':'隔离浏览器图片回归','rights':['renewal','resale']}))['id']
+    ok(action(session,'confirmIssue',{'issue_id':issue_id}))
+    ok(action(session,'linkIssue',{'item_id':item_id,'issue_id':issue_id,'edition_number':1,'evidence':'合成旧档案关联当前共用款图'}))
+    urls=[f'/api/tap/items/{item_id}/style-images/{asset}' for asset in assets]
     payload=reading(ready[1],ready[0][1]['chip_uid'],9)
     page.goto('http://127.0.0.1:5175/tap?'+urlencode(payload))
     expect(page.get_by_role('heading',name='测试外套',exact=True)).to_be_visible()
+    expect(page.get_by_role('img',name='测试外套，第1张图片',exact=True)).to_be_visible()
     page.get_by_role('button',name='下一张图片',exact=True).click()
     page.get_by_role('button',name='放大服装图片',exact=True).click()
     dialog=page.get_by_role('dialog',name='服装图片大图',exact=True)
@@ -143,7 +167,7 @@ def test_gallery_fullscreen_and_poll_preserves_scroll(phone,ready,tmp_path):
     dialog.get_by_role('button',name='关闭大图',exact=True).click()
     page.evaluate('window.scrollTo(0,700)')
     position=page.evaluate('window.scrollY')
-    query(phone.app,"UPDATE fashion_item_profile SET material='新材质'")
+    query(phone.app,"UPDATE product_style SET material='新材质' WHERE id=%s",(style_id,))
     page.clock.fast_forward(61000)
     expect(page.get_by_text('新材质',exact=True)).to_be_attached()
     assert abs(page.evaluate('window.scrollY')-position)<5

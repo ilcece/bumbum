@@ -11,12 +11,14 @@ from tests.test_admin_auth import query
 pytestmark=pytest.mark.auth_database
 
 def test_legacy_cleanup_only_backed_up_images_and_selected_items(media_recovery,auth_app,auth_database,admin_account,tmp_path):
-    f=media_recovery
+    _, _, root, _, _, _ = media_recovery
+    # 清理入口要求私有目录；仅收紧本测试新建目录，不放宽实际保护。
+    root.chmod(0o700)
     # 复用真实SQL/文件恢复夹具，键名取其现有公开结果。
     with auth_app.test_request_context():
         conn=get_database();report=inventory(conn)
         assert report['legacy_images']
-        root=tmp_path/'original-media';auth_app.config['MEDIA_ROOT']=str(root)
+        auth_app.config['MEDIA_ROOT']=str(root)
         bundle=tmp_path/'cleanup-backup'
         dump=tmp_path/'cleanup.sql';backup_database(auth_database['TEST_DOCKER_COMMAND'],auth_database['TEST_CONTAINER'],dump)
         create_bundle(conn,root,dump,bundle,writes_frozen=True)

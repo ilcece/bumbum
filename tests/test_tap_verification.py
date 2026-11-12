@@ -264,4 +264,9 @@ def test_owned_item_read_grant_and_updated_profile(auth_app, ready):
     assert response.json['data']['profile']['name'] == '更新后的名称'
     assert '13800000001' not in str(response.json)
     assert auth_app.test_client().post('/api/public/bind',json={}).status_code == 404
-    assert auth_app.test_client().post('/api/public/sms/send',json={}).status_code == 404
+    # 短信账户入口已接入，但缺少来源或有效字段仍须拒绝，不能发送短信。
+    client = auth_app.test_client()
+    assert client.post('/api/public/sms/send',json={}).status_code == 403
+    response = client.post('/api/public/sms/send',headers={'Origin':auth_app.config['PUBLIC_ORIGIN']},json={})
+    assert response.status_code == 400 and response.json['code'] == 'invalid_param'
+    assert not query(auth_app, 'SELECT phone FROM user_sms_challenge')
