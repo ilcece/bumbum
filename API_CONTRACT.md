@@ -40,15 +40,15 @@
 
 | 场景 | 需要提供什么 |
 |---|---|
-| 管理业务 | 浏览器自动携带 bumbum_admin_session Cookie（登录凭证）；必须已通过密码和验证码且账号启用 |
+| 管理业务 | 浏览器自动携带有效 bumbum_admin_session Cookie，账号须启用且完成验证器设置；会话由密码加动态码或杭州 test 的通行密钥登录建立 |
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
-| 登录 | 一次提交账号、密码和验证码；强制检查网页来源 Origin 和 JSON，不依赖现有登录凭证 |
+| 登录 | 密码入口一次提交账号、密码和验证码；杭州 test 通行密钥入口见第2.4节。两者检查允许的 Origin 和 JSON，不依赖已有管理会话 |
 | 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 兼容详情接口 | 请求头 X-Tap-Token 放触碰后的临时凭证，沿用原五分钟规则 |
 | 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
 | 用户账户及首次认领 | 短信验证建立独立用户会话。认领时在 JSON 中提交 `tap_token` 和交付认领码，见[用户账户及认领](#用户账户及认领) |
 
-所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第11.3节的精确上传入口仅接受multipart/form-data。除login外，还必须有有效Cookie和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
+所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第11.3节的精确上传入口仅接受multipart/form-data。除密码登录及第2.4节通行密钥的 `login/options`、`login/finish` 外，还必须有有效Cookie和额外口令；通行密钥登记与撤销不属于登录例外。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
 
 ### 0.4 当前能做到哪一步
 
@@ -608,7 +608,7 @@ POST /api/admin/catalog/styles/{id}/images/{asset_id}为精确multipart入口，
 
 当前共用图以受控二进制保存于style_image并随数据库转储，容量与到期暂存受限；旧图片已停止在线服务，清理前仍须原生SQL与文件配套备份；清理后新增款图仅依赖数据库。用户GET /api/tap/items/{item_id}/style-images/{asset_id}复用同一有效view Cookie、物品/芯片/配置检查，且图片必须属于当前已保存共用款式；旧持有者/失效资格不能读取，不返回内部备注或账户。兼容GET /api/fashion/items/{item_id}/style-images/{asset_id}使用原X-Tap-Token短资格；返回图片地址按对应资格族映射，不要求旧短资格客户端持有view Cookie。用户资料只按原公开白名单读取共用字段，旧未关联档案仅保留文字资料，图片为空。
 
-GET /api/admin/catalog/statistics支持scope=sold/all、range=7d/30d/all及project/item_id/chip_id/style_id/issue_id。明细支持page/page_size（默认10、最多100），返回details与holders的items及分页元数据；details按稳定身份汇总tap_count/last_tap，包含符合售出口径但零触碰的身份。inventory提供独立于触碰筛选的当前数据范围概况；counts中的物品/售出/持有按款式、发行等已生效条件统计，时间仅限制触碰。仅统计可信pass事件；sold额外要求显式售出、首次售出时间及事件不早于首次售出，不按owner是否存在推算售出。按稳定item_id跨历代芯片聚合，返回total/touched_items/daily/by_chip及真实档案/账户/持有counts、as_of和Asia/Shanghai。核验读数、失败、重放和普通查看均不新增事件。首次认领服务未开放须明示，不以空模拟用户统计冒充已接入。
+GET /api/admin/catalog/statistics支持scope=sold/all、range=7d/30d/all及project/item_id/chip_id/style_id/issue_id。明细支持page/page_size（默认10、最多100），返回details与holders的items及分页元数据；details按稳定身份汇总tap_count/last_tap，包含符合售出口径但零触碰的身份。inventory提供独立于触碰筛选的当前数据范围概况；counts中的物品/售出/持有按款式、发行等已生效条件统计，时间仅限制触碰。仅统计可信pass事件；sold额外要求显式售出、首次售出时间及事件不早于首次售出，不按owner是否存在推算售出。按稳定item_id跨历代芯片聚合，返回total/touched_items/daily/by_chip及真实档案/账户/持有counts、as_of和Asia/Shanghai。核验读数、失败、重放和普通查看均不新增事件。首次认领已接入，实际环境开放与验收范围见TODO及部署手册；真实认领和合成样本分别取证，不以模拟账户统计代替真实用户验证。
 
 
 ### 11.4 验收批次与数据范围

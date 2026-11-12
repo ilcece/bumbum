@@ -107,7 +107,7 @@ P0指现有核心流程阻断或可能产生错误数据等必须先修的问题
 |---|---|---|
 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 定位、范围、信息/功能架构、核心流程、统计及待审选择 | 数字物品、芯片、持有人及核心数据；不建设订单/工厂/物流后台 |
 | [业务字段表](docs/proposals/admin-rebuild-fields.md) | 档案、操作表单及只读视图的字段/含义/录入边界 | 不是DDL或已可用API清单 |
-| [数字物品 H5 首版](docs/proposals/digital-item-h5-mvp.md) | 页面、手机号账户、认领、我的物品、异常恢复与预览规格 | 测试分支已接入，待人工验收 |
+| [数字物品 H5 首版](docs/proposals/digital-item-h5-mvp.md) | 页面、手机号账户、认领、我的物品、异常恢复与预览规格 | 测试分支已接入；已验收范围与剩余覆盖见[TODO](TODO.md)，不据此宣告整套验收或生产开放 |
 | [设计与交互规范](docs/ADMIN_UI_GUIDELINES.md) | 官方页面/组件、布局、容器、查询/保存/返回及视觉验收 | 新版优先官方Pro模式，旧Make只作历史参考 |
 | [Umi工程迁移说明](docs/proposals/admin-rebuild-implementation.md) | 完整官方工程路线、真实能力保留、版本冲突及实施前提 | 当前分支正式工程已迁入Umi/Pro；按已验收源码恢复页面，用户H5和后端安全边界不随之重写 |
 
