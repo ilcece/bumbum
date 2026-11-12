@@ -98,3 +98,44 @@ def test_direct_style_detail_and_item_chip_return(desktop):
     install(desktop,style,item,chips[0])
     p.goto(f'http://localhost:5174/catalog/style/{style}',wait_until='networkidle');expect(p.get_by_label('款式名称',exact=True)).to_have_value('浏览器共用帽子');button(p,'取消');expect(p).to_have_url(re.compile(r'/catalog(?:\?tab=styles)?$'))
     p.goto(f'http://localhost:5174/items/{item}',wait_until='networkidle');button(p,'04:00:00:00:00:00:C9');expect(p).to_have_url(re.compile(f'/chips/{chips[0]}\\?from='));p.get_by_role('button',name='back',exact=True).click();expect(p).to_have_url(re.compile(f'/items/{item}$'))
+
+
+def test_uninstalled_pending_number_preview_is_read_only_and_returns_to_detail(desktop):
+    """未装卡、编号待核定的三个预览视角不产生业务事实。"""
+    from tests.admin_ui_helpers import api
+    style, _, _, _ = setup(desktop)
+    issue = api(desktop, 'issue', {
+        'style_id': style, 'name': '预览待核定发行', 'mode': 'period', 'total': 100,
+        'starts_at': '2020-01-01T00:00:00+08:00', 'ends_at': '2020-02-01T00:00:00+08:00',
+        'counting_rule': '按实际有效销售核定', 'description': '隔离预览验收', 'rights': [],
+    })['id']
+    api(desktop, 'confirmIssue', {'issue_id': issue})
+    item = api(desktop, 'item', {'issue_id': issue, 'item_uid': 'PREVIEW-PENDING'})['id']
+    tables = ('scan_log', 'item_claim_code', 'ownership', 'whole_item', 'admin_audit')
+    before = {table: query(desktop.app, f'SELECT COUNT(*) AS n FROM {table}')[0]['n'] for table in tables}
+    p = desktop.page
+    url = f'http://localhost:5174/items/{item}'
+    p.goto(url, wait_until='networkidle')
+    button(p, '预览手机页')
+    preview = p.get_by_role('dialog', name=re.compile('手机页预览'))
+    expect(preview.get_by_text('待核定', exact=True)).to_be_visible()
+    expect(preview.get_by_text('浏览器共用帽子', exact=True)).to_be_visible()
+    expect(preview.get_by_text('认领入口', exact=True)).to_have_count(0)
+    preview.get_by_text('待认领', exact=True).click()
+    for title in ('认领入口', '手机号验证', '输入认领码', '确认认领'):
+        expect(preview.get_by_text(title, exact=True)).to_be_visible()
+        if title != '确认认领':
+            button(preview, '查看下一步')
+    button(preview, '回到认领入口')
+    expect(preview.get_by_text('认领入口', exact=True)).to_be_visible()
+    preview.get_by_text('持有人', exact=True).first.click()
+    expect(preview.get_by_text('尚未安装', exact=True)).to_be_visible()
+    expect(preview.get_by_text('模拟账户 138****0000', exact=True)).to_be_visible()
+    preview.get_by_text('访客', exact=True).click()
+    expect(preview.get_by_text('模拟账户 138****0000', exact=True)).to_have_count(0)
+    preview.get_by_role('button', name=re.compile(r'关\s*闭')).click()
+    preview.wait_for(state='hidden')
+    expect(p).to_have_url(url)
+    expect(p.get_by_text('PREVIEW-PENDING', exact=True).first).to_be_visible()
+    after = {table: query(desktop.app, f'SELECT COUNT(*) AS n FROM {table}')[0]['n'] for table in tables}
+    assert after == before

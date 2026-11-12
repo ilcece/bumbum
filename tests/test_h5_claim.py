@@ -144,3 +144,55 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
     assert len(query(auth_app,"SELECT id FROM ownership_history WHERE item_id=%s AND action='bind'",(item,)))==1
     assert query(auth_app,'SELECT consumed_at FROM item_claim_code WHERE id=%s',(receipt['claim_code_id'],))[0]['consumed_at'] is None
     assert len(query(auth_app,'SELECT id FROM item_claim_code WHERE item_id=%s AND consumed_at IS NOT NULL',(item,)))==1
+
+
+@pytest.fixture
+def claim_ready(auth_app, catalog):
+    """经真实后台接口建立可认领物品；短信只交给本测试的内存收件箱。"""
+    admin, style, _, item, chips = catalog
+    sms = {}
+    auth_app.config.update(PUBLIC_ORIGIN=ORIGIN['Origin'],
+                           SMS_CODE_HASH_KEY=secrets.token_hex(32),
+                           SMS_PROVIDER='gateway', TEST_SMS_SENDER=sms.__setitem__)
+    ok(action(admin, 'installAssembly', {'item_id': item, **assembly(admin, style, chips[0], 'L黑')}))
+    config_chip(auth_app, admin, chips[0])
+    ok(action(admin, 'toggleItem', {'item_id': item, 'status': 'active'}))
+    issued = ok(action(admin, 'issueClaimCode', {
+        'item_id': item, 'confirmed': True, 'delivery_reference': '隔离过期认领验收',
+    }))
+    uid = query(auth_app, 'SELECT chip_uid FROM chip WHERE id=%s', (chips[0],))[0]['chip_uid']
+    with auth_app.app_context():
+        keys = target_keys('fashion', uid)
+    return item, uid, keys, issued, sms
+
+
+def test_expired_tap_keeps_account_and_fresh_tap_resumes_claim(auth_app, claim_ready):
+    item, uid, keys, issued, sms = claim_ready
+    client = auth_app.test_client()
+    phone = '13900009703'
+    challenge = ok(client.post('/api/public/sms/send', headers=ORIGIN, json={'phone': phone}))['challenge_id']
+    account = ok(client.post('/api/public/sms/verify', headers=ORIGIN,
+                            json={'challenge_id': challenge, 'code': sms[phone]}))['account']
+    view = ok(client.post('/api/tap/verify', headers=ORIGIN,
+                          json={**reading(keys, uid, 3), 'browser_view': True}))
+    # 只推进服务时钟，不伪造无效 token，直接验证自然过期边界。
+    auth_app.test_clock[0] += timedelta(seconds=view['expires_in'] + 1)
+    response = client.post(f'/api/public/items/{item}/claim', headers=ORIGIN,
+                           json={'tap_token': view['tap_token'], 'claim_code': issued['claim_code']})
+    assert response.status_code == 403 and response.json['code'] == 'retap_required'
+    assert response.json['message'] == '请重新碰一下物品，再继续认领。'
+    assert ok(client.get('/api/public/account/session'))['account'] == account
+    assert not query(auth_app, 'SELECT id FROM ownership WHERE item_id=%s', (item,))
+    assert query(auth_app, 'SELECT consumed_at FROM item_claim_code WHERE id=%s',
+                 (issued['claim_code_id'],))[0]['consumed_at'] is None
+    renewed = ok(client.post('/api/tap/verify', headers=ORIGIN,
+                             json={**reading(keys, uid, 4), 'browser_view': True}))
+    assert renewed['tap_token'] != view['tap_token']
+    result = ok(client.post(f'/api/public/items/{item}/claim', headers=ORIGIN,
+                            json={'tap_token': renewed['tap_token'], 'claim_code': issued['claim_code']}))
+    assert result['state'] == 'mine'
+    assert ok(client.get('/api/public/account/session'))['account'] == account
+    assert ok(client.get(f'/api/public/me/items/{item}'))['item']['item_id'] == item
+    assert len(query(auth_app, 'SELECT id FROM ownership WHERE item_id=%s', (item,))) == 1
+    assert query(auth_app, 'SELECT consumed_at FROM item_claim_code WHERE id=%s',
+                 (issued['claim_code_id'],))[0]['consumed_at'] is not None
