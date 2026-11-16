@@ -1,4 +1,4 @@
-# 杭州测试后端的可选阿里云短信 SDK。共用依赖沿用部署锁定版本。
+# 杭州后端的可选阿里云短信 SDK。共用依赖沿用部署锁定版本。
 -c deploy.txt
 aiofiles==24.1.0
 aiohappyeyeballs==2.7.1

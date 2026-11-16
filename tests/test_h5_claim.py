@@ -19,15 +19,21 @@ pytestmark=pytest.mark.auth_database
 ORIGIN={'Origin':'http://127.0.0.1:5175'}
 
 
-def test_aliyun_sms_rejects_other_slots_and_recipients_before_creating_challenge(auth_app, monkeypatch):
+@pytest.mark.parametrize(('provider', 'slot', 'number_setting'), [
+    ('aliyun', 'test', 'SMS_ALIYUN_TEST_PHONE'),
+    ('aliyun_pilot', 'production', 'SMS_ALIYUN_PILOT_PHONE'),
+])
+def test_aliyun_sms_rejects_other_slots_and_recipients_before_creating_challenge(auth_app, monkeypatch, provider, slot, number_setting):
     phone = '13900009701'
     auth_app.config.update(
         PUBLIC_ORIGIN=ORIGIN['Origin'], SMS_CODE_HASH_KEY=secrets.token_hex(32),
-        SMS_PROVIDER='aliyun', SMS_ALIYUN_ACCESS_KEY_ID='synthetic-id',
+        SMS_PROVIDER=provider, SMS_ALIYUN_ACCESS_KEY_ID='synthetic-id',
         SMS_ALIYUN_ACCESS_KEY_SECRET='synthetic-secret', SMS_ALIYUN_SIGN_NAME='隔离验收签名',
-        SMS_ALIYUN_TEMPLATE_CODE='SMS_123456', SMS_ALIYUN_TEST_PHONE=phone,
+        SMS_ALIYUN_TEMPLATE_CODE='SMS_123456',
+        SMS_ALIYUN_TEST_PHONE='13900009702', SMS_ALIYUN_PILOT_PHONE='13900009702',
         TEST_SMS_SENDER=lambda *_: pytest.fail('不能绕回模拟发送'),
     )
+    auth_app.config[number_setting] = phone
     attempts = []
 
     def send(_config, recipient, code):
@@ -40,17 +46,18 @@ def test_aliyun_sms_rejects_other_slots_and_recipients_before_creating_challenge
     def request_sms(recipient):
         return client.post('/api/public/sms/send', headers=ORIGIN, json={'phone': recipient})
 
-    for slot in ('', 'production'):
-        auth_app.config['HANGZHOU_SLOT'] = slot
+    other_slot = 'production' if slot == 'test' else 'test'
+    for wrong_slot in ('', other_slot):
+        auth_app.config['HANGZHOU_SLOT'] = wrong_slot
         assert request_sms(phone).status_code == 503
-    auth_app.config['HANGZHOU_SLOT'] = 'test'
+    auth_app.config['HANGZHOU_SLOT'] = slot
     assert request_sms('13900009702').status_code == 403
-    auth_app.config['SMS_ALIYUN_TEST_PHONE'] = ''
+    auth_app.config[number_setting] = ''
     assert request_sms(phone).status_code == 503
     assert not attempts and not query(auth_app, 'SELECT bucket_key FROM security_rate_limit')
     assert not query(auth_app, 'SELECT phone FROM user_sms_challenge')
 
-    auth_app.config['SMS_ALIYUN_TEST_PHONE'] = phone
+    auth_app.config[number_setting] = phone
     assert request_sms(phone).status_code == 503
     assert query(auth_app, 'SELECT consumed_at FROM user_sms_challenge')[0]['consumed_at'] is not None
     auth_app.test_clock[0] += timedelta(seconds=61)
@@ -59,6 +66,8 @@ def test_aliyun_sms_rejects_other_slots_and_recipients_before_creating_challenge
     result = client.post('/api/public/sms/verify', headers=ORIGIN,
                          json={'challenge_id': challenge_id, 'code': attempts[-1][1]})
     assert ok(result)['account']['phone'] == '139****9701'
+    assert client.post('/api/public/sms/verify', headers=ORIGIN,
+                       json={'challenge_id': challenge_id, 'code': attempts[-1][1]}).status_code == 400
 
 
 def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_app,catalog):

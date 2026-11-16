@@ -1,4 +1,4 @@
-"""杭州测试短信使用阿里云官方 SDK 发码。"""
+"""杭州短信使用阿里云官方 SDK 发码。"""
 
 import json
 import re
@@ -14,17 +14,17 @@ ALIYUN_SMS_SETTINGS = (
 MAINLAND_PHONE = r'1[3-9][0-9]{9}'
 
 
-def valid_settings(config):
-    values = [config.get(name) for name in ALIYUN_SMS_SETTINGS]
+def valid_settings(config, *, recipient_setting='SMS_ALIYUN_TEST_PHONE'):
+    values = [config.get(name) for name in (*ALIYUN_SMS_SETTINGS[:-1], recipient_setting)]
     if not all(isinstance(value, str) and value.strip() == value and value
                and not any(char in value for char in '\r\n\0') for value in values):
         return False
     return bool(re.fullmatch(r'SMS_[0-9]+', config['SMS_ALIYUN_TEMPLATE_CODE'])
-                and re.fullmatch(MAINLAND_PHONE, config['SMS_ALIYUN_TEST_PHONE']))
+                and re.fullmatch(MAINLAND_PHONE, config[recipient_setting]))
 
 
 def send_aliyun_sms(config, phone, code):
-    # 只在杭州测试路径加载 SDK，沿用其它环境的 HTTPS 网关。
+    # 按需加载 SDK，其他发送路径沿用 HTTPS 网关。
     from alibabacloud_dysmsapi20170525.client import Client
     from alibabacloud_dysmsapi20170525.models import SendSmsRequest
     from alibabacloud_tea_openapi.utils_models import Config

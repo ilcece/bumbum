@@ -28,6 +28,10 @@ blueprint = Blueprint('public_account', __name__, url_prefix='/api/public')
 COOKIE = 'bumbum_user'
 COOKIE_PATH = '/api/public'
 SESSION_SECONDS = 7 * 24 * 3600
+ALIYUN_SMS_CHANNELS = {
+    'aliyun': ('test', 'SMS_ALIYUN_TEST_PHONE'),
+    'aliyun_pilot': ('production', 'SMS_ALIYUN_PILOT_PHONE'),
+}
 
 
 def fail(status, code, message):
@@ -104,11 +108,13 @@ def send_gateway_code(phone, code):
 def sms_delivery(phone):
     config = current_app.config
     provider = config['SMS_PROVIDER']
-    if provider == 'aliyun':
-        if config['HANGZHOU_SLOT'] != 'test' or not valid_settings(config):
+    if provider in ALIYUN_SMS_CHANNELS:
+        slot, recipient_setting = ALIYUN_SMS_CHANNELS[provider]
+        if config['HANGZHOU_SLOT'] != slot or not valid_settings(config, recipient_setting=recipient_setting):
             fail(503, 'sms_unavailable', '短信服务暂未就绪。')
-        if phone != config['SMS_ALIYUN_TEST_PHONE']:
-            fail(403, 'sms_recipient_not_allowed', '该手机号未获本次测试授权。')
+        if phone != config[recipient_setting]:
+            fail(403, 'sms_recipient_not_allowed', '该手机号未获本次验收授权。')
+        secret_key('SMS_CODE_HASH_KEY')
         return partial(send_aliyun_sms, config, phone)
     if provider != 'gateway':
         fail(503, 'sms_unavailable', '短信服务暂未就绪。')
@@ -455,6 +461,6 @@ def my_image(ref,asset_id):
 
 def init_public_account(app):
     app.config.setdefault('SMS_PROVIDER', os.getenv('SMS_PROVIDER', 'gateway'))
-    for name in ('SMS_CODE_HASH_KEY','SMS_GATEWAY_URL','SMS_GATEWAY_TOKEN', *ALIYUN_SMS_SETTINGS):
+    for name in ('SMS_CODE_HASH_KEY','SMS_GATEWAY_URL','SMS_GATEWAY_TOKEN', 'SMS_ALIYUN_PILOT_PHONE', *ALIYUN_SMS_SETTINGS):
         app.config.setdefault(name,os.getenv(name,''))
     app.register_blueprint(blueprint)

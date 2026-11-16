@@ -406,6 +406,16 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 
 仅 `HANGZHOU_SLOT=test` 且 `SMS_PROVIDER=aliyun` 时启用。未配置或使用其他槽位时，该发送路径拒绝。唯一号码白名单在创建短信挑战之前检查。阿里云业务结果为 `OK` 时才返回发送受理成功，网络错误不自动重发。
 
+### 杭州生产短信单号码验收
+
+生产短信候选使用 `--build-arg HANGZHOU_ALIYUN_SMS=1` 安装现有短信 SDK。仅 `HANGZHOU_SLOT=production` 与 `SMS_PROVIDER=aliyun_pilot` 同时匹配时才可发送。生产私有配置需包含 `SMS_ALIYUN_ACCESS_KEY_ID`、`SMS_ALIYUN_ACCESS_KEY_SECRET`、`SMS_ALIYUN_SIGN_NAME`、`SMS_ALIYUN_TEMPLATE_CODE`、`SMS_ALIYUN_PILOT_PHONE` 和独立的 `SMS_CODE_HASH_KEY`。验收号只能是一个 11 位中国大陆手机号，校验在限流计数、创建挑战和调用阿里云之前完成。
+
+2026-11-16，杭州生产部署了单号码验收版 `1428b7b8d50579f7274d0a1ee7e4fde0c7b57885`。发布前备份生产数据库并校验转储摘要，再依次执行 005–011。发布后生产与 test 服务均通过健康检查，生产 H5 的触碰和「我的数字物品」入口返回 200。生产初始化账号已恢复锁定。服务端核实只允许指定号码发码。
+
+本轮验收沿用 test 已配置的阿里云签名、模板和调用凭据，生产验证码校验密钥单独生成。验收号码在交互终端隐藏输入，配置保存在生产私有的 `secrets/sms-pilot.env`。cece 已在生产 H5 收信登录，用模拟芯片读数认领验收物品 `FASH-SMS-PILOT-000001`，并在「我的数字物品」确认可见。服务器核对触碰通过、认领码及认领资格均已消费、持有人对应验收号码。生产实卡另行验收。
+
+短信继续只对该验收号码开放。正式开放及专用生产调用凭据另行确认。需要暂停发送时，将生产服务的 `SMS_PROVIDER` 设为 `off`。
+
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
 ### 4.1 在 RDS 控制台核对网络与权限
