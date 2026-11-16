@@ -100,12 +100,12 @@ def sync_directory(root):
             os.close(descriptor)
 
 
-def map_profile_images(cursor, profiles, *, context='admin'):
+def map_profile_images(cursor, profiles, *, context='admin', public_id=None):
     """只为当前H5映射新版款图；旧图片/外链不再回退。"""
     for item_id,profile in profiles.items():
         urls=[]
         for url in profile.get('image_urls',[]):
             prefix=f'/api/tap/items/{item_id}/style-images/'
             if context in {'tap','fashion'} and isinstance(url,str) and url.startswith(prefix) and ASSET_ID.fullmatch(url[len(prefix):]):
-                urls.append(f"{origin(context)}/api/{context}/items/{item_id}/style-images/{url[len(prefix):]}")
+                urls.append(f"{origin(context)}/api/{context}/items/{public_id or item_id}/style-images/{url[len(prefix):]}")
         profile['image_urls']=urls

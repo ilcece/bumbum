@@ -1,0 +1,9 @@
+:root {
+  --product-image-ratio: 11 / 12;
+}
+
+.product-image-frame {
+  aspect-ratio: var(--product-image-ratio);
+  object-fit: contain;
+  object-position: center;
+}

@@ -1,3 +1,5 @@
+import ReadFailure from "../components/ReadFailure";
+import ClaimCodeDialog from "../components/ClaimCodeDialog";
 import React, { useEffect, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import {
@@ -9,8 +11,9 @@ import {
   Form,
   Input,
   InputNumber,
-  Modal,
+  Select,
   Space,
+  Spin,
   Steps,
   Switch,
   Table,
@@ -19,7 +22,8 @@ import {
   Tooltip,
 } from "antd";
 import { history, useLocation, useParams } from "@umijs/max";
-import { activityPath, itemWorkflow, orderPath } from "../catalog";
+import { activityPath, fromPath, itemWorkflow, orderPath } from "../catalog";
+import AuditDetails from "../components/AuditDetails";
 import {
   Row,
   edition,
@@ -74,9 +78,10 @@ export default function ItemDetail({
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const installChip = Number(query.get("installChip"));
-  const from = location.pathname + location.search;
-  const ident = id || Number(params.id),
-    { record: r, error, loading, reload } = useRecord("items", ident),
+  const ident = id || Number(params.id);
+  const currentPath = location.pathname + location.search;
+  const from = embedded ? fromPath("/items/" + ident, currentPath) : currentPath;
+  const { record: r, error, loading, reload } = useRecord("items", ident),
     [action, setAction] = useState<string | undefined>(installChip || query.get("install") === "1" ? "bind" : undefined),
     [work, setWork] = useState<Row>(),
     [preview, setPreview] = useState(false),
@@ -84,11 +89,13 @@ export default function ItemDetail({
     [keyChip, setKeyChip] = useState<number>(),
     [stats, setStats] = useState<Row>(),
     [statsError, setStatsError] = useState(""),
+    [statsRevision, setStatsRevision] = useState(0),
     [scope, setScope] = useState("sold"),
     [range, setRange] = useState("all");
   useEffect(() => {
     let active = true;
     setStats(undefined);
+    setStatsError("");
     statistics({ item_id: ident, scope, range })
       .then((x) => {
         if (active) {
@@ -102,7 +109,7 @@ export default function ItemDetail({
     return () => {
       active = false;
     };
-  }, [ident, scope, range, r]);
+  }, [ident, scope, range, r, statsRevision]);
   const done = (result?: Row) => {
     const deleted = action === "deleteItem";
     if (result && (action === "issueClaimCode" || action === "reissueClaimCode")) setClaimResult(result);
@@ -132,10 +139,12 @@ export default function ItemDetail({
     && r?.status !== "archived" && r?.status !== "active";
   const canInstall = !e && !!r?.issue_id && r?.status !== "archived" && !orderTarget;
   const orderNext = orderTarget && !r?.order.delivered_at && !canConfigure;
+  const lost = !!(e?.lost_at || e?.loss_evidence);
+  const canCancelLoss = lost && !pending && r?.chip_status === "lost";
   const container = (content: React.ReactNode) => (
     <DetailContainer
       embedded={embedded}
-      title={<Space wrap>{r?.style?.name || "数字物品"}<Copy value={r?.item_uid} /></Space>}
+      title={<Space wrap id="item-detail-heading" tabIndex={-1}>{r?.style?.name || "数字物品"}<Copy value={r?.item_uid} /></Space>}
       subTitle={r && <Space wrap><State value={itemWorkflow(r)} />
         {r.spec || "规格待核对"} · {r.sold ? "已售出" : "未售出"}
         {r.owner_id && <UserIdentity uid={r.owner_public_uid} />}
@@ -150,6 +159,22 @@ export default function ItemDetail({
               orderNext ? <Button type="primary" onClick={() => history.push(orderNext)}>打开对应订单件</Button> :
               canEnable ? <Button type="primary" onClick={() => setAction("toggleItem")}>启用物品</Button> :
               canInstall ? <Button type="primary" onClick={() => setAction("bind")}>安装芯片</Button> : null}
+            {e && r.status !== "archived" && <>
+              {lost ? <Tooltip title={pending ? "有未完成的换新或转售，暂不能取消挂失" : !canCancelLoss ? "配套芯片状态需要核对" : undefined}>
+                <span><Button disabled={!canCancelLoss} onClick={() => setAction("cancelLoss")}>取消挂失</Button></span>
+              </Tooltip> : <Button danger disabled={!['bound', 'disabled'].includes(r.chip_status)} onClick={() => setAction("loseItem")}>挂失物品</Button>}
+              {pending ? <Button onClick={() => setWork(pending)}>
+                继续办理{pending.kind === "resale" ? "转售" : "换新"}
+              </Button> : <>
+                <Button disabled={!r.owner_id || !r.rights?.some((right: Row) => right.kind === "renewal") || r.quota_review || r.quota_used >= 1}
+                  onClick={() => setAction("prepareRenewal")}>办理换新</Button>
+                <Button disabled={!r.owner_phone_verified || !r.rights?.some((right: Row) => right.kind === "resale")}
+                  onClick={() => setAction("prepareResale")}>办理转售</Button>
+              </>}
+            </>}
+            {!orderTarget && r.status !== "archived" && <Button onClick={() => setAction("sale")}>维护售出事实</Button>}
+            {!!r.is_validation && <InlineCommand danger label="直接删除物品" action="deleteItem" payload={{ item_id: r.id }}
+              onDone={() => { onDeleted?.(); if (!embedded) history.push("/items"); }} />}
           </Space>
         )
       }
@@ -199,18 +224,6 @@ export default function ItemDetail({
                   checked={!!r.is_validation}
                   onDone={reload}
                 />
-                {!!r.is_validation && (
-                  <InlineCommand
-                    danger
-                    label="直接删除物品"
-                    action="deleteItem"
-                    payload={{ item_id: r.id }}
-                    onDone={() => {
-                      onDeleted?.();
-                      if (!embedded) history.push("/items");
-                    }}
-                  />
-                )}
               </Descriptions.Item>
             </Descriptions>
           </ProCard>
@@ -324,12 +337,14 @@ export default function ItemDetail({
                     type="warning"
                     showIcon
                     title="当前整套物品已挂失"
-                    description="配套芯片已停止服务；挂失属于这一代，新代不会继承。解除挂失政策待定。"
+                    description={pending ? "配套芯片已停止服务。当前有未完成的换新或转售。"
+                      : r.status === "archived" ? "该物品已归档，配套芯片已停止服务。"
+                        : "配套芯片已停止服务。实物找回后可在顶部操作栏取消挂失。"}
                   />
                 )}
                 <ProCard title="当前物品的芯片配置" size="small" headerBordered>
                   <State value={r.provisioned_at ? "核验就绪" : "待配置"} />
-                  <Button
+                  {!canConfigure && <Button
                     disabled={
                       !!(e.lost_at || e.loss_evidence) ||
                       r.chip_status !== "bound"
@@ -337,16 +352,15 @@ export default function ItemDetail({
                     onClick={() => setKeyChip(e.chip_id)}
                   >
                     查看密钥与配置
-                  </Button>
+                  </Button>}
                 </ProCard>
               </>
             ) : (
               <Alert type="info" title="尚未准备当前整套物品" />
             )}
           </ProCard>
-          <ProCard title="订单与交付" headerBordered extra={orderTarget
-            ? (!orderNext && <Button onClick={() => history.push(orderTarget)}>返回原订单件</Button>)
-            : (r.status !== "archived" && <Button onClick={() => setAction("sale")}>维护售出事实</Button>)}>
+          <ProCard title="订单与交付" headerBordered extra={orderTarget && !orderNext &&
+            <Button onClick={() => history.push(orderTarget)}>返回原订单件</Button>}>
             <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="订单">{r.order ? r.order.channel + " · " + r.order.external_order_no + " · 第 " + r.order.position + " 件" : "无结构化订单"}</Descriptions.Item>
               <Descriptions.Item label="购买规格">{r.order?.ordered_spec || "未记录"}</Descriptions.Item>
@@ -370,20 +384,7 @@ export default function ItemDetail({
               </Space>
             )}
           </ProCard>
-          <ProCard title="持有人与权益" headerBordered extra={e && (
-            <Space wrap>
-              <Button danger disabled={!!(e.lost_at || e.loss_evidence) || r.status === "archived"}
-                onClick={() => setAction("loseItem")}>挂失物品</Button>
-              {pending ? <Button type="primary" onClick={() => setWork(pending)}>
-                继续办理{pending.kind === "resale" ? "转售" : "换新"}
-              </Button> : <>
-                <Button disabled={!r.owner_id || !r.rights?.some((right: Row) => right.kind === "renewal") || r.quota_review || r.quota_used >= 1}
-                  onClick={() => setAction("prepareRenewal")}>办理换新</Button>
-                <Button disabled={!r.owner_phone_verified || !r.rights?.some((right: Row) => right.kind === "resale")}
-                  onClick={() => setAction("prepareResale")}>办理转售</Button>
-              </>}
-            </Space>
-          )}>
+          <ProCard title="持有人与权益" headerBordered>
             <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="适用数字权益">
                 {r.rights?.map((right: Row) => `${right.kind === "renewal" ? "换新" : "转售"}（${right.rule_version}）`).join("、") || "暂无已确认权益"}
@@ -532,7 +533,8 @@ export default function ItemDetail({
             }
           >
             {statsError ? (
-              <Alert type="error" title={statsError} />
+              <ReadFailure title="触碰统计读取失败" error={statsError}
+                retry={() => setStatsRevision((value) => value + 1)} />
             ) : stats ? (
               <>
                 <Button type="link" onClick={() => history.push(activityPath(from, {
@@ -553,16 +555,18 @@ export default function ItemDetail({
                   ]}
                 />
               </>
-            ) : null}
+            ) : <Spin description="正在读取触碰统计"><div style={{ height: 72 }} /></Spin>}
           </ProCard>
           <ProCard title="用户动态" headerBordered extra={<Button onClick={() => history.push(activityPath(from, { item_id: r.id }))}>查看全部动态</Button>}>
             <ItemActivity key={r.id} itemId={r.id} revision={r} />
           </ProCard>
-          <ProCard title="业务操作记录" headerBordered extra={<Button onClick={() => history.push(`/system?tab=audit&item_id=${r.id}`)}>查看全部</Button>}>
+          <ProCard title="业务操作记录" headerBordered extra={<Button onClick={() => history.push(fromPath(`/system?tab=audit&item_id=${r.id}`, from))}>查看全部</Button>}>
             <Table<Row> rowKey="id" size="small" pagination={false} dataSource={r.audit || []} columns={[
               { title: "时间", render: (_, event) => time(event.created_at) },
               { title: "操作人", dataIndex: "username" },
-              { title: "结果", render: (_, event) => event.detail?.summary || "历史记录" },
+              { title: "操作", dataIndex: "operation" },
+              { title: "结果摘要", render: (_, event) => <Typography.Paragraph className="audit-row-summary" ellipsis>{(event.summary !== event.operation && event.summary) || event.outcome || "未记录"}</Typography.Paragraph> },
+              { title: "详情", width: 88, render: (_, event) => <AuditDetails event={event} /> },
             ]} />
           </ProCard>
         </div>
@@ -573,6 +577,7 @@ export default function ItemDetail({
           title={
             {
               loseItem: "挂失物品",
+              cancelLoss: "取消挂失",
               prepareRenewal: "准备替换物品",
               prepareResale: "准备转售的新整套物品",
               bind: "安装芯片",
@@ -593,6 +598,7 @@ export default function ItemDetail({
             chip_id: action === "bind" && installChip ? installChip : undefined,
             physical_item_id: action === "bind" ? r.order?.physical_item_id : undefined,
             whole_id: e?.id,
+            lost_at: e?.lost_at ?? null,
             status: r.status === "active" ? "disabled" : "active",
             confirmed: action === "sale" ? !r.sold : undefined,
             enabled: !r.is_validation,
@@ -614,6 +620,7 @@ export default function ItemDetail({
           submitText={
             action === "loseItem"
               ? "确认挂失整套物品"
+              : action === "cancelLoss" ? "确认取消挂失"
               : action === "deleteItem"
                 ? "直接删除"
                 : action === "sale"
@@ -652,16 +659,26 @@ export default function ItemDetail({
           <Form.Item name="item_id" hidden>
             <InputNumber />
           </Form.Item>
-          {action === "loseItem" && (
+          {(action === "loseItem" || action === "cancelLoss") && (
             <>
               <Form.Item name="whole_id" hidden>
                 <InputNumber />
               </Form.Item>
+              {action === "cancelLoss" && <Form.Item name="lost_at" hidden><Input /></Form.Item>}
               <Alert
                 type="warning"
                 title={`${r.item_uid} · 第${e?.generation}代 · ${e?.spec || "规格不适用"} · ${e?.chip_uid}`}
-                description="整套物品挂失并同步停用配套芯片；保留身份、持有人和历史。"
+                description={action === "loseItem" ? "挂失后配套芯片停止普通触碰服务。"
+                  : "核对实物已经找回。取消挂失后，现有找回入口立即失效，操作记录保留。"}
               />
+              {action === "cancelLoss" && (r.chip_state_before_loss
+                ? <p>{r.chip_state_before_loss === "disabled" ? "芯片在挂失前已停用，取消后仍保持停用。" : "芯片恢复到挂失前的已关联状态。"}</p>
+                : <Form.Item name="chip_state" label="取消后芯片服务" rules={required}>
+                  <Select placeholder="旧挂失未记录原芯片状态，请选择" options={[
+                    { value: "disabled", label: "保持芯片停用" },
+                    { value: "bound", label: "已核对芯片，恢复服务", disabled: !r.provisioned_at },
+                  ]} />
+                </Form.Item>)}
               <Evidence />
             </>
           )}
@@ -798,9 +815,9 @@ export default function ItemDetail({
         />
       )}
       {preview && r && <ItemH5Preview id={r.id} onClose={() => setPreview(false)} />}
-      {claimResult && <Modal open title="交付认领码" onCancel={() => setClaimResult(undefined)} footer={<Button onClick={() => setClaimResult(undefined)}>完成</Button>}>
-        {claimResult.claim_code ? <><div data-private="true"><Typography.Paragraph copyable>{claimResult.claim_code}</Typography.Paragraph></div><p>有效期至 {time(claimResult.expires_at)}。请通过交付渠道交给接收人。</p></> : <Alert type="info" title="已核对发放记录" description="可在「订单与交付」查看有效码。旧码无法查看时，请核对交付后补发。" />}
-      </Modal>}
+      {claimResult && <ClaimCodeDialog code={claimResult.claim_code} expiresAt={claimResult.expires_at}
+        receipt="可在「订单与交付」查看有效码。旧码无法查看时，请核对交付后补发。"
+        onClose={() => setClaimResult(undefined)} />}
     </Load>,
   );
 }

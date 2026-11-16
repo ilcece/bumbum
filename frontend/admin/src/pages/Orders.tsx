@@ -1,7 +1,9 @@
+import ReadFailure from "../components/ReadFailure";
+import ClaimCodeDialog from "../components/ClaimCodeDialog";
 import { useEffect, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import { history, useLocation, useParams } from "@umijs/max";
-import { Alert, Button, Checkbox, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, Modal, Select, Space, Typography } from "antd";
+import { Alert, Button, Checkbox, DatePicker, Descriptions, Dropdown, Form, Input, InputNumber, Select, Space, Typography } from "antd";
 import { ActionForm, Load, RemoteSelect, State, required, returnPath, useRecord } from "../components/CatalogUI";
 import KeyConfiguration from "../components/KeyConfiguration";
 import ClaimCodeStatus from "../components/ClaimCodeStatus";
@@ -217,11 +219,9 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
       </>}
       {dialog === "enable" && <Form.Item name="status" hidden><Input /></Form.Item>}
     </ActionForm>}
-    {claim && <Modal open title="交付认领码" onCancel={() => setClaim(undefined)}
-      footer={<Button onClick={() => setClaim(undefined)}>完成</Button>}>
-      {claim.claim_code ? <><div data-private="true"><Typography.Paragraph copyable>{claim.claim_code}</Typography.Paragraph></div><p>有效期至 {time(claim.expires_at)}。</p></> :
-        <Alert type="info" title="已核对发放记录" description="可在本订单件查看有效码。旧码无法查看时，从数字物品档案核对交付后补发。" />}
-    </Modal>}
+    {claim && <ClaimCodeDialog code={claim.claim_code} expiresAt={claim.expires_at}
+      receipt="可在本订单件查看有效码。旧码无法查看时，从数字物品档案核对交付后补发。"
+      onClose={() => setClaim(undefined)} />}
   </section>;
 }
 
@@ -261,7 +261,7 @@ function OrderMatchDialog({ unit, onClose, onDone }: { unit: Row; onClose: () =>
           <Typography.Text type="secondary">保存后带回本订单件，仍需确认规格。</Typography.Text></Space>}>
         <RemoteSelect resource="styles" onChange={() => form.setFieldValue("spec", undefined)} />
       </Form.Item>
-      {style.error && <Alert type="error" title={style.error} action={<Button onClick={style.reload}>重试</Button>} />}
+      {style.error && <ReadFailure title="款式规格读取失败" error={style.error} retry={style.reload} />}
       {chosen && <Form.Item name="spec" label="对应规格" rules={requiredSpec ? required : []}
         extra={requiredSpec ? "按订单原文核对目录规格，之后只显示符合要求的实物。" : "此订单件未指定规格，可按款式筛选。"}>
         {specs.length ? <Select options={specs.map((spec) => ({ value: spec, label: spec }))} /> :

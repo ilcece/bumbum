@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Card, Descriptions, Drawer, Segmented, Space, Spin, Typography } from "antd";
+import { Alert, Button, Card, Descriptions, Drawer, Segmented, Space, Typography } from "antd";
 import { itemFacts } from "../../../shared/itemPresentation";
 import { h5Preview } from "../catalog";
+import { Gallery, Load } from "./CatalogUI";
 
 type Perspective = "访客" | "待认领" | "持有人";
 const claimSteps = ["认领入口", "手机号验证", "输入认领码", "确认认领"];
@@ -11,20 +12,24 @@ export default function ItemH5Preview({ id, onClose }: { id: number; onClose: ()
   const [error, setError] = useState("");
   const [perspective, setPerspective] = useState<Perspective>("访客");
   const [step, setStep] = useState(0);
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
     let active = true;
+    setError("");
+    setItem(undefined);
     h5Preview(id).then((value) => { if (active) setItem(value); })
       .catch((reason) => { if (active) setError(reason.message); });
     return () => { active = false; };
-  }, [id]);
+  }, [id, retry]);
   return (
     <Drawer open onClose={onClose} title={`手机页预览${item ? ` · ${item.item_uid}` : ""}`} size={440}>
       <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         <Alert type="info" showIcon title="只读预览 · 状态与账户为模拟" />
         <Segmented<Perspective> block options={["访客", "待认领", "持有人"]} value={perspective} onChange={(value) => { setPerspective(value); setStep(0); }} />
-        {error ? <Alert type="error" title={error} /> : !item ? <Spin /> : (
-          <Card size="small" cover={item.image_urls[0] && <img src={item.image_urls[0]} alt={item.name || "物品主图"} style={{ maxHeight: 280, objectFit: "contain" }} />}>
+        <Load error={error} loading={!item && !error} retry={() => setRetry((value) => value + 1)}>
+          {item && <Card size="small">
             <Typography.Title level={4}>{item.name || item.item_uid}</Typography.Title>
+            <Gallery urls={item.image_urls} />
             <Descriptions size="small" column={1}>
               {itemFacts(item).map((fact) => <Descriptions.Item key={fact.label} label={fact.label}>{fact.value}</Descriptions.Item>)}
               {item.material && <Descriptions.Item label="材质">{item.material}</Descriptions.Item>}
@@ -41,8 +46,8 @@ export default function ItemH5Preview({ id, onClose }: { id: number; onClose: ()
               <Descriptions.Item label="持有人">模拟账户 138****0000</Descriptions.Item>
               <Descriptions.Item label="本年换新用量">{item.quota_review ? "待核对" : `${item.quota_used ?? 0} 次`}</Descriptions.Item>
             </Descriptions>}
-          </Card>
-        )}
+          </Card>}
+        </Load>
       </Space>
     </Drawer>
   );

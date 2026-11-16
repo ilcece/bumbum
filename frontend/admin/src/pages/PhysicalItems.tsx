@@ -37,12 +37,13 @@ function PhysicalDetail({ id }: { id: number }) {
   const r = useRecord("physical-items", id);
   const location = useLocation();
   const from = location.pathname + location.search;
-  return <PageContainer title={r.record?.physical_uid || "实体物品"} onBack={() => history.push(returnPath("/physical-items"))}>
-    <Load error={r.error} loading={r.loading} retry={r.reload}>
-      {r.record && <ProCard title="实体资料" extra={r.record.order_id ?
+  return <PageContainer title={r.record?.physical_uid || "实体物品"} onBack={() => history.push(returnPath("/physical-items"))}
+    extra={r.record && (r.record.order_id ?
         <Button type="primary" onClick={() => history.push(orderPath(r.record!.order_id, r.record!.order_unit_id, from))}>打开订单件</Button> :
         r.record.item_id ? <Button type="primary" onClick={() => history.push("/items/" + r.record!.item_id + "?from=" + encodeURIComponent(from))}>打开数字物品</Button> :
-          r.record.assembly_status === "available" && <Button type="primary" onClick={() => history.push(assemblyPath(from, { physical_item_id: id }))}>新建数字物品</Button>}>
+          r.record.assembly_status === "available" && <Button type="primary" onClick={() => history.push(assemblyPath(from, { physical_item_id: id }))}>新建数字物品</Button>)}>
+    <Load error={r.error} loading={r.loading} retry={r.reload}>
+      {r.record && <ProCard title="实体资料">
         <Descriptions size="small" bordered column={2}>
           <Descriptions.Item label="实体编号"><Copy value={r.record.physical_uid} /></Descriptions.Item>
           <Descriptions.Item label="款式"><Button type="link" onClick={() => history.push("/catalog/style/" + r.record!.style_id + "?from=" + encodeURIComponent(from))}>{r.record.style_name}</Button></Descriptions.Item>

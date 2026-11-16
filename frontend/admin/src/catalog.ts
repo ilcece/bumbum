@@ -99,19 +99,18 @@ export function assemblyPath(from: string, fields: Record<string, number | undef
 }
 
 
+export const itemWorkflowNames: Record<string, string> = {
+  assembly: "待装配", verification: "待核验", available: "可分配",
+  delivery: "待交付", claim: "待认领", activation: "待启用",
+  allocation: "待分配", sale: "待售出", held: "已有持有人",
+  missing_issue: "待补发行", review: "待核对",
+  archived: "已归档", lost: "已挂失", disabled: "已停用",
+};
+
+export const workbenchWorkflows = ["assembly", "verification", "delivery", "claim", "available"];
+
 export function itemWorkflow(row: Row) {
-  if (row.status === "archived") return "已归档";
-  if (row.lost_at || row.loss_evidence) return "已挂失";
-  if (row.status === "disabled") return "已停用";
-  if (!row.whole_id) return row.issue_id ? "待装配" : "待补发行";
-  if (!row.provisioned_at) return "待核验";
-  if (row.status !== "active") return "待启用";
-  if (row.owner_id) return "已有持有人";
-  if (row.has_claim_code || row.claim_code_status) return "待认领";
-  if (row.sold) return "待交付";
-  const order = row.order || (row.order_unit_id ? row : undefined);
-  if (order) return order.allocated_at ? "待售出" : "待分配";
-  return row.first_sold_at || !row.physical_item_id ? "待核对" : "可分配";
+  return itemWorkflowNames[row.workflow] ?? "—";
 }
 
 export function activityPath(from: string, params: Record<string, string | number | undefined>) {

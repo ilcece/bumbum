@@ -54,8 +54,15 @@ class BrowserSession:
         page.get_by_role('link', name=re.compile('工作台$')).wait_for()
         page.get_by_role('button',name='退出登录',exact=True).wait_for()
 
+    def menu_link(self, name):
+        menu = self.page.locator('aside')
+        link = menu.get_by_role('link', name=re.compile(re.escape(name)+'$'))
+        if name == '数字物品' and not link.is_visible():
+            menu.get_by_role('menuitem', name=re.compile('数字物品管理$')).click()
+        return link
+
     def navigate(self, name):
-        link = self.page.locator('aside').get_by_role('link', name=re.compile(re.escape(name)+'$'))
+        link = self.menu_link(name)
         if self.page.locator('.ant-modal:visible, .ant-drawer:visible').count():
             # 弹层遮罩阻止点击侧栏；这里显式触发路由以验证离开保护，物理关闭另有专测。
             link.evaluate('(node) => node.click()')

@@ -15,7 +15,7 @@ BUMBUM 通过 NFC 为实体物品建立可长期查阅的数字档案，让用�
 | 模块 | 解决什么问题 | 杭州生产 | 杭州 test 的扩展 |
 |---|---|---|---|
 | **数字物品与芯片** | 为每件实体建立档案，管理芯片的装配、核验与接续。 | 物品建档、配卡与实卡核验。 | 款式与发行、独立实体编号、历代装配记录及芯片停用恢复已接入。[芯片规则](docs/product/chip-lifecycle.md) · [新版后台](docs/proposals/admin-make-rebuild.md) |
-| **用户端与持有** | 用户从碰卡了解物品，再认领并回访自己持有的物品。 | 碰卡验证与服装档案。 | 手机号验证、实卡认领及「我的数字物品」已验收，权益摘要和后台手机预览已接入。[碰卡体验](docs/product/fashion-touch.md) · [H5 首版](docs/proposals/digital-item-h5-mvp.md) |
+| **用户端与持有** | 用户从碰卡了解物品，再认领并回访自己持有的物品。 | 碰卡验证与服装档案。 | 手机号验证、实卡认领、「我的数字物品」及实卡挂失找回已验收。权益摘要、后台手机预览与办理记录已接入。[碰卡体验](docs/product/fashion-touch.md) · [H5 首版](docs/proposals/digital-item-h5-mvp.md) |
 | **交付、权益与流转** | 品牌管理售出与交付，并在换新、转售后接续数字物品身份。 | — | 补发认领码已完成实卡复验，售出记录、换新与转售后台流程已接入。订单逐件办理与数字物品集中管理见测试分支。[办理规则](docs/product/admin-management.md#订单履约与数字物品) · [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) |
 | **后台运营与安全** | 管理员安全登录，查看物品使用情况，并追溯业务操作。 | 密码加动态码登录、基础触碰统计。 | Windows Hello、用户动态、账户卡及查看完整手机号的审计已验收，售出后触碰统计与业务审计已接入。[登录手册](docs/ADMIN_LOGIN.md) · [运营验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) |
 | **部署与验收环境** | 隔离正式服务和验收数据，支持备份、迁移与发布。 | 杭州基础接管已验收。 | 已隔离入口、业务库与应用身份，完成备份后已按批次替换模拟验收数据。[部署手册](docs/HANGZHOU_DEPLOYMENT.md) · [批次验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) |
@@ -107,7 +107,7 @@ P0指现有核心流程阻断或可能产生错误数据等必须先修的问题
 |---|---|---|
 | [管理后台重构方案](docs/proposals/admin-make-rebuild.md) | 定位、范围、信息/功能架构、核心流程、统计及待审选择 | 数字物品、芯片、账户与订单逐件履约；工厂和物流由外部处理 |
 | [业务字段表](docs/proposals/admin-rebuild-fields.md) | 档案、操作表单及只读视图的字段/含义/录入边界 | 不是DDL或已可用API清单 |
-| [数字物品 H5 首版](docs/proposals/digital-item-h5-mvp.md) | 页面、手机号账户、认领、我的物品、异常恢复与预览规格 | 测试分支已接入，待人工验收 |
+| [数字物品 H5 首版](docs/proposals/digital-item-h5-mvp.md) | 页面、手机号账户、认领、我的物品、异常恢复与预览规格，以及[持有期间的找回与办理](docs/proposals/digital-item-h5-mvp.md#holder-lifecycle) | 首版交付与找回方案进度见 [TODO](TODO.md) |
 | [设计与交互规范](docs/ADMIN_UI_GUIDELINES.md) | 官方页面/组件、布局、容器、查询/保存/返回及视觉验收 | 新版优先官方Pro模式，旧Make只作历史参考 |
 | [Umi工程迁移说明](docs/proposals/admin-rebuild-implementation.md) | 完整官方工程路线、真实能力保留、版本冲突及实施前提 | 当前分支正式工程已迁入Umi/Pro；按已验收源码恢复页面，用户H5和后端安全边界不随之重写 |
 

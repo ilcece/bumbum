@@ -13,6 +13,7 @@ from core.auth_settings import AuthUnavailable, iso_time, utc_now
 from core.chip_binding import valid_id
 from core.db import get_database, view_grant_schema
 from core.diagnostics import record_failure
+from core.item_public_id import legacy_holder_link_allowed
 from core.sdm_verification import InvalidReading, validate_reading
 from core.tap_verification import (
     TapRateLimited, consume_rate_limit, lock_target, public_detail, rollback,
@@ -42,12 +43,13 @@ def reject_query_parameters():
 
 
 @blueprint.post('/api/tap/verify')
-def verify():
+@blueprint.post('/api/public/tap/verify', defaults={'h5': True})
+def verify(h5=False):
     consume_rate_limit()
     if request.mimetype != 'application/json':
         raise AuthRequestError(400, 'invalid_param', '请使用JSON提交。')
-    reading = request_json({'picc_data', 'cmac'}, {'browser_view'})
-    browser_view = reading.pop('browser_view', False)
+    reading = request_json({'picc_data', 'cmac'}, set() if h5 else {'browser_view'})
+    browser_view = h5 or reading.pop('browser_view', False)
     if type(browser_view) is not bool:
         raise AuthRequestError(400, 'invalid_param', 'browser_view须为布尔值。')
     if browser_view:
@@ -57,12 +59,55 @@ def verify():
         validate_reading(reading)
     except InvalidReading:
         raise AuthRequestError(400, 'invalid_param', '请提交完整的32位picc_data和16位cmac十六进制参数。') from None
-    data = verify_tap(reading, browser_view=browser_view)
+    data = verify_tap(reading, browser_view=browser_view, h5=h5)
     cookie = data.pop('_view_cookie', None)
+    recovery = data.pop('_recovery_cookie', None)
     response = jsonify(status='ok', data=data)
     if cookie is not None:
-        response.set_cookie('bumbum_item_view', cookie, path=f"/api/tap/items/{data['item_id']}",
+        set_item_view_cookie(response, cookie, data['public_id'] if h5 else data['item_id'])
+    if recovery is not None:
+        response.set_cookie('bumbum_item_recovery', recovery, path='/api/tap/recovery', max_age=300,
                             httponly=True, secure=public_settings()['secure'], samesite='Strict')
+    return response
+
+
+def set_item_view_cookie(response, cookie, ref):
+    response.set_cookie('bumbum_item_view', cookie, path=f'/api/tap/items/{ref}',
+                        httponly=True, secure=public_settings()['secure'], samesite='Strict')
+
+
+@blueprint.route('/api/tap/recovery', methods=['GET','POST'])
+def recovery_contact():
+    from core.holder_lifecycle import active_contact, contact_enabled, lost_physical
+    from core.public_account import transaction
+
+    reveal = request.method=='POST'
+    public_settings(require_origin=reveal)
+    if reveal:
+        request_json(set(), set())
+    values = request.cookies.getlist('bumbum_item_recovery')
+    digest = token_hash(values[0]) if len(values)==1 else None
+    if digest is None:
+        invalid_token(True)
+    with transaction() as cursor:
+        cursor.execute("SELECT item_id,chip_id FROM tap_grant WHERE token_hash=%s AND allowed_action='recovery'", (digest,))
+        initial = cursor.fetchone()
+        if not initial:
+            invalid_token(True)
+        item, chip = lock_target(cursor, initial['chip_id'], initial['item_id'])
+        if not lost_physical(cursor,item,chip):
+            invalid_token(True)
+        cursor.execute('''SELECT id FROM tap_grant WHERE token_hash=%s AND allowed_action='recovery'
+                          AND consumed_at IS NULL AND expires_at>%s FOR SHARE''', (digest,utc_now()))
+        if not cursor.fetchone():
+            invalid_token(True)
+        owner = active_contact(cursor, item['id'])
+        enabled = contact_enabled(owner)
+        data = {'contact_available':enabled}
+        if reveal and enabled:
+            data['phone'] = owner['phone']
+    response = jsonify(status='ok',data=data)
+    response.headers['Cache-Control'] = 'no-store'
     return response
 
 
@@ -70,7 +115,8 @@ def invalid_token(view=False):
     raise AuthRequestError(403, 'invalid_view_session' if view else 'invalid_tap_token', '查看资格已失效，请重新触碰实物。')
 
 
-def read_detail(item_id, *, view=False, image_id=None):
+def read_detail(ref, *, view=False, image_id=None):
+    legacy = view and ref.isascii() and ref.isdecimal()
     if view:
         public_settings()
         require_view_schema()
@@ -89,9 +135,14 @@ def read_detail(item_id, *, view=False, image_id=None):
         with connection.cursor(pymysql.cursors.DictCursor) as cursor:
             cursor.execute('SELECT chip_id,item_id FROM tap_grant WHERE token_hash=%s', (digest,))
             initial = cursor.fetchone()
-            if not initial or initial['item_id'] != item_id:
+            if not initial or (not view and initial['item_id'] != ref):
+                invalid_token(view)
+            item_id = initial['item_id']
+            if legacy and (ref != str(item_id) or not legacy_holder_link_allowed()):
                 invalid_token(view)
             item, chip = lock_target(cursor, initial['chip_id'], initial['item_id'])
+            if view and not legacy and (not item or item['public_id'] != ref):
+                invalid_token(True)
             if not chip or not item or chip['item_id'] != item_id:
                 if view:
                     raise AuthRequestError(409, 'view_unavailable', '该物品当前暂不可查看。')
@@ -118,17 +169,19 @@ def read_detail(item_id, *, view=False, image_id=None):
                 connection.commit()
                 return data
             from core.media_assets import map_profile_images
-            map_profile_images(cursor, {item_id: profile}, context='tap' if view else 'fashion')
+            public_id = item['public_id'] if view else None
+            map_profile_images(cursor, {item_id: profile}, context='tap' if view else 'fashion', public_id=public_id)
             data = {'item_uid': item['item_uid'], 'profile': {name: value for name, value in profile.items() if name not in {'trace', 'story', 'channel'}},
                     'trace': profile['trace'], 'story': profile['story'], 'channel': profile['channel'], 'owner_bound': owner_bound}
             if view:
                 from core.public_account import item_metadata
                 now = utc_now()
-                data = {'project': 'fashion', 'item_id': item_id, 'item_uid': item['item_uid'],
+                data = {'project': 'fashion', 'public_id': public_id, 'item_uid': item['item_uid'],
                         'verified_at': iso_time(grant['created_at']), 'retrieved_at': iso_time(now),
                         'profile': {name: profile[name] for name in ('name','description','material','care_instructions','image_urls')}}
                 data.update(item_metadata(cursor,item_id,owner_bound))
-                cursor.execute('UPDATE tap_grant SET expires_at=%s WHERE id=%s', (now + timedelta(hours=24), grant['id']))
+                if not legacy:
+                    cursor.execute('UPDATE tap_grant SET expires_at=%s WHERE id=%s', (now + timedelta(hours=24), grant['id']))
         connection.commit()
         return data
     except Exception:
@@ -143,16 +196,20 @@ def fashion_detail(item_id):
     return jsonify(status='ok', data=read_detail(item_id))
 
 
-@blueprint.get('/api/tap/items/<int:item_id>/view')
-def item_view(item_id):
-    if not valid_id(item_id):
-        raise AuthRequestError(400, 'invalid_param', '物品ID须为有效正整数。')
-    return jsonify(status='ok', data=read_detail(item_id, view=True))
+@blueprint.get('/api/tap/items/<ref>/view')
+def item_view(ref):
+    data = read_detail(ref, view=True)
+    response = jsonify(status='ok', data=data)
+    if ref != data['public_id']:
+        set_item_view_cookie(response, request.cookies['bumbum_item_view'], data['public_id'])
+        response.delete_cookie('bumbum_item_view', path=f'/api/tap/items/{ref}',
+                               httponly=True, secure=public_settings()['secure'], samesite='Strict')
+    return response
 
 
-@blueprint.get('/api/tap/items/<int:item_id>/style-images/<asset_id>')
-def style_image(item_id, asset_id):
-    return shared_image_response(item_id,asset_id,view=True)
+@blueprint.get('/api/tap/items/<ref>/style-images/<asset_id>')
+def style_image(ref, asset_id):
+    return shared_image_response(ref,asset_id,view=True)
 
 
 @blueprint.get('/api/fashion/items/<int:item_id>/style-images/<asset_id>')
@@ -162,7 +219,7 @@ def fashion_style_image(item_id,asset_id):
 
 def shared_image_response(item_id,asset_id,*,view):
     from flask import Response
-    if not valid_id(item_id) or request.content_length or not re.fullmatch(r'[a-f0-9]{32}', asset_id):
+    if (not view and not valid_id(item_id)) or request.content_length or not re.fullmatch(r'[a-f0-9]{32}', asset_id):
         raise AuthRequestError(404,'not_found','图片不存在。')
     data = read_detail(item_id, view=view, image_id='style:'+asset_id)
     response = Response(data['content'],mimetype='image/webp')
@@ -203,4 +260,5 @@ def init_tap(app):
     value = os.getenv('TAP_VERIFY_PER_MINUTE', '60')
     app.config.setdefault('TAP_VERIFY_PER_MINUTE', int(value) if len(value) <= 5 and value.isascii() and value.isdecimal() else None)
     app.config.setdefault('PUBLIC_ORIGIN', os.getenv('PUBLIC_ORIGIN', 'http://127.0.0.1:5175' if app.config['APP_ENV'] == 'development' else 'https://nfc.bumbum.cc'))
+    app.config.setdefault('H5_LEGACY_ITEM_UNTIL', os.getenv('H5_LEGACY_ITEM_UNTIL'))
     app.register_blueprint(blueprint)

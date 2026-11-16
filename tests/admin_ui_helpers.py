@@ -16,6 +16,14 @@ def save_dialog(page,title,submit=None):
     dialog=page.get_by_role('dialog',name=title,exact=True);button(dialog,submit or labels.get(title,'保存'));dialog.wait_for(state='hidden')
 
 
+def save_identity_draft(page, item_uid):
+    page.get_by_text('建档并确认安装', exact=True).click()
+    page.locator('.ant-select-dropdown:visible .ant-select-item-option').get_by_text('只建档，稍后装配', exact=True).click()
+    page.get_by_label('数字物品编号', exact=True).fill(item_uid)
+    page.get_by_label('本件正式序号', exact=True).fill('1')
+    button(page, '保存数字档案')
+
+
 def api(desktop,action,payload):
     p=desktop.page
     session=p.request.get('http://localhost:5174/api/admin/auth/session').json()['data']

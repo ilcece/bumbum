@@ -27,6 +27,8 @@ def schema(cursor):
                       FROM information_schema.KEY_COLUMN_USAGE
                       WHERE TABLE_SCHEMA=DATABASE() AND REFERENCED_TABLE_NAME='user'""")
     refs = set(cursor.fetchall())
+    # 触碰归属的可空外键由 015 单独核对。
+    refs.discard(('scan_log', 'actor_user_uid', 'uid'))
     cursor.execute("""SELECT COLUMN_TYPE,COLLATION_NAME FROM information_schema.COLUMNS
                       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='test_batch_object' AND COLUMN_NAME='object_id'""")
     batch_key = cursor.fetchone()

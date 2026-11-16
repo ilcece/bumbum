@@ -2,7 +2,6 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from pathlib import Path
 import hashlib
 
 import pymysql
@@ -21,21 +20,21 @@ ORIGIN = 'http://127.0.0.1:5175'
 
 def open_view(app, ready, counter=9):
     client = app.test_client()
-    response = client.post('/api/tap/verify', json={**reading(ready[1], ready[0][1]['chip_uid'], counter), 'browser_view': True}, headers={'Origin': ORIGIN})
+    response = client.post('/api/public/tap/verify', json=reading(ready[1], ready[0][1]['chip_uid'], counter), headers={'Origin': ORIGIN})
     assert response.status_code == 200 and response.json['data']['verified']
     return client, response.json['data'], response
 
 
 def route(data):
-    return f"/api/tap/items/{data['item_id']}/view"
+    return f"/api/tap/items/{data['public_id']}/view"
 
 
 def test_view_cookie_latest_and_independent_expiries(auth_app, ready):
     client, data, response = open_view(auth_app, ready)
     cookie = response.headers['Set-Cookie']
     assert 'HttpOnly' in cookie and 'SameSite=Strict' in cookie and 'Max-Age' not in cookie and 'Domain=' not in cookie
-    assert f"Path=/api/tap/items/{data['item_id']}" in cookie
-    assert '_view_cookie' not in data and data['view_path'] == f"/tap/items/{data['item_id']}"
+    assert f"Path=/api/tap/items/{data['public_id']}" in cookie
+    assert '_view_cookie' not in data and data['view_path'] == f"/tap/items/{data['public_id']}"
     with auth_app.app_context():
         with get_database().cursor() as cursor:
             assert view_grant_schema(cursor) == 'ready'
@@ -47,13 +46,30 @@ def test_view_cookie_latest_and_independent_expiries(auth_app, ready):
     assert first.status_code == 200 and first.json['data']['profile']['name'] == '最新外套'
     assert set(first.json['data']['profile']) == {'name','description','material','care_instructions','image_urls'}
     assert first.json['data']['verified_at'] == data['verified_at'] and first.json['data']['retrieved_at'] != data['retrieved_at']
-    assert client.get(f"/api/fashion/items/{data['item_id']}/detail",headers={'X-Tap-Token':data['tap_token']}).status_code == 403
+    assert client.get(f"/api/fashion/items/1/detail",headers={'X-Tap-Token':data['tap_token']}).status_code == 403
     renewed = query(auth_app,"SELECT * FROM tap_grant WHERE allowed_action='view'")[0]
     assert renewed['expires_at'] == auth_app.test_clock[0]+timedelta(hours=24) and renewed['created_at'] == original['created_at']
     assert counts(auth_app) == (1,2)
     auth_app.test_clock[0] += timedelta(hours=24)
     assert client.get(route(data)).json['code'] == 'invalid_view_session'
     assert query(auth_app,"SELECT expires_at FROM tap_grant WHERE allowed_action='view'")[0]['expires_at'] == renewed['expires_at']
+
+
+def test_numeric_view_moves_only_an_existing_grant(auth_app, ready):
+    auth_app.config['H5_LEGACY_ITEM_UNTIL'] = '2099-01-01T00:00:00+00:00'
+    client = auth_app.test_client()
+    data = client.post('/api/tap/verify',
+                       json={**reading(ready[1], ready[0][1]['chip_uid'], 9), 'browser_view': True},
+                       headers={'Origin': ORIGIN}).json['data']
+    legacy = f"/api/tap/items/{data['item_id']}/view"
+    assert auth_app.test_client().get(legacy).status_code == 403
+    before = query(auth_app,"SELECT expires_at FROM tap_grant WHERE allowed_action='view'")
+    response = client.get(legacy)
+    assert response.status_code == 200 and 'item_id' not in response.json['data']
+    assert query(auth_app,"SELECT expires_at FROM tap_grant WHERE allowed_action='view'") == before
+    assert client.get(legacy).status_code == 403
+    assert client.get(route(response.json['data'])).status_code == 200
+    assert counts(auth_app) == (1, 2)
 
 
 @pytest.mark.parametrize('body', [None, 'true', 1, {}, []])
@@ -91,16 +107,16 @@ def test_current_state_is_rechecked_and_failures_do_not_renew(auth_app, ready, m
 
 def test_cookie_path_and_types_are_not_interchangeable(auth_app,ready):
     client,data,response=open_view(auth_app,ready)
-    token=client.get_cookie('bumbum_item_view',path=f"/api/tap/items/{data['item_id']}").value
+    token=client.get_cookie('bumbum_item_view',path=f"/api/tap/items/{data['public_id']}").value
     assert hashlib.sha256(token.encode()).digest() == query(auth_app,"SELECT token_hash FROM tap_grant WHERE allowed_action='view'")[0]['token_hash']
     assert token not in response.get_data(as_text=True)
-    assert client.get(f"/api/fashion/items/{data['item_id']}/detail",headers={'X-Tap-Token':token}).status_code==403
-    assert client.get(f"/api/tap/items/{data['item_id']+1}/view").status_code==403
+    assert client.get(f"/api/fashion/items/1/detail",headers={'X-Tap-Token':token}).status_code==403
+    assert client.get('/api/tap/items/00000000-0000-4000-8000-000000000001/view').status_code==403
     assert auth_app.test_client().get(route(data),headers={'X-Tap-Token':data['tap_token']}).status_code==400
     other=auth_app.test_client()
-    other.set_cookie('bumbum_item_view',data['tap_token'],path=f"/api/tap/items/{data['item_id']}")
+    other.set_cookie('bumbum_item_view',data['tap_token'],path=f"/api/tap/items/{data['public_id']}")
     assert other.get(route(data)).status_code==403
-    for kwargs in ({'headers':{'Origin':'https://other.example'}},{'headers':{'Sec-Fetch-Site':'cross-site'}},{'query_string':{'item_id':data['item_id']}},{'data':'{}'}):
+    for kwargs in ({'headers':{'Origin':'https://other.example'}},{'headers':{'Sec-Fetch-Site':'cross-site'}},{'query_string':{'item_id':data['public_id']}},{'data':'{}'}):
         assert client.get(route(data),**kwargs).status_code in {400,403}
 
 
@@ -145,7 +161,8 @@ def test_production_cookie_flags_and_missing_004_are_explicit(auth_app,ready):
         failed=client.post('/api/tap/verify',json=payload,headers={'Origin':'https://nfc.bumbum.cc'})
         assert failed.status_code==503 and 'Set-Cookie' not in failed.headers
         assert query(auth_app,'SELECT last_verified_counter FROM chip')[0]['last_verified_counter']==9
-    finally:query(auth_app,Path('db/migrations/004_view_grants.sql').read_text())
+    finally:
+        query(auth_app, "ALTER TABLE tap_grant MODIFY allowed_action ENUM('read','bind','view','recovery') NOT NULL")
 
 
 def test_short_mode_false_does_not_create_browser_qualification(auth_app,ready):

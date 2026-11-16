@@ -1,3 +1,4 @@
+import ReadFailure from "./ReadFailure";
 import React, { useEffect, useRef, useState } from "react";
 import {
   App,
@@ -123,7 +124,7 @@ export function Gallery({
     return (
       <div
         className={
-          compact ? "product-thumb placeholder-thumb" : "gallery-empty"
+          compact ? "product-image-frame product-thumb placeholder-thumb" : "gallery-empty"
         }
       >
         <Empty
@@ -135,11 +136,10 @@ export function Gallery({
   if (compact)
     return (
       <Image
-        className="product-thumb"
+        className="product-image-frame product-thumb"
         src={urls[0]}
         alt="商品款图"
         width={56}
-        height={56}
       />
     );
   const current = Math.min(active, urls.length - 1);
@@ -149,7 +149,7 @@ export function Gallery({
         <Image
           src={urls[current]}
           alt={`商品图片 ${current + 1}`}
-          className="gallery-main"
+          className="product-image-frame gallery-main"
         />
       </Image.PreviewGroup>
       <div className="gallery-thumbnails" aria-label="商品图片切换">
@@ -157,7 +157,7 @@ export function Gallery({
           <button
             key={n}
             type="button"
-            className={current === n ? "selected" : ""}
+            className={current === n ? "product-image-frame selected" : "product-image-frame"}
             aria-label={`查看商品图片 ${n + 1}`}
             aria-pressed={current === n}
             onClick={() => setActive(n)}
@@ -239,7 +239,8 @@ export function RemoteSelect({
   const requestKey = JSON.stringify([resource, key, page, q, refresh]);
   const result = listResult?.key === requestKey ? listResult : undefined;
   const hasEmptyState = emptyState !== undefined;
-  const candidates = hasEmptyState && (!result || result.error) ? [] : options;
+  // 搜索和切换关联条件时只显示当前查询的候选。翻页期间保留已经加载的前页。
+  const candidates = page === 1 && (!result || result.error) ? [] : options;
   const visibleOptions = selectedOption && !candidates.some((r) => r.id === selectedOption.id)
     ? [selectedOption, ...candidates] : candidates;
   useEffect(() => {
@@ -316,7 +317,7 @@ export function RemoteSelect({
           const el = e.currentTarget;
           if (
             el.scrollTop + el.clientHeight >= el.scrollHeight - 8 &&
-            options.length < total
+            !!result && !result.error && options.length < total
           )
             setPage((p) => p + 1);
         }}
@@ -324,9 +325,8 @@ export function RemoteSelect({
         style={{ minWidth: 200, width: "100%" }}
       />
       {error && <Typography.Text type="danger">{error}</Typography.Text>}
-      {result?.error && (hasEmptyState ? <Alert type="error" showIcon title="库存读取失败"
-        description={result.error} action={<Button onClick={() => setRefresh((n) => n + 1)}>重试</Button>} /> :
-        <Typography.Text type="danger">{result.error}</Typography.Text>)}
+      {result?.error && <ReadFailure title={hasEmptyState ? "库存读取失败" : "候选读取失败"}
+        error={result.error} retry={() => setRefresh((n) => n + 1)} />}
       {hasEmptyState && !q && result?.total === 0 && emptyState}
     </>
   );
@@ -383,11 +383,7 @@ export function Load({
   children: React.ReactNode;
 }) {
   return error ? (
-    <Alert
-      type="error"
-      title={error}
-      action={<Button onClick={retry}>重试读取</Button>}
-    />
+    <ReadFailure error={error} retry={retry} />
   ) : loading ? (
     <Spin description="正在读取真实数据">
       <div style={{ height: 100 }} />
@@ -457,6 +453,7 @@ export function ActionForm({
     "createOrder",
     "createPhysicalItem",
   ].includes(action);
+  const destructive = ["deleteItem", "deleteChip", "deleteIssue", "clearTestBatch"].includes(action);
   const submit = async (v: Record<string, any>) => {
     setBusy(true);
     setError("");
@@ -545,7 +542,7 @@ export function ActionForm({
   const close = () => leave(onClose);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
-      if (!sessionIsExpired() && (dirty || busy || uncertain)) {
+      if (!success.current && !sessionIsExpired() && (dirty || busy || uncertain)) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -585,6 +582,7 @@ export function ActionForm({
       form={formInstance}
       className={className}
       initialValues={initial}
+      scrollToFirstError={{ focus: true, block: "nearest" }}
       onValuesChange={() => {
         success.current = false;
         setDirty(true);
@@ -608,6 +606,7 @@ export function ActionForm({
               submitButtonProps: {
                 disabled: uncertain || submitDisabled,
                 loading: busy,
+                danger: destructive,
               },
               resetButtonProps: { style: { display: "none" } },
               render: (_: unknown, dom: React.ReactNode[]) => {
@@ -629,7 +628,7 @@ export function ActionForm({
                 ) : (
                   controls
                 );
-                return page && footerNote ? (
+                return page ? (
                   <FooterToolbar>{footer}</FooterToolbar>
                 ) : (
                   footer
@@ -757,6 +756,7 @@ const fields: Record<string, string[]> = {
   saleBatch: ["item_ids", "confirmed", "evidence", "first_sold_at"],
   toggleItem: ["item_id", "status"],
   loseItem: ["item_id", "whole_id", "evidence"],
+  cancelLoss: ["item_id", "whole_id", "lost_at", "evidence", "chip_state"],
   linkIssue: ["item_id", "issue_id", "edition_number", "evidence"],
   prepare: ["item_id", "kind", "physical_item_id", "chip_id", "installed", "evidence", "recipient_id", "seller_confirmation", "recipient_confirmation", "identity_review_required", "identity_verification_reference"],
   complete: ["work_id", "evidence", "checked"],

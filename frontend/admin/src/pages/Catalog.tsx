@@ -28,6 +28,7 @@ import {
   ActionForm,
   Copy,
   Evidence,
+  Load,
   Product,
   RemoteSelect,
   State,
@@ -135,6 +136,8 @@ export default function Catalog() {
     routeId = useParams().id,
     routeKind = location.pathname.includes("/issue/") ? "issue" : "style";
   const [routeError, setRouteError] = useState("");
+  const [routeLoading, setRouteLoading] = useState(!!routeId && routeId !== "new");
+  const [routeRetry, setRouteRetry] = useState(0);
   const q = new URLSearchParams(location.search),
     [editor, setEditor] = useState<{ kind: string; record?: Row }>(),
     [rev, setRev] = useState(0),
@@ -143,26 +146,32 @@ export default function Catalog() {
   React.useEffect(() => {
     let live = true;
     setRouteError("");
+    setRouteLoading(false);
     if (!routeId) return;
     if (routeId === "new") {
       setEditor({ kind: routeKind });
       return;
     }
     if (!/^[1-9][0-9]*$/.test(routeId)) {
-      setRouteError("记录编号无效。");
+      setEditor(undefined);
       return;
     }
+    setEditor(undefined);
+    setRouteLoading(true);
     read(routeKind === "style" ? "styles" : "issues", Number(routeId))
       .then((r) => {
         if (live) setEditor({ kind: routeKind, record: r });
       })
       .catch((e) => {
         if (live) setRouteError(e.message);
+      })
+      .finally(() => {
+        if (live) setRouteLoading(false);
       });
     return () => {
       live = false;
     };
-  }, [routeId, routeKind]);
+  }, [routeId, routeKind, routeRetry]);
   const close = () => {
       setEditor(undefined);
       if (routeId)
@@ -327,6 +336,10 @@ export default function Catalog() {
       ],
     },
   ];
+  const issue = editor?.kind === "issue" ? editor.record : undefined;
+  const canSeal = issue?.confirmed_at && issue.mode === "period" && !issue.sealed_at;
+  const sealAction = canSeal && <Button type="primary" disabled={Date.parse(issue.ends_at) > Date.now()}
+    onClick={() => setAction({ type: "seal", r: issue })}>核对并确认最终数量</Button>;
   return (
     <PageContainer
       title={
@@ -343,8 +356,11 @@ export default function Catalog() {
           : false
       }
       onBack={routeId ? close : undefined}
+      extra={routeId && sealAction}
     >
-      {routeError && <Alert type="error" title={routeError} />}
+      {routeId && !editor && (routeId === "new" || /^[1-9][0-9]*$/.test(routeId)
+        ? <Load error={routeError} loading={routeLoading} retry={() => setRouteRetry((value) => value + 1)}>{null}</Load>
+        : <Alert type="error" showIcon title="记录编号无效" action={<Button onClick={close}>返回列表</Button>} />)}
       {!routeId && (
         <>
           <Tabs
@@ -539,15 +555,7 @@ export default function Catalog() {
                     已建{editor.record.item_count}
                     个身份；期满后按外部核定结果登记最终数量与依据，不录订单或物流。
                   </Typography.Paragraph>
-                  <Button
-                    type="primary"
-                    disabled={Date.parse(editor.record.ends_at) > Date.now()}
-                    onClick={() =>
-                      setAction({ type: "seal", r: editor.record! })
-                    }
-                  >
-                    核对并确认最终数量
-                  </Button>
+                  {!routeId && sealAction}
                   {Date.parse(editor.record.ends_at) > Date.now() && (
                     <p>尚未到约定销售期满，不能提前核定。</p>
                   )}

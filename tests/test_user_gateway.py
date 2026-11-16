@@ -126,11 +126,11 @@ def test_public_tls_cookie_static_isolation_and_restart(auth_app,ready,auth_data
             assert call(path)[0]==404
         assert call('/api/admin/chips',headers={'Host':'test.bumbum.cc'})[0]==403
         assert call(f"/api/tap/items/{item_id}/style-images/"+'a'*32)[0]==403
-        payload={**reading(ready[1],ready[0][1]['chip_uid'],9),'browser_view':True}
-        status,headers,body=call('/api/tap/verify','POST',payload,{'Origin':'https://nfc.bumbum.cc'})
+        payload=reading(ready[1],ready[0][1]['chip_uid'],9)
+        status,headers,body=call('/api/public/tap/verify','POST',payload,{'Origin':'https://nfc.bumbum.cc'})
         assert status==200 and json.loads(body)['data']['verified']
         cookie=headers['Set-Cookie'];assert 'HttpOnly' in cookie and 'Secure' in cookie and 'SameSite=Strict' in cookie
-        data=json.loads(body)['data'];endpoint=f"/api/tap/items/{data['item_id']}/view";cookie=cookie.split(';',1)[0]
+        data=json.loads(body)['data'];endpoint=f"/api/tap/items/{data['public_id']}/view";cookie=cookie.split(';',1)[0]
         assert call(data['view_path'])[0]==200
         assert call(endpoint,headers={'Cookie':cookie})[0]==200
         picture_paths=[urlsplit(url).path for url in data['item_detail']['image_urls']]

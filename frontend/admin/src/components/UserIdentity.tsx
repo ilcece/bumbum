@@ -1,5 +1,6 @@
-import { type ComponentRef, type KeyboardEvent, useCallback, useRef, useState } from "react";
-import { Alert, Button, Descriptions, Modal, Popover, Space, Spin, Typography } from "antd";
+import { type ComponentRef, type KeyboardEvent, useRef, useState } from "react";
+import { Alert, Button, Descriptions, Modal, Popover, Space, Spin, Tooltip, Typography } from "antd";
+import { CloseOutlined, EyeOutlined } from "@ant-design/icons";
 import { request } from "../api";
 
 type Account = { public_uid: string; nickname?: string; masked_phone?: string };
@@ -22,13 +23,16 @@ export function PhoneReveal({ masked, path, onOpenChange }: {
     setResult(undefined);
     onOpenChange?.(false);
   }
-  return <Space wrap>
+  return <Space size={4} align="center">
     <span>{masked}</span>
-    <Button type="link" onClick={reveal} disabled={!!result}>查看完整手机号</Button>
+    <Tooltip title="查看完整手机号">
+      <Button type="text" size="small" icon={<EyeOutlined />} aria-label="查看完整手机号"
+        onClick={reveal} disabled={!!result} />
+    </Tooltip>
     {result && <Modal open title="完整手机号" onCancel={close}
       footer={<Button onClick={close}>关闭</Button>}>
       {result.error ? <Alert type="error" title={result.error} />
-        : result.phone ? <Typography.Text>{result.phone}</Typography.Text> : <p>正在读取</p>}
+        : result.phone ? <Typography.Text data-private="true">{result.phone}</Typography.Text> : <p>正在读取</p>}
     </Modal>}
   </Space>;
 }
@@ -36,8 +40,8 @@ export function PhoneReveal({ masked, path, onOpenChange }: {
 export default function UserIdentity({ uid }: { uid?: string }) {
   const [card, setCard] = useState<{ account?: Account; error?: string }>();
   const trigger = useRef<ComponentRef<typeof Button>>(null);
+  const closeButton = useRef<ComponentRef<typeof Button>>(null);
   const viewingPhone = useRef(false);
-  const focusCard = useCallback((node: HTMLDivElement | null) => node?.focus(), []);
   if (!uid) return <>未记录</>;
   const path = `/admin/catalog/users/${encodeURIComponent(uid)}`;
   function open() {
@@ -50,7 +54,7 @@ export default function UserIdentity({ uid }: { uid?: string }) {
   }
   function close() {
     setCard(undefined);
-    trigger.current?.focus();
+    trigger.current?.focus({ preventScroll: true });
   }
   function escape(event: KeyboardEvent<HTMLElement>) {
     if (card && event.key === "Escape" && !viewingPhone.current &&
@@ -64,14 +68,23 @@ export default function UserIdentity({ uid }: { uid?: string }) {
       if (next && !card) open();
       else if (!next && !viewingPhone.current) setCard(undefined);
     }}
-    title={<Space>账户资料 <Button type="text" size="small" onClick={close}>关闭</Button></Space>}
-    content={card && <div role="region" aria-label="账户资料" tabIndex={-1} ref={focusCard} onKeyDown={escape}>
-      {card.error ? <Alert type="error" title={card.error} /> : card.account ? (
-        <Descriptions column={1} size="small">
+    afterOpenChange={(visible) => {
+      if (visible && !viewingPhone.current) closeButton.current?.focus({ preventScroll: true });
+    }}
+    content={<div className="account-summary" role="region" aria-label="账户资料"
+      onKeyDown={escape}>
+      <div className="account-summary-heading">
+        <Typography.Text strong>账户资料</Typography.Text>
+        <Button ref={closeButton} type="text" size="small" icon={<CloseOutlined />} aria-label="关闭账户资料" onClick={close} />
+      </div>
+      {card?.error ? <Alert type="error" title={card.error} /> : card?.account ? (
+        <Descriptions column={1} size="small" styles={{ label: { width: 72, flexShrink: 0 }, content: { minWidth: 0, overflowWrap: "anywhere" } }}>
           <Descriptions.Item label="账户 UID"><Typography.Text copyable>{card.account.public_uid}</Typography.Text></Descriptions.Item>
           <Descriptions.Item label="昵称">{card.account.nickname || "未设置"}</Descriptions.Item>
-          <Descriptions.Item label="手机号"><PhoneReveal masked={card.account.masked_phone} path={`${path}/phone`}
-            onOpenChange={(next) => { viewingPhone.current = next; }} /></Descriptions.Item>
+          <Descriptions.Item label="手机号">
+            <PhoneReveal masked={card.account.masked_phone} path={path + "/phone"}
+              onOpenChange={(next) => { viewingPhone.current = next; }} />
+          </Descriptions.Item>
         </Descriptions>
       ) : <Spin />}
     </div>}>

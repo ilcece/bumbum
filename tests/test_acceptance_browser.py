@@ -1,5 +1,6 @@
 """实际页面验证原型布局、全局测试开关、真实保存与整批清理。"""
 from pathlib import Path
+import re
 import pytest
 from core.acceptance_data import seed
 from core.db import get_database
@@ -24,7 +25,7 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     p.wait_for_load_state('networkidle')
     p.screenshot(path=str(evidence/'restored-item-detail.png'),full_page=True,animations='disabled')
     desktop.navigate('工作台')
-    expect(p.get_by_text('物品与芯片概况',exact=True)).to_be_visible()
+    expect(p.get_by_text('待办与可分配库存',exact=True)).to_be_visible()
     expect(p.get_by_text('触碰统计',exact=True)).to_be_visible()
     expect(p.get_by_label('数据范围',exact=True)).to_have_count(0)
     p.set_viewport_size({'width':1440,'height':900})
@@ -75,19 +76,56 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     desktop.navigate('工作台')
     p.get_by_role('button',name='登记数字物品',exact=True).click()
     expect(p.get_by_role('alert').filter(has_text='不支持')).to_have_count(0)
-    dialog=p.get_by_role('dialog',name='登记数字物品',exact=True)
-    expect(dialog).to_be_visible()
+    expect(p.get_by_label('数字物品编号',exact=True)).to_be_visible()
     p.set_viewport_size({'width':1280,'height':720})
     p.screenshot(path=str(evidence/'restored-create-small.png'),animations='disabled')
-    button(dialog,'取消')
+    button(p,'取消')
     desktop.navigate('系统管理');p.get_by_role('tab',name='设置',exact=True).click()
     p.get_by_role('switch',name='开启测试数据',exact=True).uncheck()
     p.wait_for_load_state('networkidle');desktop.navigate('数字物品')
     expect(p.get_by_text('JEW-',exact=False)).to_have_count(0)
-    desktop.navigate('系统管理');p.get_by_role('tab',name='设置',exact=True).click();button(p,'清理本批数据')
+    desktop.navigate('系统管理');p.get_by_role('tab',name='设置',exact=True).click()
+    endpoint = f'**/api/admin/catalog/test-batches/{batch}/preview'
+
+    def simulate_conflict(route):
+        response = route.fetch()
+        result = response.json()
+        result['data']['conflicts'] = [{'kind': 'order_unit', 'related_kind': 'physical'}]
+        route.fulfill(response=response, json=result)
+
+    p.route(endpoint, simulate_conflict)
+    button(p,'清理本批数据')
+    conflict = p.get_by_role('dialog',name='确认整批清理',exact=True)
+    expect(conflict.get_by_role('alert')).to_contain_text('存在批次外关联，禁止清理')
+    expect(conflict.get_by_role('button',name='确认清理本批数据',exact=True)).to_be_disabled()
+    button(conflict,'取消')
+    p.unroute(endpoint)
+    switch = p.get_by_role('switch',name='开启测试数据',exact=True)
+    switch.check()
+    expect(switch).to_be_checked()
+    expect(p.get_by_text('测试数据已开启',exact=True)).to_be_visible()
+    button(p,'清理本批数据')
     d=p.get_by_role('dialog',name='确认整批清理',exact=True);expect(d).to_be_visible();d.get_by_role('checkbox').check()
+    expect(d.get_by_role('button',name='确认清理本批数据',exact=True)).to_have_class(re.compile(r'\bant-btn-dangerous\b'))
+    expect(d.get_by_role('alert')).to_contain_text(re.compile(r'实体物品 \d+，订单 \d+'))
+    expect(d.get_by_role('alert')).not_to_contain_text('undefined')
+    stale_reads = []
+
+    def return_stale_batch_list(route):
+        response = route.fetch()
+        result = response.json()
+        for row in result['data']['items']:
+            if row['id'] == batch and row['status'] == 'deleted':
+                row['status'] = 'active'
+                stale_reads.append(row['id'])
+        route.fulfill(response=response, json=result)
+
+    p.route('**/api/admin/catalog/test-batches?*', return_stale_batch_list)
     p.screenshot(path=str(tmp_path/'test-cleanup.png'),animations='disabled');button(d,'确认清理本批数据');d.wait_for(state='hidden')
     expect(p.get_by_text('已清理',exact=True)).to_be_visible()
+    expect(switch).not_to_be_checked()
+    expect(p.get_by_text('业务数据',exact=True)).to_be_visible()
+    assert batch in stale_reads
     assert query(desktop.app,'SELECT COUNT(*) AS n FROM test_batch WHERE status=\'deleted\'')[0]['n']==1
 
 

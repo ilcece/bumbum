@@ -30,17 +30,25 @@ server {
         if ($request_method !~ ^(GET|HEAD)$) { return 405; }
         try_files /index.html =404;
     }
-    location ~ ^/(tap/items/[1-9][0-9]*|mine(/items/[1-9][0-9]*)?)$ {
+    location ~ "^/(tap/items/(?:[1-9][0-9]{0,18}|[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})|mine(/items/(?:[1-9][0-9]{0,18}|[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}))?)$" {
         if ($request_method !~ ^(GET|HEAD)$) { return 405; }
         try_files /index.html =404;
     }
     location /assets/ { try_files $uri =404; }
-    location = /api/tap/verify {
+    location = /api/public/tap/verify {
         if ($request_method != POST) { return 405; }
         proxy_pass http://127.0.0.1:15000;
         include /etc/nginx/bumbum-cloud-test-proxy.conf;
     }
-    location ~ ^/api/tap/items/[1-9][0-9]*/view$ {
+    location = /api/tap/recovery {
+        if ($request_method !~ ^(GET|POST)$) { return 405; }
+        limit_req zone=bumbum_user_view burst=10 nodelay;
+        limit_req_status 429;
+        error_page 429 = @user_limited;
+        proxy_pass http://127.0.0.1:15000;
+        include /etc/nginx/bumbum-cloud-test-proxy.conf;
+    }
+    location ~ "^/api/tap/items/(?:[1-9][0-9]{0,18}|[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/view$" {
         if ($request_method != GET) { return 405; }
         limit_req zone=bumbum_user_view burst=10 nodelay;
         limit_req_status 429;
@@ -49,7 +57,7 @@ server {
         include /etc/nginx/bumbum-cloud-test-proxy.conf;
     }
     # 20张首屏图片使用独立限流，不续期查看资格；不开放目录或其他媒体路径。
-    location ~ "^/api/tap/items/[1-9][0-9]*/style-images/[a-f0-9]{32}$" {
+    location ~ "^/api/tap/items/(?:[1-9][0-9]{0,18}|[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})/style-images/[a-f0-9]{32}$" {
         if ($request_method != GET) { return 405; }
         limit_req zone=bumbum_user_image burst=40 nodelay;
         limit_req_status 429;
@@ -57,7 +65,7 @@ server {
         proxy_pass http://127.0.0.1:15000;
         include /etc/nginx/bumbum-cloud-test-proxy.conf;
     }
-    location ~ ^/api/public/(sms/(send|verify)|account/logout|items/[1-9][0-9]*/claim)$ {
+    location ~ "^/api/public/(sms/(send|verify)|account/logout|items/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/claim|me/items/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/(recovery|dismiss-notice))$" {
         if ($request_method != POST) { return 405; }
         limit_req zone=bumbum_user_view burst=10 nodelay;
         limit_req_status 429;
@@ -65,7 +73,7 @@ server {
         proxy_pass http://127.0.0.1:15000;
         include /etc/nginx/bumbum-cloud-test-proxy.conf;
     }
-    location ~ "^/api/public/(account/session|items/[1-9][0-9]*/claim-status|me/items(/[1-9][0-9]*(/images/[a-f0-9]{32})?)?)$" {
+    location ~ "^/api/public/(account/session|items/[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}/claim-status|me/records|me/items(/(?:[1-9][0-9]{0,18}|[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})(/images/[a-f0-9]{32})?)?)$" {
         if ($request_method != GET) { return 405; }
         limit_req zone=bumbum_user_image burst=40 nodelay;
         limit_req_status 429;

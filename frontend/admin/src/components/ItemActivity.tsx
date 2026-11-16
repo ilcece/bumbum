@@ -1,6 +1,9 @@
+import ReadFailure from "./ReadFailure";
 import { useEffect, useState } from "react";
-import { Alert, Button, Empty, Spin, Timeline } from "antd";
+import { Empty, Spin, Timeline } from "antd";
+import { history, useLocation } from "@umijs/max";
 import { list, Row, time } from "../catalog";
+import { Copy } from "./CatalogUI";
 import UserIdentity from "./UserIdentity";
 
 export const activityLabels: Record<string, string> = {
@@ -10,6 +13,25 @@ export const activityLabels: Record<string, string> = {
   renewal: "换新交付生效",
   resale: "转售交付生效",
 };
+
+export function ActivityItem({ row, currentItem }: { row: Row; currentItem?: number }) {
+  const location = useLocation();
+  return <Copy value={row.item_uid} onClick={() => {
+    if (row.item_id === currentItem) {
+      const heading = document.getElementById("item-detail-heading");
+      heading?.scrollIntoView({ block: "start" });
+      heading?.focus({ preventScroll: true });
+    } else {
+      history.push(`/items/${row.item_id}?from=${encodeURIComponent(location.pathname + location.search)}`);
+    }
+  }} />;
+}
+
+export function ActivityActor({ row }: { row: Row }) {
+  if (row.user_uid) return <UserIdentity uid={row.user_uid} />;
+  if (row.event !== "tap") return <>管理员确认</>;
+  return <>{row.actor_state === "anonymous" ? "匿名访客" : "身份未记录"}</>;
+}
 
 export default function ItemActivity({ itemId, revision }: { itemId?: number; revision?: unknown }) {
   const [rows, setRows] = useState<Row[]>();
@@ -25,10 +47,10 @@ export default function ItemActivity({ itemId, revision }: { itemId?: number; re
     );
     return () => { current = false; };
   }, [itemId, revision, retry]);
-  if (error) return <Alert type="error" title={error} action={<Button onClick={() => setRetry(retry + 1)}>重试</Button>} />;
+  if (error) return <ReadFailure title="用户动态读取失败" error={error} retry={() => setRetry((value) => value + 1)} />;
   if (!rows) return <Spin />;
   if (!rows.length) return <Empty description="暂无用户动态" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   return <Timeline items={rows.map((row) => ({
-    key: row.id, content: <>{time(row.occurred_at)} · {activityLabels[row.event]} · {row.item_uid} · {row.user_uid ? <UserIdentity uid={row.user_uid} /> : row.event === "tap" ? "匿名访客" : "管理员确认"}</>,
+    key: row.id, content: <>{time(row.occurred_at)} · {activityLabels[row.event]} · <ActivityItem row={row} currentItem={itemId} /> · <ActivityActor row={row} /></>,
   }))} />;
 }

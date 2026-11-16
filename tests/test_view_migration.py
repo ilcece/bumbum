@@ -1,6 +1,5 @@
 """004升级只操作专属临时库，验证先备份、旧凭证保留及恢复。"""
 
-from pathlib import Path
 import subprocess
 
 import pytest
@@ -16,7 +15,7 @@ from tests.test_chip_keys import keyed
 from tests.test_tap_verification import ready, tap
 
 pytestmark=pytest.mark.auth_database
-NEW_SQL=Path('db/migrations/004_view_grants.sql').read_text()
+CURRENT_ENUM="ALTER TABLE tap_grant MODIFY allowed_action ENUM('read','bind','view','recovery') NOT NULL"
 
 
 @pytest.fixture
@@ -30,7 +29,7 @@ def old_views(auth_app):
         finally:
             connection.rollback()
             with connection.cursor() as cursor:
-                cursor.execute(NEW_SQL)
+                cursor.execute(CURRENT_ENUM)
 
 
 def inspect(connection):
@@ -59,6 +58,8 @@ def test_upgrade_preserves_grant_backup_restore_and_idempotence(auth_app,ready,a
         assert inspect(connection)=='missing'
         assert query(auth_app,'SELECT * FROM tap_grant')==original
         assert migrate(connection,lambda:None)
+        assert auth_app.test_client().get('/api/ready').status_code==503
+        with connection.cursor() as cursor: cursor.execute(CURRENT_ENUM)
         assert auth_app.test_client().get('/api/ready').status_code==200
 
 

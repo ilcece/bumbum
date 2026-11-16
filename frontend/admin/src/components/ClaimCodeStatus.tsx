@@ -1,5 +1,6 @@
+import ClaimCodeDialog from "./ClaimCodeDialog";
 import { useEffect, useState } from "react";
-import { Alert, Button, Modal, Space, Spin, Typography } from "antd";
+import { Button, Space, Typography } from "antd";
 import { request } from "../api";
 import { time } from "../catalog";
 
@@ -44,13 +45,7 @@ export default function ClaimCodeStatus({ itemId, status }: { itemId: number; st
     <Typography.Text type="secondary">{status.consumed_at ? "已核销" : status.revoked_at ? "已撤销" :
       usable ? "有效至 " + time(status.expires_at) : "已过期"}</Typography.Text>
     {usable && <Button type="link" onClick={reveal} disabled={!!result}>查看认领码</Button>}
-    {usable && result && <Modal open title="交付认领码" onCancel={() => setResult(undefined)}
-      footer={<Button onClick={() => setResult(undefined)}>关闭</Button>}>
-      {result.error ? <Alert type="warning" title={result.error} /> : result.claim_code ?
-        <div data-private="true">
-          <Typography.Paragraph copyable>{result.claim_code}</Typography.Paragraph>
-          <Typography.Text type="secondary">有效期至 {time(status.expires_at)}</Typography.Text>
-        </div> : <Spin />}
-    </Modal>}
+    {usable && result && <ClaimCodeDialog code={result.claim_code} expiresAt={status.expires_at}
+      error={result.error} loading={!result.error && !result.claim_code} onClose={() => setResult(undefined)} />}
   </Space>;
 }

@@ -16,6 +16,12 @@ import { testBatch, setTestBatch } from "../testDataMode";
 import { list, Row } from "../catalog";
 import { request } from "../api";
 import { ActionForm } from "./CatalogUI";
+const cleanupLabels: Record<string, string> = {
+  order: "订单", style: "款式", issue: "发行", physical: "实体物品",
+  item: "数字物品", chip: "芯片", user: "合成账户", scan: "导入触碰",
+};
+const cleanupReceiptKey = (id: number) => `bumbum-test-batch-cleaned:${id}`;
+
 export default function TestBatches() {
   const [rows, setRows] = useState<Row[]>([]),
     [error, setError] = useState(""),
@@ -31,12 +37,20 @@ export default function TestBatches() {
     list("test-batches", { page_size: 100 })
       .then((r) => {
         if (live) {
-          setRows(r.items);
+          // 清理回执跨数据范围切换保留，直到批次列表确认已清理。
+          const currentRows = r.items.map((row) => {
+            const key = cleanupReceiptKey(row.id);
+            if (row.status === "deleted") sessionStorage.removeItem(key);
+            if (row.status === "active" && sessionStorage.getItem(key) === "1")
+              return { ...row, status: "deleted" };
+            return row;
+          });
+          setRows(currentRows);
           setWritable(!!(r as any).writable);
           setSelectionMissing(
             !!testBatch() &&
               r.total <= r.items.length &&
-              !r.items.some(
+              !currentRows.some(
                 (row) => row.id === testBatch() && row.status === "active",
               ),
           );
@@ -196,32 +210,38 @@ export default function TestBatches() {
             action="clearTestBatch"
             initial={{ batch_id: preview.id, confirmed: false }}
             onClose={() => setPreview(undefined)}
-            onDone={() => {
+            onDone={(result) => {
+              if (result.id === preview.id && result.status === "deleted") {
+                sessionStorage.setItem(cleanupReceiptKey(result.id), "1");
+                setRows((current) => current.map((row) =>
+                  row.id === result.id ? { ...row, status: "deleted" } : row));
+              }
+              setPreview(undefined);
               if (testBatch() === preview.id) {
                 setTestBatch();
                 return;
               }
-              setPreview(undefined);
               setRevision((x) => x + 1);
             }}
             submitText="确认清理本批数据"
+            submitDisabled={preview.conflicts.length > 0}
           >
             <Alert
               type={preview.conflicts.length ? "error" : "warning"}
+              showIcon
               title={
                 preview.conflicts.length
                   ? "存在批次外关联，禁止清理"
-                  : "将删除本批物品、芯片、合成账户和专用图片；审计保留。"
+                  : "将删除清单中的本批数据及专用图片，保留审计。"
               }
-              description={Object.entries(preview.counts)
-                .map(
-                  ([k, v]) =>
-                    `${({ style: "款式", issue: "发行", item: "物品", chip: "芯片", user: "合成账户", scan: "导入触碰" } as any)[k]} ${v}`,
-                )
-                .join("，")}
+              description={<>
+                <div>批次 {rows.find((row) => row.id === preview.id)?.code ?? preview.id}</div>
+                {Object.entries(preview.counts).map(([kind, count]) =>
+                  `${cleanupLabels[kind] ?? kind} ${count}`).join("，")}
+              </>}
             />
             <details>
-              <summary>查看清理对象ID与冲突</summary>
+              <summary>查看清理明细与关联冲突</summary>
               <pre
                 style={{
                   whiteSpace: "pre-wrap",

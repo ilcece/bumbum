@@ -9,7 +9,7 @@ export type Profile = {
 };
 export type ItemView = ItemFacts & {
   project: "fashion";
-  item_id: number;
+  public_id: string;
   item_uid: string;
   verified_at: string;
   retrieved_at: string;
@@ -18,6 +18,9 @@ export type ItemView = ItemFacts & {
   tapToken?: string;
 };
 export type Reading = { picc_data: string; cmac: string };
+export const isPublicId = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+export const isLegacyItemRef = (value: string) => /^[1-9][0-9]{0,18}$/.test(value);
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -69,8 +72,7 @@ export function itemView(value: unknown): ItemView {
   const d = object(value);
   if (
     d.project !== "fashion" ||
-    !Number.isSafeInteger(d.item_id) ||
-    Number(d.item_id) <= 0 ||
+    !isPublicId(d.public_id) ||
     typeof d.item_uid !== "string" ||
     !d.item_uid.trim() || d.item_uid.length > 32 ||
     ![d.verified_at, d.retrieved_at].every(
@@ -83,7 +85,7 @@ export function itemView(value: unknown): ItemView {
     invalid();
   return {
     project: "fashion",
-    item_id: Number(d.item_id),
+    public_id: d.public_id,
     item_uid: d.item_uid as string,
     verified_at: d.verified_at as string,
     retrieved_at: d.retrieved_at as string,
@@ -157,11 +159,9 @@ async function request(
 export async function verify(
   reading: Reading,
   signal: AbortSignal,
-): Promise<ItemView | "unsupported"> {
-  const d = await request("/api/tap/verify", signal, {
-    ...reading,
-    browser_view: true,
-  });
+): Promise<ItemView | "unsupported" | "recovery"> {
+  const d = await request("/api/public/tap/verify", signal, reading);
+  if (d.recovery === true) return "recovery";
   if (d.verified !== true)
     throw new ApiError(
       200,
@@ -171,40 +171,62 @@ export async function verify(
         : "本次验证未通过，请重新触碰。",
     );
   if (d.project === "jewelry") return "unsupported";
-  if (d.view_path !== `/tap/items/${d.item_id}`) invalid();
+  if (d.view_path !== `/tap/items/${d.public_id}`) invalid();
   const item = itemView({ ...d, profile: d.item_detail });
   if (typeof d.tap_token === "string" && /^[a-f0-9]{64}$/.test(d.tap_token)) item.tapToken = d.tap_token;
   return item;
 }
 
 export type Account = { uid: string; phone: string };
+export type LifecycleEvent = {
+  at: string; event: string; spec?: string; item_uid?: string;
+  name?: string | null; edition_number?: number | null; issue_total?: number | null;
+};
+export type ItemLifecycle = {
+  lost: boolean; stage: "renewal" | "resale" | null; awaiting_delivery: boolean;
+  notice: { token: string; kind: "renewed" | "received"; expires_at: string } | null;
+};
 export type OwnedItem = ItemFacts & {
-  item_id: number; item_uid: string; name: string | null; image_urls: string[];
+  public_id: string; item_uid: string; name: string | null; image_urls: string[];
+  description?: string | null; material?: string | null; care_instructions?: string | null;
   bound_at: string; spec: string | null; generation: number | null;
   quota_year: number | null; quota_used: number | null; quota_review: boolean;
+  lifecycle?: ItemLifecycle; history?: LifecycleEvent[]; records?: LifecycleEvent[]; recovery_enabled?: boolean;
 };
 
-export function publicAccount(path: string, body?: unknown) {
-  return request(`/api/public${path}`, new AbortController().signal, body);
+export function lostContact(signal: AbortSignal, reveal = false) {
+  return request("/api/tap/recovery", signal, reveal ? {} : undefined);
+}
+
+export function publicAccount(path: string, body?: unknown, signal = new AbortController().signal) {
+  return request(`/api/public${path}`, signal, body);
 }
 
 export function accountView(value: unknown): Account | null {
   if (value === null) return null;
   const data = object(value);
-  if (typeof data.uid !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(data.uid) || typeof data.phone !== "string") invalid();
+  if (!isPublicId(data.uid) || typeof data.phone !== "string") invalid();
   return { uid: data.uid, phone: data.phone };
 }
 
 export function ownedItem(value: unknown): OwnedItem {
   const data = object(value);
-  if (!Number.isSafeInteger(data.item_id) || typeof data.item_uid !== "string" || typeof data.bound_at !== "string" || !Array.isArray(data.image_urls)) invalid();
+  if (!isPublicId(data.public_id) || typeof data.item_uid !== "string" || typeof data.bound_at !== "string" || !Array.isArray(data.image_urls)) invalid();
   return { ...data, image_urls: data.image_urls.filter((x) => typeof x === "string" && /^(?:https?:\/\/|\/api\/public\/me\/items\/)/.test(x)) } as OwnedItem;
 }
+
+export async function readOwnedItem(ref: string, signal?: AbortSignal) {
+  const data = await publicAccount(`/me/items/${ref}`, undefined, signal);
+  const user = accountView(data.account), item = ownedItem(data.item);
+  if (!user || (item.public_id !== ref && !isLegacyItemRef(ref))) invalid();
+  return { user, item };
+}
+
 export async function readView(
-  id: number,
+  id: string,
   signal: AbortSignal,
 ): Promise<ItemView> {
   const result = itemView(await request(`/api/tap/items/${id}/view`, signal));
-  if (result.item_id !== id) invalid();
+  if (result.public_id !== id && !isLegacyItemRef(id)) invalid();
   return result;
 }

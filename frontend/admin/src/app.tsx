@@ -15,6 +15,7 @@ import { UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { list } from "./catalog";
 import { testBatch } from "./testDataMode";
 import settings from "../config/defaultSettings";
+import routes from "../config/routes";
 import brandSymbol from "../../shared/brand/bumbum-symbol-black.svg";
 import { ApiError, readSession, signOut } from "./api";
 import "./global.css";
@@ -60,17 +61,12 @@ function Account() {
 }
 function HeaderContext() {
   const { pathname } = useLocation();
-  const names: Record<string, string> = {
-    overview: "工作台",
-    catalog: "款式与发行",
-    items: "数字物品",
-    chips: "芯片管理",
-    system: "系统管理",
-  };
+  const sectionPath = "/" + pathname.split("/")[1];
+  const section = routes.find((route) => route.path === sectionPath)?.name;
   return (
     <div className="header-context">
       <Typography.Text strong>
-        {names[pathname.split("/")[1]] || "管理工作区"}
+        {section || "管理工作区"}
       </Typography.Text>
       <Typography.Text type="secondary">数字物品与芯片管理</Typography.Text>
     </div>

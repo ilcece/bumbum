@@ -60,6 +60,7 @@ def save_chip(cursor, uid, *, admin_id, source, project=None, batch=None):
         cursor.execute(
             "INSERT INTO admin_audit (admin_id,action,target_type,target_id,detail,ip_hash) VALUES (%s,%s,%s,%s,%s,%s)",
             (admin_id, "chip.register", "chip", str(chip_id),
-             json.dumps({"project": project, "source": source}), fingerprint("ip", client_ip())),
+             json.dumps({"project": project, "source": source, "object_code": uid, "outcome": "已完成"}, ensure_ascii=False),
+             fingerprint("ip", client_ip())),
         )
     return chip, is_new

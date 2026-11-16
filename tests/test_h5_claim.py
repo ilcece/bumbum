@@ -118,6 +118,7 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
     clients=[auth_app.test_client(),auth_app.test_client()]
     uid=query(auth_app,'SELECT chip_uid FROM chip WHERE id=%s',(chips[0],))[0]['chip_uid']
     with auth_app.app_context():keys=target_keys('fashion',uid)
+    public_id = query(auth_app,'SELECT public_id AS ref FROM item WHERE id=%s',(item,))[0]['ref']
     payloads=[]
     public_uids=[]
     for offset,client in enumerate(clients):
@@ -128,10 +129,10 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
         assert session['phone']!=phone
         assert uuid.UUID(session['uid']).version == 4
         public_uids.append(session['uid'])
-        view=ok(client.post('/api/tap/verify',headers=ORIGIN,json={**reading(keys,uid,3+offset),'browser_view':True}))
-        assert view['claim_state']=='available'
+        view=ok(client.post('/api/public/tap/verify',headers=ORIGIN,json=reading(keys,uid,3+offset)))
+        assert view['claim_state']=='available' and view['public_id']==public_id and 'item_id' not in view
         payloads.append({'tap_token':view['tap_token'],'claim_code':fresh})
-    path=f'/api/public/items/{item}/claim'
+    path=f'/api/public/items/{public_id}/claim'
     assert clients[0].post(path,headers=ORIGIN,json={**payloads[0],'tap_token':'0'*64}).status_code==403
     assert clients[0].post(path,headers=ORIGIN,json={**payloads[0],'claim_code':legacy}).status_code==400
     with ThreadPoolExecutor(max_workers=2) as pool:
@@ -140,8 +141,8 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
     assert admin[0].post(fresh_url,headers=admin[1],json={}).status_code==409
     winner=next(i for i,x in enumerate(responses) if x.status_code==200)
     assert ok(clients[winner].post(path,headers=ORIGIN,json=payloads[winner]))['state']=='mine'
-    assert ok(clients[winner].get(f'/api/public/me/items/{item}'))['item']['item_id']==item
-    assert clients[1-winner].get(f'/api/public/me/items/{item}').status_code==404
+    assert ok(clients[winner].get(f'/api/public/me/items/{public_id}'))['item']['public_id']==public_id
+    assert clients[1-winner].get(f'/api/public/me/items/{public_id}').status_code==404
     detail = admin[0].get(f'/api/admin/catalog/items/{item}')
     owners = ok(detail)['owners']
     assert len(owners) == 1 and owners[0]['is_active']
@@ -150,9 +151,20 @@ def test_claim_requires_verified_user_tap_and_delivery_and_only_one_wins(auth_ap
     holder_uid = owners[0]['user_id']
     assert uuid.UUID(holder_uid).version == 7
     public_uid = public_uids[winner]
+    guest = auth_app.test_client()
+    touch = lambda client, counter: ok(client.post('/api/public/tap/verify',headers=ORIGIN,json=reading(keys,uid,counter)))
+    assert touch(clients[winner],5)['verified'] and touch(clients[1-winner],6)['verified'] and touch(guest,7)['verified']
+    assert touch(guest,7)['reason']=='replay_suspect'
+    auth_app.config['H5_LEGACY_ITEM_UNTIL']='2099-01-01T00:00:00+00:00'
+    legacy_path=f'/api/public/me/items/{item}'
+    private=ok(clients[winner].get(legacy_path))['item']
+    assert private['public_id']==public_id and 'item_id' not in private
+    assert guest.get(legacy_path).status_code==401 and clients[1-winner].get(legacy_path).status_code==404
+    auth_app.config['H5_LEGACY_ITEM_UNTIL']='2000-01-01T00:00:00+00:00'
+    assert clients[winner].get(legacy_path).status_code==404
     activity = ok(admin[0].get('/api/admin/catalog/activity',query_string={'item_id':item}))['items']
     assert [(e['event'],e['user_uid']) for e in activity].count(('claim',public_uid)) == 1
-    assert [(e['event'],e['user_uid']) for e in activity].count(('tap',None)) == 2
+    assert sorted((e['actor_state'],e['user_uid'] or '') for e in activity if e['event']=='tap') == sorted([('account',uid) for uid in public_uids]*2+[('anonymous','')])
     card = ok(admin[0].get(f'/api/admin/catalog/users/{public_uid}/card'))
     assert card == {'public_uid':public_uid,'nickname':None,'masked_phone':f'139****970{winner}'}
     accounts = ok(admin[0].get('/api/admin/catalog/users', query_string={'keyword':public_uid}))['items']

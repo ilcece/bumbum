@@ -603,7 +603,7 @@ python -m pytest tests/test_admin_catalog.py --auth-db -q
 python -m pytest tests/test_admin_browser.py tests/test_admin_item_browser.py tests/test_admin_maintenance_browser.py tests/test_tap_stats_browser.py --auth-db --browser -q
 ```
 
-人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。首次用户认领、解除挂失及未定计次/费用不通过测试数据冒充开放；更换芯片仍须按原真实配卡手册实际配置，不把服务端生成密钥当作写卡完成。
+人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。真实认领、取消挂失后的实卡恢复及尚未确定的业务规则须分别核对。更换芯片须按原真实配卡手册实际配置，生成密钥后仍须写卡并核验。
 
 
 ## 16. 验收批次007与本机测试数据

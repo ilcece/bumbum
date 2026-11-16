@@ -8,7 +8,7 @@ import {
   Typography,
 } from "antd";
 import { history, useLocation } from "@umijs/max";
-import { assemblyPath, itemWorkflow, Row } from "../catalog";
+import { assemblyPath, itemWorkflow, itemWorkflowNames, Row, workbenchWorkflows } from "../catalog";
 import {
   ActionForm,
   Copy,
@@ -65,7 +65,7 @@ export default function Items() {
     {
       title: "办理阶段",
       dataIndex: "workflow",
-      valueEnum: { assembly: "待装配", verification: "待核验", available: "可分配", delivery: "待交付", claim: "待认领" },
+      valueEnum: Object.fromEntries(workbenchWorkflows.map((stage) => [stage, itemWorkflowNames[stage]])),
       render: (_, r) => <State value={itemWorkflow(r)} />,
     },
     {

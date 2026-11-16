@@ -69,22 +69,40 @@ def test_order_assembly_and_sale_are_guarded_and_retryable(auth_app, catalog):
     token = str(uuid.uuid4())
     ident = ok(action(session, 'assembleOrderItem', payload, token))['id']
     assert ok(action(session, 'assembleOrderItem', payload, token))['id'] == ident
+
+    def assert_workflow(stage, previous=None):
+        assert ok(session[0].get(f'/api/admin/catalog/items/{ident}'))['workflow'] == stage
+        filtered = ok(session[0].get('/api/admin/catalog/items', query_string={'workflow': stage}))
+        summary = ok(session[0].get('/api/admin/catalog/statistics'))['workflow_counts']
+        assert filtered['total'] == summary[stage] == 1
+        assert [(item['id'], item['workflow']) for item in filtered['items']] == [(ident, stage)]
+        if previous:
+            assert summary[previous] == 0
+
+    assert_workflow('verification')
     sale = {'item_id': ident, 'channel': '品牌店铺', 'external_order_no': 'ORDER-12',
             'first_sold_at': '2026-10-24T10:00:00+08:00'}
     assert action(session, 'orderSale', sale).status_code == 409
     config_chip(auth_app, session, chips[0])
+    assert_workflow('activation', 'verification')
     ok(action(session, 'toggleItem', {'item_id': ident, 'status': 'active'}))
+    assert_workflow('available', 'activation')
+    query(auth_app, "UPDATE chip SET chip_status='disabled' WHERE id=%s", (chips[0],))
+    assert_workflow('review', 'available')
+    query(auth_app, "UPDATE chip SET chip_status='bound' WHERE id=%s", (chips[0],))
     claim = {'item_id': ident, 'channel': sale['channel'], 'external_order_no': sale['external_order_no'],
              'confirmed': True, 'delivery_reference': '接收人已核对'}
     assert action(session, 'issueClaimCode', claim).status_code == 409
     stock = lambda: ok(session[0].get('/api/admin/catalog/items?order_stock=true'))['items']
     assert [record['id'] for record in stock()] == [ident]
     ok(action(session, 'orderSale', sale))
+    assert_workflow('delivery', 'available')
     assert not stock()
     assert action(session, 'orderSale', {**sale, 'external_order_no': 'ORDER-OTHER'}).status_code == 409
     assert action(session, 'issueClaimCode', {**claim, 'external_order_no': 'ORDER-OTHER'}).status_code == 409
     assert not query(auth_app, 'SELECT id FROM item_claim_code WHERE item_id=%s', (ident,))
     assert ok(action(session, 'issueClaimCode', claim))['claim_code']
+    assert_workflow('claim', 'delivery')
 
 
 def test_audit_lists_current_and_historical_targets_with_mixed_collations(auth_app, catalog):
@@ -99,6 +117,24 @@ def test_audit_lists_current_and_historical_targets_with_mixed_collations(auth_a
     data = ok(client.get('/api/admin/catalog/audit', query_string={'keyword': '排序规则验收'}))
     actual = {(record['target_type'], record['target_id']): bool(record['object_exists']) for record in data['items']}
     assert actual == {target: target == ('item', str(item)) for target in targets}
+
+
+def test_registration_audit_keeps_one_event_and_resolves_legacy_chip_uid(auth_app, logged_in):
+    client, _ = logged_in
+    uid = '04:11:22:33:44:55:66'
+    created = ok(action(logged_in, 'register', {'chip_uid': uid}))
+    assert created['is_new']
+    assert not ok(action(logged_in, 'register', {'chip_uid': uid}))['is_new']
+    params = {'action': 'chip.register', 'keyword': uid}
+    events = ok(client.get('/api/admin/catalog/audit', query_string=params))['items']
+    assert len(events) == 1 and events[0]['summary'] == '手工登记芯片。' and events[0]['object_code'] == uid
+    assert not query(auth_app, "SELECT id FROM admin_audit WHERE action='catalog.register'")
+    query(auth_app, "UPDATE admin_audit SET detail=JSON_OBJECT('source','nfc_cool') WHERE id=%s", (events[0]['id'],))
+    legacy = ok(client.get('/api/admin/catalog/audit', query_string=params))['items'][0]
+    assert (legacy['operation'], legacy['object_code'], legacy['outcome']) == ('登记芯片', uid, None)
+    assert legacy['summary']=='通过 NFC.cool 登记芯片。'
+    actions = {option['value'] for option in ok(client.get('/api/admin/catalog/audit/actions'))}
+    assert {'chip.register', 'catalog.saleBatch', 'catalog.viewClaimCode', 'auth.passkey.revoke'} <= actions
 
 
 def test_whole_loss_renewal_resale_keeps_identity_history_and_real_configuration(auth_app,catalog):
@@ -181,9 +217,10 @@ def test_shared_upload_and_server_pagination(auth_app,catalog):
     from core.chip_keys import target_keys
     with auth_app.app_context():keys=target_keys('fashion',query(auth_app,'SELECT chip_uid FROM chip WHERE id=%s',(chips[0],))[0]['chip_uid'])
     uid=query(auth_app,'SELECT chip_uid FROM chip WHERE id=%s',(chips[0],))[0]['chip_uid']
-    public=auth_app.test_client();verified=ok(public.post('/api/tap/verify',json={**reading(keys,uid,3),'browser_view':True},headers={'Origin':'http://127.0.0.1:5175'}))
+    public=auth_app.test_client();verified=ok(public.post('/api/public/tap/verify',json=reading(keys,uid,3),headers={'Origin':'http://127.0.0.1:5175'}))
     from urllib.parse import urlsplit
     image_path=urlsplit(verified['item_detail']['image_urls'][0]).path
+    assert image_path.startswith(f"/api/tap/items/{verified['public_id']}/style-images/")
     assert public.get(image_path,headers={'Origin':'http://127.0.0.1:5175'}).status_code==200
     assert auth_app.test_client().get(image_path,headers={'Origin':'http://127.0.0.1:5175'}).status_code==403
     detail=ok(public.get(f'/api/fashion/items/{i}/detail',headers={'X-Tap-Token':verified['tap_token']}))
@@ -191,6 +228,7 @@ def test_shared_upload_and_server_pagination(auth_app,catalog):
     assert short_path.startswith(f'/api/fashion/items/{i}/style-images/')
     assert public.get(short_path,headers={'X-Tap-Token':verified['tap_token']}).status_code==200
     whole=ok(s[0].get(f'/api/admin/catalog/items/{i}'))['whole_id'];ok(action(s,'loseItem',{'item_id':i,'whole_id':whole,'evidence':'整套挂失'}))
+    assert image_path.startswith(f"/api/tap/items/{verified['public_id']}/style-images/")
     assert public.get(image_path,headers={'Origin':'http://127.0.0.1:5175'}).status_code in {403,409}
     assert public.get(short_path,headers={'X-Tap-Token':verified['tap_token']}).status_code in {403,409}
     assert s[0].get('/api/admin/catalog/items?page=0').status_code==400
@@ -239,6 +277,10 @@ def test_real_event_statistics_do_not_depend_on_current_chip_or_holder(auth_app,
     summary=ok(s[0].get(f'/api/admin/catalog/statistics?item_id={i}&range=all&scope=sold&detail_filter=touched'))
     params={'item_id':i,'range':'all','scope':'sold','as_of':summary['as_of'],'event':'tap'}
     assert summary['details']['total']==1
+    assert summary['touch_item_counts']=={'touched':1,'repeat':1,'zero':0,'missing_sale':0}
+    repeated=ok(s[0].get('/api/admin/catalog/statistics',query_string={
+        'item_id':i,'range':'all','scope':'sold','as_of':summary['as_of'],'detail_filter':'repeat'}))
+    assert repeated['as_of']==summary['as_of'] and repeated['details']['total']==1
     assert ok(s[0].get('/api/admin/catalog/activity',query_string=params))['total']==summary['total']
     assert ok(s[0].get(f'/api/admin/catalog/statistics?item_id={i}&range=all&scope=sold&detail_filter=zero'))['details']['total']==0
     ok(action(s,'validationChip',{'chip_id':chips[0],'enabled':True}));ok(action(s,'deleteChip',{'chip_id':chips[0]}))
@@ -252,12 +294,17 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
     from core.user_uid_migration import migrate as migrate_user_uid, schema as user_uid_schema
     from core.db import get_database
     from core.order_migration import migrate as migrate_orders
+    from core.holder_migration import migrate as migrate_holder
+    from core.h5_identity_migration import migrate as migrate_h5_identity
     for table in ('fashion_item_profile','jewelry_item_profile','item'):query(auth_app,f'DELETE FROM {table}')
     with auth_app.app_context():
         connection=get_database()
         with connection.cursor() as c:
-            for table in ('sales_order_unit_match','sales_order_unit','sales_order','item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
+            for table in ('item_notice_dismissal','item_recovery_contact','sales_order_unit_match','sales_order_unit','sales_order','item_claim_code','user_session','user_sms_challenge','digital_item_right','admin_operation','item_handover','whole_item','physical_item','digital_item','style_image','product_issue','product_style','chip_validation'):
                 c.execute('DROP TABLE '+table)
+            c.execute("ALTER TABLE tap_grant MODIFY allowed_action ENUM('read','bind','view') NOT NULL")
+            c.execute("ALTER TABLE scan_log DROP FOREIGN KEY fk_scan_actor, DROP COLUMN actor_user_uid, DROP COLUMN actor_state")
+            c.execute("ALTER TABLE item DROP COLUMN public_id")
             c.execute('DELETE FROM user')
             for table, keys in (
                 ('ownership', {'user_id':'fk_ownership_user'}),
@@ -305,6 +352,8 @@ def test_upgrade_existing_records_without_guessing_style_issuance_or_sales(auth_
         with connection.cursor() as c:assert user_uid_schema(c)=='ready'
         assert migrate_orders(connection,lambda:backups.append(True))
         assert not migrate_orders(connection,lambda:pytest.fail('重复升级无需备份'))
+        assert migrate_holder(connection,lambda:backups.append(True))
+        assert migrate_h5_identity(connection,lambda:backups.append(True))
     d=query(auth_app,'SELECT * FROM digital_item WHERE item_id=%s',(ident,))[0]
     e=query(auth_app,'SELECT * FROM whole_item WHERE item_id=%s',(ident,))[0]
     assert d['issue_id'] is None and d['sold']==0 and d['first_sold_at'] is None

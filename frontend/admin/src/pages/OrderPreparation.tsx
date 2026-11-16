@@ -1,9 +1,10 @@
+import ClaimCodeDialog from "../components/ClaimCodeDialog";
 import { useLayoutEffect, useRef, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
 import { history, useLocation, useModel } from "@umijs/max";
 import {
   Alert, Button, Checkbox, DatePicker, Descriptions, Form, Input, InputNumber,
-  List, Modal, Radio, Space, Steps, Typography,
+  List, Radio, Space, Steps, Typography,
 } from "antd";
 import { ApiError } from "../api";
 import { inputDate, inputISO } from "../businessTime";
@@ -383,11 +384,8 @@ function Preparation({ storageKey, saved }: { storageKey: string; saved?: Draft 
       {configuration && item?.chip_id && <KeyConfiguration id={item.chip_id}
         onClose={() => { setConfiguration(false); itemState.reload(); }}
         onUpdated={() => itemState.reload()} />}
-      {code?.claim_code && <Modal open title="交付认领码" onCancel={() => setCode(undefined)}
-        footer={<Button onClick={() => setCode(undefined)}>完成</Button>}>
-        <Copy value={code.claim_code} />
-        <Typography.Paragraph>有效期至 {time(code.expires_at)}（北京时间）。</Typography.Paragraph>
-      </Modal>}
+      {code?.claim_code && <ClaimCodeDialog code={code.claim_code} expiresAt={code.expires_at}
+        onClose={() => setCode(undefined)} />}
     </div>
   );
 }

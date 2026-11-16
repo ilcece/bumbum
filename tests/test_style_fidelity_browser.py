@@ -61,7 +61,7 @@ def test_style_source_layout_and_staged_picture_save(desktop):
     assert query(desktop.app,'SELECT specs FROM product_style')[0]['specs']=='["L黑", "M白"]'
     expect(p.locator('.mobile-preview-header')).to_contain_text('已保存内容')
     p.get_by_label('款式名称',exact=True).fill('保存后继续修改')
-    p.get_by_role('link',name=re.compile('数字物品$')).click()
+    desktop.menu_link('数字物品').click()
     guard=p.get_by_role('dialog',name='有未保存修改',exact=True)
     expect(guard).to_be_visible();button(guard,'继续编辑')
     expect(p.get_by_label('款式名称',exact=True)).to_have_value('保存后继续修改')

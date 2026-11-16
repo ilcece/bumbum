@@ -264,4 +264,4 @@ def test_owned_item_read_grant_and_updated_profile(auth_app, ready):
     assert response.json['data']['profile']['name'] == '更新后的名称'
     assert '13800000001' not in str(response.json)
     assert auth_app.test_client().post('/api/public/bind',json={}).status_code == 404
-    assert auth_app.test_client().post('/api/public/sms/send',json={}).status_code == 404
+    assert auth_app.test_client().post('/api/public/sms/send',json={}).status_code == 403

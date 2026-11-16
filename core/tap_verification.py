@@ -65,13 +65,13 @@ def consume_rate_limit():
         raise TapRateLimited(max(1, 60 - now.second))
 
 
-def log_event(cursor, result, chip=None, counter=None):
+def log_event(cursor, result, chip=None, counter=None, *, actor_state=None, actor=None):
     """只有完整验签后才能记录可信关联，不保存原文、动态链接或凭证。"""
     cursor.execute(
-        'INSERT INTO scan_log(chip_id,item_id,chip_uid,project_id,scan_counter,verify_result,created_at) VALUES (%s,%s,%s,%s,%s,%s,%s)',
+        'INSERT INTO scan_log(chip_id,item_id,chip_uid,project_id,scan_counter,verify_result,created_at,actor_state,actor_user_uid) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)',
         (chip['id'] if chip else None, chip['item_id'] if chip else None,
          chip['chip_uid'] if chip else None, chip['project_id'] if chip else None,
-         counter if chip else None, result, utc_now()),
+         counter if chip else None, result, utc_now(), actor_state, actor),
     )
 
 
@@ -148,15 +148,15 @@ def public_detail(cursor, item, chip):
     return profile, cursor.fetchone() is not None
 
 
-def issue_grant(cursor, item, chip, owner_bound, *, view=False, at=None):
+def issue_grant(cursor, item, chip, owner_bound, *, view=False, recovery=False, at=None):
     token = secrets.token_hex(32)
     now = at or utc_now()
     cursor.execute('INSERT INTO tap_grant(token_hash,chip_id,item_id,allowed_action,expires_at,created_at) VALUES (%s,%s,%s,%s,%s,%s)',
-                   (hashlib.sha256(token.encode('ascii')).digest(), chip['id'], item['id'], 'view' if view else 'read' if owner_bound else 'bind', now + timedelta(hours=24) if view else now + timedelta(seconds=300), now))
+                   (hashlib.sha256(token.encode('ascii')).digest(), chip['id'], item['id'], 'recovery' if recovery else 'view' if view else 'read' if owner_bound else 'bind', now + timedelta(hours=24) if view else now + timedelta(seconds=300), now))
     return token
 
 
-def verify_in_transaction(cursor, reading, *, browser_view=False):
+def verify_in_transaction(cursor, reading, *, browser_view=False, h5=False):
     if current_app.config['SDM_META_KEY_VERSION'] != 'v1':
         raise AuthUnavailable('不支持的全局密钥版本。')
     try:
@@ -178,6 +178,16 @@ def verify_in_transaction(cursor, reading, *, browser_view=False):
     if not valid_mac(reading, bytes.fromhex(keys['K2']), uid, counter):
         return reject(cursor, 'cmac_fail')
     reason = state_reason(item, chip)
+    if browser_view and reason == 'disabled':
+        from core.holder_lifecycle import lost_physical
+        if lost_physical(cursor, item, chip) and chip['last_verified_counter'] is not None:
+            if counter == 0xFFFFFF:
+                return reject(cursor, 'not_ready', chip, counter)
+            if counter <= chip['last_verified_counter']:
+                return reject(cursor, 'replay_suspect', chip, counter)
+            token = issue_grant(cursor, item, chip, False, recovery=True)
+            cursor.execute('UPDATE chip SET last_verified_counter=%s WHERE id=%s', (counter,chip['id']))
+            return dict(reject(cursor, 'disabled', chip, counter), recovery=True, _recovery_cookie=token)
     if reason:
         return reject(cursor, reason, chip, counter)
     if counter == 0xFFFFFF:
@@ -189,10 +199,16 @@ def verify_in_transaction(cursor, reading, *, browser_view=False):
         return reject(cursor, 'not_ready', chip, counter)
     profile, owner_bound = detail
     from core.media_assets import map_profile_images
-    map_profile_images(cursor, {item['id']: profile}, context='tap' if browser_view and chip['project'] == 'fashion' else 'fashion')
+    public_id = item['public_id'] if h5 else None
+    map_profile_images(cursor, {item['id']: profile}, context='tap' if browser_view and chip['project'] == 'fashion' else 'fashion', public_id=public_id)
     token = issue_grant(cursor, item, chip, owner_bound)
     cursor.execute('UPDATE chip SET last_verified_counter=%s WHERE id=%s', (counter, chip['id']))
-    log_event(cursor, 'pass', chip, counter)
+    actor = None
+    if h5:
+        from core.public_account import current_user
+        actor, _ = current_user(cursor, required=False)
+    actor_state = ('account' if actor else 'anonymous') if h5 else None
+    log_event(cursor, 'pass', chip, counter, actor_state=actor_state, actor=actor['uid'] if actor else None)
     result = {'verified': True, 'project': chip['project'], 'item_id': item['id'], 'item_uid': item['item_uid'],
             'owner_bound': owner_bound, 'tap_token': token, 'expires_in': 300, 'item_detail': profile}
     if browser_view and chip['project'] == 'fashion':
@@ -200,17 +216,24 @@ def verify_in_transaction(cursor, reading, *, browser_view=False):
         from core.public_account import item_metadata
         verified_at = utc_now()
         result['_view_cookie'] = issue_grant(cursor, item, chip, owner_bound, view=True, at=verified_at)
-        result.update(view_path=f"/tap/items/{item['id']}", verified_at=iso_time(verified_at), retrieved_at=iso_time(verified_at))
+        result.update(view_path=f"/tap/items/{public_id or item['id']}", verified_at=iso_time(verified_at), retrieved_at=iso_time(verified_at))
         result.update(item_metadata(cursor,item['id'],owner_bound))
+    if h5:
+        del result['item_id']
+        if chip['project'] == 'fashion':
+            result['public_id'] = public_id
+        else:
+            result.pop('tap_token', None)
+            result.pop('item_detail', None)
     return result
 
 
-def verify_tap(reading, *, browser_view=False):
+def verify_tap(reading, *, browser_view=False, h5=False):
     connection = get_database()
     connection.begin()
     try:
         with connection.cursor(pymysql.cursors.DictCursor) as cursor:
-            result = verify_in_transaction(cursor, reading, browser_view=browser_view)
+            result = verify_in_transaction(cursor, reading, browser_view=browser_view, h5=h5)
         connection.commit()
         return result
     except Exception:
