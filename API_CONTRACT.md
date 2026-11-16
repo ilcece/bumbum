@@ -40,15 +40,15 @@
 
 | 场景 | 需要提供什么 |
 |---|---|
-| 管理业务 | 浏览器自动携带 bumbum_admin_session Cookie（登录凭证）；必须已通过密码和验证码且账号启用 |
+| 管理业务 | 浏览器自动携带有效 bumbum_admin_session Cookie，账号须启用且完成验证器设置；会话由密码加动态码或杭州 test 的通行密钥登录建立 |
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
-| 登录 | 一次提交账号、密码和验证码；强制检查网页来源 Origin 和 JSON，不依赖现有登录凭证 |
+| 登录 | 密码入口一次提交账号、密码和验证码；杭州 test 通行密钥入口见第2.4节。两者检查允许的 Origin 和 JSON，不依赖已有管理会话 |
 | 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 兼容详情接口 | 请求头 X-Tap-Token 放触碰后的临时凭证，沿用原五分钟规则 |
 | 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
 | 用户账户及首次认领 | 短信验证建立独立用户会话。认领时在 JSON 中提交 `tap_token` 和交付认领码，见[用户账户及认领](#用户账户及认领) |
 
-所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第11.3节的精确上传入口仅接受multipart/form-data。除login外，还必须有有效Cookie和额外口令。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
+所有管理写请求（POST/PATCH/PUT/DELETE）都检查允许的Origin；默认只接受JSON，第11.3节的精确上传入口仅接受multipart/form-data。除密码登录及第2.4节通行密钥的 `login/options`、`login/finish` 外，还必须有有效Cookie和额外口令；通行密钥登记与撤销不属于登录例外。正式登录凭证只走 Cookie，不作为 Bearer 或 JSON 返回，不放浏览器本地存储。无效登录 401 unauthorized；防冒用口令错误 403 csrf_failed，网页来源不符 403 forbidden。精确检查方式见技术附录第 4 节。
 
 ### 0.4 当前能做到哪一步
 
@@ -223,7 +223,7 @@ ChipSummary保留ChipView全部字段，另有item_name（所属项目已有资�
 
 详情不接收查询参数，不包含ownership、密钥、计数或认证材料。批次PATCH要求唯一字段batch_no：null或去空白后空串清空，文字最多64字符；拒绝UID、项目、关联、状态或其他字段，沿用8192字节JSON限制。事务先锁管理员/会话重查，再锁目标芯片；批次、updated_at及chip.batch.update审计（仅批次from/to）一起提交，相同值不改时间/不新增审计，失败回滚。普通编辑不改变实卡或关联。错误沿用400/401/403/404/503。
 
-密钥生成只接受空对象，要求项目已确定、芯片已绑定且状态bound、物品非归档；不符合409 invalid_state。已有密钥、配置完成或读数记录不能覆盖，409 already_exists；传force是400 invalid_param。keys只接受confirm=true（不能用1代替），返回K0–K4的32位大写十六进制值；K1是对应版本全局密钥的加密副本，不逐卡生成。查看前保存操作记录，返回no-store禁止缓存；芯片或密钥不存在404 not_found。页面须提醒K1涉及该版本所有芯片的秘密。配置/密文与当前目标密钥不符503 service_unavailable，不返回秘密，不自动重算或覆盖。URL模板见技术规格第5.1节。
+普通绑定路径的密钥生成只接受空对象，要求项目已确定、芯片已绑定且状态bound、物品非归档；不符合409 invalid_state。已保存接续办理的候选芯片例外按第11节受控核验，仍不授予触碰资格。已有密钥、配置完成或读数记录不能覆盖，409 already_exists；传force是400 invalid_param。keys只接受confirm=true（不能用1代替），返回K0–K4的32位大写十六进制值；K1是对应版本全局密钥的加密副本，不逐卡生成。查看前保存操作记录，返回no-store禁止缓存；芯片或密钥不存在404 not_found。页面须提醒K1涉及该版本所有芯片的秘密。配置/密文与当前目标密钥不符503 service_unavailable，不返回秘密，不自动重算或覆盖。URL模板见技术规格第5.1节。
 
 confirm-provisioning请求例如：
 ```json
@@ -411,7 +411,7 @@ H5 同源提交 picc_data 和 cmac。服装响应中的 public_id 为独立 UUID
 
 public_id 为 UUIDv4。兼容期内旧数字地址仅在匹配原查看 Cookie 时可读取，响应把资格移到新路径且不延长原有效期。请求不接受查询参数、正文或 X-Tap-Token。仅核对对应物品路径的唯一bumbum_item_view Cookie及数据库view类型，不接受read/bind。来源/跨站规则见技术附录；同源Cookie请求，不向管理端或其他网站放开CORS。
 
-成功HTTP 200，返回下列白名单。project始终为fashion，profile只含name/description/material/care_instructions/image_urls；不返回所有权、尺码表、内部芯片信息或未维护扩展资料。verified_at是最近发放该view的真实验证时间，retrieved_at是本次服务器读取时间，不相互替代。
+成功HTTP 200，返回下列白名单。project始终为fashion，profile只含name/description/material/care_instructions/image_urls；不返回持有人身份、尺码表、内部芯片信息或未维护扩展资料。数字档案另返回issue_name、edition_number、issue_total、rights（kind/rule_version）和claim_state（claimed/unavailable/available/expired）；缺少数字档案时不补造这些字段。下例为旧档案最小响应。verified_at是最近发放该view的真实验证时间，retrieved_at是本次服务器读取时间，不相互替代。
 
 ```json
 {"status":"ok","data":{"project":"fashion","public_id":"a04d60cf-39ef-4c64-a588-cd0389d80b21","item_uid":"FASH-2026-000012","verified_at":"2026-10-27T02:23:00Z","retrieved_at":"2026-10-27T02:31:00Z","profile":{"name":"外套","description":null,"material":"棉","care_instructions":null,"image_urls":[]}}}
@@ -586,7 +586,7 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | `GET /api/public/items/{public_id}/claim-status` | 登录后核对本人已持有、他人已认领或待认领，用于未知结果恢复。 |
 | `GET /api/public/me/items`、`GET /api/public/me/items/{public_id}` | 读取本人当前持有列表与详情。详情返回脱敏账户摘要 `account` 和 `item`，关联图片走同样的归属检查。兼容期内旧数字详情地址须通过同一持有校验，响应只提供新标识。 |
 
-当前正式管理端使用此服务。复用管理Cookie/Origin/CSRF和禁缓存，任何写入先重查管理员与会话。没有原型会话导入、演示触碰、演示认领、默认持有人或模拟成功入口。旧认证、密钥、图片及用户触碰契约继续适用；数据库先升级006，工具默认只检查，缺失/部分结构时ready拒绝。
+当前正式管理端使用此服务。复用管理Cookie/Origin/CSRF和禁缓存，任何写入先重查管理员与会话。没有原型会话导入、演示触碰、演示认领、默认持有人或模拟成功入口。旧认证、密钥、图片及用户触碰契约继续适用；数据库按实际缺失结构执行对应006—011迁移，工具默认只检查；不能将006就绪等同全部新版结构就绪，缺失/部分结构时ready拒绝。
 
 ### 11.1 分页与详情
 
@@ -630,11 +630,11 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 | loseItem | item_id/whole_id/evidence；固定本次当代ID，挂失写入当代并同步停芯片、撤销资格；准备中的普通换新转为挂失换新，已准备的新整套保留 |
 | cancelLoss | item_id/whole_id/lost_at/evidence。重查当前代、当前挂失、配套芯片和未完结办理。详情 `chip_state_before_loss` 有值时恢复该状态，缺失时请求须明确选择 `chip_state` 为 `disabled` 或已核验时的 `bound`。返回 `id/cancelled_at`。撤销现有触碰和找回资格，保留审计与计数 |
 | prepare | item_id/kind/chip_id/evidence，spec 选填，转售另需内部 UUIDv7 recipient_id。kind 支持 periodic、loss、resale。检查真实持有人、已约定权益、年度用量、接收账户和芯片占用。保存原代与新代组合，返回 `id` 和 `work_id`，审计记录关联办理单。归属和授权在确认交付时切换。 |
-| complete | work_id/evidence/checked=true；重查原代及当前持有人，候选必须真实核验。一起结束旧代、退役旧卡、追加新代、必要转移持有人、保存历史并撤销旧短许可/持续查看。新代正常，不继承旧代挂失；身份/编号/首次售出保留，换新计次待核，转售不重置余额 |
+| complete | work_id/evidence/checked=true；重查原代及当前持有人，候选必须真实核验。一起结束旧代、退役旧卡、追加新代、必要转移持有人、保存历史并撤销旧短许可/持续查看。新代正常，不继承旧代挂失；身份/编号/首次售出保留，换新按确认生效时间的北京时间自然年计次，转售不重置余额 |
 | chipBatch/chipState | chip_id/batch_no；或chip_id/state/evidence，state仅disabled/restore；挂失、退役或候选不可普通恢复，芯片页无独立挂失 |
 | validationItem/validationChip | item_id或chip_id及enabled布尔值；标记不改变统计 |
 | deleteItem/deleteChip | item_id或chip_id；必须已标生产验证，此后不按启用/绑定/配置/持有人/触碰/历史设资格。只删除目标及对应触碰、办理和关联，另一侧、审计保留；事件清理后退出统计。内部ID不复用；旧单件图片文件不在此立即覆盖或清盘 |
-| legacyProfile | item_id/profile；仅缺发行的历史服装档案保留原资料/私有图片维护，复用原白名单/暂存保存机制；已引用共用款式时此入口拒绝 |
+| legacyProfile | item_id/profile；仅缺发行的历史服装档案保留文字资料维护；旧图片已退役，image_urls只能为空数组；已引用共用款式时此入口拒绝 |
 | receipt | payload仅原request_id；同一管理员读取已提交回执，未查到404，不因此断言原请求永远不会提交 |
 
 请求和payload摘要、业务结果与审计在同一事务提交。相同管理员、action、payload与request_id重试返回原结果；编号已用于其他请求则409。网络/503/坏响应时页面冻结写入并查询回执，仍须明确重试相同输入/编号，不自动重发，不允许改输入复用旧编号。普通4xx保留输入并由人修正。提交回执不含密钥或会话凭证。
