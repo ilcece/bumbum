@@ -48,7 +48,8 @@ def test_scan_challenge_then_save_then_query_from_authenticated_webpage(auth_app
     assert row["provisioned_at"] is None and row["registration_source"] == "nfc_cool"
     audit = query(auth_app, "SELECT * FROM admin_audit")[0]
     assert audit["admin_id"] == admin_account["id"]
-    assert json.loads(audit["detail"]) == {"project": None, "source": "nfc_cool"}
+    assert json.loads(audit["detail"]) == {"project": None, "source": "nfc_cool",
+                                         "object_code": row["chip_uid"], "outcome": "已完成"}
     assert client.get("/api/admin/chips", headers=headers).status_code == 401
     assert client.post("/api/admin/chips", headers={**headers, **ORIGIN}, json={"chip_uid": UID}).status_code == 401
     browser = auth_app.test_client()

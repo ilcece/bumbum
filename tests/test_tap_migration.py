@@ -127,6 +127,11 @@ def test_empty_upgrade_complete_backup_restore_and_idempotence(auth_app, admin_a
     backup = tmp_path/'私有备份'/ 'before.sql'
     assert migrate(old_taps, lambda: backup_database(command, container, backup))
     assert state(old_taps) == 'ready'
+    assert auth_app.test_client().get('/api/ready').status_code == 503
+    identity_sql = (ROOT/'db/migrations/015_h5_public_identity.sql').read_text(encoding='utf8')
+    scan_identity = next(sql for sql in identity_sql.split(';') if sql.strip().startswith('ALTER TABLE scan_log'))
+    with old_taps.cursor() as cursor:
+        cursor.execute(scan_identity)
     assert auth_app.test_client().get('/api/ready').status_code == 200
     assert not migrate(old_taps, lambda: pytest.fail('已升级不重复备份'))
     with old_taps.cursor() as cursor:

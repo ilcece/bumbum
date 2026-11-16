@@ -1,3 +1,4 @@
+import ReadFailure from "./ReadFailure";
 import { useEffect, useState } from "react";
 import { Alert, Button, List, Popconfirm, Space, Typography } from "antd";
 import { history } from "@umijs/max";
@@ -7,9 +8,22 @@ import { listPasskeys, passkeyMessage, revokePasskey, usePasskey } from "../pass
 export default function AdminPasskeys() {
   const [items, setItems] = useState<Awaited<ReturnType<typeof listPasskeys>>["items"]>([]);
   const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
-  const reload = () => listPasskeys().then(({ items }) => setItems(items));
-  useEffect(() => { void reload().catch((failure) => setError(passkeyMessage(failure))); }, []);
+  async function reload() {
+    setLoading(true);
+    setListError("");
+    try {
+      const result = await listPasskeys();
+      setItems(result.items);
+    } catch (failure) {
+      setListError(passkeyMessage(failure));
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => { void reload(); }, []);
 
   async function act(id?: number) {
     setBusy(true);
@@ -33,12 +47,14 @@ export default function AdminPasskeys() {
     <Typography.Paragraph>用现有方式登录后 10 分钟内登记或撤销。登记时在 Edge 的提示中选择 Windows Hello。原动态码登录可继续使用。</Typography.Paragraph>
     <Button type="primary" loading={busy} onClick={() => void act()}>登记通行密钥</Button>
     {error && <Alert type="error" title={error} />}
-    <List dataSource={items} locale={{ emptyText: "暂无通行密钥" }} renderItem={(item) => (
-      <List.Item actions={[<Popconfirm key="revoke" title="撤销后会退出当前账户的所有管理会话" okText="确认撤销" onConfirm={() => act(item.id)}>
+    {listError ? <ReadFailure title="通行密钥列表读取失败" error={listError} retry={() => void reload()} /> :
+    <List loading={loading} dataSource={items} locale={{ emptyText: "暂无通行密钥" }} renderItem={(item) => (
+      <List.Item actions={[<Popconfirm key="revoke" title="撤销后会退出当前账户的所有管理会话" okText="确认撤销"
+        okButtonProps={{ danger: true }} onConfirm={() => act(item.id)}>
         <Button danger type="link" disabled={busy}>撤销</Button>
       </Popconfirm>]}>
         <List.Item.Meta title={`登记于 ${time(item.created_at)}`} description={`最近使用 ${time(item.last_used_at)}`} />
       </List.Item>
-    )} />
+    )} />}
   </Space>;
 }

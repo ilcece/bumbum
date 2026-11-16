@@ -8,17 +8,41 @@ from tests.test_admin_auth import query
 pytestmark=[pytest.mark.auth_database,pytest.mark.browser]
 
 
-def test_audit_reads_in_business_order_and_expands_evidence(desktop):
+def test_audit_opens_details_without_expanding_table(desktop, tmp_path):
     _,_,item,_=setup(desktop)
-    api(desktop,'sale',{'item_id':item,'confirmed':True,'evidence':'已核对外部成交记录'})
+    evidence='已核对外部成交记录 '+('LONG-EVIDENCE-'*65)
+    api(desktop,'sale',{'item_id':item,'confirmed':True,'evidence':evidence})
     page=desktop.page
+    page.set_viewport_size({'width':1920,'height':1080})
     page.goto('http://localhost:5174/system?tab=audit',wait_until='networkidle')
-    audit=page.get_by_role('table')
+    audit=page.locator('.ant-pro-table').get_by_role('table')
     row=audit.get_by_role('row').filter(has_text='确认售出状态')
     expect(row).to_be_visible()
-    assert audit.get_by_role('columnheader').all_text_contents()[:5]==['时间','操作人','操作','对象','结果与依据']
-    row.get_by_text(re.compile('确认已售出，首次成交时间')).click()
-    expect(row.get_by_text('已核对外部成交记录',exact=True)).to_be_visible()
+    assert audit.get_by_role('columnheader').all_text_contents()==['时间','操作人','操作','对象','结果摘要','详情']
+    trigger=row.get_by_role('button',name=re.compile('查看详情'))
+    location=page.url
+    height=row.evaluate('(row) => row.offsetHeight')
+    trigger.click()
+    dialog=page.get_by_role('dialog',name='操作日志详情')
+    expect(dialog.get_by_text(evidence,exact=True)).to_be_visible()
+    expect(dialog.get_by_text('操作前',exact=True)).to_be_visible()
+    expect(dialog.get_by_text('操作后',exact=True)).to_be_visible()
+    expect(dialog.get_by_text('核对依据',exact=True)).to_have_css('white-space','nowrap')
+    assert row.evaluate('(row) => row.offsetHeight')==height
+    assert audit.evaluate('(table) => table.offsetWidth <= table.parentElement.clientWidth')
+    expect(dialog).not_to_have_class(re.compile(r'zoom-(?:appear|enter)'))
+    expect(dialog).to_have_css('opacity','1')
+    page.screenshot(path=str(tmp_path/'audit-detail-1920x1080.png'))
+    page.keyboard.press('Escape')
+    expect(dialog).to_be_hidden()
+    expect(trigger).to_be_focused()
+    assert page.url==location
+    combo=page.locator('.ant-pro-table-search').get_by_role('combobox')
+    combo.fill('查看交付认领码')
+    expect(page.get_by_text('查看交付认领码',exact=True)).to_be_visible()
+    page.goto(f'http://localhost:5174/items/{item}',wait_until='networkidle')
+    page.get_by_role('button',name=re.compile('查看详情 · 确认售出状态')).click()
+    expect(dialog.get_by_text(evidence,exact=True)).to_be_visible()
 
 
 def test_server_pagination_query_drawer_and_validation_cleanup(desktop,tmp_path):
@@ -54,7 +78,7 @@ def test_unknown_save_checks_receipt_without_duplicate_and_csrf_explicit_retry(d
 
 def test_unsaved_three_choices_and_expired_session_clears_management(desktop):
     setup(desktop);p=desktop.page;desktop.navigate('款式与发行');button(p,'维护资料');d=p.get_by_role('dialog',name='维护款式共用资料');d.get_by_label('款式名称',exact=True).fill('尚未保存')
-    p.get_by_role('link',name=re.compile('数字物品$')).evaluate('(el)=>el.click()');guard=p.get_by_role('dialog',name='有未保存修改',exact=True)
+    p.get_by_role('link',name=re.compile('芯片管理$')).evaluate('(el)=>el.click()');guard=p.get_by_role('dialog',name='有未保存修改',exact=True)
     button(guard,'继续编辑');expect(d.get_by_label('款式名称',exact=True)).to_have_value('尚未保存')
     p.route('**/api/admin/catalog/actions/style',lambda route:route.fulfill(status=401,json={'status':'error','code':'unauthorized','message':'合成过期'}))
     button(d,'保存共用资料');button(p.get_by_role('dialog',name='确认同步共用商品资料？',exact=True),'确认同步保存');expect(p.get_by_role('heading',name='管理员登录')).to_be_visible();assert not p.locator('.ant-pro-layout').count()

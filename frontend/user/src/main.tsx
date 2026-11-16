@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { ApiError, readView, verify, type ItemView, type Reading } from "./api";
+import { ApiError, isLegacyItemRef, isPublicId, readOwnedItem, readView, verify, type ItemView, type Reading } from "./api";
 import { ImageGallery } from "./ImageGallery";
+import { LostRecovery } from "./LostRecovery";
 import { ClaimPanel, MyItemsPage } from "./AccountPages";
 import { itemFacts } from "../../shared/itemPresentation";
+import { ArchiveDetails, ItemIdentity, ItemMetadata, PageHeader } from "./ArchivePresentation";
 import "./style.css";
 
 // 在加载任何外部图片之前移除触碰参数，只在当前内存中保留到本次请求结束。
-function entry(): { reading?: Reading; id?: number; invalid?: boolean } {
+function entry(): { reading?: Reading; id?: string; invalid?: boolean } {
   const url = new URL(window.location.href);
   if (url.search) {
     const keys = [...url.searchParams.keys()];
@@ -27,13 +29,18 @@ function entry(): { reading?: Reading; id?: number; invalid?: boolean } {
       return { invalid: true };
     return { reading: { picc_data: picc, cmac } };
   }
-  const match = /^\/tap\/items\/([1-9][0-9]*)\/?$/.exec(url.pathname);
-  if (match && Number.isSafeInteger(Number(match[1])))
-    return { id: Number(match[1]) };
+  const match = /^\/tap\/items\/([^/]+)\/?$/.exec(url.pathname);
+  if (match && (isPublicId(match[1]) || isLegacyItemRef(match[1])))
+    return { id: match[1] };
   return {};
 }
-const mine = /^\/mine(?:\/items\/([1-9][0-9]*))?\/?$/.exec(location.pathname);
+const mine = /^\/mine(?:\/items\/([^/]+))?\/?$/.exec(location.pathname);
+const openingRecovery = location.pathname === "/tap" && location.hash === "#recovery" && !location.search;
 const initial = mine ? {} : entry();
+try {
+  const savedClaim = sessionStorage.getItem("bumbum-claim-item");
+  if (savedClaim && isLegacyItemRef(savedClaim)) sessionStorage.removeItem("bumbum-claim-item");
+} catch { /* 隐私模式无需保存认领进度。 */ }
 const format = (value: string) =>
   new Intl.DateTimeFormat("zh-CN", {
     timeZone: "Asia/Shanghai",
@@ -52,9 +59,22 @@ function Help() {
     </details>
   );
 }
+
+async function holderView(item: ItemView, signal: AbortSignal) {
+  if (item.claim_state !== "claimed") return;
+  try {
+    return await readOwnedItem(item.public_id, signal);
+  } catch {
+    // 公共档案仍可显示，持有人资料必须由服务端确认权限。
+  }
+}
+
 function App() {
-  const [target, setTarget] = useState<number | null>(initial.id || null);
+  const [recovery, setRecovery] = useState(false);
+  const [target, setTarget] = useState<string | null>(initial.id || null);
   const [data, setData] = useState<ItemView | null>(null);
+  const [owned, setOwned] = useState<Awaited<ReturnType<typeof readOwnedItem>>>();
+  const [showLoader, setShowLoader] = useState(false);
   const [tapToken, setTapToken] = useState<string>();
   const latest = useRef<ItemView | null>(null);
   const [mode, setMode] = useState<
@@ -75,24 +95,41 @@ function App() {
   const [waiting, setWaiting] = useState(false);
   const [rateWaiting, setRateWaiting] = useState(false);
   useEffect(() => {
+    if (mode !== "loading" || recovery || owned) return;
+    const timer = setTimeout(() => setShowLoader(true), 180);
+    return () => clearTimeout(timer);
+  }, [mode, recovery, owned]);
+  useEffect(() => {
     if (!initial.reading) return;
     let alive = true;
     const controller = new AbortController();
     const reading = initial.reading;
     delete initial.reading;
     verify(reading, controller.signal)
-      .then((result) => {
+      .then(async (result) => {
         if (!alive) return;
+        if (result === "recovery") {
+          history.replaceState(null, "", "/tap#recovery");
+          setRecovery(true);
+          return;
+        }
         if (result === "unsupported") {
           setMode("unsupported");
           return;
         }
-        history.replaceState(null, "", `/tap/items/${result.item_id}`);
+        const holder = await holderView(result, controller.signal);
+        if (!alive) return;
+        if (holder) {
+          history.replaceState(null, "", `/mine/items/${result.public_id}`);
+          setOwned(holder);
+          return;
+        }
+        history.replaceState(null, "", `/tap/items/${result.public_id}`);
         latest.current = result;
         setData(result);
         setTapToken(result.tapToken);
         setMode("view");
-        setTarget(result.item_id);
+        setTarget(result.public_id);
       })
       .catch((reason) => {
         if (alive) {
@@ -106,7 +143,7 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    if (!target) return;
+    if (!target || owned) return;
     let alive = true,
       inflight = false,
       timer: ReturnType<typeof setTimeout> | undefined,
@@ -144,13 +181,26 @@ function App() {
       try {
         const result = await readView(target, controller.signal);
         if (!alive) return;
+        if (!latest.current) {
+          const holder = await holderView(result, controller.signal);
+          if (!alive) return;
+          if (holder) {
+            history.replaceState(null, "", `/mine/items/${result.public_id}`);
+            setOwned(holder);
+            return;
+          }
+        }
         latest.current = result;
         setData(result);
         setError(null);
         setMode("view");
         failures = 0;
         notBefore = 0;
-        schedule(60000);
+        if (target === result.public_id) schedule(60000);
+        else {
+          history.replaceState(null, "", `/tap/items/${result.public_id}`);
+          setTarget(result.public_id);
+        }
       } catch (reason) {
         if (!alive) return;
         const failure =
@@ -192,7 +242,7 @@ function App() {
     const offline = () => {
       clearTimeout(timer);
       setError(
-        new ApiError(0, "network_error", "网络已断开，当前显示上次内容。"),
+        new ApiError(0, "network_error", "网络已断开，请检查连接。"),
       );
     };
     retry.current = () => {
@@ -203,7 +253,7 @@ function App() {
     window.addEventListener("online", online);
     window.addEventListener("offline", offline);
     if (navigator.onLine === false) offline();
-    else if (latest.current?.item_id === target) schedule(60000);
+    else if (latest.current?.public_id === target) schedule(60000);
     else void load();
     return () => {
       alive = false;
@@ -215,12 +265,13 @@ function App() {
       window.removeEventListener("online", online);
       window.removeEventListener("offline", offline);
     };
-  }, [target]);
+  }, [target, owned]);
   const problem = error && (
     <div className="notice" role="alert">
       <strong>
         {data ? "资料更新失败，当前显示上次内容" : "暂时无法读取最新资料"}
       </strong>
+      {data && <p>上次更新于 {format(data.retrieved_at)}（北京时间）</p>}
       <p>{error.message}</p>
       {error.status === 429 && (
         <p>
@@ -251,33 +302,53 @@ function App() {
       )}
     </div>
   );
+  const rights = data && itemFacts(data).find(({ label }) => label === "数字权益")?.value;
+  if (owned) return <MyItemsPage itemId={owned.item.public_id} initial={owned} />;
+  if (recovery || openingRecovery) return <div className="app">
+    <PageHeader />
+    <main>{recovery ? <LostRecovery /> : <section className="recovery-panel"><h1>请重新碰一下这件物品</h1><p>打开新出现的提示，查看是否能联系失主。</p></section>}</main>
+  </div>;
+  if (mode === "view" && data) return <div className="app">
+    <ClaimPanel key={data.public_id} item={data} tapToken={tapToken} archive={(action) => <>
+      <PageHeader />
+      <main className="profile">
+        {problem}
+        <ImageGallery urls={data.profile.image_urls} name={data.profile.name} />
+        <ItemIdentity name={data.profile.name} item={data} />
+        {action}
+        <ItemMetadata item={data} />
+        <ArchiveDetails {...data.profile} />
+        {rights && <details className="tap-help">
+          <summary>物品权益</summary><p>这件物品支持{rights}。认领后可查看用量和办理方式。</p>
+        </details>}
+        <details className="tap-help">
+          <summary>识别记录</summary>
+          <p>上次识别 {format(data.verified_at)}<br />上次读取资料 {format(data.retrieved_at)}<br />时间均为北京时间。认领后，物品才会进入你的账户。</p>
+        </details>
+      </main>
+    </>} />
+  </div>;
   return (
     <div className="app">
-      <header className="brand">
-        <span className="brand-mark">b.</span>
-        <strong>BUMBUM</strong>
-        <a className="brand-caption" href="/mine">我的数字物品</a>
-      </header>
+      <PageHeader />
       <main>
         {mode === "entry" && (
           <section className="state-card">
-            <div className="state-icon">◎</div>
             <h1>请触碰物品上的芯片</h1>
-            <p>将手机靠近 NFC 标签，点击系统通知，即可验证芯片并查看资料。</p>
+            <p>将手机靠近物品上的感应位置，打开新出现的通知查看物品。</p>
             <Help />
           </section>
         )}
-        {mode === "loading" && !data && (
-          <section className="state-card" aria-live="polite">
-            {!error && <div className="loader" />}
+        {mode === "loading" && !data && (showLoader || error) && (
+          <section className={error ? "state-card" : "state-card loading-view"} aria-live="polite">
             <h1>
               {error
                 ? "资料暂未加载完成"
                 : target
                   ? "正在读取最新资料"
-                  : "正在验证芯片"}
+                  : "正在识别这件物品"}
             </h1>
-            {!error && <p>请稍候，无需再次点击。</p>}
+            {!error && <div className="loading-line" aria-hidden="true" />}
             {problem}
           </section>
         )}
@@ -306,54 +377,8 @@ function App() {
             <Help />
           </section>
         )}
-        {mode === "view" && data && (
-          <>
-            <section className="verification">
-              <span aria-hidden="true">✓</span>
-              <div>
-                <strong>芯片验证通过</strong>
-                <p>最近验证：{format(data.verified_at)}（北京时间）</p>
-              </div>
-            </section>
-            {problem}
-            <ImageGallery
-              urls={data.profile.image_urls}
-              name={data.profile.name}
-            />
-            <article className="profile">
-              <p className="eyebrow">服装档案</p>
-              <h1>{data.profile.name}</h1>
-              <p className="item-uid">物品编号 {data.item_uid}</p>
-              {itemFacts(data).map((fact) => (
-                <section className="profile-section" key={fact.label}><h2>{fact.label}</h2><p>{fact.value}</p></section>
-              ))}
-              <ClaimPanel key={data.item_id} item={data} tapToken={tapToken} />
-              {(
-                [
-                  ["材质", data.profile.material],
-                  ["介绍", data.profile.description],
-                  ["洗护说明", data.profile.care_instructions],
-                ] as const
-              ).map(
-                ([label, value]) =>
-                  value?.trim() && (
-                    <section className="profile-section" key={label}>
-                      <h2>{label}</h2>
-                      <p>{value}</p>
-                    </section>
-                  ),
-              )}
-              <div className="data-note">
-                <p>资料读取：{format(data.retrieved_at)}（北京时间）</p>
-                <p>页面前台自动更新，查询资料不会产生新的触碰记录。</p>
-              </div>
-              <Help />
-            </article>
-          </>
-        )}
       </main>
-      <footer>芯片验证反映本次读数结果，不代表访问者身份或所有权。</footer>
     </div>
   );
 }
-createRoot(document.getElementById("root")!).render(mine ? <MyItemsPage itemId={mine[1] ? Number(mine[1]) : undefined} /> : <App />);
+createRoot(document.getElementById("root")!).render(mine ? <MyItemsPage itemId={mine[1]} recordsPage={!mine[1] && location.search === "?tab=records"} /> : <App />);

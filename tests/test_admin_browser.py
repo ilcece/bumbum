@@ -23,7 +23,9 @@ def expect(locator):
 
 
 def button(page,name):
-    page.get_by_role('button',name=re.compile(r'^(?:loading )?'+r'\s*'.join(re.escape(x) for x in name)+'$')).click()
+    # Playwright serializes the name regex between slash delimiters.
+    pattern = r'\s*'.join(re.escape(char).replace('/', r'\/') for char in name)
+    page.get_by_role('button', name=re.compile(r'^(?:loading )?' + pattern + '$')).click()
 
 
 def test_login_restore_logout(desktop):
@@ -38,7 +40,7 @@ def test_chip_registration_duplicate_and_real_batch(desktop):
     for batch in ('新批次','不应覆盖'):
         button(p,'手工登记芯片');dialog=p.get_by_role('dialog',name='手工登记芯片')
         dialog.get_by_label('芯片编号 UID',exact=True).fill('04000000000071')
-        dialog.get_by_label('批次',exact=True).fill(batch);button(dialog,'登记并查看')
+        dialog.get_by_label('芯片批次',exact=True).fill(batch);button(dialog,'登记并查看')
         dialog.wait_for(state='hidden');expect(p.get_by_text('新批次',exact=True).first).to_be_visible()
         p.locator('.ant-drawer-close').click();p.get_by_role('dialog').wait_for(state='hidden')
     assert query(desktop.app,"SELECT COUNT(*) AS n FROM chip WHERE chip_uid='04:00:00:00:00:00:71'")[0]['n']==1
@@ -85,7 +87,7 @@ def test_keys_generate_view_confirm_and_clear(desktop):
     expect(d.get_by_label('第1条触碰链接',exact=True)).to_have_count(0)
     d.get_by_role('button',name=re.compile(r'^关\s*闭$')).last.click();d.wait_for(state='hidden')
     button(p,'查看密钥与配置');expect(p.get_by_role('dialog',name='密钥与配置')).to_be_visible()
-    desktop.navigate('工作台');expect(p.get_by_text('物品与芯片概况',exact=True)).to_be_visible()
+    desktop.navigate('工作台');expect(p.get_by_text('待办与可分配库存',exact=True)).to_be_visible()
 
 
 def test_candidate_key_query_preserves_preparation(desktop,monkeypatch):

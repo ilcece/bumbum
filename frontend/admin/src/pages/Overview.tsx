@@ -1,3 +1,4 @@
+import ReadFailure from "../components/ReadFailure";
 import React, { useState, useEffect } from "react";
 import {
   PageContainer,
@@ -8,7 +9,6 @@ import {
 } from "@ant-design/pro-components";
 import {
   Button,
-  Statistic,
   Row,
   Col,
   Tabs,
@@ -16,25 +16,21 @@ import {
   Tag,
   Typography,
   Tooltip,
-  Alert,
   Form,
 } from "antd";
 import {
-  ShoppingOutlined,
-  CheckCircleOutlined,
-  LinkOutlined,
-  ToolOutlined,
-  ArrowRightOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
 import { history, useLocation } from "@umijs/max";
 import {
-  list,
+  activityPath,
+  itemWorkflowNames,
   statistics,
   Row as CatalogRow,
   edition,
   time,
   read,
+  workbenchWorkflows,
 } from "../catalog";
 import {
   Copy as CopyValue,
@@ -42,8 +38,11 @@ import {
   RemoteSelect,
 } from "../components/CatalogUI";
 import UserIdentity from "../components/UserIdentity";
+import ItemActivity from "../components/ItemActivity";
+import MetricCard from "../components/MetricCard";
 export default function Overview() {
-  const q = new URLSearchParams(useLocation().search);
+  const location = useLocation();
+  const q = new URLSearchParams(location.search);
   const [filter, setFilter] = useState<Record<string, any>>({
     scope: q.get("scope") === "all" ? "all" : "sold",
     range: q.get("range") || "7d",
@@ -51,17 +50,19 @@ export default function Overview() {
     issue_id: q.get("issue_id") || undefined,
   });
   const [view, setView] = useState(q.get("view") || "touches"),
-    [page, setPage] = useState(1),
+    [detailFilter, setDetailFilter] = useState(q.get("detail_filter") || ""),
+    [page, setPage] = useState(Number(q.get("page") || 1)),
     [data, setData] = useState<CatalogRow>(),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
     [filterDirty, setFilterDirty] = useState(false),
     [applied, setApplied] = useState<Record<string, any>>({}),
-    [appliedNames, setAppliedNames] = useState<Record<string, string>>({});
+    [appliedNames, setAppliedNames] = useState<Record<string, string>>({}),
+    [asOf, setAsOf] = useState(q.get("as_of") || undefined);
   useEffect(() => {
     let live = true;
     setLoading(true);
-    statistics({ ...filter, page })
+    statistics({ ...filter, as_of: asOf, page, detail_filter: detailFilter || undefined })
       .then((result) => {
         if (live) {
           setData(result);
@@ -78,7 +79,7 @@ export default function Overview() {
     return () => {
       live = false;
     };
-  }, [filter, page]);
+  }, [filter, asOf, page, detailFilter]);
   useEffect(() => {
     let live = true;
     setAppliedNames({});
@@ -98,11 +99,29 @@ export default function Overview() {
     };
   }, [applied]);
   const go = (path: string) => history.push(path);
+  const from = "/overview" + location.search;
+  const tapDetails = (extra: Record<string, string | number> = {}) => go(activityPath(from, {
+    event: "tap", scope: data?.scope, range: data?.range, as_of: data?.as_of,
+    style_id: applied.style_id, issue_id: applied.issue_id, ...extra,
+  }));
   const saveQuery = (values: Record<string, any>) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(values))
       if (v != null && v !== "") q.set(k, String(v));
     history.replace("/overview?" + q);
+  };
+  const showTapItems = (value: string) => {
+    const cutoff = data?.as_of;
+    setAsOf(cutoff);
+    setDetailFilter(value);
+    setView("touches");
+    setPage(1);
+    saveQuery({ ...filter, as_of: cutoff, view: "touches", detail_filter: value || undefined });
+    document.getElementById("overview-details")?.scrollIntoView({ block: "start" });
+  };
+  const changePage = (next: number) => {
+    setPage(next);
+    saveQuery({ ...filter, as_of: asOf, view, detail_filter: detailFilter || undefined, page: next });
   };
   const s = {
     total: data?.total,
@@ -116,105 +135,28 @@ export default function Overview() {
     })),
   };
   const max = Math.max(1, ...s.daily.map((x: any) => x.count));
-  const inventory = [
-    {
-      title: "数字物品",
-      value: data?.inventory.items ?? "—",
-      url: "/items",
-      icon: <ShoppingOutlined aria-hidden />,
-      tone: "neutral",
-      note: "稳定数字身份档案",
-    },
-    {
-      title: "已启用",
-      value: data?.inventory.active_items ?? "—",
-      url: "/items?status=active",
-      icon: <CheckCircleOutlined aria-hidden />,
-      tone: "green",
-      note: "查看当前启用档案",
-    },
-    {
-      title: "待绑定芯片",
-      value: data?.inventory.pending_chips ?? "—",
-      url: "/chips?status=pending",
-      icon: <LinkOutlined aria-hidden />,
-      tone: "blue",
-      note: "查看待关联芯片",
-    },
-    {
-      title: "待配置芯片",
-      value: data?.inventory.unconfigured_chips ?? "—",
-      url: "/chips?configured=no",
-      icon: <ToolOutlined aria-hidden />,
-      tone: "amber",
-      note: "查看待配置芯片",
-    },
-  ];
+  const touchDetailAction = (key: string, label: string) =>
+    data && !loading && !error ? { label, run: () => showTapItems(key) } : undefined;
   return (
     <PageContainer header={{ title: false, breadcrumb: {} }}>
       <div className="page-stack">
         {error && (
-          <Alert
-            type="error"
-            title={error}
-            action={
-              <Button onClick={() => setFilter({ ...filter })}>重试</Button>
-            }
-          />
+          <ReadFailure title="工作台统计读取失败" error={error} retry={() => setFilter({ ...filter })} />
         )}
         <ProCard
           size="small"
           headerBordered
           variant="outlined"
-          title="物品与芯片概况"
-          extra={<Space><Tag color="blue">点击卡片带条件查看</Tag><Button onClick={() => go("/overview/activity")}>用户动态</Button></Space>}
+          title="待办与可分配库存"
         >
-          <Row gutter={[16, 16]}>
-            {inventory.map((card) => (
-              <Col xs={12} lg={6} key={card.title}>
-                <ProCard
-                  size="small"
-                  variant="outlined"
-                  className={"inventory-card inventory-" + card.tone}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={card.title + " " + card.value + "，查看档案"}
-                  onClick={() => go(card.url)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      go(card.url);
-                    }
-                  }}
-                >
-                  <Statistic
-                    title={
-                      <Space size={7}>
-                        {card.icon}
-                        <span>{card.title}</span>
-                      </Space>
-                    }
-                    value={card.value}
-                  />
-                  <div className="inventory-caption">
-                    <span>{card.note}</span>
-                    <ArrowRightOutlined aria-hidden />
-                  </div>
-                </ProCard>
+          <Row gutter={[12, 12]}>
+            {workbenchWorkflows.map((stage) => (
+              <Col flex="1 1 150px" key={stage}>
+                <MetricCard title={itemWorkflowNames[stage]} value={data?.workflow_counts[stage]} unit="件"
+                  action={data && !error ? { label: "查看物品", run: () => go("/items?workflow=" + stage) } : undefined} />
               </Col>
             ))}
           </Row>
-          <div className="workbench-shortcuts">
-            <Typography.Text strong>快捷操作</Typography.Text>
-            <Button type="primary" onClick={() => go("/catalog/style/new")}>
-              新建款式
-            </Button>
-            <Button onClick={() => go("/catalog/issue/new")}>
-              新建发行约定
-            </Button>
-            <Button onClick={() => go("/items?create=1")}>登记数字物品</Button>
-            <Button onClick={() => go("/chips")}>芯片登记与配置</Button>
-          </div>
         </ProCard>
         <ProCard
           size="small"
@@ -232,6 +174,8 @@ export default function Overview() {
                 layout="vertical"
                 onFinish={async (v: any) => {
                   setPage(1);
+                  setAsOf(undefined);
+                  setDetailFilter("");
                   setFilter(v);
                   setFilterDirty(false);
                   saveQuery({ ...v, view });
@@ -302,51 +246,24 @@ export default function Overview() {
                 </span>
               </div>
             </div>
-            <Row gutter={[16, 16]}>
-              {[
-                ["有效触碰次数", s.total, "次"],
-                ["被触碰物品数", s.touched, "件"],
-              ].map(([title, value, unit]) => (
-                <Col xs={24} sm={12} key={title}>
-                  <ProCard
-                    size="small"
-                    variant="outlined"
-                    className="metric-card metric-primary"
-                  >
-                    <Statistic
-                      title={title}
-                      value={value ?? "—"}
-                      suffix={unit}
-                    />
-                    <div className="cell-secondary">所选口径与时间范围内</div>
-                  </ProCard>
-                </Col>
-              ))}
-            </Row>
+            <Typography.Text strong>使用覆盖与频次</Typography.Text>
             <Row gutter={[12, 12]}>
-              {[
-                ["已确认售出物品", s.sold, "件"],
-                ["已有持有人物品", s.claimed, "件"],
-                ["当前持有人", s.owners, "人"],
-              ].map(([title, value, unit]) => (
-                <Col flex="1 1 160px" key={title}>
-                  <ProCard
-                    size="small"
-                    variant="outlined"
-                    className="metric-card metric-secondary"
-                  >
-                    <Statistic
-                      title={title}
-                      value={value ?? "—"}
-                      suffix={unit}
-                    />
-                    <div className="cell-secondary">
-                      所选款式/发行的当前关系，不按触碰时间折算
-                    </div>
-                  </ProCard>
-                </Col>
-              ))}
+              <Col flex="1 1 180px">
+                <MetricCard title="有效触碰次数" value={s.total} unit="次" note="所选口径与时间范围内"
+                  action={data && !loading && !error ? { label: "查看触碰明细", run: () => tapDetails() } : undefined} />
+              </Col>
+              <Col flex="1 1 180px">
+                <MetricCard title="被触碰物品数" value={s.touched} unit="件" note="所选口径与时间范围内"
+                  action={touchDetailAction("touched", "查看被触碰物品")} />
+              </Col>
+              <Col flex="1 1 180px">
+                <MetricCard title="重复触碰物品" value={data?.touch_item_counts.repeat} unit="件" note="所选范围内至少触碰两次"
+                  action={touchDetailAction("repeat", "查看触碰至少两次的物品")} />
+              </Col>
             </Row>
+            <Typography.Text type="secondary">
+              每件被触碰物品平均 {s.touched ? (s.total / s.touched).toFixed(1) + " 次" : "—"}
+            </Typography.Text>
             <ProCard
               size="small"
               headerBordered
@@ -371,6 +288,14 @@ export default function Overview() {
                     >
                       <div
                         className="trend-day"
+                        role="button"
+                        onClick={() => tapDetails({ date_from: x.date, date_to: x.date })}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            tapDetails({ date_from: x.date, date_to: x.date });
+                          }
+                        }}
                         tabIndex={0}
                         aria-label={x.date + "，有效触碰" + x.count + "次"}
                       >
@@ -394,6 +319,39 @@ export default function Overview() {
                 </Typography.Text>
               )}
             </ProCard>
+            {data?.scope === "sold" && <>
+              <Typography.Text strong>售出后跟进</Typography.Text>
+              <Row gutter={[12, 12]}>
+                <Col xs={24} sm={12}>
+                  <MetricCard title="所选时段售出后零触碰" value={data.touch_item_counts.zero} unit="件"
+                    action={touchDetailAction("zero", "查看零触碰物品")} />
+                </Col>
+                <Col xs={24} sm={12}>
+                  <MetricCard title="成交时间待核对" value={data.touch_item_counts.missing_sale} unit="件"
+                    action={touchDetailAction("missing_sale", "查看成交时间缺失物品")} />
+                </Col>
+              </Row>
+            </>}
+          </div>
+        </ProCard>
+        <ProCard title="售出与持有" headerBordered>
+          <div className="page-stack">
+            <Row gutter={[12, 12]}>
+              {[
+                { title: "已确认售出物品", value: s.sold, unit: "件" },
+                { title: "已有持有人物品", value: s.claimed, unit: "件" },
+                { title: "当前持有人", value: s.owners, unit: "人" },
+              ].map((metric) => (
+                <Col flex="1 1 160px" key={metric.title}>
+                  <MetricCard {...metric} note="按所选款式与发行的当前关系统计" />
+                </Col>
+              ))}
+            </Row>
+            <Typography.Text type="secondary">时间范围只应用于触碰统计。</Typography.Text>
+          </div>
+        </ProCard>
+        <div id="overview-details">
+          <ProCard title="统计明细" headerBordered>
             <Tabs
               className="section-tabs"
               size="small"
@@ -401,7 +359,7 @@ export default function Overview() {
               onChange={(v) => {
                 setView(v);
                 setPage(1);
-                saveQuery({ ...filter, view: v });
+                saveQuery({ ...filter, as_of: asOf, view: v, detail_filter: detailFilter || undefined });
               }}
               items={[
                 { key: "touches", label: "物品触碰明细" },
@@ -409,6 +367,15 @@ export default function Overview() {
               ]}
             />
             {view === "touches" ? (
+              <div>
+              <Space wrap>
+                {[
+                  ["", "全部物品"], ["touched", "有有效触碰"], ["repeat", "重复触碰"],
+                  ...(data?.scope === "sold" ? [["zero", "所选时段售出后零触碰"], ["missing_sale", "成交时间待核对"]] : []),
+                ].map(([key, label]) => <Button key={key}
+                  disabled={!data || loading || !!error} type={detailFilter === key ? "primary" : "default"}
+                  onClick={() => showTapItems(key)}>{label}</Button>)}
+              </Space>
               <ProTable
                 rowKey="id"
                 headerTitle="按稳定数字身份汇总，历史芯片一并累计"
@@ -424,7 +391,7 @@ export default function Overview() {
                   showSizeChanger: false,
                   current: data?.details.page || page,
                   total: data?.details.total || 0,
-                  onChange: setPage,
+                  onChange: changePage,
                 }}
                 columns={[
                   {
@@ -432,7 +399,7 @@ export default function Overview() {
                     render: (_, r) => (
                       <CopyValue
                         value={r.item_uid}
-                        onClick={() => go("/items/" + r.id)}
+                        onClick={() => go("/items/" + r.id + "?from=" + encodeURIComponent(from))}
                       />
                     ),
                   },
@@ -460,10 +427,11 @@ export default function Overview() {
                         <StatusTag value="暂无持有人" />
                       ),
                   },
-                  { title: "有效触碰", dataIndex: "tap_count" },
+                  { title: "有效触碰", dataIndex: "tap_count", render: (_, r) => <Button type="link" onClick={() => tapDetails({ item_id: r.id })}>{r.tap_count}</Button> },
                   { title: "最近触碰", render: (_, r) => time(r.last_tap) },
                 ]}
               />
+              </div>
             ) : (
               <ProTable
                 rowKey="id"
@@ -480,7 +448,7 @@ export default function Overview() {
                   showSizeChanger: false,
                   current: data?.holders.page || page,
                   total: data?.holders.total || 0,
-                  onChange: setPage,
+                  onChange: changePage,
                 }}
                 columns={[
                   {
@@ -497,9 +465,12 @@ export default function Overview() {
               />
             )}
             <Typography.Paragraph type="secondary">
-              持有指标表示当前关系，时间范围仅筛选触碰。首次认领服务尚未开放；验收样本由设置中的测试数据开关统一控制。匿名触碰不计算独立用户或活跃用户，不把旧事件归给当前持有人。
+              重复触碰按同一数字物品计算。验收样本由测试数据开关控制。匿名触碰按事件记录。
             </Typography.Paragraph>
-          </div>
+          </ProCard>
+        </div>
+        <ProCard title="最近用户动态" headerBordered extra={<Button onClick={() => go(activityPath(from, {}))}>查看全部</Button>}>
+          <ItemActivity />
         </ProCard>
       </div>
     </PageContainer>

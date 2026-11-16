@@ -1,3 +1,4 @@
+import ReadFailure from "./ReadFailure";
 import React, { useEffect, useRef, useState } from "react";
 import {
   App,
@@ -123,7 +124,7 @@ export function Gallery({
     return (
       <div
         className={
-          compact ? "product-thumb placeholder-thumb" : "gallery-empty"
+          compact ? "product-image-frame product-thumb placeholder-thumb" : "gallery-empty"
         }
       >
         <Empty
@@ -135,11 +136,10 @@ export function Gallery({
   if (compact)
     return (
       <Image
-        className="product-thumb"
+        className="product-image-frame product-thumb"
         src={urls[0]}
         alt="商品款图"
         width={56}
-        height={56}
       />
     );
   const current = Math.min(active, urls.length - 1);
@@ -149,7 +149,7 @@ export function Gallery({
         <Image
           src={urls[current]}
           alt={`商品图片 ${current + 1}`}
-          className="gallery-main"
+          className="product-image-frame gallery-main"
         />
       </Image.PreviewGroup>
       <div className="gallery-thumbnails" aria-label="商品图片切换">
@@ -157,7 +157,7 @@ export function Gallery({
           <button
             key={n}
             type="button"
-            className={current === n ? "selected" : ""}
+            className={current === n ? "product-image-frame selected" : "product-image-frame"}
             aria-label={`查看商品图片 ${n + 1}`}
             aria-pressed={current === n}
             onClick={() => setActive(n)}
@@ -199,6 +199,8 @@ export function RemoteSelect({
   value,
   onChange,
   placeholder,
+  optionLabel,
+  emptyState,
 }: {
   id?: string;
   resource: string;
@@ -206,12 +208,16 @@ export function RemoteSelect({
   value?: number | string;
   onChange?: (v: number | string) => void;
   placeholder?: string;
+  optionLabel?: (row: Row) => string;
+  emptyState?: React.ReactNode;
 }) {
   const [options, setOptions] = useState<Row[]>([]),
     [page, setPage] = useState(1),
     [q, setQ] = useState(""),
+    [refresh, setRefresh] = useState(0),
     [total, setTotal] = useState(0),
     [error, setError] = useState(""),
+    [listResult, setListResult] = useState<{ key: string; total?: number; error?: string }>(),
     seq = useRef(0);
   const [selectedOption, setSelectedOption] = useState<Row>();
   useEffect(() => {
@@ -230,6 +236,13 @@ export function RemoteSelect({
     };
   }, [resource, value]);
   const key = JSON.stringify(params);
+  const requestKey = JSON.stringify([resource, key, page, q, refresh]);
+  const result = listResult?.key === requestKey ? listResult : undefined;
+  const hasEmptyState = emptyState !== undefined;
+  // 搜索和切换关联条件时只显示当前查询的候选。翻页期间保留已经加载的前页。
+  const candidates = page === 1 && (!result || result.error) ? [] : options;
+  const visibleOptions = selectedOption && !candidates.some((r) => r.id === selectedOption.id)
+    ? [selectedOption, ...candidates] : candidates;
   useEffect(() => {
     const n = ++seq.current;
     list(resource, {
@@ -249,32 +262,48 @@ export function RemoteSelect({
                 ],
           );
           setTotal(p.total);
+          setListResult({ key: requestKey, total: p.total });
           setError("");
         }
       })
       .catch((e) => {
-        if (n === seq.current) setError(e.message);
+        if (n === seq.current) setListResult({ key: requestKey, error: e.message });
       });
-  }, [resource, key, page, q]);
+    return () => { ++seq.current; };
+  }, [requestKey]);
   return (
     <>
       <Select
         id={id}
-        showSearch
-        filterOption={false}
+        showSearch={{
+          filterOption: false,
+          searchValue: q,
+          onSearch: (keyword) => {
+            setQ(keyword);
+            setPage(1);
+          },
+        }}
+        loading={!result}
+        disabled={hasEmptyState && !q && (result?.total === 0 || !!result?.error)}
+        notFoundContent={!result ? <Spin size="small" /> : result.error ? "读取失败" :
+          q && hasEmptyState ? <Space wrap>
+            <Typography.Text type="secondary">没有符合搜索词的记录</Typography.Text>
+            <Button size="small" onMouseDown={(event) => event.preventDefault()}
+              onClick={() => { setQ(""); setPage(1); }}>清除搜索</Button>
+          </Space> : q ? "没有符合搜索词的记录" : undefined}
         value={value}
         onChange={onChange}
-        onSearch={(v) => {
-          setQ(v);
-          setPage(1);
+        onOpenChange={(open) => {
+          if (open) {
+            if (!hasEmptyState) setQ("");
+            setPage(1);
+            setRefresh((n) => n + 1);
+          }
         }}
-        options={(selectedOption &&
-        !options.some((r) => r.id === selectedOption.id)
-          ? [selectedOption, ...options]
-          : options
-        ).map((r) => ({
+        options={visibleOptions.map((r) => ({
           value: r.id,
           label:
+            optionLabel?.(r) ||
             (r.physical_uid && `${r.physical_uid} · ${r.spec || "规格不适用"}`) ||
             r.chip_uid ||
             r.item_uid ||
@@ -288,7 +317,7 @@ export function RemoteSelect({
           const el = e.currentTarget;
           if (
             el.scrollTop + el.clientHeight >= el.scrollHeight - 8 &&
-            options.length < total
+            !!result && !result.error && options.length < total
           )
             setPage((p) => p + 1);
         }}
@@ -296,6 +325,9 @@ export function RemoteSelect({
         style={{ minWidth: 200, width: "100%" }}
       />
       {error && <Typography.Text type="danger">{error}</Typography.Text>}
+      {result?.error && <ReadFailure title={hasEmptyState ? "库存读取失败" : "候选读取失败"}
+        error={result.error} retry={() => setRefresh((n) => n + 1)} />}
+      {hasEmptyState && !q && result?.total === 0 && emptyState}
     </>
   );
 }
@@ -351,11 +383,7 @@ export function Load({
   children: React.ReactNode;
 }) {
   return error ? (
-    <Alert
-      type="error"
-      title={error}
-      action={<Button onClick={retry}>重试读取</Button>}
-    />
+    <ReadFailure error={error} retry={retry} />
   ) : loading ? (
     <Spin description="正在读取真实数据">
       <div style={{ height: 100 }} />
@@ -383,6 +411,7 @@ export function ActionForm({
   beforeSubmit,
   onDirtyChange,
   submitDisabled = false,
+  formInstance,
 }: {
   title: string;
   action: string;
@@ -402,6 +431,7 @@ export function ActionForm({
   beforeSubmit?: (values: Record<string, any>) => Promise<boolean>;
   onDirtyChange?: (dirty: boolean) => void;
   submitDisabled?: boolean;
+  formInstance?: ReturnType<typeof Form.useForm>[0];
 }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -420,7 +450,10 @@ export function ActionForm({
     "register",
     "legacyProfile",
     "chipBatch",
+    "createOrder",
+    "createPhysicalItem",
   ].includes(action);
+  const destructive = ["deleteItem", "deleteChip", "deleteIssue", "clearTestBatch"].includes(action);
   const submit = async (v: Record<string, any>) => {
     setBusy(true);
     setError("");
@@ -473,35 +506,43 @@ export function ActionForm({
         content: "不会代为提交本次操作。已提交的结果不会因离开而撤销。",
         okText: "放弃输入并离开",
         cancelText: "返回核对",
+        focusable: { autoFocusButton: "cancel" },
         onOk: continueLeaving,
       });
       return;
     }
+    let saving = false;
     const prompt = modal.confirm({
       title: "有未保存修改",
+      content: "可以继续编辑、放弃本次输入，或保存后离开。",
       okText: "保存后继续",
       cancelText: "继续编辑",
-      content: (
-        <Button
-          danger
-          onClick={() => {
+      focusable: { autoFocusButton: "cancel" },
+      okButtonProps: { disabled: submitDisabled },
+      footer: (_, { CancelBtn, OkBtn }) => (
+        <Space wrap>
+          <CancelBtn />
+          <Button danger onClick={() => {
+            if (saving) return;
             prompt.destroy();
             continueLeaving();
-          }}
-        >
-          放弃并继续
-        </Button>
+          }}>放弃并离开</Button>
+          <OkBtn />
+        </Space>
       ),
       onOk: async () => {
-        if (await form.current?.validateFields().then(submit))
-          continueLeaving();
+        saving = true;
+        prompt.update({ cancelButtonProps: { disabled: true }, keyboard: false });
+        const values = await (formInstance ?? form.current)?.validateFields().catch(() => undefined);
+        // 校验失败或服务报错时，关闭离开提示，留在原表单查看错误。
+        if (values && await submit(values)) continueLeaving();
       },
     });
   };
   const close = () => leave(onClose);
   useEffect(() => {
     const unload = (e: BeforeUnloadEvent) => {
-      if (!sessionIsExpired() && (dirty || busy || uncertain)) {
+      if (!success.current && !sessionIsExpired() && (dirty || busy || uncertain)) {
         e.preventDefault();
         e.returnValue = "";
       }
@@ -538,8 +579,10 @@ export function ActionForm({
       title={page ? undefined : title}
       width={width}
       formRef={form}
+      form={formInstance}
       className={className}
       initialValues={initial}
+      scrollToFirstError={{ focus: true, block: "nearest" }}
       onValuesChange={() => {
         success.current = false;
         setDirty(true);
@@ -563,6 +606,7 @@ export function ActionForm({
               submitButtonProps: {
                 disabled: uncertain || submitDisabled,
                 loading: busy,
+                danger: destructive,
               },
               resetButtonProps: { style: { display: "none" } },
               render: (_: unknown, dom: React.ReactNode[]) => {
@@ -584,7 +628,7 @@ export function ActionForm({
                 ) : (
                   controls
                 );
-                return page && footerNote ? (
+                return page ? (
                   <FooterToolbar>{footer}</FooterToolbar>
                 ) : (
                   footer
@@ -686,7 +730,7 @@ const fields: Record<string, string[]> = {
     "counting_rule",
     "description",
   ],
-  confirmIssue: ["issue_id"],
+  confirmIssue: ["issue_id", "evidence"],
   deleteIssue: ["issue_id"],
   seal: ["issue_id", "total", "evidence"],
   clearTestBatch: ["batch_id", "confirmed"],
@@ -700,11 +744,19 @@ const fields: Record<string, string[]> = {
   bind: ["item_id", "chip_id", "spec"],
   createPhysicalItem: ["style_id", "physical_uid", "spec", "batch_no", "supplier_serial"],
   installAssembly: ["item_id", "physical_item_id", "chip_id", "installed"],
+  createOrder: ["channel", "external_order_no", "units", "test_batch_id"],
+  matchOrderUnit: ["order_unit_id", "style_id", "spec"],
+  orderPhysical: ["order_unit_id", "physical_item_id", "physical"],
+  allocateOrderUnit: ["order_unit_id", "item_id"],
+  releaseOrderUnit: ["order_unit_id", "evidence"],
+  assembleOrderItem: ["order_unit_id", "issue_id", "item_uid", "edition_number", "physical_item_id", "chip_id", "installed", "is_validation"],
+  orderSale: ["order_unit_id", "item_id", "first_sold_at"],
   undoInstall: ["item_id", "whole_id", "evidence", "confirmed"],
   sale: ["item_id", "confirmed", "evidence", "first_sold_at"],
   saleBatch: ["item_ids", "confirmed", "evidence", "first_sold_at"],
   toggleItem: ["item_id", "status"],
   loseItem: ["item_id", "whole_id", "evidence"],
+  cancelLoss: ["item_id", "whole_id", "lost_at", "evidence", "chip_state"],
   linkIssue: ["item_id", "issue_id", "edition_number", "evidence"],
   prepare: ["item_id", "kind", "physical_item_id", "chip_id", "installed", "evidence", "recipient_id", "seller_confirmation", "recipient_confirmation", "identity_review_required", "identity_verification_reference"],
   complete: ["work_id", "evidence", "checked"],
@@ -848,7 +900,7 @@ export function InlineCommand({
 export function returnPath(fallback: string) {
   const value = new URLSearchParams(window.location.search).get("from");
   return value &&
-    /^\/(?:items|chips|overview|catalog(?:\/(?:style|issue))?)(\/[1-9][0-9]*)?(\?[^#]*)?$/.test(
+    /^\/(?:items|physical-items|orders|chips|overview(?:\/activity)?|system|catalog(?:\/(?:style|issue))?)(\/[1-9][0-9]*)?(\?[^#]*)?$/.test(
       value,
     )
     ? value

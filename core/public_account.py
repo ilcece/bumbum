@@ -19,6 +19,8 @@ from core.admin_auth import AuthRequestError, request_json, token_hash
 from core.aliyun_sms import ALIYUN_SMS_SETTINGS, MAINLAND_PHONE, send_aliyun_sms, valid_settings
 from core.auth_settings import client_ip, fingerprint, iso_time, secret_key, utc_now
 from core.db import get_database
+from core.holder_lifecycle import active_contact, consent_hash, contact_enabled, item_history, lifecycle_view, notice_token, records
+from core.item_public_id import legacy_holder_link_allowed, resolve_item_id
 from core.tap_grants import public_settings
 
 
@@ -26,6 +28,10 @@ blueprint = Blueprint('public_account', __name__, url_prefix='/api/public')
 COOKIE = 'bumbum_user'
 COOKIE_PATH = '/api/public'
 SESSION_SECONDS = 7 * 24 * 3600
+ALIYUN_SMS_CHANNELS = {
+    'aliyun': ('test', 'SMS_ALIYUN_TEST_PHONE'),
+    'aliyun_pilot': ('production', 'SMS_ALIYUN_PILOT_PHONE'),
+}
 
 
 def fail(status, code, message):
@@ -102,11 +108,13 @@ def send_gateway_code(phone, code):
 def sms_delivery(phone):
     config = current_app.config
     provider = config['SMS_PROVIDER']
-    if provider == 'aliyun':
-        if config['HANGZHOU_SLOT'] != 'test' or not valid_settings(config):
+    if provider in ALIYUN_SMS_CHANNELS:
+        slot, recipient_setting = ALIYUN_SMS_CHANNELS[provider]
+        if config['HANGZHOU_SLOT'] != slot or not valid_settings(config, recipient_setting=recipient_setting):
             fail(503, 'sms_unavailable', '短信服务暂未就绪。')
-        if phone != config['SMS_ALIYUN_TEST_PHONE']:
-            fail(403, 'sms_recipient_not_allowed', '该手机号未获本次测试授权。')
+        if phone != config[recipient_setting]:
+            fail(403, 'sms_recipient_not_allowed', '该手机号未获本次验收授权。')
+        secret_key('SMS_CODE_HASH_KEY')
         return partial(send_aliyun_sms, config, phone)
     if provider != 'gateway':
         fail(503, 'sms_unavailable', '短信服务暂未就绪。')
@@ -217,11 +225,36 @@ def item_metadata(c,item_id,owner_bound=False):
     return data
 
 
+def issued_claim_value(item_id, code_id, issued_at):
+    # 使用独立用途的 HMAC，绑定物品、发放记录和发放时间。
+    return code_digest('claim-issued-v1', item_id, f'{code_id}|{issued_at.isoformat(timespec="microseconds")}')[:8].hex().upper()
+
+
 def record_claim_code(c, item_id, admin_id, reference):
-    code=secrets.token_hex(8).upper()
-    now=utc_now()
-    c.execute('INSERT INTO item_claim_code(item_id,code_hash,issued_by,delivery_reference,issued_at,expires_at) VALUES (%s,%s,%s,%s,%s,%s)',(item_id,code_digest('claim',item_id,code),admin_id,reference,now,now+timedelta(days=30)))
-    return {'id':item_id,'claim_code_id':c.lastrowid,'claim_code':code,'expires_at':iso_time(now+timedelta(days=30))}
+    now = utc_now()
+    expires_at = now + timedelta(days=30)
+    # 先取得发放记录编号，再在同一事务写入正式校验摘要。
+    c.execute("""INSERT INTO item_claim_code(item_id,code_hash,issued_by,delivery_reference,issued_at,expires_at)
+                 VALUES (%s,%s,%s,%s,%s,%s)""", (item_id, bytes(32), admin_id, reference, now, expires_at))
+    code_id = c.lastrowid
+    code = issued_claim_value(item_id, code_id, now)
+    c.execute('UPDATE item_claim_code SET code_hash=%s WHERE id=%s', (code_digest('claim', item_id, code), code_id))
+    return {'id': item_id, 'claim_code_id': code_id, 'claim_code': code, 'expires_at': iso_time(expires_at)}
+
+
+def claim_code_for_admin(c, item_id, code_id):
+    record = row(c, """SELECT id,code_hash,issued_at,expires_at FROM item_claim_code
+                       WHERE open_item_id=%s FOR SHARE""", (item_id,))
+    if not record or record['id'] != code_id:
+        fail(409, 'claim_code_unavailable', '这条认领码已核销、撤销或补发，请刷新状态。')
+    if record['expires_at'] <= utc_now():
+        fail(409, 'claim_code_expired', '认领码已过期，请核对交付后补发。')
+    if not claimable_item(c, item_id) or row(c, 'SELECT id FROM ownership WHERE active_item_id=%s FOR SHARE', (item_id,)):
+        fail(409, 'claim_code_unavailable', '物品当前不可认领，请先核对物品与持有状态。')
+    code = issued_claim_value(item_id, code_id, record['issued_at'])
+    if not hmac.compare_digest(record['code_hash'], code_digest('claim', item_id, code)):
+        fail(409, 'claim_code_not_recoverable', '这条认领码无法查看原码。若需重新交付，请从物品详情核对后补发。')
+    return {'claim_code': code, 'expires_at': iso_time(record['expires_at'])}
 
 
 def claimable_item(c, item_id):
@@ -245,17 +278,20 @@ def issue_claim_code(c, item_id, admin_id, reference, *, reissue=False):
     return record_claim_code(c,item_id,admin_id,reference)
 
 
-@blueprint.get('/items/<int:item_id>/claim-status')
-def claim_status(item_id):
+@blueprint.get('/items/<ref>/claim-status')
+def claim_status(ref):
     with transaction() as c:
         user,_=current_user(c)
+        item_id = resolve_item_id(c, ref)
+        if item_id is None:
+            fail(404,'not_found','物品不存在。')
         owner=row(c,'SELECT user_id FROM ownership WHERE active_item_id=%s',(item_id,))
         state='mine' if owner and owner['user_id']==user['uid'] else 'claimed' if owner else 'pending'
     return ok(state=state)
 
 
-@blueprint.post('/items/<int:item_id>/claim')
-def claim(item_id):
+@blueprint.post('/items/<ref>/claim')
+def claim(ref):
     payload=request_json({'tap_token','claim_code'},max_bytes=2048)
     code=payload['claim_code']
     if not isinstance(code,str) or len(code)>24:
@@ -268,12 +304,13 @@ def claim(item_id):
         user,_=current_user(c)
     limited('claim-user',user['uid'],8)
     with transaction() as c:
+        item_id = resolve_item_id(c, ref)
         if not row(c,'SELECT id FROM item WHERE id=%s FOR UPDATE',(item_id,)):
             fail(404,'not_found','物品不存在。')
         user,_=current_user(c,write=True)
         owner=row(c,'SELECT user_id FROM ownership WHERE active_item_id=%s FOR UPDATE',(item_id,))
         if owner:
-            if owner['user_id']==user['uid']:return ok(state='mine',item_id=item_id)
+            if owner['user_id']==user['uid']:return ok(state='mine',public_id=ref)
             fail(409,'already_claimed','这件物品已认领，如有疑问请联系 BUMBUM。')
         item=claimable_item(c,item_id)
         grant=row(c,"SELECT id FROM tap_grant WHERE token_hash=%s AND item_id=%s AND chip_id=%s AND allowed_action='bind' AND consumed_at IS NULL AND expires_at>%s FOR UPDATE",(token_hash(payload['tap_token']),item_id,item['chip_id'],utc_now())) if item else None
@@ -289,30 +326,41 @@ def claim(item_id):
         c.execute("INSERT INTO ownership_history(item_id,to_user_id,action,occurred_at) VALUES (%s,%s,'bind',%s)",(item_id,user['uid'],now))
         c.execute('UPDATE item_claim_code SET consumed_at=%s WHERE id=%s',(now,issued['id']))
         c.execute('UPDATE tap_grant SET consumed_at=%s WHERE id=%s',(now,grant['id']))
-    return ok(state='mine',item_id=item_id)
+    return ok(state='mine',public_id=ref)
 
 
 def owned_query(c,user_id,item_id=None):
     args=(user_id,) if item_id is None else (user_id,item_id)
-    c.execute('''SELECT i.id AS item_id,i.item_uid,o.bound_at,p.code AS project,s.name,s.description,s.material,
+    c.execute('''SELECT i.id AS item_id,i.public_id,i.item_uid,o.bound_at,p.code AS project,s.name,s.description,s.material,
                  s.care_instructions,s.image_urls,r.name AS issue_name,r.total AS issue_total,d.edition_number,
-                 d.quota_year,d.quota_used,d.quota_review,w.spec,w.generation
+                 d.quota_year,d.quota_used,d.quota_review,w.spec,w.generation,
+                 (w.lost_at IS NOT NULL OR w.loss_evidence IS NOT NULL) AS physical_lost,
+                 pending.kind AS pending_kind,c.provisioned_at AS pending_verified_at,
+                 finished.id AS handover_id,finished.kind AS handover_kind,finished.completed_at AS handover_completed_at,
+                 dismissed.handover_id AS dismissed_handover
                  FROM ownership o JOIN item i ON i.id=o.item_id JOIN project p ON p.id=i.project_id
                  LEFT JOIN digital_item d ON d.item_id=i.id LEFT JOIN product_issue r ON r.id=d.issue_id
                  LEFT JOIN product_style s ON s.id=r.style_id LEFT JOIN whole_item w ON w.current_item_id=i.id
+                 LEFT JOIN item_handover pending ON pending.pending_item_id=i.id AND pending.owner_id=o.user_id
+                 LEFT JOIN chip c ON c.id=pending.chip_id
+                 LEFT JOIN item_handover finished ON finished.target_id=w.id AND finished.recipient_id=o.user_id
+                    AND finished.completed_at>=o.bound_at
+                 LEFT JOIN item_notice_dismissal dismissed ON dismissed.handover_id=finished.id
                  WHERE o.user_id=%s AND o.is_active=1'''+(' AND i.id=%s' if item_id is not None else ' ORDER BY o.bound_at DESC,o.id DESC'),args)
     return c.fetchall()
 
 
 def owned_view(c,data):
-    item_id=data['item_id']
+    item_id=data.pop('item_id')
+    public_id=data['public_id']
     images=json.loads(data['image_urls']) if data['image_urls'] else []
     public_images=[]
     for image in images:
         match=re.fullmatch(r'/api/admin/catalog/styles/[1-9][0-9]*/images/([a-f0-9]{32})',image)
-        if match:public_images.append(f'/api/public/me/items/{item_id}/images/{match[1]}')
+        if match:public_images.append(f'/api/public/me/items/{public_id}/images/{match[1]}')
         elif image.startswith(('https://','http://')):public_images.append(image)
-    data.update(item_metadata(c,item_id,True),image_urls=public_images,bound_at=iso_time(data['bound_at']))
+    data.update(item_metadata(c,item_id,True),public_id=public_id,image_urls=public_images,bound_at=iso_time(data['bound_at']))
+    data['lifecycle'] = lifecycle_view(data)
     year=(utc_now()+timedelta(hours=8)).year
     if data['quota_year'] and data['quota_year']<year and not data['quota_review']:
         data.update(quota_year=year,quota_used=0)
@@ -327,29 +375,92 @@ def my_items():
     return ok(items=result)
 
 
-@blueprint.get('/me/items/<int:item_id>')
-def my_item(item_id):
+def holder_read_id(c, ref):
+    if re.fullmatch(r'[1-9][0-9]{0,18}', ref) and legacy_holder_link_allowed():
+        return int(ref)
+    return resolve_item_id(c, ref)
+
+
+@blueprint.get('/me/items/<ref>')
+def my_item(ref):
     with transaction() as c:
         user,_=current_user(c)
-        items=owned_query(c,user['uid'],item_id)
+        item_id=holder_read_id(c, ref)
+        items=owned_query(c,user['uid'],item_id) if item_id is not None else []
         if not items:fail(404,'not_found','未找到你当前持有的该物品。')
         result=owned_view(c,items[0])
-    return ok(item=result)
+        result.update(history=item_history(c,item_id), records=records(c,user['uid'],item_id),
+                      recovery_enabled=contact_enabled(active_contact(c,item_id)))
+    return ok(item=result, account=account(user))
 
 
-@blueprint.get('/me/items/<int:item_id>/images/<asset_id>')
-def my_image(item_id,asset_id):
+@blueprint.get('/me/records')
+def my_records():
+    with transaction() as c:
+        user,_=current_user(c)
+        result=records(c,user['uid'])
+    return ok(records=result)
+
+
+@blueprint.post('/me/items/<ref>/recovery')
+def set_recovery(ref):
+    enabled=request_json({'enabled'},set())['enabled']
+    if type(enabled) is not bool:
+        fail(400,'invalid_param','请选择是否允许联系。')
+    with transaction() as c:
+        current_user(c)
+        item_id=resolve_item_id(c, ref)
+        row(c,'SELECT id FROM item WHERE id=%s FOR UPDATE',(item_id,))
+        user,_=current_user(c,write=True)
+        owner=active_contact(c,item_id)
+        if not owner or not row(c,'SELECT id FROM ownership WHERE id=%s AND user_id=%s FOR SHARE',(owner['ownership_id'],user['uid'])):
+            fail(404,'not_found','未找到你当前持有的该物品。')
+        if enabled:
+            if not owner['phone_verified_at'] or not re.fullmatch(MAINLAND_PHONE, owner['phone'] or ''):
+                fail(409,'verified_phone_required','请先验证用于找回的手机号。')
+            digest=consent_hash(owner)
+            c.execute('INSERT INTO item_recovery_contact(ownership_id,consent_hash) VALUES (%s,%s) ON DUPLICATE KEY UPDATE consent_hash=%s',
+                      (owner['ownership_id'],digest,digest))
+        else:
+            c.execute('DELETE FROM item_recovery_contact WHERE ownership_id=%s',(owner['ownership_id'],))
+    return ok(enabled=enabled)
+
+
+@blueprint.post('/me/items/<ref>/dismiss-notice')
+def dismiss_notice(ref):
+    token=request_json({'notice_token'},set())['notice_token']
+    if not isinstance(token,str) or not re.fullmatch(r'[0-9a-f]{64}',token):
+        fail(400,'invalid_param','提示已变化，请重新打开档案。')
+    with transaction() as c:
+        current_user(c)
+        item_id=resolve_item_id(c, ref)
+        row(c,'SELECT id FROM item WHERE id=%s FOR UPDATE',(item_id,))
+        user,_=current_user(c,write=True)
+        work=row(c,'''SELECT h.id FROM item_handover h JOIN whole_item w ON w.id=h.target_id
+                      JOIN ownership o ON o.active_item_id=h.item_id
+                      WHERE h.item_id=%s AND w.current_item_id=h.item_id
+                      AND h.recipient_id=%s AND o.user_id=h.recipient_id AND h.completed_at>=o.bound_at
+                      ORDER BY h.completed_at DESC,h.id DESC LIMIT 1 FOR SHARE''', (item_id,user['uid']))
+        if not work or not hmac.compare_digest(token, notice_token(work['id'])):
+            fail(404,'not_found','这条提示已不可用。')
+        c.execute('INSERT INTO item_notice_dismissal(handover_id) VALUES (%s) ON DUPLICATE KEY UPDATE handover_id=handover_id',(work['id'],))
+    return ok(dismissed=True)
+
+
+@blueprint.get('/me/items/<ref>/images/<asset_id>')
+def my_image(ref,asset_id):
     from core.admin_catalog import shared_image
     if not re.fullmatch(r'[a-f0-9]{32}',asset_id):fail(404,'not_found','图片不存在。')
     with transaction() as c:
         user,_=current_user(c)
-        if not owned_query(c,user['uid'],item_id):fail(404,'not_found','图片不存在。')
+        item_id=holder_read_id(c, ref)
+        if item_id is None or not owned_query(c,user['uid'],item_id):fail(404,'not_found','图片不存在。')
         image=shared_image(c,item_id,asset_id)
     return Response(image['content'],mimetype='image/webp')
 
 
 def init_public_account(app):
     app.config.setdefault('SMS_PROVIDER', os.getenv('SMS_PROVIDER', 'gateway'))
-    for name in ('SMS_CODE_HASH_KEY','SMS_GATEWAY_URL','SMS_GATEWAY_TOKEN', *ALIYUN_SMS_SETTINGS):
+    for name in ('SMS_CODE_HASH_KEY','SMS_GATEWAY_URL','SMS_GATEWAY_TOKEN', 'SMS_ALIYUN_PILOT_PHONE', *ALIYUN_SMS_SETTINGS):
         app.config.setdefault(name,os.getenv(name,''))
     app.register_blueprint(blueprint)

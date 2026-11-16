@@ -4,6 +4,7 @@ import { history, useModel } from "@umijs/max";
 import { readSession, signIn } from "../api";
 import { RuntimeChecks } from "../RuntimeChecks";
 import { passkeysEnabled, passkeyMessage, usePasskey } from "../passkeys";
+import brandWordmark from "../../../shared/brand/bumbum-wordmark-black.svg";
 export default function Login() {
   const [form] = Form.useForm(),
     [busy, setBusy] = useState(false),
@@ -17,10 +18,7 @@ export default function Login() {
   return (
     <main className="login-frame">
       <Card className="login-card">
-        <div className="brand-lockup">
-          <span className="brand-mark">BB</span>
-        </div>
-        <Typography.Title level={3}>BUMBUM</Typography.Title>
+        <img className="login-wordmark" src={brandWordmark} alt="bumbum" width={148} height={26} />
         <Typography.Title level={4}>管理员登录</Typography.Title>
         {passkeysEnabled() && <Button block type="primary" disabled={busy} style={{ marginBottom: 16 }}
           onClick={async () => {

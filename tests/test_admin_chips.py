@@ -53,7 +53,9 @@ def test_register_then_list_uses_real_data_and_atomic_audit(auth_app, logged_in)
     events = query(auth_app, "SELECT action,target_type,target_id,detail,ip_hash FROM admin_audit")
     assert len(events) == 1 and events[0]["action"] == "chip.register"
     assert events[0]["target_id"] == str(chip["id"]) and len(events[0]["ip_hash"]) == 64
-    assert json.loads(events[0]["detail"]) == {"project": "fashion", "source": "manual"}
+    assert json.loads(events[0]["detail"]) == {
+        "project": "fashion", "source": "manual", "object_code": UID, "outcome": "已完成",
+    }
 
 
 def test_duplicate_uid_never_overwrites_existing_data(auth_app, logged_in):

@@ -1,4 +1,4 @@
-// 菜单和页面共用官方Umi配置路由，不保留订单/工厂/物流工作区。
+// 菜单和页面共用官方Umi配置路由，数字物品管理聚合数字与实体档案。
 export default [
   { path: "/login", layout: false, component: "./Login" },
   { path: "/", redirect: "/overview" },
@@ -9,6 +9,14 @@ export default [
     component: "./Overview",
   },
   { path: "/overview/activity", component: "./Activity", hideInMenu: true },
+  { path: "/overview/order-preparation", component: "./OrderPreparation", hideInMenu: true },
+  { path: "/orders", name: "订单管理", icon: "shopping", component: "./Orders" },
+  { path: "/orders/:id", component: "./Orders", hideInMenu: true },
+  { path: "/items", name: "数字物品", icon: "inbox", component: "./Items" },
+  { path: "/physical-items", name: "实体物品", component: "./PhysicalItems" },
+  { path: "/physical-items/:id", component: "./PhysicalItems", hideInMenu: true },
+  { path: "/items/new", component: "./ItemAssembly", hideInMenu: true },
+  { path: "/items/:id", component: "./ItemDetail", hideInMenu: true },
   {
     path: "/catalog",
     name: "款式与发行",
@@ -17,10 +25,9 @@ export default [
   },
   { path: "/catalog/style/:id", component: "./StyleEditor", hideInMenu: true },
   { path: "/catalog/issue/:id", component: "./IssueEditor", hideInMenu: true },
-  { path: "/items", name: "数字物品", icon: "inbox", component: "./Items" },
-  { path: "/items/:id", component: "./ItemDetail", hideInMenu: true },
   { path: "/chips", name: "芯片管理", icon: "qrcode", component: "./Chips" },
   { path: "/chips/:id", component: "./ChipDetail", hideInMenu: true },
+  { path: "/users", name: "用户管理", icon: "team", component: "./Users" },
   { path: "/system", name: "系统管理", icon: "setting", component: "./System" },
   { path: "/*", component: "./NotFound" },
 ];

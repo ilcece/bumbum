@@ -1,7 +1,7 @@
+import ReadFailure from "./ReadFailure";
 import React, { useRef, useState } from "react";
 import { ProTable, ActionType, ProColumns } from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
-import { Alert } from "antd";
 import { list, Row } from "../catalog";
 export default function ServerTable({
   resource,
@@ -10,6 +10,7 @@ export default function ServerTable({
   refresh = 0,
   filters = {},
   rowSelection,
+  fitWidth = false,
 }: {
   resource: string;
   columns: ProColumns<Row>[];
@@ -17,6 +18,7 @@ export default function ServerTable({
   refresh?: number;
   filters?: Record<string, any>;
   rowSelection?: React.ComponentProps<typeof ProTable<Row>>["rowSelection"];
+  fitWidth?: boolean;
 }) {
   const [error, setError] = useState("");
   const location = useLocation(),
@@ -27,7 +29,11 @@ export default function ServerTable({
   );
   const update = (params: Record<string, any>) => {
     const next = new URLSearchParams();
-    if (q.get("tab")) next.set("tab", q.get("tab")!);
+    const fields = new Set(columns.filter((column) => column.search !== false)
+      .map((column) => String(column.dataIndex)));
+    for (const [key, value] of q) {
+      if (key !== "page" && key !== "create" && !fields.has(key)) next.set(key, value);
+    }
     for (const [k, v] of Object.entries(params))
       if (v !== undefined && v !== null && v !== "") next.set(k, String(v));
     history.replace({
@@ -37,11 +43,11 @@ export default function ServerTable({
   };
   return (
     <>
-      {" "}
-      {error && <Alert type="error" title={error} />}
+      {error && <ReadFailure title="列表加载失败" error={error} retry={() => ref.current?.reload()} />}
       <ProTable<Row>
         actionRef={ref}
         rowKey="id"
+        locale={error ? { emptyText: "读取失败，请重试" } : undefined}
         rowSelection={rowSelection}
         cardProps={{ size: "small", variant: "outlined" }}
         options={{ density: true, fullScreen: false, reload: true }}
@@ -49,6 +55,8 @@ export default function ServerTable({
         headerTitle={
           (
             {
+              orders: "订单列表",
+              "physical-items": "实体物品",
               items: "数字物品档案",
               chips: "芯片档案",
               styles: "共用款式资料",
@@ -75,7 +83,8 @@ export default function ServerTable({
           current: Number(q.get("page") || 1),
           onChange: (page) => update({ ...saved, page }),
         }}
-        scroll={{ x: "max-content" }}
+        tableLayout={fitWidth ? "fixed" : undefined}
+        scroll={fitWidth ? undefined : { x: "max-content" }}
         onSubmit={(p) => update({ ...p, page: 1 })}
         onReset={() => update({ page: 1 })}
         request={async (p) => {

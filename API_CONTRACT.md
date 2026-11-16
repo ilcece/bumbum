@@ -17,7 +17,7 @@
 | 本机开发 | /api | /health | http://localhost:5174/api/health（Umi开发代理转给5000端口） |
 | 杭州测试管理端（域名可用性另验收） | /api | /admin/chips | https://test.bumbum.cc/api/admin/chips（部署后） |
 | 生产管理端 | /api | /admin/chips | https://admin.bumbum.cc/api/admin/chips |
-| 生产用户端 | /api | /tap/verify | https://nfc.bumbum.cc/api/tap/verify |
+| 用户端 H5（015 契约） | /api | /public/tap/verify | 杭州 test：`https://nfc-test.bumbum.cc/api/public/tap/verify` |
 
 提交内容默认用JSON，标明Content-Type:application/json；图片上传例外仅为第11.3节声明的精确multipart/form-data入口。只接受声明过的字段；多传、漏传必填或格式不对，返回 400 invalid_param。id 是正整数，项目只用 fashion/jewelry；时间为 ISO 8601 UTC。可空字段用 null，不拿空字符串代替；长度不超过 [schema](db/schema.sql)，必填文本不能只有空格。
 
@@ -64,10 +64,10 @@
 | 密钥及配置核验 | POST /api/admin/chips/{id}/generate-keys、keys、confirm-provisioning | 第3节；不连接或改写实卡 |
 | 物品 | GET/POST /api/admin/items、GET/PATCH /api/admin/items/{id}、PUT /api/admin/items/{id}/profile | 第4节；普通保存支持款式，状态及profile仍仅服装 |
 | 动态验证与短许可 | POST /api/tap/verify、GET /api/fashion/items/{id}/detail | 第1.2、6节；不证明所有权 |
-| 持续查看 | POST /api/tap/verify可选browser_view模式、GET /api/tap/items/{id}/view | 第9节 |
-| 款式图片 | POST/GET /api/admin/catalog/styles/{id}/images/{asset_id}及状态；GET /api/tap/items/{id}/style-images/{asset_id}、GET /api/fashion/items/{id}/style-images/{asset_id} | 第11.3节；旧单件图片入口已退役 |
+| 持续查看 | POST /api/public/tap/verify、GET /api/tap/items/{public_id}/view | 第9节 |
+| 款式图片 | POST/GET /api/admin/catalog/styles/{id}/images/{asset_id}及状态；GET /api/tap/items/{public_id}/style-images/{asset_id}、GET /api/fashion/items/{id}/style-images/{asset_id} | 第11.3节；旧单件图片入口已退役 |
 | 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
-| 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；当前分支构建，验收/部署见TODO |
+| 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,physical-items,orders,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；当前分支构建，验收/部署见TODO |
 | 用户账户及认领 | /api/public 下的短信验证、会话、认领及我的数字物品 | [第11节用户账户及认领](#用户账户及认领) |
 | 用户动态与账户卡 | GET /api/admin/catalog/activity、GET /api/admin/catalog/users/{uid}/card、POST /api/admin/catalog/users/{uid}/phone | [第11.1节](#111-分页与详情) |
 
@@ -129,7 +129,7 @@
 
 成功返回 verified、project、item_id/item_uid、owner_bound（是否已有所有者）、tap_token、expires_in=300 秒、item_detail（物品资料）。服装含资料字段、trace 数组、story 对象或 null、channel 数组；饰品含 name/description/material/meaning/image_urls。不返回 UID、读数、订单号、手机号或“当前用户养成进度”：
 ```json
-{"status":"ok","data":{"verified":true,"project":"fashion","item_id":12,"item_uid":"FASH-2026-000012","owner_bound":false,"tap_token":"t_example","expires_in":300,"item_detail":{"name":"外套","description":null,"material":null,"care_instructions":null,"size_chart":null,"image_urls":[],"trace":[],"story":null,"channel":[]}}}
+{"status":"ok","data":{"verified":true,"project":"fashion","public_id":"a04d60cf-39ef-4c64-a588-cd0389d80b21","item_uid":"FASH-2026-000012","owner_bound":false,"tap_token":"t_example","expires_in":300,"item_detail":{"name":"外套","description":null,"material":null,"care_instructions":null,"size_chart":null,"image_urls":[],"trace":[],"story":null,"channel":[]}}}
 ```
 业务验证失败不发 token：
 ```json
@@ -170,6 +170,8 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 {"status":"ok","data":{"authenticated":true,"expires_at":"2026-10-23T16:00:00Z","csrf_token":"c_example"}}
 ```
 示例口令只是占位内容，实际是独立随机生成的 64 位小写十六进制文字。页面在内存中保存，写请求放 X-CSRF-Token，不能长期保存在浏览器。无效或过期登录返回 401 unauthorized。
+
+支持订单待办的版本另返回 `draft_scope`。该字段是管理员专用的 64 位十六进制浏览器存储分区标识，不能用来认证或提交写入。
 
 ### 2.3 POST /api/admin/auth/logout：退出
 
@@ -397,22 +399,22 @@ HTTP200 data的结构如下。示例为虚构的同一天累计数据，不是�
 
 本节定义已接入的持续查看契约；实现细节见[技术附录第17节](docs/IMPLEMENTATION_DETAILS.md#17-手机触碰资料页与公网链路技术方案待审核)，软件检查、人工验收与部署状态分别见TODO。产品范围及自动更新见[PRD第4.2.4节](docs/product/fashion-touch.md#2-手机资料页与持续查看)。旧调用不发view资格，原五分钟read/bind行为保留。
 
-### 9.1 POST /api/tap/verify的可选浏览器模式
+### 9.1 POST /api/public/tap/verify
 
-在原picc_data/cmac之外可增加browser_view，可省略或为布尔值；省略/false保持现有五分钟凭证和不发查看Cookie的行为。true须Origin精确匹配PUBLIC_ORIGIN，否则403 forbidden；其他字段/类型仍400。现有限流、错误和单次读数接受规则不变。
+H5 同源提交 picc_data 和 cmac。服装响应中的 public_id 为独立 UUIDv4，业务编号仍为 item_uid。服务端在有效触碰的原事务内识别可选 H5 会话，记录触碰当时的实际账户，或记录匿名状态。旧记录及兼容机器接口的触碰身份未记录。原 POST /api/tap/verify 兼容受控客户端，用户网关只开放新入口。
 
-服装验证通过时同一事务额外发view资格，生产响应设置bumbum_item_view Cookie：HttpOnly、Secure、SameSite=Strict、Path=/api/tap/items/{item_id}，无Domain、无持久Max-Age；仅明确的本机开发HTTP关闭Secure。Cookie原值不放JSON，数据库只存摘要。JSON沿用原成功字段，并增加固定构造的view_path=/tap/items/{item_id}及verified_at/retrieved_at（ISO 8601 UTC），供手机路由和显示时间。tap_token仍五分钟，不当作持续查看凭证；view资格不消费或扩展原短时权限。
+服装验证通过时同一事务额外发view资格，生产响应设置bumbum_item_view Cookie：HttpOnly、Secure、SameSite=Strict、Path=/api/tap/items/{public_id}，无Domain、无持久Max-Age；仅明确的本机开发HTTP关闭Secure。Cookie原值不放JSON，数据库只存摘要。JSON仅返回公开标识和获准字段，另含固定构造的view_path=/tap/items/{public_id}及verified_at/retrieved_at（ISO 8601 UTC），供手机路由和显示时间。tap_token仍五分钟，不当作持续查看凭证；view资格不消费或扩展原短时权限。
 
 业务失败、服务错误和饰品响应不发服装查看Cookie；饰品仍可返回原验证结果，页面显示当前类别暂不支持。不能因为以前有查看Cookie就跳过新的动态读数验证。验证响应丢失不得自动重放；需要新碰卡，已成功事件不回退。
 
-### 9.2 GET /api/tap/items/{id}/view
+### 9.2 GET /api/tap/items/{public_id}/view
 
-id为正整数；不接受任何查询参数、请求正文或X-Tap-Token代替Cookie。仅核对对应物品路径的唯一bumbum_item_view Cookie及数据库view类型，不接受read/bind。来源/跨站规则见技术附录；同源Cookie请求，不向管理端或其他网站放开CORS。
+public_id 为 UUIDv4。兼容期内旧数字地址仅在匹配原查看 Cookie 时可读取，响应把资格移到新路径且不延长原有效期。请求不接受查询参数、正文或 X-Tap-Token。仅核对对应物品路径的唯一bumbum_item_view Cookie及数据库view类型，不接受read/bind。来源/跨站规则见技术附录；同源Cookie请求，不向管理端或其他网站放开CORS。
 
 成功HTTP 200，返回下列白名单。project始终为fashion，profile只含name/description/material/care_instructions/image_urls；不返回持有人身份、尺码表、内部芯片信息或未维护扩展资料。数字档案另返回issue_name、edition_number、issue_total、rights（kind/rule_version）和claim_state（claimed/unavailable/available/expired）；缺少数字档案时不补造这些字段。下例为旧档案最小响应。verified_at是最近发放该view的真实验证时间，retrieved_at是本次服务器读取时间，不相互替代。
 
 ```json
-{"status":"ok","data":{"project":"fashion","item_id":12,"item_uid":"FASH-2026-000012","verified_at":"2026-10-27T02:23:00Z","retrieved_at":"2026-10-27T02:31:00Z","profile":{"name":"外套","description":null,"material":"棉","care_instructions":null,"image_urls":[]}}}
+{"status":"ok","data":{"project":"fashion","public_id":"a04d60cf-39ef-4c64-a588-cd0389d80b21","item_uid":"FASH-2026-000012","verified_at":"2026-10-27T02:23:00Z","retrieved_at":"2026-10-27T02:31:00Z","profile":{"name":"外套","description":null,"material":"棉","care_instructions":null,"image_urls":[]}}}
 ```
 
 view为连续24小时无成功查询失效，成功查询滑动续期24小时；原创建时间不变，失败不续期。每次查询重查物品、芯片、原关联和当前配置；不写scan_log/admin_audit，不推进读取计数、不计触碰。原GET /api/fashion/items/{id}/detail继续仅接受五分钟read/bind，不能使用view。
@@ -525,6 +527,21 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 测试分支从物品档案读取换新与转售权益，发行读接口省略 `rights`。旧发行客户端的同名输入仅用于兼容解析。新物品的标准权益由服务端授予。业务规则见 [数字物品权益](docs/proposals/admin-make-rebuild.md#item-rights)，上线和人工验收见 [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。
 
+### 订单逐件履约
+
+| 入口 | 条件与返回 |
+|---|---|
+| `GET /api/admin/catalog/orders`、`GET /api/admin/catalog/orders/{id}` | 管理员查询。列表分页，支持 `keyword`、`data_scope` 和 `test_batch_id`；详情返回逐件原购买规格、核对要求（expected_style_id、expected_style_name、expected_spec）、已准备实物是否匹配（physical_matches，未核对或无实物时为 null）、分配、首次成交、交付代次及认领摘要。 |
+| `actions/createOrder` | 传 `channel`、`external_order_no`、1 至 100 件 `units`（每件 `product_name`，可选 `ordered_spec`），验收数据可选 `test_batch_id`。渠道与外部订单号在同一来源范围内唯一。 |
+| `actions/matchOrderUnit` | 传 `order_unit_id`、`style_id` 和适用的 `spec`。有原购买规格或目录规格时必须填写；目录有规格选项时必须选其中一个。原订单文本保留。 |
+| `actions/orderPhysical` | 传 `order_unit_id` 与 `physical_item_id`，或用 `physical` 提供与独立登记同样的字段。保存及占用在同一事务提交。 |
+| `actions/allocateOrderUnit`、`actions/releaseOrderUnit` | 分配传 `order_unit_id` 和 `item_id`，需要已核验启用的未成交库存。释放传 `order_unit_id` 和 `evidence`，限未成交且未交付，保留审计。 |
+| `actions/orderSale`、`actions/issueClaimCode` | 结构化订单售出传 `order_unit_id`、`item_id` 和带时区的 `first_sold_at`。发码从物品引用查找已成交分配，记录首次交付代次和凭证，再开放用户认领。 |
+
+订单件的准备、装配、分配、首次成交和交付均复核实物款式和规格。没有核对记录返回 `409 order_match_required`，不匹配返回 `409 order_item_mismatch`。可为 `items` 或 `physical-items` 传 `order_unit_id` 取得该件同一数据范围内符合要求且可用的候选。
+
+`items` 查询增加 `workflow`（`assembly`、`verification`、`available`、`delivery`、`claim`）及实体、发行和订单号关键词。详情返回 `order`。`statistics` 可按 `detail_filter` 查看有触碰、售出后零触碰、成交时间待核对的物品列表。有效触碰穿透用 `activity?event=tap`，可带 `scope`、`range`、`as_of`、`style_id`、`issue_id`、`item_id`、`chip_id` 及既有日期与数据范围筛选。保留管理员认证、CSRF 和写回执。
+
 ### 实体装配、发码与预览
 
 | 入口 | 条件与返回 |
@@ -532,12 +549,31 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | `GET /api/admin/catalog/physical-items` | 管理登录后按 `style_id`、`available`、编号关键词和批次筛选；详情按 ID 查看。实体包含编号、实际规格及装配状态。 |
 | `actions/createPhysicalItem` | 传 `style_id`、`physical_uid`、适用的 `spec`，可选 `batch_no`、`supplier_serial`。返回实体 ID 及编号。 |
 | `actions/installAssembly`、`actions/undoInstall` | 安装传 `item_id`、`physical_item_id`、`chip_id`、`installed=true`。纠正限未配置草稿，传 `item_id`、`whole_id`、`evidence`、`confirmed=true`。 |
+| `GET /api/admin/catalog/items?order_stock=true` | 仅返回已有实体装配、有效芯片核验、启用、未登记首次成交、无持有人和发码记录的库存，仍按数据范围筛选。 |
+| `actions/assembleOrderItem` | `issue_id`、`item_uid`、`physical_item_id`、`chip_id`、`installed=true`。依既有发行规则传 `edition_number`，可选 `is_validation`。数字身份与装配同事务，返回物品 ID。结构化订单可传 `order_unit_id`，同事务更新对应订单件。 |
+| `actions/orderSale` | `item_id`、`channel`（最多 40 字符）、`external_order_no`（最多 64 字符）、`first_sold_at`（带时区且不晚于当前）。事务锁定后重新校验库存资格，保存首次成交、售出依据和审计，不发码。 |
 | `actions/prepare`、`actions/complete` | 新版准备含 `physical_item_id` 和 `installed=true`，转售含接收账户和双方确认依据。有争议时提交核验结果引用。确认换新交付时按北京时间生效日计次。 |
-| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。首次成功响应展示原码一次。回执只返回发放记录和有效期。 |
+| `actions/issueClaimCode`、`actions/reissueClaimCode` | 传 `item_id`、`delivery_reference`、`confirmed=true`。旧成交依据流程首次发码时可传 `channel` 和 `external_order_no`，两者须与当前售出依据一致。成功响应返回原码。回执只返回发放记录和有效期。 |
+| `POST /api/admin/catalog/items/{item_id}/claim-codes/{code_id}/reveal` | 管理员会话、Origin、CSRF 和空 JSON 对象。仅返回指定物品当前可用认领码的原文与有效期，每次成功写审计并禁止缓存。过期返回 `409 claim_code_expired`，旧随机码仅有摘要时返回 `409 claim_code_not_recoverable`。核销、撤销、补发或不可认领时拒绝。 |
 | `GET /api/admin/catalog/items/{id}/h5-preview` | 读取指定物品已保存的展示资料，预设视角在后台界面切换。 |
 | `GET /api/admin/catalog/audit` | 支持 `keyword`、`action`、`operator`、`date_from`、`date_to`、`item_id`。返回动作说明、对象、结果和必要前后值。 |
+| `GET /api/admin/catalog/audit/actions` | 需管理会话。返回操作筛选用的 `{value,label}` 列表，值与审计动作一致。 |
 
 ### 用户账户及认领
+
+#### 挂失找回与持有记录
+
+| 接口 | 权限与响应 |
+|---|---|
+| `POST /api/public/tap/verify` | 当前挂失服装实物通过新读数验签与防重放检查时返回 `verified: false`、`reason: disabled`、`recovery: true`。同时签发五分钟 `bumbum_item_recovery` HttpOnly Cookie。此响应没有正常档案、`tap_token` 或完整手机号。 |
+| `GET /api/tap/recovery` | 按找回 Cookie 和当前实物状态检查资格。仅返回 `contact_available`，资格失效返回 403。 |
+| `POST /api/tap/recovery` | 同源，空 JSON。重新核对找回资格、挂失状态、当前持有人和号码公开同意。满足条件时返回 `phone`，关闭时只返回 `contact_available: false`。禁止缓存。 |
+| `GET /api/public/me/items` 和 `GET /api/public/me/items/{public_id}` | 当前持有人范围。追加 `lifecycle`，含 `lost`、`stage`（`renewal`、`resale` 或 `null`）、`awaiting_delivery`、`notice`（`token`、`kind` 和 `expires_at`，或 `null`）。详情另含 `recovery_enabled`、`history` 和本人物品 `records`。 |
+| `POST /api/public/me/items/{public_id}/recovery` | 当前持有人，同源，提交布尔值 `enabled`。开启绑定当前持有关系和已验证号码，关闭撤销同意。 |
+| `POST /api/public/me/items/{public_id}/dismiss-notice` | 当前交付接收人，同源，提交 `notice_token`。收起自己的完成提示，保留原办结记录。 |
+| `GET /api/public/me/records` | 本账户参与的办理节点。转售原持有人也可查本人结果。每项包含物品摘要、`event` 和 UTC 时间 `at`。详情的物品历程另可含公开实物规格 `spec`。响应无交易对方、订单、芯片和后台凭据。 |
+
+资格、确认和保留规则见 [H5 持有期间的找回与办理](docs/proposals/digital-item-h5-mvp.md#holder-lifecycle)。
 
 用户端从指定同源发起写请求。账户使用独立 HttpOnly Cookie。碰卡短时资格、持续查看 Cookie 和用户会话分别校验。
 
@@ -546,9 +582,9 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | `POST /api/public/sms/send` | 传 `phone`，成功返回 `challenge_id` 和重发间隔。单一手机号至少间隔 60 秒，发送服务不可用时返回 503。杭州 test 使用阿里云适配时，白名单外号码返回 403 `sms_recipient_not_allowed`，不生成短信挑战。 |
 | `POST /api/public/sms/verify` | 传 `challenge_id`、`code`。成功建立会话，返回 UUIDv4 字符串 account.uid 和脱敏手机号。 |
 | `GET /api/public/account/session`、`POST /api/public/account/logout` | 读取本人会话，或用空 JSON 对象注销当前会话。 |
-| `POST /api/public/items/{id}/claim` | 传 `tap_token`、`claim_code`，同时验证用户会话及当前装配。成功建立持有关系、记录历史并核销凭证。旧碰卡返回 `retap_required`，旧码或过期按状态提示。 |
-| `GET /api/public/items/{id}/claim-status` | 登录后核对本人已持有、他人已认领或待认领，用于未知结果恢复。 |
-| `GET /api/public/me/items`、`GET /api/public/me/items/{id}` | 读取本人当前持有列表与详情。关联图片走同样的归属检查。 |
+| `POST /api/public/items/{public_id}/claim` | 传 `tap_token`、`claim_code`，同时验证用户会话及当前装配。成功建立持有关系、记录历史并核销凭证。旧碰卡返回 `retap_required`，旧码或过期按状态提示。 |
+| `GET /api/public/items/{public_id}/claim-status` | 登录后核对本人已持有、他人已认领或待认领，用于未知结果恢复。 |
+| `GET /api/public/me/items`、`GET /api/public/me/items/{public_id}` | 读取本人当前持有列表与详情。详情返回脱敏账户摘要 `account` 和 `item`，关联图片走同样的归属检查。兼容期内旧数字详情地址须通过同一持有校验，响应只提供新标识。 |
 
 当前正式管理端使用此服务。复用管理Cookie/Origin/CSRF和禁缓存，任何写入先重查管理员与会话。没有原型会话导入、演示触碰、演示认领、默认持有人或模拟成功入口。旧认证、密钥、图片及用户触碰契约继续适用；数据库按实际缺失结构执行对应006—011迁移，工具默认只检查；不能将006就绪等同全部新版结构就绪，缺失/部分结构时ready拒绝。
 
@@ -571,7 +607,7 @@ GET /api/admin/catalog/{styles,issues,items,chips}/{id}读取确切记录；issu
 
 POST /api/admin/catalog/items/{item_id}/owners/{ownership_id}/phone 接收空 JSON，须有效管理会话、同源及 CSRF。持有记录须归属指定物品。成功响应仅在本次查看返回完整手机号，禁止缓存。系统先提交审计，记录操作人、时间、物品、持有记录及对外账户 UID。审计只保存这些引用与查看结果。
 
-GET /api/admin/catalog/activity 分页合并有效触碰、用户自行认领及已完成交付事实。可按 `item_id`、`item_uid`、`issue_id`、`event`、`date_from`、`date_to` 和测试数据范围筛选。响应的 `user_uid` 为对外 UUIDv4，匿名事件为空。
+GET /api/admin/catalog/activity 分页合并有效触碰、用户自行认领及已完成交付事实。可按 `item_id`、`item_uid`、`issue_id`、`event`、`date_from`、`date_to` 和测试数据范围筛选。有效触碰明细还支持 `style_id/chip_id/scope/range/as_of`。响应的 `user_uid` 为对外 UUIDv4，匿名事件为空。
 
 GET /api/admin/catalog/users/{uid}/card 按 UUIDv4 返回账户 UID、昵称和脱敏号码。POST /api/admin/catalog/users/{uid}/phone 需管理会话、同源和 CSRF。先写账户查看审计，成功才返回完整号码。
 
@@ -592,6 +628,7 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 | sale | item_id/confirmed/evidence，first_sold_at可选（带时区ISO8601、不晚于当前）；首次登记使用所填成交时间或当前时间，已有首次时间拒绝不同值；显式维护售出事实，操作时间与依据留审计，首次成交时间只记一次；撤销不删除首次时间、持有人及触碰历史 |
 | toggleItem | item_id/status，status仅active/disabled；新档案启用检查发行、当前整套、有效芯片与真实核验；停用永久撤销现有查看资格 |
 | loseItem | item_id/whole_id/evidence；固定本次当代ID，挂失写入当代并同步停芯片、撤销资格；准备中的普通换新转为挂失换新，已准备的新整套保留 |
+| cancelLoss | item_id/whole_id/lost_at/evidence。重查当前代、当前挂失、配套芯片和未完结办理。详情 `chip_state_before_loss` 有值时恢复该状态，缺失时请求须明确选择 `chip_state` 为 `disabled` 或已核验时的 `bound`。返回 `id/cancelled_at`。撤销现有触碰和找回资格，保留审计与计数 |
 | prepare | item_id/kind/chip_id/evidence，spec 选填，转售另需内部 UUIDv7 recipient_id。kind 支持 periodic、loss、resale。检查真实持有人、已约定权益、年度用量、接收账户和芯片占用。保存原代与新代组合，返回 `id` 和 `work_id`，审计记录关联办理单。归属和授权在确认交付时切换。 |
 | complete | work_id/evidence/checked=true；重查原代及当前持有人，候选必须真实核验。一起结束旧代、退役旧卡、追加新代、必要转移持有人、保存历史并撤销旧短许可/持续查看。新代正常，不继承旧代挂失；身份/编号/首次售出保留，换新按确认生效时间的北京时间自然年计次，转售不重置余额 |
 | chipBatch/chipState | chip_id/batch_no；或chip_id/state/evidence，state仅disabled/restore；挂失、退役或候选不可普通恢复，芯片页无独立挂失 |
@@ -606,9 +643,13 @@ POST /api/admin/catalog/actions/{action}只接受request_id和payload。request_
 
 POST /api/admin/catalog/styles/{id}/images/{asset_id}为精确multipart入口，只收一个file；asset_id为32位小写随机十六进制。上传API要求款式已保存并取得id；界面允许先在浏览器选图预览，明确保存时依次保存资料、上传并关联，部分失败不冒称全部完成。JPEG/PNG/WebP和大小/解码边界沿第4.1节，复用重编码；返回url。GET同地址由管理会话读取，GET后缀/status核对上传是否已提交，未知先核对、明确重试同一文件/标识，不盲目换ID。保存款式才关联图片，最多20张；服务不接受dataURL或其他物品私有图片作为共用图片。
 
-当前共用图以受控二进制保存于style_image并随数据库转储，容量与到期暂存受限；旧图片已停止在线服务，清理前仍须原生SQL与文件配套备份；清理后新增款图仅依赖数据库。用户GET /api/tap/items/{item_id}/style-images/{asset_id}复用同一有效view Cookie、物品/芯片/配置检查，且图片必须属于当前已保存共用款式；旧持有者/失效资格不能读取，不返回内部备注或账户。兼容GET /api/fashion/items/{item_id}/style-images/{asset_id}使用原X-Tap-Token短资格；返回图片地址按对应资格族映射，不要求旧短资格客户端持有view Cookie。用户资料只按原公开白名单读取共用字段，旧未关联档案仅保留文字资料，图片为空。
+当前共用图以受控二进制保存于style_image并随数据库转储，容量与到期暂存受限；旧图片已停止在线服务，清理前仍须原生SQL与文件配套备份；清理后新增款图仅依赖数据库。用户GET /api/tap/items/{public_id}/style-images/{asset_id}复用同一有效view Cookie、物品/芯片/配置检查，且图片必须属于当前已保存共用款式；旧持有者/失效资格不能读取，不返回内部备注或账户。兼容GET /api/fashion/items/{item_id}/style-images/{asset_id}使用原X-Tap-Token短资格；返回图片地址按对应资格族映射，不要求旧短资格客户端持有view Cookie。用户资料只按原公开白名单读取共用字段，旧未关联档案仅保留文字资料，图片为空。
 
-GET /api/admin/catalog/statistics支持scope=sold/all、range=7d/30d/all及project/item_id/chip_id/style_id/issue_id。明细支持page/page_size（默认10、最多100），返回details与holders的items及分页元数据；details按稳定身份汇总tap_count/last_tap，包含符合售出口径但零触碰的身份。inventory提供独立于触碰筛选的当前数据范围概况；counts中的物品/售出/持有按款式、发行等已生效条件统计，时间仅限制触碰。仅统计可信pass事件；sold额外要求显式售出、首次售出时间及事件不早于首次售出，不按owner是否存在推算售出。按稳定item_id跨历代芯片聚合，返回total/touched_items/daily/by_chip及真实档案/账户/持有counts、as_of和Asia/Shanghai。核验读数、失败、重放和普通查看均不新增事件。首次认领已接入，实际环境开放与验收范围见TODO及部署手册；真实认领和合成样本分别取证，不以模拟账户统计代替真实用户验证。
+GET /api/admin/catalog/statistics 支持 `scope=sold/all`、`range=7d/30d/all` 及 `project/item_id/chip_id/style_id/issue_id`。返回 `total/touched_items/daily/by_chip`、`counts`、`inventory`、`details`、`holders`、`as_of` 和时区 `Asia/Shanghai`。售出后口径要求明确售出、存在首次售出时间，且事件时间不早于首次售出。仅聚合已保存的可信 pass 事件，以稳定物品身份跨历代芯片累计。
+
+- `workflow_counts` 按当前业务范围或所选测试批次返回各办理阶段件数，零件也返回键值。数字物品列表和详情返回服务端 `workflow`，列表接受同值 `workflow` 筛选。每件物品仅归入一个阶段。工作台五张办理卡取 `assembly/verification/delivery/claim/available`。办理统计不受触碰时间、款式或发行影响。
+- `touch_item_counts.touched/repeat` 分别统计至少一次、至少两次的物品。售出后另返回 `zero/missing_sale`，分别是已有成交时间但窗口内无成交后事件、以及成交时间缺失的已售物品。传对应 `detail_filter` 后 `details.total` 使用同一聚合值，并返回 `page/page_size` 对应的明细（默认10，最多100）。
+- 统计及有效触碰动态可接收带时区的 ISO 8601 `as_of`，限制事件上界并用于北京时间窗口。卡片穿透复用返回截点。`counts` 中的物品、售出和持有采用当前关系，随款式、发行与数据范围变化；触碰时间窗口仅应用于触碰统计。
 
 
 ### 11.4 验收批次与数据范围

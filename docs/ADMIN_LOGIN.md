@@ -23,8 +23,8 @@
 
 | 系统 | 更新依赖 | 补齐认证配置 |
 |---|---|---|
-| macOS / Linux | `.venv/bin/python -m pip install -r requirements-dev.txt` | `.venv/bin/python scripts/setup_auth_local.py` |
-| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pip install -r requirements-dev.txt` | `.\.venv\Scripts\python.exe -X utf8 scripts\setup_auth_local.py` |
+| macOS / Linux | `.venv/bin/python -m pip install -r requirements/dev.txt` | `.venv/bin/python scripts/setup_auth_local.py` |
+| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pip install -r requirements/dev.txt` | `.\.venv\Scripts\python.exe -X utf8 scripts\setup_auth_local.py` |
 
 预期看到“本机认证配置已准备”。脚本只补齐 `.env` 中为空的 `STORAGE_ENCRYPTION_KEY`（保护验证器秘密）和 `IP_HASH_KEY`（隐藏日志中的来源），明确本机开发模式，保留原有数据库配置和已有密钥。不创建账号，不生成芯片密钥；生产配置会被拒绝。
 

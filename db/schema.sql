@@ -49,6 +49,7 @@ CREATE TABLE user (
 -- ============================================================
 CREATE TABLE item (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  public_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL DEFAULT (LOWER(CONCAT(HEX(RANDOM_BYTES(4)),'-',HEX(RANDOM_BYTES(2)),'-4',SUBSTR(HEX(RANDOM_BYTES(2)),2),'-',SUBSTR('89ab',1+(ORD(RANDOM_BYTES(1)) & 3),1),SUBSTR(HEX(RANDOM_BYTES(2)),2),'-',HEX(RANDOM_BYTES(6))))) COMMENT '对外地址用的随机 UUIDv4',
   project_id TINYINT UNSIGNED NOT NULL,
   item_uid VARCHAR(32) NOT NULL,
   sku_code VARCHAR(64) DEFAULT NULL,
@@ -56,6 +57,7 @@ CREATE TABLE item (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uk_item_uid (item_uid),
+  UNIQUE KEY uk_item_public_id (public_id),
   UNIQUE KEY uk_item_project (id, project_id),
   KEY idx_project_status (project_id, status),
   CONSTRAINT fk_item_project FOREIGN KEY (project_id) REFERENCES project(id)
@@ -179,12 +181,15 @@ CREATE TABLE scan_log (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   chip_id BIGINT UNSIGNED DEFAULT NULL COMMENT '完整验签后的芯片关联；未验证的候选身份不写入',
   item_id BIGINT UNSIGNED DEFAULT NULL COMMENT '触碰发生时的物品，不随未来换绑迁移历史',
+  actor_state ENUM('anonymous','account') DEFAULT NULL COMMENT '当次验证记录的 H5 账户状态',
+  actor_user_uid CHAR(36) CHARACTER SET ascii COLLATE ascii_bin DEFAULT NULL COMMENT '触碰当时已登录的账户',
   accepted_counter BIGINT UNSIGNED GENERATED ALWAYS AS (CASE WHEN verify_result='pass' THEN scan_counter ELSE NULL END) STORED,
   UNIQUE KEY uk_scan_accepted (chip_id, accepted_counter),
   KEY idx_scan_success_time (verify_result, created_at),
   KEY idx_scan_project_success (project_id, verify_result, created_at),
   KEY idx_scan_item_success (item_id, verify_result, created_at),
   CONSTRAINT fk_scan_chip FOREIGN KEY (chip_id) REFERENCES chip(id),
+  CONSTRAINT fk_scan_actor FOREIGN KEY (actor_user_uid) REFERENCES user(uid) ON DELETE SET NULL,
   CONSTRAINT fk_scan_item_project FOREIGN KEY (item_id, project_id) REFERENCES item(id, project_id),
   CONSTRAINT ck_scan_pass CHECK (verify_result<>'pass' OR (chip_id IS NOT NULL AND item_id IS NOT NULL AND project_id IS NOT NULL AND chip_uid IS NOT NULL AND scan_counter IS NOT NULL AND scan_counter<16777215)),
   KEY idx_chip_time (chip_uid, created_at),
@@ -272,7 +277,7 @@ CREATE TABLE tap_grant (
   token_hash BINARY(32) NOT NULL,
   chip_id BIGINT UNSIGNED NOT NULL,
   item_id BIGINT UNSIGNED NOT NULL,
-  allowed_action ENUM('read','bind','view') NOT NULL COMMENT 'read及bind为五分钟触碰资格；view仅供浏览器持续查看，成功查询后延长24小时，不允许认领',
+  allowed_action ENUM('read','bind','view','recovery') NOT NULL COMMENT 'recovery仅限五分钟找回，其余凭证维持原期限和用途',
   expires_at DATETIME NOT NULL,
   consumed_at DATETIME DEFAULT NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -700,3 +705,57 @@ CREATE TABLE admin_passkey_challenge (
  KEY ix_passkey_challenge_expiry(expires_at),
  CONSTRAINT fk_passkey_challenge_session FOREIGN KEY(session_id) REFERENCES admin_session(id) ON DELETE CASCADE
 ) COMMENT='两分钟单次挑战，登记时绑定管理会话';
+
+-- 订单逐件履约，仅新增结构，保留已有成交依据。
+CREATE TABLE sales_order (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ test_batch_id BIGINT UNSIGNED NULL,
+ source_scope BIGINT UNSIGNED GENERATED ALWAYS AS (COALESCE(test_batch_id,0)) STORED,
+ channel VARCHAR(40) NOT NULL,
+ external_order_no VARCHAR(64) NOT NULL,
+ created_by BIGINT UNSIGNED NOT NULL,
+ created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+ UNIQUE KEY uk_sales_order_source(source_scope,channel,external_order_no),
+ CONSTRAINT fk_sales_order_batch FOREIGN KEY(test_batch_id) REFERENCES test_batch(id),
+ CONSTRAINT fk_sales_order_admin FOREIGN KEY(created_by) REFERENCES admin_user(id)
+) COMMENT='待履约订单与原始渠道来源';
+
+CREATE TABLE sales_order_unit (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+ order_id BIGINT UNSIGNED NOT NULL,
+ position SMALLINT UNSIGNED NOT NULL,
+ product_name VARCHAR(128) NOT NULL,
+ ordered_spec VARCHAR(256) NULL,
+ physical_item_id BIGINT UNSIGNED NULL UNIQUE,
+ item_id BIGINT UNSIGNED NULL UNIQUE,
+ allocated_at DATETIME(6) NULL,
+ delivered_at DATETIME(6) NULL,
+ delivery_whole_id BIGINT UNSIGNED NULL,
+ first_claim_code_id BIGINT UNSIGNED NULL,
+ UNIQUE KEY uk_order_unit_position(order_id,position),
+ CONSTRAINT fk_order_unit_order FOREIGN KEY(order_id) REFERENCES sales_order(id) ON DELETE CASCADE,
+ CONSTRAINT fk_order_unit_physical FOREIGN KEY(physical_item_id) REFERENCES physical_item(id),
+ CONSTRAINT fk_order_unit_item FOREIGN KEY(item_id) REFERENCES item(id),
+ CONSTRAINT fk_order_unit_delivery FOREIGN KEY(delivery_whole_id) REFERENCES whole_item(id),
+ CONSTRAINT fk_order_unit_claim FOREIGN KEY(first_claim_code_id) REFERENCES item_claim_code(id)
+) COMMENT='订单逐件准备、分配与首次交付，解除占用留审计';
+
+-- 保留订单原文与历史分配，逐件保存人工核对的目录款式和规格。
+CREATE TABLE sales_order_unit_match (
+ unit_id BIGINT UNSIGNED PRIMARY KEY,
+ style_id BIGINT UNSIGNED NOT NULL,
+ spec VARCHAR(256) NULL,
+ CONSTRAINT fk_order_match_unit FOREIGN KEY(unit_id) REFERENCES sales_order_unit(id) ON DELETE CASCADE,
+ CONSTRAINT fk_order_match_style FOREIGN KEY(style_id) REFERENCES product_style(id)
+) COMMENT='订单件已核对的履约目标';
+
+CREATE TABLE item_recovery_contact (
+ ownership_id BIGINT UNSIGNED PRIMARY KEY,
+ consent_hash BINARY(32) NOT NULL,
+ CONSTRAINT fk_recovery_ownership FOREIGN KEY(ownership_id) REFERENCES ownership(id) ON DELETE CASCADE
+) COMMENT='当前持有关系对已验证联系号码的公开同意，只保存指纹';
+
+CREATE TABLE item_notice_dismissal (
+ handover_id BIGINT UNSIGNED PRIMARY KEY,
+ CONSTRAINT fk_notice_handover FOREIGN KEY(handover_id) REFERENCES item_handover(id) ON DELETE CASCADE
+) COMMENT='交付接收人主动收起该笔完成提示';

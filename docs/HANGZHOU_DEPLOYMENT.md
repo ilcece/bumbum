@@ -400,11 +400,21 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 
 ### 杭州 test 阿里云短信
 
-构建杭州 test 镜像时传 `--build-arg HANGZHOU_TEST_SMS=1` 安装 [专用依赖锁](../requirements-hangzhou-test-sms.txt)，以启用阿里云 `SendSms`。发送身份仅授权 `dysms:SendSms`，由 cece 准备可用签名、验证码模板及专用 AccessKey。现有 HTTPS 网关仍使用 `SMS_GATEWAY_URL` 和 `SMS_GATEWAY_TOKEN`，请求 JSON 包含 `phone`、`code` 和 `purpose`，使用 Bearer 凭证。
+构建杭州 test 镜像时传 `--build-arg HANGZHOU_TEST_SMS=1` 安装 [专用依赖锁](../requirements/hangzhou-test-sms.txt)，以启用阿里云 `SendSms`。发送身份仅授权 `dysms:SendSms`，由 cece 准备可用签名、验证码模板及专用 AccessKey。现有 HTTPS 网关仍使用 `SMS_GATEWAY_URL` 和 `SMS_GATEWAY_TOKEN`，请求 JSON 包含 `phone`、`code` 和 `purpose`，使用 Bearer 凭证。
 
 从本次已核验的发布源码目录，在指定杭州 ECS 的 Workbench root 交互终端执行 `python3 -m scripts.configure_hangzhou_test_sms`。按提示填签名和模板 CODE，并隐藏输入 AccessKey ID、Secret 和自己的中国大陆手机号。程序只写 test 的私有 `runtime.env`，已存在的有效 `SMS_CODE_HASH_KEY` 会保留，首次配置在服务器内随机生成。加载新版 test 后端后，检查真实短信、碰卡认领及「我的数字物品」。账号未获授权、签名模板未就绪或实际发送失败时，保留错误并核对发送记录。凭据和手机号不进入命令参数、聊天或日志。
 
 仅 `HANGZHOU_SLOT=test` 且 `SMS_PROVIDER=aliyun` 时启用。未配置或使用其他槽位时，该发送路径拒绝。唯一号码白名单在创建短信挑战之前检查。阿里云业务结果为 `OK` 时才返回发送受理成功，网络错误不自动重发。
+
+### 杭州生产短信单号码验收
+
+生产短信候选使用 `--build-arg HANGZHOU_ALIYUN_SMS=1` 安装现有短信 SDK。仅 `HANGZHOU_SLOT=production` 与 `SMS_PROVIDER=aliyun_pilot` 同时匹配时才可发送。生产私有配置需包含 `SMS_ALIYUN_ACCESS_KEY_ID`、`SMS_ALIYUN_ACCESS_KEY_SECRET`、`SMS_ALIYUN_SIGN_NAME`、`SMS_ALIYUN_TEMPLATE_CODE`、`SMS_ALIYUN_PILOT_PHONE` 和独立的 `SMS_CODE_HASH_KEY`。验收号只能是一个 11 位中国大陆手机号，校验在限流计数、创建挑战和调用阿里云之前完成。
+
+2026-11-16，杭州生产部署了单号码验收版 `1428b7b8d50579f7274d0a1ee7e4fde0c7b57885`。发布前备份生产数据库并校验转储摘要，再依次执行 005–011。发布后生产与 test 服务均通过健康检查，生产 H5 的触碰和「我的数字物品」入口返回 200。生产初始化账号已恢复锁定。服务端核实只允许指定号码发码。
+
+本轮验收沿用 test 已配置的阿里云签名、模板和调用凭据，生产验证码校验密钥单独生成。验收号码在交互终端隐藏输入，配置保存在生产私有的 `secrets/sms-pilot.env`。cece 已在生产 H5 收信登录，用模拟芯片读数认领验收物品 `FASH-SMS-PILOT-000001`，并在「我的数字物品」确认可见。服务器核对触碰通过、认领码及认领资格均已消费、持有人对应验收号码。生产实卡另行验收。
+
+短信继续只对该验收号码开放。正式开放及专用生产调用凭据另行确认。需要暂停发送时，将生产服务的 `SMS_PROVIDER` 设为 `off`。
 
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
@@ -1011,9 +1021,74 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 ### 12.1 本轮test升级、部署与验收接续
 
+<a name="hz-test-holder-lifecycle"></a>
+
+#### H5 找回与办理记录（014）
+
+2026-11-11 发布至杭州 test。停写前核对目标库，停写后数据库及媒体备份验证通过。备份位于 ECS 私有目录 `/opt/bumbum-hangzhou/test-holder.xzwqNw0W/final/backup/images-and-database-f1aa69b235034987a292a56c2ae8746f`，014 检查结果为 `ready`。首轮在网关重载后收到旧路由的 404，按脚本恢复兼容旧后端、旧静态和原 test 用户网关。
+
+修订发布的记录在 `/opt/bumbum-hangzhou/test-holder.xzwqNw0W/fix/deployed.txt`。候选先用 test 应用账号只读核对 014。网关验证明确等待新路由响应，再切换 H5 静态，并逐个校验资源和后台隔离。发布后用户站 `/api/tap/recovery` 无凭证返回 403，`/api/public/me/records` 无登录返回 401，管理接口返回 404。生产镜像、生产用户网关和测试管理端静态均与切换前一致。
+
+应用回退资料保存在修订发布目录 `compose-before.json`、`nginx-before.conf` 及首轮的原用户静态链接目标。配对恢复兼容 014 的旧后端、旧 H5 静态和 test 用户网关。已升级的结构和记录保留。实卡验收见 [H5 持有方案](proposals/digital-item-h5-mvp.md#holder-lifecycle)。
+
+实卡验收后补齐找回页登录入口。仅切换杭州 test H5 静态版本，线上核对入口打开手机号登录表单。证据和原静态链接保存在 `/opt/bumbum-hangzhou/test-holder.xzwqNw0W/recovery-login`，静态回退使用其中 `user-before.txt` 记录的目标。
+
+<a name="hz-test-cancel-loss"></a>
+
+#### 管理端取消挂失与详情操作栏
+
+2026-11-11 发布至杭州 test。后端与两端静态发布标识为 `86ad81d5767a86fb9fde7e43fd5bb30900beec13`，镜像为 `sha256:091ce91986db944800855fc6a35cc3619b84e2d2534dbe13122a4349081861d8`。复用 014 结构，部署过程没有执行迁移或修改实卡业务状态。切换前后均只读核对了目标库、取消挂失入口和 FASH-2026-000002 的挂失状态。H5 静态及接口检查通过，生产服务与切换前一致。
+
+发布结果和应用回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-cancel-loss.8IJDEQqg`。回退时配对恢复 `compose-before.json` 的镜像和 `admin-before.txt`、`user-before.txt` 的静态目标。线上管理端已核对顶部操作栏和确认弹窗。实卡恢复由 cece 在后台提交后用手机重新触碰验收。
+
+<a name="hz-test-audit-details"></a>
+
+#### 后台操作日志详情与逐件审计
+
+2026-11-11 发布至杭州 test。后端与管理端静态发布标识为 `b52c63d446bf0de7d514760aeb3cb48d9687355e`，镜像为 `sha256:75a3106a0035e7b8a5ca81db49b90d8a7ad7e54f42684a6ef48f1c09b8beb65c`。复用 014 结构，未执行迁移。初次预检发现最新十条登记关联的芯片已清理，发布在切换前停止。复验分别覆盖保留原对象编号和按现存芯片 UID 查回日志。切换后确认接口权限、服务就绪，生产和测试 H5 与切换前一致。
+
+管理端线上筛选「登记芯片」返回 396 条，详情显示已保存的登记来源，按 Esc 关闭后保留筛选、页码和按钮焦点。其中 116 条可关联现存芯片。批量售出逐件记录和回滚使用隔离数据库验证。发布和回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-audit.H10PpJ5U`，回退时配对恢复 `compose-before.json` 和 `admin-before.txt`。
+
+<a name="hz-test-gallery-static"></a>
+
+#### H5 公开地址与触碰归属（015）
+
+先验证固定杭州 test 目标及初始化账号，再停写并备份数据库与媒体。按 015 脚本新增公开标识、回填现有物品并升级触碰归属。可从已完成的结构步骤继续。切换后端、test 用户网关和两端静态为同一发布；上线时设置旧数字链接兼容截止为切换后 24 小时。回退应用时配对恢复旧网关和静态，使用兼容 015 扩展列的旧应用镜像，保留已升级结构。
+
+2026-11-12 杭州 test 已切换到发布 `8475138ee87e4dda6e379bba769bfa8dba395ab7`。首轮备份及 015 迁移已完成，应用因烟测将回环来源的管理站 403 判作失败而回退。使用发布目录 `/opt/bumbum-hangzhou/test-h5-identity.Y1w6lPdf` 内的 `resume-test.sh` 复用备份和迁移结果完成切换。管理端分别核对回环 403、后端无登录 401 和允许来源首页 200。用户站旧地址未登录、无凭证时分别返回 401、403。旧数字链接兼容截止为北京时间 2026-11-13 00:18:14。FASH-2026-000002 的持有关系和芯片状态通过核对，真机触碰见 [H5 验收清单](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#公开地址触碰身份与加载验收)。
+
+北京时间 00:20:26，FASH-2026-000002 的新版实卡记录关联到当前持有账户。网关记录确认持有人档案接口返回 200，该次访问未再次请求物品 HTML。动画的真机观感待用户反馈。
+
+#### H5 原型还原与两端商品图框
+
+2026-11-11 将 H5 原型还原、连续滑图和管理端统一商品图框发布至杭州 test。两端静态标识为 `6fd2385adf63b27f8f42478e9b7d4c417971212e`。包摘要与 50 个清单文件通过校验，两个静态链接切换后核对 H5 入口、资源、接口隔离与服务就绪。测试和生产后端容器状态与切换前一致。
+
+线上 H5 入口已加载新构建和 11:12 图片样式。数字物品详情和后台手机预览的实际图片加载通过，测得图框分别为 280×305.45 和 366×399.27 CSS 像素。实卡打开与真机滑动待 cece 验收。发布记录及切换前的 `admin-before.txt`、`user-before.txt` 位于 ECS 私有目录 `/opt/bumbum-hangzhou/test-gallery-static.SgEPAGDz`，应用回退使用其中的两端静态目标。
+
+北京时间 2026-11-11，杭州 test 发布[工作台五卡布局](../CHANGELOG.md#2026-11-11-工作台待办与库存仅保留五张指标卡)。管理端静态产物 `4abec222626f903d4a9fd9a88c2cf81baacb0512` 的 44 个文件通过校验。仅切换管理端静态，回退目标在 ECS 私有目录 `/opt/bumbum-hangzhou/test-admin-ux.workbench-cards.rZ3CaZWY/admin-before.txt`。已复验五张卡的列表筛选及侧栏订单入口，隔离样本已清理。
+
+北京时间 2026-11-11，杭州 test 发布[账户卡焦点修订](../CHANGELOG.md#2026-11-11-修复账户资料卡打开时跳页)。管理端静态产物 `a5bf564f33a08d07fab2e09072c2db5247faa6d2` 的 44 个文件通过校验。仅切换管理端静态，回退目标保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-admin-ux.uid-focus.tKOLnF5t/admin-before.txt`。
+
+北京时间 2026-11-11，杭州 test 发布[工作台办理与触碰统计修订](../CHANGELOG.md#2026-11-11-统一工作台办理与触碰指标)。管理端与后端产物标识为 `3f1e8b501283cd78cb783f3def895852ba82b51d`，后端镜像为 `sha256:19f07098e5eea47836fb38a65e3ba747b0ee9b4bbd1e67c008cef4cb3b59b9e7`。数据库与媒体备份、发布清单和回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-workbench.WFknAnYK`。沿用现有数据库结构，应用回退须配对前一镜像与前一管理端静态。后端及数据库就绪，生产服务、公开手机页和管理白名单已核对。隔离批次验证后已清理，验收见[工作台清单](ADMIN_DESKTOP.md#7-工作台有效触碰统计)。
+
+北京时间 2026-11-11，杭州 test 发布[批次清理状态修订](../CHANGELOG.md#2026-11-11-修复验收批次清理后列表显示旧状态)。管理端静态产物标识 `93c72ed9f1a5102de3cb4888de9639d64e7c0b28`，44 个文件与清单一致。上一版静态目标记录在 ECS 私有目录 `/opt/bumbum-hangzhou/test-admin-ux.tuBTP8Zt/admin-before.txt`。复验从测试数据视图清理专属空批次，自动回到业务视图并显示「已清理」。
+
+北京时间 2026-11-11，杭州 test 已发布[管理后台交互一致性修订](../CHANGELOG.md#2026-11-11-杭州-test-上线后台交互一致性整改)。管理静态产物标识为 `1cdc5f6002c85890409148a9fae8eeaab3bd8c61`，44 个文件与校验清单一致。该标识由静态清单生成。仅原子切换 test 管理静态，原服务、用户端和生产保持。最近一次静态回退目标记录在 ECS 私有目录 `/opt/bumbum-hangzhou/test-admin-ux.1DT2nWH8/return-ui/admin-before.txt`，整轮起始目标记录在同一目录下的 `ready/admin-before.txt`。复验见[桌面验收手册](ADMIN_DESKTOP.md#全后台-uiue-走查范围)。
+
+北京时间 2026-11-10，杭州 test 已发布[订单分配、登记和账户摘要交互修订](../CHANGELOG.md#2026-11-10-统一逐件分配登记和账户摘要交互)。管理端静态为 `6cf23bf0d645bc3777b3710daad5cddbf01eb1bb`，后端继续运行 `bea7bc447b98655599af0d41154899b1c9864652`。校验静态包摘要和文件清单后原子切换管理端链接，保留上一静态路径于 `/opt/bumbum-hangzhou/test-admin-ux.iW0SLr1d/admin-before.txt`。仅回退管理端时，使用此记录核对旧目标及当前链接后切回。未执行数据库迁移，后端健康、管理白名单及用户触碰入口均已核对，独立模拟批次已按无冲突预检清理。
+
 <a id="121-本轮test受控升级的已准备入口"></a>
 
-截至北京时间 2026-11-10，杭州 test 已发布账户双标识、通行密钥和用户动态。011 只增加公钥凭据和挑战两张表。发布前已在停写窗口完成 SQL 和媒体配套备份。实际发布及人工验收见[变更记录](../CHANGELOG.md#2026-11-10-杭州-test-接入通行密钥和用户动态)，操作入口见[管理员登录手册](ADMIN_LOGIN.md#杭州-test-的通行密钥)。下方按各次发布保留历史记录。
+北京时间 2026-11-10，杭州 test 已发布[建档、筛选回跳与认领码查看修订](../CHANGELOG.md#2026-11-10-恢复建档和筛选回跳补充认领码查看)。后端及管理端静态对应提交 `bea7bc447b98655599af0d41154899b1c9864652`，使用现有 013 结构。先核验 SQL 与媒体配套备份再切换，备份和回退资料保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-claim-reveal.7BkqaanE`。回退应用时配对恢复前一镜像及管理静态。上线后按[桌面验收手册](ADMIN_DESKTOP.md#订单与数字物品统一流程验收)完成三项模拟复验并清理本次批次。
+
+北京时间 2026-11-10，杭州 test 已发布[订单逐件履约与数字物品集中管理](../CHANGELOG.md#2026-11-10-订单逐件履约与数字物品集中管理)。后端和管理端静态版本对应提交 `3ba757eb4e488bcdeb568e6718abb19ef789fa24`。停写后核验 SQL 和媒体配套备份，再执行 012，新增 `sales_order` 和 `sales_order_unit`。目标库 TLS、两张订单表、后端健康、管理会话校验和 H5 入口均已复核。回退资料和备份记录保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-sales-orders.NLICw3QK`。应用回退配对恢复原镜像和管理端静态目录，订单表及业务数据按数据库恢复流程单独核对。业务及实卡验收见[桌面管理端手册](ADMIN_DESKTOP.md#订单与数字物品统一流程验收)。
+
+订单防错修订已发布到杭州 test，后端与管理端静态版本为 `c3bc60a01a4907fe13b02edf8daae2c7e229c577`。停写后核验 SQL 和配套媒体备份，再由初始化账号执行 013，只新增逐件核对表。复核目标库、新表和应用就绪，结果和回退资料保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-order-match.wss5hhzr`。如需回退应用，配对切回 012 版镜像和管理端静态文件，新增表及既有记录按数据库恢复流程单独核对。模拟走查及实卡边界见[变更记录](../CHANGELOG.md#2026-11-10-修复订单库存错配与装配确认)。
+
+
+此前同日，杭州 test 已发布[工作台订单物品](../CHANGELOG.md#2026-11-10-杭州-test-上线工作台订单物品办理)。本轮复用现有表结构，后端与管理端静态版本对应提交 `c356ef2762f2d3cc5f0c80a88b804926735626fd`。发布前停写并核验 SQL 和媒体配套备份。测试槽回退资料、原 Compose、原静态路径及备份保存在 ECS 私有目录 `/opt/bumbum-hangzhou/test-order-preparation.fYhkmgLe`。回退应用时配对恢复原镜像与管理端静态目录，数据库恢复另行核对。
+
+此前杭州 test 已发布账户双标识、通行密钥和用户动态。011 只增加公钥凭据和挑战两张表。实际发布及人工验收见[变更记录](../CHANGELOG.md#2026-11-10-杭州-test-接入通行密钥和用户动态)，操作入口见[管理员登录手册](ADMIN_LOGIN.md#杭州-test-的通行密钥)。下方按各次发布保留历史记录。
 
 **当时的 test 发布：28b1e748132a9c441de4b238b0cd039c9e983491，后台原型对照整改。** 已先更新分支规范，再实施33项整改并发布；手机公开字段/预览范围随H5暂缓，类别及改码规则不变。镜像为bumbum-hangzhou-backend:28b1e748132a9c441de4b238b0cd039c9e983491，远端内容ID为sha256:47bf507c1806ecf4a38e46fe6f60f74c8facdc66b3ce824245ce88433b7298de；管理端静态为/var/www/bumbum-hangzhou-test-releases/28b1e748132a9c441de4b238b0cd039c9e983491/admin，35文件与最终浏览器复验产物逐一匹配。用户端保持原静态及代码，不改生产或main。
 

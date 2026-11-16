@@ -55,7 +55,7 @@ def create_app(test_config=None):
             return jsonify(
                 status="error",
                 code="service_unavailable",
-                message="测试数据库尚未就绪。请按运行手册核对账户与通行密钥迁移。",
+                message="数据库尚未就绪。请按运行手册核对结构迁移。",
                 **({"error_id": g.diagnostic_error_id} if g.get("diagnostic_error_id") else {}),
             ), 503
         return jsonify(status="ok", data={"database": "ready"})

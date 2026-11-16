@@ -10,17 +10,20 @@ def test_007_backup_first_repeat_noop_and_partial_refused(auth_app):
         conn=get_database()
         # 007会重建旧结构；结束时恢复包括010账户引用在内的完整现行DDL。
         # 夹具已清空这两张专属测试表，不能以只补physical枚举代替完整恢复。
+        tables=('test_batch','test_batch_object','sales_order','sales_order_unit','sales_order_unit_match')
         definitions={}
         with conn.cursor() as c:
             assert schema(c)=='ready'
-            for table in ('test_batch','test_batch_object'):
+            for table in tables:
                 c.execute(f'SELECT COUNT(*) FROM {table}')
                 assert c.fetchone()==(0,)
                 c.execute(f'SHOW CREATE TABLE {table}')
                 definitions[table]=c.fetchone()[1]
         try:
             with conn.cursor() as c:
-                c.execute('DROP TABLE test_batch_object');c.execute('DROP TABLE test_batch');conn.commit()
+                for table in reversed(tables):
+                    c.execute(f'DROP TABLE {table}')
+                conn.commit()
             def denied():raise ValueError('测试备份失败')
             with pytest.raises(ValueError):migrate(conn,denied)
             with conn.cursor() as c:assert schema(c)=='missing'
@@ -35,6 +38,6 @@ def test_007_backup_first_repeat_noop_and_partial_refused(auth_app):
             with conn.cursor() as c:
                 c.execute('DROP TABLE IF EXISTS test_batch_object')
                 c.execute('DROP TABLE IF EXISTS test_batch')
-                for table in ('test_batch','test_batch_object'):
+                for table in tables:
                     c.execute(definitions[table])
         assert auth_app.test_client().get('/api/ready').status_code==200

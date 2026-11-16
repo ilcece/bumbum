@@ -1,3 +1,5 @@
+@import "../../shared/productImage.css";
+
 /* 只维护附件视觉所需的局部样式，布局、控件和滚动继续使用Pro及AntD组件。 */
 body {
   margin: 0;
@@ -5,20 +7,9 @@ body {
   background: #f5f7fa;
   -webkit-font-smoothing: antialiased;
 }
-.brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
+.brand-symbol {
+  display: block;
   flex-shrink: 0;
-  border-radius: 8px;
-  background: #1677ff;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  box-shadow: 0 2px 4px #1677ff1c;
 }
 .brand-lockup {
   display: flex;
@@ -63,7 +54,7 @@ body {
   white-space: nowrap;
 }
 .admin-profile .ant-avatar {
-  background: #1677ff;
+  background: var(--ant-color-primary);
 }
 .admin-profile .ant-badge-status-text {
   font-size: 11px;
@@ -136,26 +127,35 @@ body {
 .copy-value > span:first-child { overflow-wrap: anywhere; }
 .copy-value .ant-typography-copy { margin-inline-start: 0; }
 .copy-value .ant-btn-link { padding: 0; height: auto; }
+.account-summary {
+  width: min(360px, calc(100vw - 56px));
+}
+.account-summary-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 10px;
+}
 .status-tag { margin-inline-end: 0; white-space: nowrap; }
 .style-cell { display: flex; gap: 12px; align-items: center; min-width: 210px; }
 .style-cell .ant-btn-link { white-space: normal; text-align: left; height: auto; padding: 0; }
 .cell-secondary { color: #64748b; font-size: 12px; line-height: 1.65; }
-.product-thumb { border: 1px solid #e2e8f0; border-radius: 6px; object-fit: contain; background: #f8fafc; }
-.placeholder-thumb { width: 56px; height: 56px; flex-shrink: 0; display: grid; place-items: center; }
+.product-thumb { display: block; height: auto; border: 1px solid #e2e8f0; border-radius: 6px; background: #f8fafc; }
+.placeholder-thumb { width: 56px; flex-shrink: 0; display: grid; place-items: center; }
 .placeholder-thumb .ant-empty { margin: 0; }
 .placeholder-thumb .ant-empty-image { display: none; }
 .placeholder-thumb .ant-empty-description { font-size: 10px; }
 .gallery-empty { min-height: 120px; display: grid; place-items: center; background: #f8fafc; border-radius: 8px; }
 .product-gallery { min-width: 0; }
 .product-gallery > .ant-image { width: 100%; display: block; }
-.gallery-main { width: 100%; height: 240px; object-fit: contain; background: #f1f5f9; border-radius: 8px; }
+.gallery-main { display: block; width: 100%; height: auto; background: #f1f5f9; border-radius: 8px; }
 .gallery-thumbnails { display: flex; align-items: center; gap: 8px; margin-top: 10px; overflow-x: auto; padding-bottom: 4px; }
-.gallery-thumbnails button { width: 46px; height: 46px; flex-shrink: 0; border: 1px solid #e2e8f0; border-radius: 5px; background: white; padding: 2px; cursor: pointer; }
-.gallery-thumbnails button.selected { border: 2px solid #1677ff; }
+.gallery-thumbnails button { width: 46px; flex-shrink: 0; border: 1px solid #e2e8f0; border-radius: 5px; background: white; padding: 2px; cursor: pointer; }
+.gallery-thumbnails button.selected { border: 2px solid var(--ant-color-primary); }
 .gallery-thumbnails img { width: 100%; height: 100%; object-fit: contain; }
 .gallery-thumbnails .ant-typography { white-space: nowrap; font-size: 12px; }
 .product-profile { display: grid; grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); gap: 24px; }
-.product-profile .gallery-main { height: 200px; }
 .mobile-preview { width: 100%; max-width: 390px; margin-inline: auto; border: 1px solid #dbe1e8; border-radius: 20px; background: #f8fafc; padding: 14px; }
 .mobile-preview-header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; gap: 8px; padding: 0 0 14px; }
 .mobile-preview-content { padding: 16px 2px 0; overflow-wrap: anywhere; white-space: pre-wrap; }
@@ -167,15 +167,16 @@ body {
 .editor-footer { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .embedded-detail .detail-heading h4 { margin-top: 0; overflow-wrap: anywhere; }
 .detail-actions { margin-bottom: 16px; }
+.audit-row-summary.ant-typography { margin-bottom: 0; }
+.audit-detail-modal .ant-modal-body { max-height: calc(100dvh - 210px); overflow-y: auto; }
+.audit-detail-modal .ant-descriptions-item-label { width: 112px; min-width: 112px; white-space: nowrap; vertical-align: top; }
+.audit-detail-modal .ant-descriptions-item-content { overflow-wrap: anywhere; white-space: pre-wrap; }
 .embedded-detail .product-profile { grid-template-columns: 200px minmax(0, 1fr); gap: 16px; }
 .embedded-detail .ant-pro-card .ant-pro-card-body { padding: 12px; }
 .embedded-detail .ant-pro-table { min-width: 0; }
 .embedded-detail .ant-pro-card-extra { margin-inline-start: 8px; }
 .embedded-detail .ant-pro-descriptions-view-content { overflow-wrap: anywhere; }
 .embedded-detail .ant-descriptions-item-label { white-space: nowrap; }
-.metric-primary .ant-statistic-content { font-size: 32px; font-weight: 650; color: #0f172a; }
-.metric-secondary .ant-statistic-content { font-size: 24px; }
-.workbench-shortcuts { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-top: 16px; margin-top: 16px; border-top: 1px solid #e2e8f0; }
 .key-values { background: #0f172a; border-radius: 8px; padding: 14px; }
 .key-values .copy-value, .key-values .ant-typography { color: #e2e8f0; }
 .key-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid #334155; }
@@ -197,57 +198,9 @@ body {
 .section-tabs .ant-tabs-nav {
   margin-bottom: 0;
 }
-.inventory-card {
-  height: 100%;
-  cursor: pointer;
-  transition:
-    border-color 0.15s,
-    box-shadow 0.15s;
-}
-.inventory-card:hover {
-  border-color: #91caff;
-  box-shadow: 0 2px 8px #0f172a08;
-}
-.inventory-card:focus-visible,
 .trend-day:focus-visible {
-  outline: 2px solid #1677ff;
+  outline: 2px solid var(--ant-color-primary);
   outline-offset: 3px;
-}
-.inventory-neutral {
-  background: #f8fafc;
-}
-.inventory-green {
-  background: #f0fdf4;
-  border-color: #bbf7d0;
-}
-.inventory-blue {
-  background: #f0f9ff;
-  border-color: #bae6fd;
-}
-.inventory-amber {
-  background: #fffbeb;
-  border-color: #fde68a;
-}
-.inventory-green .ant-statistic-content {
-  color: #15803d;
-}
-.inventory-blue .ant-statistic-content {
-  color: #0369a1;
-}
-.inventory-amber .ant-statistic-content {
-  color: #b45309;
-}
-.inventory-caption {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 11px;
-  color: #64748b;
-}
-.inventory-caption > .anticon {
-  color: #1677ff;
 }
 .filter-panel {
   padding: 16px;
@@ -284,8 +237,37 @@ body {
   white-space: nowrap;
 }
 .metric-card {
+  position: relative;
   height: 100%;
-  background: #fff;
+}
+.metric-card:has(.metric-card-action:hover),
+.metric-card:focus-within {
+  border-color: var(--ant-color-primary);
+}
+.metric-card-action {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+.metric-card-action:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: 2px;
+}
+.metric-card-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-block-start: 8px;
+  font-size: 12px;
+  color: #64748b;
+}
+.metric-card:has(.metric-card-action) .metric-card-caption {
+  color: var(--ant-color-primary);
 }
 .metric-card .ant-statistic-content-suffix {
   font-size: 12px;
@@ -333,7 +315,7 @@ body {
 .trend-day:hover .trend-bar,
 .trend-day:focus-visible .trend-bar,
 .trend-day:last-child .trend-bar {
-  background: #1677ff;
+  background: var(--ant-color-primary);
 }
 .ant-pro-layout .ant-pro-layout-content {
   min-width: 0;
@@ -368,6 +350,12 @@ body {
   padding: 12px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 12px 40px #0f172a0a;
+}
+.login-wordmark {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin-bottom: 16px;
 }
 @media (max-width: 1350px) {
   .header-context > .ant-typography:last-child {

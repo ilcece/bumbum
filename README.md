@@ -75,7 +75,9 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py，触碰入口在core/tap_grants.py，验证事务在core/tap_verification.py，共用验签在core/sdm_verification.py，管理统计入口在core/admin_stats.py，快照聚合在core/tap_statistics.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py及数字档案服务core/admin_catalog.py，006升级在core/catalog_migration.py，管理前端在frontend/admin/，手机用户前端在frontend/user/，各自构建并使用独立样式。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库；触碰记录升级见[本地运行第11节](docs/LOCAL_DEVELOPMENT.md#11-已有测试库升级触碰记录及后端验收)，持续查看资格004及用户页预览见[第12节](docs/LOCAL_DEVELOPMENT.md#12-已有测试库升级及手机资料页本机验收)。
 
-云测试部署依赖在requirements-deploy.in/txt，通过容器固定版本，不替换Ubuntu系统Python。Python 的本机直接依赖在 `requirements.in`，完整固定版本在 `requirements.txt`；开发检查对应 `requirements-dev.in` 和 `requirements-dev.txt`。前端依赖与固定版本在 `package.json`、`package-lock.json`。更新依赖时同步对应清单，不手工改锁文件凑版本。
+Python 依赖集中在 [`requirements/`](requirements/)。`base.in` 定义后端共用的直接依赖。安装时按用途选用 [`dev.txt`](requirements/dev.txt)、[`browser.txt`](requirements/browser.txt) 或 [`deploy.txt`](requirements/deploy.txt)，分别对应本地开发、浏览器回归和 Docker 部署。启用杭州 test 短信的镜像额外安装 [`hangzhou-test-sms.txt`](requirements/hangzhou-test-sms.txt)。更新直接依赖后，重新生成对应的固定版本清单。
+
+前端依赖与固定版本分别维护在 `package.json` 和 `package-lock.json`。
 
 `.env.example` 是配置模板，准备脚本生成本机 `.env` 并保留已有文件。`VITE_` 配置会进入网页，只能放公开信息；接口地址拼接规则见 [接口说明](API_CONTRACT.md#01-地址和字段)。云开发环境与生产 ECS/RDS 分开，本轮没有连接生产数据库。
 

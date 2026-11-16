@@ -33,8 +33,10 @@ def test_expired_claim_prompts_retap_and_resumes_without_sms_login(claim_phone, 
     expect(page.get_by_label('短信验证码', exact=True)).to_be_visible()
     page.get_by_label('短信验证码', exact=True).fill(sms['13900009704'])
     page.get_by_role('button', name='验证并继续', exact=True).click()
-    expect(page.get_by_text('认领账户 139****9704', exact=True)).to_be_visible()
+    expect(page.get_by_role('heading', name='输入认领码', exact=True)).to_be_visible()
     page.get_by_label('交付认领码', exact=True).fill(issued['claim_code'])
+    page.get_by_role('button', name='核对认领信息', exact=True).click()
+    expect(page.get_by_text('139****9704', exact=True)).to_be_visible()
     claim_phone.app.test_clock[0] += timedelta(minutes=6)
     page.get_by_role('button', name='确认认领', exact=True).click()
     expect(page.get_by_role('alert')).to_have_text('请重新碰一下物品，再继续认领。')
@@ -42,13 +44,16 @@ def test_expired_claim_prompts_retap_and_resumes_without_sms_login(claim_phone, 
     assert not query(claim_phone.app, 'SELECT id FROM ownership WHERE item_id=%s', (item,))
     # 新碰卡通过后直接恢复原物品的认领表单，不再次发送或验证短信。
     page.goto(origin + '/tap?' + urlencode(reading(keys, uid, 4)))
-    expect(page.get_by_text('认领账户 139****9704', exact=True)).to_be_visible()
+    expect(page.get_by_role('heading', name='输入认领码', exact=True)).to_be_visible()
     expect(page.get_by_role('heading', name='手机号登录／注册', exact=True)).to_have_count(0)
     page.get_by_label('交付认领码', exact=True).fill(issued['claim_code'])
+    page.get_by_role('button', name='核对认领信息', exact=True).click()
+    expect(page.get_by_text('139****9704', exact=True)).to_be_visible()
     page.get_by_role('button', name='确认认领', exact=True).click()
     expect(page.get_by_role('heading', name='已认领到我的数字物品', exact=True)).to_be_visible()
     page.get_by_role('link', name='查看我的物品', exact=True).click()
     expect(page.get_by_text('你持有这件物品', exact=True)).to_be_visible()
-    assert page.url == f'{origin}/mine/items/{item}'
+    public_id = query(claim_phone.app, 'SELECT public_id FROM item WHERE id=%s', (item,))[0]['public_id']
+    assert page.url == f'{origin}/mine/items/{public_id}'
     assert len(query(claim_phone.app, 'SELECT id FROM ownership WHERE item_id=%s', (item,))) == 1
     assert len(query(claim_phone.app, 'SELECT challenge_id FROM user_sms_challenge')) == 1

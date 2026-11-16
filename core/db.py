@@ -112,6 +112,9 @@ def database_ready():
         from core.assembly_migration import schema as assembly_schema
         from core.user_uid_migration import schema as user_uid_schema
         from core.passkey_migration import schema as passkey_schema
+        from core.order_migration import match_schema as order_match_schema, schema as order_schema
+        from core.holder_migration import schema as holder_schema
+        from core.h5_identity_migration import schema as h5_identity_schema
         with get_database().cursor() as cursor:
             cursor.execute("SHOW TABLES")
             actual_tables = {row[0] for row in cursor.fetchall()}
@@ -128,7 +131,11 @@ def database_ready():
                     and testdata_schema(cursor) == "ready"
                     and assembly_schema(cursor) == "ready"
                     and user_uid_schema(cursor) == "ready"
-                    and passkey_schema(cursor) == "ready")
+                    and passkey_schema(cursor) == "ready"
+                    and order_schema(cursor) == "ready"
+                    and order_match_schema(cursor) == "ready"
+                    and holder_schema(cursor) == "ready"
+                    and h5_identity_schema(cursor) == "ready")
     except pymysql.MySQLError as error:
         record_failure(error)
         return False
@@ -166,6 +173,9 @@ def tap_event_schema(cursor):
     """识别完整触碰事件结构；部分升级或约束被改动时不冒充就绪。"""
     cursor.execute("SELECT COLUMN_NAME,COLUMN_TYPE,IS_NULLABLE,GENERATION_EXPRESSION,COLUMN_DEFAULT,EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log'")
     columns = {row[0]: row[1:] for row in cursor.fetchall()}
+    # 触碰归属由 015 独立核对，003 仍只判断原验证记录结构。
+    for field in ('actor_state', 'actor_user_uid'):
+        columns.pop(field, None)
     old_names = {'id', 'chip_uid', 'project_id', 'picc_data', 'cmac', 'scan_counter', 'verify_result', 'user_agent', 'ip_hash', 'created_at'}
     old_enum = "enum('pass','cmac_fail','decrypt_fail','unknown_chip','replay_suspect','disabled')"
     base_types = {'id': ('bigint unsigned', 'NO'), 'chip_uid': ('varchar(32)', 'YES'),
@@ -210,7 +220,7 @@ def tap_event_schema(cursor):
     if any(indexes.get(name) != values for name, values in expected.items()):
         return 'unknown'
     cursor.execute("SELECT CONSTRAINT_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='scan_log' AND REFERENCED_TABLE_NAME IS NOT NULL")
-    if set(cursor.fetchall()) != {('fk_scan_chip', 'chip_id', 'chip', 'id'), ('fk_scan_item_project', 'item_id', 'item', 'id'), ('fk_scan_item_project', 'project_id', 'item', 'project_id')}:
+    if {key for key in cursor.fetchall() if key[0] != 'fk_scan_actor'} != {('fk_scan_chip', 'chip_id', 'chip', 'id'), ('fk_scan_item_project', 'item_id', 'item', 'id'), ('fk_scan_item_project', 'project_id', 'item', 'project_id')}:
         return 'unknown'
     cursor.execute("SELECT c.CHECK_CLAUSE,t.ENFORCED FROM information_schema.CHECK_CONSTRAINTS c JOIN information_schema.TABLE_CONSTRAINTS t ON t.CONSTRAINT_SCHEMA=c.CONSTRAINT_SCHEMA AND t.CONSTRAINT_NAME=c.CONSTRAINT_NAME WHERE t.TABLE_SCHEMA=DATABASE() AND t.TABLE_NAME='scan_log' AND t.CONSTRAINT_NAME='ck_scan_pass'")
     check = cursor.fetchone()
@@ -230,7 +240,7 @@ def view_grant_schema(cursor):
         return 'unknown'
     action = columns[4][1]
     expected[4] = ('allowed_action', action, 'NO', '')
-    if list(columns) != expected or action not in {"enum('read','bind')", "enum('read','bind','view')"}:
+    if list(columns) != expected or action not in {"enum('read','bind')", "enum('read','bind','view')", "enum('read','bind','view','recovery')"}:
         return 'unknown'
     cursor.execute("SELECT INDEX_NAME,NON_UNIQUE,COLUMN_NAME,SEQ_IN_INDEX FROM information_schema.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tap_grant'")
     if set(cursor.fetchall()) != {('PRIMARY',0,'id',1),('uk_tap_token',0,'token_hash',1),('idx_tap_expiry',1,'expires_at',1),('fk_tap_chip',1,'chip_id',1),('fk_tap_item',1,'item_id',1)}:
@@ -238,7 +248,7 @@ def view_grant_schema(cursor):
     cursor.execute("SELECT CONSTRAINT_NAME,COLUMN_NAME,REFERENCED_TABLE_NAME,REFERENCED_COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='tap_grant' AND REFERENCED_TABLE_NAME IS NOT NULL")
     if set(cursor.fetchall()) != {('fk_tap_chip','chip_id','chip','id'),('fk_tap_item','item_id','item','id')}:
         return 'unknown'
-    return 'ready' if action == "enum('read','bind','view')" else 'missing'
+    return 'ready' if action != "enum('read','bind')" else 'missing'
 
 
 def media_asset_schema(cursor):

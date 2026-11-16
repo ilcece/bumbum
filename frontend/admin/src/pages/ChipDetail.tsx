@@ -1,5 +1,6 @@
+import ReadFailure from "../components/ReadFailure";
 import { useEffect, useState } from "react";
-import { PageContainer, ProCard } from "@ant-design/pro-components";
+import { ProCard } from "@ant-design/pro-components";
 import {
   Descriptions,
   Alert,
@@ -12,10 +13,12 @@ import {
   Typography,
   Tooltip,
 } from "antd";
-import { history, useParams } from "@umijs/max";
+import { assemblyPath, fromPath } from "../catalog";
+import { history, useLocation, useParams } from "@umijs/max";
 import { Row, statistics, statusNames, time, validationHelp } from "../catalog";
 import {
   ActionForm,
+  DetailContainer,
   InlineCommand,
   Copy,
   Evidence,
@@ -37,6 +40,9 @@ export default function ChipDetail({
   onDeleted?: () => void;
 }) {
   const params = useParams();
+  const location = useLocation();
+  const here = location.pathname + location.search;
+  const from = embedded ? fromPath("/chips/" + id, here) : here;
   const ident = id || Number(params.id),
     { record: r, error, loading, reload } = useRecord("chips", ident),
     [action, setAction] = useState<string>(),
@@ -71,6 +77,9 @@ export default function ChipDetail({
     setAction(undefined);
     reload();
   };
+  const associatedItem = r?.item_id || r?.candidate_item_id;
+  const canConfigure = r && associatedItem && ["bound", "pending"].includes(r.chip_status);
+  const canChangeService = r && !r.candidate_id && ["pending", "bound", "disabled"].includes(r.chip_status);
   const content = (
     <Load error={error} loading={loading} retry={reload}>
       {r && (
@@ -110,18 +119,6 @@ export default function ChipDetail({
                   checked={!!r.is_validation}
                   onDone={reload}
                 />
-                {!!r.is_validation && (
-                  <InlineCommand
-                    danger
-                    label="直接删除芯片"
-                    action="deleteChip"
-                    payload={{ chip_id: r.id }}
-                    onDone={() => {
-                      onDeleted?.();
-                      if (!embedded) history.push("/chips");
-                    }}
-                  />
-                )}
               </Descriptions.Item>
               <Descriptions.Item label="登记时间">
                 {time(r.created_at)}
@@ -134,20 +131,7 @@ export default function ChipDetail({
                 <Space orientation="vertical">
                   <Copy value={r.item_uid} />
                   <State value={r.candidate_id ? "候选未生效" : "当前关联"} />
-                  <Button
-                    onClick={() =>
-                      history.push(
-                        `/items/${r.item_id || r.candidate_item_id}?from=${encodeURIComponent("/chips/" + r.id)}`,
-                      )
-                    }
-                  >
-                    到物品办理挂失/换新/转售
-                  </Button>
                 </Space>
-              ) : r.chip_status === "pending" ? (
-                <Button type="primary" onClick={() => setAction("bind")}>
-                  准备首套物品
-                </Button>
               ) : (
                 <State value="未关联" />
               )}
@@ -161,15 +145,6 @@ export default function ChipDetail({
                         : "待配置"
                   }
                 />
-                <Button
-                  disabled={
-                    !["bound", "pending"].includes(r.chip_status) ||
-                    (!r.item_id && !r.candidate_id)
-                  }
-                  onClick={() => setKeys(true)}
-                >
-                  查看密钥与配置
-                </Button>
               </ProCard>
             </div>
           </ProCard>
@@ -183,27 +158,11 @@ export default function ChipDetail({
                 title="关联整套物品已挂失，配套芯片随之停用。"
               />
             )}
-            <Button
-              disabled={
-                r.candidate_id ||
-                !["pending", "bound", "disabled"].includes(r.chip_status)
-              }
-              onClick={() => setAction("chipState")}
-            >
-              {r.chip_status === "disabled" ? "恢复芯片服务" : "临时停用芯片"}
-            </Button>
           </ProCard>
           <ProCard title="芯片有效触碰" headerBordered>
             {statsError ? (
-              <Alert
-                type="error"
-                title={statsError}
-                action={
-                  <Button onClick={() => setStatsRevision((x) => x + 1)}>
-                    重试统计
-                  </Button>
-                }
-              />
+              <ReadFailure title="芯片触碰统计读取失败" error={statsError}
+                retry={() => setStatsRevision((value) => value + 1)} />
             ) : stats ? (
               <Typography.Title level={3}>{stats.total}次</Typography.Title>
             ) : (
@@ -298,14 +257,27 @@ export default function ChipDetail({
       )}
     </Load>
   );
-  return embedded ? (
-    content
-  ) : (
-    <PageContainer
+  return (
+    <DetailContainer
+      embedded={embedded}
       title={r?.chip_uid || "芯片详情"}
       onBack={() => history.push(returnPath("/chips"))}
+      extra={r && <Space wrap>
+        {associatedItem ? <Button onClick={() => history.push(fromPath(`/items/${associatedItem}`, from))}>
+          到物品办理挂失/换新/转售
+        </Button> : r.chip_status === "pending" && <>
+          <Button type="primary" onClick={() => history.push(assemblyPath(from, { chip_id: r.id }))}>新建数字物品</Button>
+          <Button onClick={() => setAction("bind")}>配套已有待装配物品</Button>
+        </>}
+        {canConfigure && <Button type={r.provisioned_at ? "default" : "primary"} onClick={() => setKeys(true)}>查看密钥与配置</Button>}
+        {canChangeService && <Button onClick={() => setAction("chipState")}>
+          {r.chip_status === "disabled" ? "恢复芯片服务" : "临时停用芯片"}
+        </Button>}
+        {!!r.is_validation && <InlineCommand danger label="直接删除芯片" action="deleteChip" payload={{ chip_id: r.id }}
+          onDone={() => { onDeleted?.(); if (!embedded) history.push("/chips"); }} />}
+      </Space>}
     >
       {content}
-    </PageContainer>
+    </DetailContainer>
   );
 }

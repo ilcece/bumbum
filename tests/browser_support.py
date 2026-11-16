@@ -54,8 +54,15 @@ class BrowserSession:
         page.get_by_role('link', name=re.compile('工作台$')).wait_for()
         page.get_by_role('button',name='退出登录',exact=True).wait_for()
 
+    def menu_link(self, name):
+        menu = self.page.locator('aside')
+        link = menu.get_by_role('link', name=re.compile(re.escape(name)+'$'))
+        if name == '数字物品' and not link.is_visible():
+            menu.get_by_role('menuitem', name=re.compile('数字物品管理$')).click()
+        return link
+
     def navigate(self, name):
-        link = self.page.locator('aside').get_by_role('link', name=re.compile(re.escape(name)+'$'))
+        link = self.menu_link(name)
         if self.page.locator('.ant-modal:visible, .ant-drawer:visible').count():
             # 弹层遮罩阻止点击侧栏；这里显式触发路由以验证离开保护，物理关闭另有专测。
             link.evaluate('(node) => node.click()')
@@ -80,7 +87,7 @@ def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", c
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
-        pytest.fail('请先按联调手册安装requirements-browser.txt及Chromium，未跳过浏览器检查。')
+        pytest.fail('请先按联调手册安装 requirements/browser.txt 及 Chromium，未跳过浏览器检查。')
     if frontend_name not in {"admin", "user"}:
         raise ValueError("未知前端测试入口")
     port=5174 if frontend_name == "admin" else 5175
@@ -103,7 +110,7 @@ def browser_fixture(request, app, account, tmp_path, *, frontend_name="admin", c
         dist=ROOT/'frontend/admin/dist'
         def fallback(environ,start_response):
             path=environ.get('PATH_INFO','/')
-            if path=='/' or re.fullmatch(r'/(?:login|overview|catalog(?:/(?:style|issue)/(?:[0-9]+|new))?|items(?:/[0-9]+)?|chips(?:/[0-9]+)?|system)',path):
+            if path=='/' or re.fullmatch(r'/(?:login|overview(?:/(?:activity|order-preparation))?|catalog(?:/(?:style|issue)/(?:[0-9]+|new))?|items(?:/(?:[0-9]+|new))?|orders(?:/[0-9]+)?|physical-items(?:/[0-9]+)?|users|chips(?:/[0-9]+)?|system)',path):
                 return Response((dist/'index.html').read_bytes(),mimetype='text/html',headers={'Cache-Control':'no-store'})(environ,start_response)
             return app(environ,start_response)
         # 静态文件与API同源，模拟正式网关；API未知地址继续由后端返回JSON 404。

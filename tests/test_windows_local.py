@@ -124,7 +124,7 @@ def test_failed_stop_keeps_ownership_to_retry(workspace, monkeypatch):
 def test_unchanged_dependencies_skip_install_but_changed_or_missing_ones_update(workspace, monkeypatch):
     local.PYTHON.parent.mkdir(parents=True)
     local.PYTHON.touch()
-    for path in ("requirements.in", "requirements.txt", "requirements-dev.in", "requirements-dev.txt", "frontend/admin/package.json", "frontend/admin/package-lock.json", "frontend/user/package.json", "frontend/user/package-lock.json"):
+    for path in ("requirements/base.in", "requirements/dev.in", "requirements/dev.txt", "frontend/admin/package.json", "frontend/admin/package-lock.json", "frontend/user/package.json", "frontend/user/package-lock.json"):
         target = workspace / path
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text("first", encoding="utf-8")
@@ -146,6 +146,7 @@ def test_unchanged_dependencies_skip_install_but_changed_or_missing_ones_update(
     installs = lambda: [args for args in calls if "install" in args or "ci" in args]
     local.dependencies("node", "npm-cli.js")
     assert len(installs()) == 3
+    assert installs()[0][-2:] == ["-r", "requirements/dev.txt"]
     calls.clear()
     local.dependencies("node", "npm-cli.js")
     assert installs() == []
@@ -161,8 +162,10 @@ def test_unchanged_dependencies_skip_install_but_changed_or_missing_ones_update(
 def test_dependency_install_failure_does_not_record_success(workspace, monkeypatch):
     local.PYTHON.parent.mkdir(parents=True)
     local.PYTHON.touch()
-    for path in ("requirements.in", "requirements.txt", "requirements-dev.in", "requirements-dev.txt"):
-        (workspace / path).write_text("first", encoding="utf-8")
+    requirements = workspace / "requirements"
+    requirements.mkdir()
+    for path in ("base.in", "dev.in", "dev.txt"):
+        (requirements / path).write_text("first", encoding="utf-8")
 
     def invoke(args, *_a, **_kw):
         if "install" in args:

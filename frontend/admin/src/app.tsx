@@ -15,6 +15,8 @@ import { UserOutlined, LogoutOutlined } from "@ant-design/icons";
 import { list } from "./catalog";
 import { testBatch } from "./testDataMode";
 import settings from "../config/defaultSettings";
+import routes from "../config/routes";
+import brandSymbol from "../../shared/brand/bumbum-symbol-black.svg";
 import { ApiError, readSession, signOut } from "./api";
 import "./global.css";
 export async function getInitialState() {
@@ -59,17 +61,12 @@ function Account() {
 }
 function HeaderContext() {
   const { pathname } = useLocation();
-  const names: Record<string, string> = {
-    overview: "工作台",
-    catalog: "款式与发行",
-    items: "数字物品",
-    chips: "芯片管理",
-    system: "系统管理",
-  };
+  const sectionPath = "/" + pathname.split("/")[1];
+  const section = routes.find((route) => route.path === sectionPath)?.name;
   return (
     <div className="header-context">
       <Typography.Text strong>
-        {names[pathname.split("/")[1]] || "管理工作区"}
+        {section || "管理工作区"}
       </Typography.Text>
       <Typography.Text type="secondary">数字物品与芯片管理</Typography.Text>
     </div>
@@ -107,13 +104,25 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   ...settings,
   headerTitleRender: () => (
     <div className="brand-lockup">
-      <span className="brand-mark">BB</span>
+      <img className="brand-symbol" src={brandSymbol} alt="" width={32} style={{ height: "auto" }} />
       <div>
         <strong>BUMBUM 管理后台</strong>
         <small>数字物品档案与芯片关联</small>
       </div>
     </div>
   ),
+  menuDataRender: (menu) => {
+    const digital = menu.find((item) => item.path === "/items");
+    const physical = menu.find((item) => item.path === "/physical-items");
+    if (!digital || !physical) return menu;
+    return menu.flatMap((item) => {
+      if (item === physical) return [];
+      return item === digital ? [{
+        key: "item-management", name: "数字物品管理", icon: digital.icon,
+        children: [{ ...digital, icon: undefined }, physical],
+      }] : [item];
+    });
+  },
   menuItemRender: (item, dom) =>
     item.path ? <Link to={item.path}>{dom}</Link> : dom,
   headerContentRender: () => <HeaderContext />,
@@ -142,7 +151,7 @@ export function rootContainer(container: React.ReactNode) {
       }
       theme={{
         token: {
-          colorPrimary: "#1677ff",
+          colorPrimary: settings.colorPrimary,
           borderRadius: 8,
           colorText: "#0f172a",
           colorTextSecondary: "#64748b",

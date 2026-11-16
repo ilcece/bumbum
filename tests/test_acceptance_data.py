@@ -121,6 +121,11 @@ def test_prototype_statistics_filters_pagination_and_atomic_batch_sale(auth_app,
     ids=[r['item_id'] for r in acceptance['manifest']['items'][:2]]
     payload={'item_ids':ids,'confirmed':True,'evidence':'隔离验收核对'}
     result=ok(action(logged_in,'saleBatch',payload));assert result['ids']==sorted(ids)
+    for item_id in ids:
+        logs=ok(client.get('/api/admin/catalog/audit',query_string={'item_id':item_id,'action':'catalog.saleBatch'}))['items']
+        assert len(logs)==1 and logs[0]['detail']['evidence']==payload['evidence']
+        assert logs[0]['detail']['after']['sold']==1
+        assert ok(client.get(f'/api/admin/catalog/items/{item_id}'))['audit'][0]['id']==logs[0]['id']
     assert query(auth_app,'SELECT COUNT(*) AS n FROM digital_item WHERE item_id IN (%s,%s) AND sold=1',tuple(ids))[0]['n']==2
     assert action(logged_in,'saleBatch',{'item_ids':[ids[0],2147483647],'confirmed':False,'evidence':'应整体拒绝'}).status_code==409
     assert query(auth_app,'SELECT sold FROM digital_item WHERE item_id=%s',(ids[0],))[0]['sold']==1
@@ -133,6 +138,7 @@ def test_prototype_statistics_filters_pagination_and_atomic_batch_sale(auth_app,
     monkeypatch.setattr(admin_catalog,'item_action',fail_second)
     assert action(logged_in,'saleBatch',{'item_ids':ids,'confirmed':False,'evidence':'验证事务回滚'}).status_code==500
     assert query(auth_app,'SELECT sold FROM digital_item WHERE item_id=%s',(ids[0],))[0]['sold']==1
+    assert query(auth_app,"SELECT COUNT(*) AS n FROM admin_audit WHERE action='catalog.saleBatch'")[0]['n']==2
 
 
 def test_rich_pack_real_photos_specs_states_and_synthetic_boundaries(auth_app,acceptance):

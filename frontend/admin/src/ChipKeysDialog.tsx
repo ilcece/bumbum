@@ -306,7 +306,7 @@ export function ChipKeysDialog({
         <Steps
           size="small"
           current={
-            chip.provisioned_at ? 3 : !chip.keys_generated ? 0 : keys ? 2 : 1
+            chip.provisioned_at ? 3 : !chip.keys_generated ? 0 : links.some(Boolean) || management || keys ? 2 : 1
           }
           items={[
             { title: "生成密钥" },
@@ -323,7 +323,7 @@ export function ChipKeysDialog({
         {!safe && (
           <Alert type="error" title="记录编号超出页面可处理范围，不能提交。" />
         )}
-        <ProCard
+        {!chip.keys_generated && <ProCard
           size="small"
           headerBordered
           variant="outlined"
@@ -345,7 +345,8 @@ export function ChipKeysDialog({
               </Button>
             </div>
           </div>
-        </ProCard>
+        </ProCard>}
+        {chip.keys_generated && <>
         <ProCard
           size="small"
           headerBordered
@@ -476,6 +477,7 @@ export function ChipKeysDialog({
             </div>
           )}
         </ProCard>
+        </>}
         <div>
           <Button disabled={busy || !safe} onClick={() => void run("query")}>
             查询实际记录

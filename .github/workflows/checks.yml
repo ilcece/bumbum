@@ -32,7 +32,7 @@ jobs:
           cache-dependency-path: |
             frontend/admin/package-lock.json
             frontend/user/package-lock.json
-      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip install -r requirements/dev.txt
       - run: npm ci
         working-directory: frontend/admin
       - run: npm run build
@@ -63,7 +63,7 @@ jobs:
           cache-dependency-path: |
             frontend/admin/package-lock.json
             frontend/user/package-lock.json
-      - run: python -m pip install -r requirements-browser.txt
+      - run: python -m pip install -r requirements/browser.txt
       - run: python -m playwright install --with-deps chromium
       - run: npm ci
         working-directory: frontend/admin
@@ -95,6 +95,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.14'
-      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pip install -r requirements/dev.txt
       - run: docker build --secret id=proxy_ca,src=/etc/ssl/certs/ca-certificates.crt -f deploy/cloud_test/Dockerfile -t bumbum-ci:local .
       - run: python -m pytest tests/test_cloud_gateway.py tests/test_user_gateway.py --auth-db --cloud-image bumbum-ci:local -q
