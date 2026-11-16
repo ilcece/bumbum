@@ -150,10 +150,12 @@ def test_workbench_and_filtered_list_return_paths(desktop):
     order = api(desktop, "createOrder", {"channel": "验收店铺", "external_order_no": "ROUTE-ORDER-01",
                                       "units": [{"product_name": "A"}, {"product_name": "B"}]})
     p = desktop.page
-    button(p, "登记数字物品")
+    desktop.navigate("数字物品")
+    listing = p.url
+    button(p, "新建数字物品")
     expect(p.get_by_label("数字物品编号", exact=True)).to_be_visible()
     button(p, "取消")
-    expect(p).to_have_url(re.compile(r"/overview$"))
+    expect(p).to_have_url(listing)
 
     def search(label, keyword):
         field = p.get_by_role("textbox", name=re.compile(label))

@@ -73,8 +73,8 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     p.wait_for_load_state('networkidle')
     created=query(desktop.app,"SELECT id FROM product_style WHERE code='BROWSER-REAL-STYLE'")[0]['id']
     assert query(desktop.app,"SELECT batch_id FROM test_batch_object WHERE kind='style' AND object_id=%s",(created,))[0]['batch_id']==batch
-    desktop.navigate('工作台')
-    p.get_by_role('button',name='登记数字物品',exact=True).click()
+    desktop.navigate('数字物品')
+    button(p, '新建数字物品')
     expect(p.get_by_role('alert').filter(has_text='不支持')).to_have_count(0)
     expect(p.get_by_label('数字物品编号',exact=True)).to_be_visible()
     p.set_viewport_size({'width':1280,'height':720})

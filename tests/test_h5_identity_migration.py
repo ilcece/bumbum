@@ -27,5 +27,5 @@ def test_existing_items_keep_identity_and_new_items_get_uuid4(auth_app):
             assert schema(cursor) == 'ready'
     assert query(auth_app, "SELECT id,item_uid,updated_at FROM item ORDER BY id") == original
     query(auth_app, "INSERT INTO item(project_id,item_uid) VALUES (1,'IDENTITY-NEW')")
-    ids = [UUID(row['public_id']) for row in query(auth_app, "SELECT public_id FROM item ORDER BY id")]
+    ids = [UUID(row['public_id']) for row in query(auth_app, "SELECT public_id FROM item WHERE item_uid LIKE 'IDENTITY-%' ORDER BY id")]
     assert len(set(ids)) == 3 and all(identifier.version == 4 for identifier in ids)

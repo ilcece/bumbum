@@ -227,11 +227,12 @@ def test_expired_tap_keeps_account_and_fresh_tap_resumes_claim(auth_app, claim_r
     challenge = ok(client.post('/api/public/sms/send', headers=ORIGIN, json={'phone': phone}))['challenge_id']
     account = ok(client.post('/api/public/sms/verify', headers=ORIGIN,
                             json={'challenge_id': challenge, 'code': sms[phone]}))['account']
-    view = ok(client.post('/api/tap/verify', headers=ORIGIN,
+    view = ok(client.post('/api/public/tap/verify', headers=ORIGIN,
                           json={**reading(keys, uid, 3), 'browser_view': True}))
     # 只推进服务时钟，不伪造无效 token，直接验证自然过期边界。
     auth_app.test_clock[0] += timedelta(seconds=view['expires_in'] + 1)
-    response = client.post(f'/api/public/items/{item}/claim', headers=ORIGIN,
+    ref = view['public_id']
+    response = client.post(f'/api/public/items/{ref}/claim', headers=ORIGIN,
                            json={'tap_token': view['tap_token'], 'claim_code': issued['claim_code']})
     assert response.status_code == 403 and response.json['code'] == 'retap_required'
     assert response.json['message'] == '请重新碰一下物品，再继续认领。'
@@ -239,14 +240,14 @@ def test_expired_tap_keeps_account_and_fresh_tap_resumes_claim(auth_app, claim_r
     assert not query(auth_app, 'SELECT id FROM ownership WHERE item_id=%s', (item,))
     assert query(auth_app, 'SELECT consumed_at FROM item_claim_code WHERE id=%s',
                  (issued['claim_code_id'],))[0]['consumed_at'] is None
-    renewed = ok(client.post('/api/tap/verify', headers=ORIGIN,
+    renewed = ok(client.post('/api/public/tap/verify', headers=ORIGIN,
                              json={**reading(keys, uid, 4), 'browser_view': True}))
     assert renewed['tap_token'] != view['tap_token']
-    result = ok(client.post(f'/api/public/items/{item}/claim', headers=ORIGIN,
+    result = ok(client.post(f'/api/public/items/{ref}/claim', headers=ORIGIN,
                             json={'tap_token': renewed['tap_token'], 'claim_code': issued['claim_code']}))
     assert result['state'] == 'mine'
     assert ok(client.get('/api/public/account/session'))['account'] == account
-    assert ok(client.get(f'/api/public/me/items/{item}'))['item']['item_id'] == item
+    assert ok(client.get(f'/api/public/me/items/{ref}'))['item']['public_id'] == ref
     assert len(query(auth_app, 'SELECT id FROM ownership WHERE item_id=%s', (item,))) == 1
     assert query(auth_app, 'SELECT consumed_at FROM item_claim_code WHERE id=%s',
                  (issued['claim_code_id'],))[0]['consumed_at'] is not None
