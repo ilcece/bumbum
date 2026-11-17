@@ -40,9 +40,9 @@
 
 | 场景 | 需要提供什么 |
 |---|---|
-| 管理业务 | 浏览器自动携带有效 bumbum_admin_session Cookie，账号须启用且完成验证器设置；会话由密码加动态码或杭州 test 的通行密钥登录建立 |
+| 管理业务 | 浏览器自动携带有效 bumbum_admin_session Cookie，账号须启用且完成验证器设置；会话由密码加动态码或杭州管理后台的通行密钥登录建立 |
 | 修改管理数据 | 另带 X-CSRF-Token（页面取得的防冒用口令），并检查请求来自允许的管理网页；不直接把它写成用户手填项 |
-| 登录 | 密码入口一次提交账号、密码和验证码；杭州 test 通行密钥入口见第2.4节。两者检查允许的 Origin 和 JSON，不依赖已有管理会话 |
+| 登录 | 密码入口一次提交账号、密码和验证码；test 与生产管理后台的通行密钥入口见第2.4节。两者检查允许的 Origin 和 JSON，不依赖已有管理会话 |
 | 扫描回调 | HTTPS Basic Auth：WEBHOOK_ADMIN_USERNAME 指定已有管理员名，WEBHOOK_SHARED_SECRET 作独立扫码密码；不把秘密放链接或日志 |
 | 兼容详情接口 | 请求头 X-Tap-Token 放触碰后的临时凭证，沿用原五分钟规则 |
 | 手机资料持续查看 | 浏览器自动携带持续查看Cookie，具体契约见第9节；不使用管理会话，也不要求用户手填凭证 |
@@ -58,7 +58,7 @@
 |---|---|---|
 | 运行检查 | GET /api/health、GET /api/ready | 第0.5节；公开用户域名不因此开放内部检查 |
 | 管理认证 | POST /api/admin/auth/login、GET /api/admin/auth/session、POST /api/admin/auth/logout | 第2节 |
-| 通行密钥 | 杭州 test 的 /api/admin/auth/passkeys 登记、登录、查询与撤销 | [第2.4节](#24-杭州-test-通行密钥) |
+| 通行密钥 | test 与生产管理后台的 /api/admin/auth/passkeys 登记、登录、查询与撤销 | [第2.4节](#24-管理后台通行密钥) |
 | 芯片登记/查询/批次 | GET/POST /api/admin/chips、GET/PATCH /api/admin/chips/{id}、POST /api/webhook/admin/scan | 第1.1、3节；PATCH仅批次，回调与网页认证不同 |
 | 首次绑定 | POST /api/admin/chips/{id}/bind-item | 第3.1节；不含解绑或换新 |
 | 密钥及配置核验 | POST /api/admin/chips/{id}/generate-keys、keys、confirm-provisioning | 第3节；不连接或改写实卡 |
@@ -181,11 +181,17 @@ reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法
 
 <a name="3-管理芯片第一阶段"></a>
 
-### 2.4 杭州 test 通行密钥
+<a name="24-杭州-test-通行密钥"></a>
 
-`POST /api/admin/auth/passkeys/login/options` 接收空 JSON。客户端用返回的选项发起 WebAuthn，随后向 `login/finish` 提交通行密钥响应及原挑战。成功签发与动态码相同的八小时管理会话。服务端校验杭州 test 来源、用户验证、签名和单次挑战。
+### 2.4 管理后台通行密钥
+
+仅对杭州 test 与生产管理后台开放，槽位、精确 HTTPS 来源及各自完整 hostname 的 RP ID 按[技术说明](TECH_SPEC.md#43-管理后台通行密钥)成对匹配；两站凭据不互认，生产须重新登记。其他站点返回 `404 not_found`，不因接口路径相同而开放。
+
+`POST /api/admin/auth/passkeys/login/options` 接收空 JSON。客户端用返回的选项发起 WebAuthn，随后向 `login/finish` 提交通行密钥响应及原挑战。成功签发与动态码相同的八小时管理会话。服务端校验本站来源、用户验证、签名和两分钟内有效的单次挑战。
 
 管理会话可读取 `GET /api/admin/auth/passkeys`。登录后十分钟内可用 `register/options`、`register/finish` 登记，或用 `POST /api/admin/auth/passkeys/{id}/revoke` 撤销。登记和撤销须同源及 CSRF，登记挑战绑定当前管理会话。撤销使该账户的全部旧会话失效。
+
+挑战已使用或超时返回 `409 passkey_challenge_used`，须重新获取挑战；登记或撤销超过最近登录时限返回 `409 recent_login_required`，重新登录后再操作。没有本站凭据、设备确认取消或验证未通过时，原密码加 Authenticator 登录仍可使用；具体设备提示和验收见[登录手册](docs/ADMIN_LOGIN.md#杭州后台的通行密钥)。
 
 ## 3. 管理芯片（已实现）
 

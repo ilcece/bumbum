@@ -44,7 +44,7 @@ export default function AdminPasskeys() {
   }
 
   return <Space orientation="vertical" style={{ width: "100%" }}>
-    <Typography.Paragraph>用现有方式登录后 10 分钟内登记或撤销。登记时在 Edge 的提示中选择 Windows Hello。原动态码登录可继续使用。</Typography.Paragraph>
+    <Typography.Paragraph>用现有方式登录后 10 分钟内登记或撤销。测试与生产站点需分别登记。登记时在 Edge 的提示中选择 Windows Hello。原账号、密码和动态码登录可继续使用。</Typography.Paragraph>
     <Button type="primary" loading={busy} onClick={() => void act()}>登记通行密钥</Button>
     {error && <Alert type="error" title={error} />}
     {listError ? <ReadFailure title="通行密钥列表读取失败" error={listError} retry={() => void reload()} /> :

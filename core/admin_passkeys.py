@@ -1,4 +1,4 @@
-"""测试后台的 WebAuthn 登记、登录及撤销。"""
+"""杭州管理后台的 WebAuthn 登记、登录及撤销。"""
 
 from datetime import timedelta
 from hashlib import sha256
@@ -24,13 +24,16 @@ blueprint = Blueprint("admin_passkeys", __name__, url_prefix="/api/admin/auth/pa
 def passkeys_enabled():
     config = current_app.config
     origin = config["ADMIN_ORIGIN"]
-    return ((config["HANGZHOU_SLOT"] == "test" and origin == "https://test.bumbum.cc")
+    return ((config["HANGZHOU_SLOT"], origin) in (
+                ("test", "https://test.bumbum.cc"),
+                ("production", "https://admin.bumbum.cc"),
+            )
             or (config["TESTING"] and config.get("TEST_ADMIN_PASSKEYS") is True
                 and urlsplit(origin).hostname in {"localhost", "127.0.0.1"}))
 
 
 @blueprint.before_request
-def test_only():
+def require_enabled_site():
     if not passkeys_enabled():
         raise AuthRequestError(404, "not_found", "当前站点未启用通行密钥。")
 
@@ -111,7 +114,8 @@ def register_options():
         lock_admin_session(cursor)
         admin = row(cursor,"SELECT username FROM admin_user WHERE id=%s",(g.admin_session["admin_id"],))
     options = generate_registration_options(
-        rp_id=rp_id(), rp_name="BUMBUM Test", user_name=admin["username"], challenge=token_bytes(32),
+        rp_id=rp_id(), rp_name="BUMBUM" if current_app.config["HANGZHOU_SLOT"] == "production" else "BUMBUM Test",
+        user_name=admin["username"], challenge=token_bytes(32),
         user_id=account_handle(g.admin_session["admin_id"]), timeout=120000,
         authenticator_selection=AuthenticatorSelectionCriteria(
             authenticator_attachment=AuthenticatorAttachment.PLATFORM,

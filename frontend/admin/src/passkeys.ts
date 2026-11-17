@@ -1,7 +1,8 @@
 import { request } from "./api";
 
 const base = "/admin/auth/passkeys";
-export const passkeysEnabled = () => window.location.hostname === "test.bumbum.cc";
+export const passkeysEnabled = () =>
+  ["https://test.bumbum.cc", "https://admin.bumbum.cc"].includes(window.location.origin);
 export const passkeysSupported = () =>
   window.PublicKeyCredential &&
   typeof PublicKeyCredential.parseCreationOptionsFromJSON === "function" &&
