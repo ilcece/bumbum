@@ -1,5 +1,3 @@
-"""后端入口：运行检查、认证、芯片管理、物品资料及用户触碰验证。"""
-
 from flask import Flask, abort, g, jsonify, request
 from werkzeug.exceptions import HTTPException
 

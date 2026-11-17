@@ -1,8 +1,9 @@
+import type { ChipRecord } from "../types/catalog";
 import { useState } from "react";
 import { PageContainer, ProColumns } from "@ant-design/pro-components";
 import { Button, Drawer, Form, InputNumber, Select, Switch } from "antd";
 import { history } from "@umijs/max";
-import { Row, statusNames, time, validationHelp } from "../catalog";
+import { statusNames, time, validationHelp } from "../catalog";
 import { ActionForm, Copy, State } from "../components/CatalogUI";
 import { ChipRegistrationFields } from "../components/AssemblyFields";
 import ServerTable from "../components/ServerTable";
@@ -13,7 +14,7 @@ export default function Chips() {
   const [id, setId] = useState<number>(),
     [create, setCreate] = useState(false),
     [rev, setRev] = useState(0);
-  const columns: ProColumns<Row>[] = [
+  const columns: ProColumns<ChipRecord>[] = [
     {
       title: "关键词",
       dataIndex: "keyword",

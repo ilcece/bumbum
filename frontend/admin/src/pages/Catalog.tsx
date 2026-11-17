@@ -1,17 +1,14 @@
+import IssueFields from "../components/IssueFields";
 import React, { useState } from "react";
 import {
   PageContainer,
   ProCard,
   ProColumns,
-  ProForm,
 } from "@ant-design/pro-components";
 import {
   Alert,
   Button,
-  Col,
-  Row as GridRow,
   Checkbox,
-  DatePicker,
   Descriptions,
   Form,
   Input,
@@ -22,8 +19,7 @@ import {
   Typography,
 } from "antd";
 import { history, useLocation, useParams } from "@umijs/max";
-import dayjs from "dayjs";
-import { assemblyPath, Row, read, statusNames, time, edition } from "../catalog";
+import { assemblyPath, read, statusNames, time, edition } from "../catalog";
 import {
   ActionForm,
   Copy,
@@ -35,102 +31,14 @@ import {
   required,
   returnPath,
 } from "../components/CatalogUI";
-import { inputDate, inputISO } from "../businessTime";
+import type { ActionResult, IssueRecord, StyleRecord } from "../types/catalog";
 import ServerTable from "../components/ServerTable";
 import StyleEditor from "../components/StyleEditor";
-export function IssueFields() {
-  const mode = Form.useWatch("mode");
-  return (
-    <>
-      <Form.Item name="id" hidden>
-        <InputNumber />
-      </Form.Item>
-      <Form.Item name="name" label="发行名称" rules={required}>
-        <Input autoFocus placeholder="请输入" maxLength={128} />
-      </Form.Item>
-      <Form.Item name="style_id" label="关联款式" rules={required}>
-        <RemoteSelect resource="styles" placeholder="请选择" />
-      </Form.Item>
-      <ProForm.Group>
-        <Form.Item
-          name="series"
-          label="系列归类（选填）"
-          style={{ width: 328 }}
-        >
-          <Input maxLength={128} />
-        </Form.Item>
-        <Form.Item
-          name="mode"
-          label="发行方式"
-          rules={required}
-          style={{ width: 328 }}
-        >
-          <Select
-            options={["fixed", "period", "unlimited"].map((v) => ({
-              value: v,
-              label: statusNames[v],
-            }))}
-          />
-        </Form.Item>
-      </ProForm.Group>
-      {mode === "fixed" && (
-        <Form.Item name="total" label="固定发行总量" rules={required}>
-          <InputNumber min={1} precision={0} style={{ width: "100%" }} />
-        </Form.Item>
-      )}
-      {mode === "period" && (
-        <>
-          <GridRow gutter={16}>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="starts_at"
-                label="销售开始（北京时间）"
-                getValueProps={(v) => ({
-                  value: typeof v === "string" ? inputDate(v) : v,
-                })}
-                normalize={(v) => (v ? inputISO(v) : undefined)}
-                rules={required}
-              >
-                <DatePicker showTime style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} md={12}>
-              <Form.Item
-                name="ends_at"
-                label="销售结束（北京时间）"
-                getValueProps={(v) => ({
-                  value: typeof v === "string" ? inputDate(v) : v,
-                })}
-                normalize={(v) => (v ? inputISO(v) : undefined)}
-                rules={required}
-              >
-                <DatePicker showTime style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-          </GridRow>
-          <Form.Item
-            name="counting_rule"
-            label="有效数量核定规则"
-            rules={required}
-          >
-            <Input.TextArea
-              placeholder="明确取消、退款及跨期处理；预估量不作上限。"
-              rows={3}
-            />
-          </Form.Item>
-        </>
-      )}
-      <Form.Item
-        name="description"
-        label="发行说明与规格承诺"
-        rules={required}
-        extra="说明限量、规格/颜色限制及允许的例外；确认后普通维护不可追改。"
-      >
-        <Input.TextArea rows={3} maxLength={4000} />
-      </Form.Item>
-    </>
-  );
-}
+type CatalogEditor =
+  | { kind: "style"; record?: StyleRecord }
+  | { kind: "issue"; record?: IssueRecord };
+type IssueAction = { type: "confirmIssue" | "deleteIssue" | "seal"; r: IssueRecord };
+
 export default function Catalog() {
   const location = useLocation(),
     routeId = useParams().id,
@@ -139,9 +47,9 @@ export default function Catalog() {
   const [routeLoading, setRouteLoading] = useState(!!routeId && routeId !== "new");
   const [routeRetry, setRouteRetry] = useState(0);
   const q = new URLSearchParams(location.search),
-    [editor, setEditor] = useState<{ kind: string; record?: Row }>(),
+    [editor, setEditor] = useState<CatalogEditor>(),
     [rev, setRev] = useState(0),
-    [action, setAction] = useState<{ type: string; r: Row }>(),
+    [action, setAction] = useState<IssueAction>(),
     [issueDirty, setIssueDirty] = useState(false);
   React.useEffect(() => {
     let live = true;
@@ -158,9 +66,11 @@ export default function Catalog() {
     }
     setEditor(undefined);
     setRouteLoading(true);
-    read(routeKind === "style" ? "styles" : "issues", Number(routeId))
-      .then((r) => {
-        if (live) setEditor({ kind: routeKind, record: r });
+    const load = routeKind === "style"
+      ? read("styles", Number(routeId)).then((record): CatalogEditor => ({ kind: "style", record }))
+      : read("issues", Number(routeId)).then((record): CatalogEditor => ({ kind: "issue", record }));
+    load.then((record) => {
+        if (live) setEditor(record);
       })
       .catch((e) => {
         if (live) setRouteError(e.message);
@@ -181,7 +91,7 @@ export default function Catalog() {
           ),
         );
     },
-    done = (result?: Row) => {
+    done = (result?: ActionResult) => {
       setIssueDirty(false);
       if (
         routeId &&
@@ -189,10 +99,11 @@ export default function Catalog() {
         result?.id &&
         ["style", "issue"].includes(editor.kind)
       ) {
-        const resource = editor.kind === "style" ? "styles" : "issues";
-        void read(resource, result.id).then((record) =>
-          setEditor({ kind: editor.kind, record }),
-        );
+        if (editor.kind === "style") {
+          void read("styles", result.id).then((record) => setEditor({ kind: "style", record }));
+        } else {
+          void read("issues", result.id).then((record) => setEditor({ kind: "issue", record }));
+        }
         history.replace(
           `/catalog/${editor.kind}/${result.id}${q.get("from") ? "?from=" + encodeURIComponent(q.get("from")!) : ""}`,
         );
@@ -205,7 +116,7 @@ export default function Catalog() {
       setRev((x) => x + 1);
     };
   const tab = q.get("tab") || "styles";
-  const styles: ProColumns<Row>[] = [
+  const styles: ProColumns<StyleRecord>[] = [
     {
       title: "关键词",
       dataIndex: "keyword",
@@ -257,7 +168,7 @@ export default function Catalog() {
       ],
     },
   ];
-  const issues: ProColumns<Row>[] = [
+  const issues: ProColumns<IssueRecord>[] = [
     { title: "关键词", dataIndex: "keyword", hideInTable: true },
     { title: "发行约定", dataIndex: "name", search: false },
     { title: "关联款式", dataIndex: "style_name", search: false },
@@ -311,9 +222,9 @@ export default function Catalog() {
         r.confirmed_at && r.mode === "period" && !r.sealed_at && (
           <Button
             key="seal"
-            disabled={Date.parse(r.ends_at) > Date.now()}
+            disabled={Date.parse(r.ends_at || "") > Date.now()}
             title={
-              Date.parse(r.ends_at) > Date.now()
+              Date.parse(r.ends_at || "") > Date.now()
                 ? "尚未到约定销售期满"
                 : undefined
             }
@@ -338,8 +249,21 @@ export default function Catalog() {
   ];
   const issue = editor?.kind === "issue" ? editor.record : undefined;
   const canSeal = issue?.confirmed_at && issue.mode === "period" && !issue.sealed_at;
-  const sealAction = canSeal && <Button type="primary" disabled={Date.parse(issue.ends_at) > Date.now()}
+  const sealAction = canSeal && <Button type="primary" disabled={Date.parse(issue.ends_at || "") > Date.now()}
     onClick={() => setAction({ type: "seal", r: issue })}>核对并确认最终数量</Button>;
+  const tableExtra = [
+    <Button
+      key="create"
+      type="primary"
+      onClick={() => history.push(
+        tab === "styles"
+          ? `/catalog/style/new?from=${encodeURIComponent(location.pathname + location.search)}`
+          : `/catalog/issue/new?from=${encodeURIComponent(location.pathname + location.search)}`,
+      )}
+    >
+      {tab === "styles" ? "新建款式" : "新增发行约定"}
+    </Button>,
+  ];
   return (
     <PageContainer
       title={
@@ -348,7 +272,7 @@ export default function Catalog() {
             ? editor?.record
               ? "维护共用款式"
               : "新建款式"
-            : editor?.record?.confirmed_at
+            : editor?.kind === "issue" && editor.record?.confirmed_at
               ? "发行约定详情"
               : editor?.record
                 ? "维护发行草案"
@@ -373,27 +297,11 @@ export default function Catalog() {
               { key: "issues", label: "发行约定" },
             ]}
           />
-          <ServerTable
-            key={tab}
-            resource={tab}
-            refresh={rev}
-            columns={tab === "styles" ? styles : issues}
-            extra={[
-              <Button
-                key="create"
-                type="primary"
-                onClick={() =>
-                  history.push(
-                    tab === "styles"
-                      ? `/catalog/style/new?from=${encodeURIComponent(location.pathname + location.search)}`
-                      : `/catalog/issue/new?from=${encodeURIComponent(location.pathname + location.search)}`,
-                  )
-                }
-              >
-                {tab === "styles" ? "新建款式" : "新增发行约定"}
-              </Button>,
-            ]}
-          />
+          {tab === "styles" ? (
+            <ServerTable key={tab} resource="styles" refresh={rev} columns={styles} extra={tableExtra} />
+          ) : (
+            <ServerTable key={tab} resource="issues" refresh={rev} columns={issues} extra={tableExtra} />
+          )}
         </>
       )}
       {editor?.kind === "style" && (
@@ -465,7 +373,7 @@ export default function Catalog() {
           )}
         </div>
       )}
-      {editor?.record?.confirmed_at && editor.kind === "issue" && (
+      {editor?.kind === "issue" && editor.record?.confirmed_at && (
         <ActionForm
           title="已确认发行约定"
           page={!!routeId}
@@ -556,7 +464,7 @@ export default function Catalog() {
                     个身份；期满后按外部核定结果登记最终数量与依据，不录订单或物流。
                   </Typography.Paragraph>
                   {!routeId && sealAction}
-                  {Date.parse(editor.record.ends_at) > Date.now() && (
+                  {Date.parse(editor.record.ends_at || "") > Date.now() && (
                     <p>尚未到约定销售期满，不能提前核定。</p>
                   )}
                 </>

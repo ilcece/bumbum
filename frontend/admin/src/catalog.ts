@@ -1,17 +1,15 @@
 import { dataScope, testBatch } from "./testDataMode";
 import { request, ApiError } from "./api";
-import type { ItemFacts } from "../../shared/itemPresentation";
-export type Row = { id: number; [key: string]: any };
-export type Page = {
-  items: Row[];
-  total: number;
-  page: number;
-  page_size: number;
-};
-export async function list(
-  resource: string,
-  params: Record<string, any> = {},
-): Promise<Page> {
+import type {
+  ActionPayloadMap, ActionResult, CatalogAction, CatalogQuery, CatalogResource,
+  CatalogRow, CatalogStatistics, DetailMap, DetailResource, H5Preview, Page, ResourceMap,
+} from "./types/catalog";
+export type { CatalogResource, CatalogQuery, Page } from "./types/catalog";
+export type Row = CatalogRow;
+export async function list<R extends CatalogResource>(
+  resource: R,
+  params: CatalogQuery = {},
+): Promise<Page<ResourceMap[R]>> {
   const q = new URLSearchParams();
   for (const [k, v] of Object.entries(
     ["styles", "issues", "items", "chips", "users", "physical-items", "activity", "orders"].includes(resource)
@@ -21,23 +19,23 @@ export async function list(
     if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
   return request(`/admin/catalog/${resource}?${q}`);
 }
-export const read = (resource: string, id: number): Promise<Row> =>
+export const read = <R extends DetailResource>(resource: R, id: number): Promise<DetailMap[R]> =>
   request(`/admin/catalog/${resource}/${id}`);
-export const h5Preview = (id: number): Promise<Row & ItemFacts> =>
+export const h5Preview = (id: number): Promise<H5Preview> =>
   request(`/admin/catalog/items/${id}/h5-preview`);
-export const command = (
-  action: string,
-  payload: Record<string, any>,
+export const command = <A extends CatalogAction>(
+  action: A,
+  payload: ActionPayloadMap[A],
   requestId: string,
-): Promise<Row> =>
+): Promise<ActionResult> =>
   request(`/admin/catalog/actions/${action}`, {
     request_id: requestId,
     payload:
-      testBatch() && ["style", "register", "createOrder"].includes(action) && !payload.id
+      testBatch() && ["style", "register", "createOrder"].includes(action) && !("id" in payload && payload.id)
         ? { ...payload, test_batch_id: testBatch() }
         : payload,
   });
-export const statistics = (params: Record<string, any>): Promise<Row> => {
+export const statistics = (params: CatalogQuery): Promise<CatalogStatistics> => {
   const q = new URLSearchParams(
     Object.entries({ ...params, ...dataScope() })
       .filter(([, v]) => v !== undefined)
@@ -72,13 +70,13 @@ export const time = (v?: string | null) =>
         hour12: false,
       })
     : "未记录";
-export const edition = (i: Row) =>
+export const edition = (i: { edition_number?: number | null; issue_total?: number | null; issue_id?: number | null }) =>
   i.edition_number
     ? `#${String(i.edition_number).padStart(i.issue_total ? String(i.issue_total).length : 3, "0")}${i.issue_total ? "/" + i.issue_total : ""}`
     : i.issue_id
       ? "正式编号待核定"
       : "未关联发行";
-export const wholeStatus = (w: Row) =>
+export const wholeStatus = (w: { ended_at?: string | null; lost_at?: string | null; loss_evidence?: string | null }) =>
   w.ended_at ? "已替换" : w.lost_at || w.loss_evidence ? "已挂失" : "正常";
 
 export const validationHelp =
@@ -107,10 +105,10 @@ export const itemWorkflowNames: Record<string, string> = {
   archived: "已归档", lost: "已挂失", disabled: "已停用",
 };
 
-export const workbenchWorkflows = ["assembly", "verification", "delivery", "claim", "available"];
+export const workbenchWorkflows = ["assembly", "verification", "delivery", "claim", "available"] as const;
 
-export function itemWorkflow(row: Row) {
-  return itemWorkflowNames[row.workflow] ?? "—";
+export function itemWorkflow(row: Pick<CatalogRow, "workflow">) {
+  return (row.workflow && itemWorkflowNames[row.workflow]) || "—";
 }
 
 export function activityPath(from: string, params: Record<string, string | number | undefined>) {

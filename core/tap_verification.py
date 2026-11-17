@@ -24,8 +24,6 @@ REASONS = {
 
 
 class TapRateLimited(Exception):
-    """请求次数已达上限，携带到窗口结束的等待秒数。"""
-
     def __init__(self, retry_after):
         self.retry_after = retry_after
 

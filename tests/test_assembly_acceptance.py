@@ -4,7 +4,6 @@ from datetime import datetime
 
 import pytest
 
-from core import admin_catalog
 from tests.test_admin_auth import query
 from tests.test_admin_catalog import action, assembly, catalog, config_chip, ok, owner
 from tests.test_admin_chips import logged_in
@@ -76,7 +75,7 @@ def test_renewal_counts_beijing_effective_year_and_resale_inherits_usage(auth_ap
     session, style, _, item, chips = catalog
     # 只控制业务时钟，真实认证夹具时钟不跳年；所有对象均来自独立临时库。
     clock = [datetime(2029, 12, 31, 15, 59, 58)]
-    monkeypatch.setattr(admin_catalog, 'now', lambda: clock[0])
+    monkeypatch.setattr('core.catalog.common.utc_now', lambda: clock[0])
     ok(action(session, 'installAssembly', {'item_id': item, **assembly(session, style, chips[0], '原实物')}))
     config_chip(auth_app, session, chips[0])
     first_owner = owner(auth_app, item, 81)

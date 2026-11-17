@@ -76,6 +76,15 @@ def test_empty_order_workflow_in_admin(desktop):
     button(p, "配置并核验芯片")
     chip_id = query(desktop.app, "SELECT id FROM chip WHERE chip_uid='04:00:00:00:00:00:D1'")[0]["id"]
     key_configuration(desktop, chip_id)
+    button(p, "EMPTY-ITEM")
+    expect(p).to_have_url(re.compile(r"/items/\d+\?from="))
+    item_url = p.url
+    button(p, "打开对应订单件")
+    expect(p).to_have_url(unit_url)
+    button(p, "EMPTY-ITEM")
+    expect(p).to_have_url(item_url)
+    p.get_by_role("button", name="back", exact=True).click()
+    expect(p).to_have_url(unit_url)
     button(p, "启用数字物品")
     button(p.get_by_role("dialog", name="启用数字物品", exact=True), "启用数字物品")
     expect(p).to_have_url(unit_url)
@@ -151,6 +160,7 @@ def test_workbench_and_filtered_list_return_paths(desktop):
                                       "units": [{"product_name": "A"}, {"product_name": "B"}]})
     p = desktop.page
     desktop.navigate("数字物品")
+    expect(p).to_have_url(re.compile(r"/items\?page=1$"))
     listing = p.url
     button(p, "新建数字物品")
     expect(p.get_by_label("数字物品编号", exact=True)).to_be_visible()

@@ -1,6 +1,5 @@
 @import "../../shared/productImage.css";
 
-/* 只维护附件视觉所需的局部样式，布局、控件和滚动继续使用Pro及AntD组件。 */
 body {
   margin: 0;
   font-variant-numeric: tabular-nums;
@@ -114,7 +113,6 @@ body {
   background: #f8fafc;
   border-radius: 6px;
 }
-/* 页面集中在工作区中央；大屏不继续拉长短字段和表格。 */
 .ant-pro-layout .ant-pro-layout-content {
   width: 100%;
   max-width: 1320px;

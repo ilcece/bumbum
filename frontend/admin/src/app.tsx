@@ -78,7 +78,7 @@ function MenuLabel({ path, label }: { path?: string; label: React.ReactNode }) {
   React.useEffect(() => {
     let live = true;
     if (path === "/items" || path === "/chips")
-      list(path.slice(1), { page_size: 1 })
+      list(path === "/items" ? "items" : "chips", { page_size: 1 })
         .then((r) => {
           if (live) setCount(r.total);
         })

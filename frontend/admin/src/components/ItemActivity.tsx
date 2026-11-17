@@ -1,8 +1,9 @@
+import type { ActivityRecord } from "../types/catalog";
 import ReadFailure from "./ReadFailure";
 import { useEffect, useState } from "react";
 import { Empty, Spin, Timeline } from "antd";
 import { history, useLocation } from "@umijs/max";
-import { list, Row, time } from "../catalog";
+import { list, time } from "../catalog";
 import { Copy } from "./CatalogUI";
 import UserIdentity from "./UserIdentity";
 
@@ -14,7 +15,7 @@ export const activityLabels: Record<string, string> = {
   resale: "转售交付生效",
 };
 
-export function ActivityItem({ row, currentItem }: { row: Row; currentItem?: number }) {
+export function ActivityItem({ row, currentItem }: { row: ActivityRecord; currentItem?: number }) {
   const location = useLocation();
   return <Copy value={row.item_uid} onClick={() => {
     if (row.item_id === currentItem) {
@@ -27,14 +28,14 @@ export function ActivityItem({ row, currentItem }: { row: Row; currentItem?: num
   }} />;
 }
 
-export function ActivityActor({ row }: { row: Row }) {
+export function ActivityActor({ row }: { row: ActivityRecord }) {
   if (row.user_uid) return <UserIdentity uid={row.user_uid} />;
   if (row.event !== "tap") return <>管理员确认</>;
   return <>{row.actor_state === "anonymous" ? "匿名访客" : "身份未记录"}</>;
 }
 
 export default function ItemActivity({ itemId, revision }: { itemId?: number; revision?: unknown }) {
-  const [rows, setRows] = useState<Row[]>();
+  const [rows, setRows] = useState<ActivityRecord[]>();
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   useEffect(() => {

@@ -4,29 +4,67 @@ from pathlib import Path
 
 from core.catalog_migration import CatalogMigrationError
 from core.passkey_migration import schema as passkey_schema
+from core.schema_checks import structure_state
 
 
 COLUMNS = {
-    "sales_order": {"id", "test_batch_id", "source_scope", "channel", "external_order_no", "created_by", "created_at"},
-    "sales_order_unit": {"id", "order_id", "position", "product_name", "ordered_spec", "physical_item_id", "item_id",
-                         "allocated_at", "delivered_at", "delivery_whole_id", "first_claim_code_id"},
+    ('sales_order', 'id'): ('bigint unsigned', 'NO', 'auto_increment'),
+    ('sales_order', 'test_batch_id'): ('bigint unsigned', 'YES', ''),
+    ('sales_order', 'source_scope'): ('bigint unsigned', 'YES', 'STORED GENERATED'),
+    ('sales_order', 'channel'): ('varchar(40)', 'NO', ''),
+    ('sales_order', 'external_order_no'): ('varchar(64)', 'NO', ''),
+    ('sales_order', 'created_by'): ('bigint unsigned', 'NO', ''),
+    ('sales_order', 'created_at'): ('datetime(6)', 'NO', 'DEFAULT_GENERATED'),
+    ('sales_order_unit', 'id'): ('bigint unsigned', 'NO', 'auto_increment'),
+    ('sales_order_unit', 'order_id'): ('bigint unsigned', 'NO', ''),
+    ('sales_order_unit', 'position'): ('smallint unsigned', 'NO', ''),
+    ('sales_order_unit', 'product_name'): ('varchar(128)', 'NO', ''),
+    ('sales_order_unit', 'ordered_spec'): ('varchar(256)', 'YES', ''),
+    ('sales_order_unit', 'physical_item_id'): ('bigint unsigned', 'YES', ''),
+    ('sales_order_unit', 'item_id'): ('bigint unsigned', 'YES', ''),
+    ('sales_order_unit', 'allocated_at'): ('datetime(6)', 'YES', ''),
+    ('sales_order_unit', 'delivered_at'): ('datetime(6)', 'YES', ''),
+    ('sales_order_unit', 'delivery_whole_id'): ('bigint unsigned', 'YES', ''),
+    ('sales_order_unit', 'first_claim_code_id'): ('bigint unsigned', 'YES', ''),
+}
+UNIQUE_KEYS = {
+    ('sales_order', 'PRIMARY'): ('id',),
+    ('sales_order', 'uk_sales_order_source'): ('source_scope', 'channel', 'external_order_no'),
+    ('sales_order_unit', 'PRIMARY'): ('id',),
+    ('sales_order_unit', 'physical_item_id'): ('physical_item_id',),
+    ('sales_order_unit', 'item_id'): ('item_id',),
+    ('sales_order_unit', 'uk_order_unit_position'): ('order_id', 'position'),
+}
+FOREIGN_KEYS = {
+    ('sales_order', 'fk_sales_order_batch', 'test_batch_id', 'test_batch', 'id', 1, 'RESTRICT', 'RESTRICT'),
+    ('sales_order', 'fk_sales_order_admin', 'created_by', 'admin_user', 'id', 1, 'RESTRICT', 'RESTRICT'),
+    ('sales_order_unit', 'fk_order_unit_order', 'order_id', 'sales_order', 'id', 1, 'CASCADE', 'RESTRICT'),
+    ('sales_order_unit', 'fk_order_unit_physical', 'physical_item_id', 'physical_item', 'id', 1, 'RESTRICT', 'RESTRICT'),
+    ('sales_order_unit', 'fk_order_unit_item', 'item_id', 'item', 'id', 1, 'RESTRICT', 'RESTRICT'),
+    ('sales_order_unit', 'fk_order_unit_delivery', 'delivery_whole_id', 'whole_item', 'id', 1, 'RESTRICT', 'RESTRICT'),
+    ('sales_order_unit', 'fk_order_unit_claim', 'first_claim_code_id', 'item_claim_code', 'id', 1, 'RESTRICT', 'RESTRICT'),
+}
+MATCH_COLUMNS = {
+    ('sales_order_unit_match', 'unit_id'): ('bigint unsigned', 'NO', ''),
+    ('sales_order_unit_match', 'style_id'): ('bigint unsigned', 'NO', ''),
+    ('sales_order_unit_match', 'spec'): ('varchar(256)', 'YES', ''),
+}
+MATCH_UNIQUE_KEYS = {
+    ('sales_order_unit_match', 'PRIMARY'): ('unit_id',),
+}
+MATCH_FOREIGN_KEYS = {
+    ('sales_order_unit_match', 'fk_order_match_unit', 'unit_id', 'sales_order_unit', 'id', 1, 'CASCADE', 'RESTRICT'),
+    ('sales_order_unit_match', 'fk_order_match_style', 'style_id', 'product_style', 'id', 1, 'RESTRICT', 'RESTRICT'),
 }
 
 
 def schema(cursor):
-    cursor.execute("""SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS
-                      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('sales_order','sales_order_unit')""")
-    fields = {}
-    for table, column in cursor.fetchall():
-        fields.setdefault(table, set()).add(column)
-    return "ready" if fields == COLUMNS else "missing" if not fields else "unknown"
+    return structure_state(cursor, COLUMNS, UNIQUE_KEYS, FOREIGN_KEYS,
+                           generated={('sales_order', 'source_scope'): 'coalesce(test_batch_id,0)'})
 
 
 def match_schema(cursor):
-    cursor.execute("""SELECT COLUMN_NAME FROM information_schema.COLUMNS
-                      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='sales_order_unit_match'""")
-    columns = {column for column, in cursor.fetchall()}
-    return "ready" if columns == {"unit_id", "style_id", "spec"} else "unknown" if columns else "missing"
+    return structure_state(cursor, MATCH_COLUMNS, MATCH_UNIQUE_KEYS, MATCH_FOREIGN_KEYS)
 
 
 def migrate(connection, backup):

@@ -198,6 +198,73 @@ def test_release_uniqueness_validation_cleanup_and_receipt(auth_app,catalog):
     assert action(s,'item',{'issue_id':issue,'item_uid':'FASH-2026-000002','edition_number':2},token).status_code==409
 
 
+@pytest.mark.parametrize('original_status', ['bound', 'disabled', 'lost', 'retired', 'pending'])
+def test_validation_item_cleanup_preserves_retained_chip_state(auth_app, catalog, original_status):
+    session, style, _, item_id, chips = catalog
+    chip_id = chips[0]
+    ok(action(session, 'installAssembly', {
+        'item_id': item_id, **assembly(session, style, chip_id, '清理状态回归'),
+    }))
+    config_chip(auth_app, session, chip_id)
+    linked_item_id = None if original_status == 'pending' else item_id
+    query(auth_app, 'UPDATE chip SET chip_status=%s,item_id=%s WHERE id=%s',
+          (original_status, linked_item_id, chip_id))
+    chip_before = query(auth_app, 'SELECT * FROM chip WHERE id=%s', (chip_id,))[0]
+    keys_before = query(auth_app, 'SELECT * FROM chip_key WHERE chip_id=%s', (chip_id,))
+
+    assert action(session, 'deleteItem', {'item_id': item_id}).status_code == 409
+    assert query(auth_app, 'SELECT * FROM chip WHERE id=%s', (chip_id,))[0] == chip_before
+    ok(action(session, 'validationItem', {'item_id': item_id, 'enabled': True}))
+    request_id = str(uuid.uuid4())
+    result = ok(action(session, 'deleteItem', {'item_id': item_id}, request_id))
+    assert ok(action(session, 'deleteItem', {'item_id': item_id}, request_id)) == result
+
+    chip_after = query(auth_app, 'SELECT * FROM chip WHERE id=%s', (chip_id,))[0]
+    assert chip_after['item_id'] is None
+    assert chip_after['chip_status'] == ('pending' if original_status == 'bound' else original_status)
+    for field in ('chip_uid', 'project_id', 'registration_source', 'batch_no',
+                  'provisioned_at', 'last_verified_counter', 'created_at'):
+        assert chip_after[field] == chip_before[field]
+    assert query(auth_app, 'SELECT * FROM chip_key WHERE chip_id=%s', (chip_id,)) == keys_before
+    assert not query(auth_app, 'SELECT id FROM item WHERE id=%s', (item_id,))
+    audit = ok(session[0].get('/api/admin/catalog/audit', query_string={
+        'item_id': item_id, 'action': 'catalog.deleteItem',
+    }))['items']
+    assert len(audit) == 1
+    assert audit[0]['detail']['before']['chip_status'] == original_status
+    assert audit[0]['detail']['object_code'] == result['deleted_uid']
+    assert not {'encrypted_keys', 'nonce', 'dek_ciphertext', 'dek_nonce'} & audit[0]['detail'].keys()
+
+
+def test_validation_item_cleanup_audit_failure_preserves_chip_and_item(auth_app, catalog, monkeypatch):
+    from core import admin_catalog
+
+    session, style, _, item_id, chips = catalog
+    chip_id = chips[0]
+    ok(action(session, 'installAssembly', {
+        'item_id': item_id, **assembly(session, style, chip_id, '清理回滚回归'),
+    }))
+    config_chip(auth_app, session, chip_id)
+    ok(action(session, 'chipState', {
+        'chip_id': chip_id, 'state': 'disabled', 'evidence': '保留已停用状态',
+    }))
+    ok(action(session, 'validationItem', {'item_id': item_id, 'enabled': True}))
+    chip_before = query(auth_app, 'SELECT * FROM chip WHERE id=%s', (chip_id,))[0]
+    keys_before = query(auth_app, 'SELECT * FROM chip_key WHERE chip_id=%s', (chip_id,))
+
+    def fail_audit(*_):
+        raise RuntimeError('隔离清理审计失败')
+
+    monkeypatch.setattr(admin_catalog, 'audit', fail_audit)
+    request_id = str(uuid.uuid4())
+    assert action(session, 'deleteItem', {'item_id': item_id}, request_id).status_code == 500
+    assert query(auth_app, 'SELECT * FROM chip WHERE id=%s', (chip_id,))[0] == chip_before
+    assert query(auth_app, 'SELECT * FROM chip_key WHERE chip_id=%s', (chip_id,)) == keys_before
+    assert query(auth_app, 'SELECT id FROM item WHERE id=%s', (item_id,))
+    assert query(auth_app, 'SELECT id FROM whole_item WHERE current_item_id=%s', (item_id,))
+    assert not query(auth_app, 'SELECT request_id FROM admin_operation WHERE request_id=%s', (request_id,))
+
+
 def test_shared_upload_and_server_pagination(auth_app,catalog):
     s,style,issue,i,chips=catalog
     auth_app.config['MEDIA_ENABLED']=True

@@ -1,4 +1,3 @@
-// 基于已验收官方Pro工程；仅管理端迁入Umi，用户端仍独立运行。
 import { defineConfig } from "@umijs/max";
 import settings from "./defaultSettings";
 import routes from "./routes";

@@ -1,23 +1,15 @@
 import ReadFailure from "../components/ReadFailure";
 import ClaimCodeDialog from "../components/ClaimCodeDialog";
 import React, { useEffect, useState } from "react";
-import { PageContainer, ProCard } from "@ant-design/pro-components";
+import { ProCard } from "@ant-design/pro-components";
 import {
   Descriptions,
   Alert,
   Button,
-  Checkbox,
   Collapse,
-  Form,
-  Input,
-  InputNumber,
-  Select,
   Space,
   Spin,
-  Steps,
-  Switch,
   Table,
-  Tabs,
   Typography,
   Tooltip,
 } from "antd";
@@ -25,44 +17,58 @@ import { history, useLocation, useParams } from "@umijs/max";
 import { activityPath, fromPath, itemWorkflow, orderPath } from "../catalog";
 import AuditDetails from "../components/AuditDetails";
 import {
-  Row,
   edition,
   statistics,
   statusNames,
   time,
   wholeStatus,
-  read,
   validationHelp,
+  read,
 } from "../catalog";
 import {
-  ActionForm,
   DetailContainer,
   InlineCommand,
   Copy,
-  Evidence,
   Gallery,
   Load,
-  RemoteSelect,
   State,
-  required,
   useRecord,
   returnPath,
 } from "../components/CatalogUI";
-import SaleFields from "../components/SaleFields";
 import KeyConfiguration from "../components/KeyConfiguration";
-import AssemblyFields from "../components/AssemblyFields";
 import ItemH5Preview from "../components/ItemH5Preview";
 import ItemActivity from "../components/ItemActivity";
 
 import UserIdentity, { PhoneReveal } from "../components/UserIdentity";
-import ClaimCodeStatus from "../components/ClaimCodeStatus";
+import type { ItemAction } from "../components/item/ItemActionDialog";
+import ItemActionDialog from "../components/item/ItemActionDialog";
+import ItemHandoverDialog from "../components/item/ItemHandoverDialog";
+import ItemAssemblyCard from "../components/item/ItemAssemblyCard";
+import ItemDeliveryCard from "../components/item/ItemDeliveryCard";
+import type {
+  ActionResult,
+  HandoverRecord,
+  OwnershipRecord,
+  CatalogStatistics,
+} from "../types/catalog";
 
-function HolderPhone({ itemId, holder }: { itemId: number; holder?: Row }) {
+function HolderPhone({
+  itemId,
+  holder,
+}: {
+  itemId: number;
+  holder?: OwnershipRecord;
+}) {
   if (!holder) return <>手机号未记录</>;
-  return <Space wrap>
-    <UserIdentity uid={holder.public_uid} />
-    <PhoneReveal masked={holder.masked_phone} path={`/admin/catalog/items/${itemId}/owners/${holder.id}/phone`} />
-  </Space>;
+  return (
+    <Space wrap>
+      <UserIdentity uid={holder.public_uid} />
+      <PhoneReveal
+        masked={holder.masked_phone}
+        path={`/admin/catalog/items/${itemId}/owners/${holder.id}/phone`}
+      />
+    </Space>
+  );
 }
 
 export default function ItemDetail({
@@ -80,14 +86,18 @@ export default function ItemDetail({
   const installChip = Number(query.get("installChip"));
   const ident = id || Number(params.id);
   const currentPath = location.pathname + location.search;
-  const from = embedded ? fromPath("/items/" + ident, currentPath) : currentPath;
+  const from = embedded
+    ? fromPath("/items/" + ident, currentPath)
+    : currentPath;
   const { record: r, error, loading, reload } = useRecord("items", ident),
-    [action, setAction] = useState<string | undefined>(installChip || query.get("install") === "1" ? "bind" : undefined),
-    [work, setWork] = useState<Row>(),
+    [action, setAction] = useState<ItemAction | undefined>(
+      installChip || query.get("install") === "1" ? "bind" : undefined,
+    ),
+    [work, setWork] = useState<HandoverRecord>(),
     [preview, setPreview] = useState(false),
-    [claimResult, setClaimResult] = useState<Row>(),
+    [claimResult, setClaimResult] = useState<ActionResult>(),
     [keyChip, setKeyChip] = useState<number>(),
-    [stats, setStats] = useState<Row>(),
+    [stats, setStats] = useState<CatalogStatistics>(),
     [statsError, setStatsError] = useState(""),
     [statsRevision, setStatsRevision] = useState(0),
     [scope, setScope] = useState("sold"),
@@ -110,71 +120,172 @@ export default function ItemDetail({
       active = false;
     };
   }, [ident, scope, range, r, statsRevision]);
-  const done = (result?: Row) => {
+  const done = (result?: ActionResult) => {
     const deleted = action === "deleteItem";
-    if (result && (action === "issueClaimCode" || action === "reissueClaimCode")) setClaimResult(result);
+    if (
+      result &&
+      (action === "issueClaimCode" || action === "reissueClaimCode")
+    )
+      setClaimResult(result);
     setAction(undefined);
     setWork(undefined);
     if (action?.startsWith("prepare")) {
       void read("items", r!.id).then((fresh) =>
-        setWork(fresh.handovers.find((x: Row) => !x.completed_at)),
+        setWork(fresh.handovers.find((x) => !x.completed_at)),
       );
     }
     if (deleted) {
       onDeleted?.();
       if (!embedded) history.push("/items");
-    } else if (action === "bind" && r?.order) {
+    } else if (action === "bind" && r?.order && orderTarget) {
       history.push(orderTarget);
     } else reload();
   };
-  const e = r?.wholes?.find((x: Row) => !x.ended_at),
-    pending = r?.handovers?.find((x: Row) => !x.completed_at);
-  const owner = r?.owners?.find((holder: Row) => holder.is_active);
-  const canonicalOrder = r?.order && orderPath(r.order.order_id, r.order.id);
+  const e = r?.wholes?.find((x) => !x.ended_at),
+    pending = r?.handovers?.find((x) => !x.completed_at);
+  const owner = r?.owners?.find((holder) => holder.is_active);
+  const canonicalOrder = r?.order ? orderPath(r.order.order_id, r.order.id) : undefined;
   const originalPage = returnPath("");
-  const orderTarget = canonicalOrder && (originalPage.startsWith(canonicalOrder + "&") ? originalPage : canonicalOrder);
-  const configurable = !!e && !(e.lost_at || e.loss_evidence) && r?.chip_status === "bound";
-  const canConfigure = configurable && !r?.provisioned_at && r?.status !== "archived";
-  const canEnable = configurable && !!r?.provisioned_at && !!r?.issue_id
-    && r?.status !== "archived" && r?.status !== "active";
-  const canInstall = !e && !!r?.issue_id && r?.status !== "archived" && !orderTarget;
-  const orderNext = orderTarget && !r?.order.delivered_at && !canConfigure;
+  const orderTarget =
+    canonicalOrder &&
+    (originalPage.startsWith(canonicalOrder + "&")
+      ? originalPage
+      : canonicalOrder);
+  const configurable =
+    !!e && !(e.lost_at || e.loss_evidence) && r?.chip_status === "bound";
+  const canConfigure =
+    configurable && !r?.provisioned_at && r?.status !== "archived";
+  const canEnable =
+    configurable &&
+    !!r?.provisioned_at &&
+    !!r?.issue_id &&
+    r?.status !== "archived" &&
+    r?.status !== "active";
+  const canInstall =
+    !e && !!r?.issue_id && r?.status !== "archived" && !orderTarget;
+  const orderNext = orderTarget && !r?.order?.delivered_at && !canConfigure ? orderTarget : undefined;
   const lost = !!(e?.lost_at || e?.loss_evidence);
   const canCancelLoss = lost && !pending && r?.chip_status === "lost";
   const container = (content: React.ReactNode) => (
     <DetailContainer
       embedded={embedded}
-      title={<Space wrap id="item-detail-heading" tabIndex={-1}>{r?.style?.name || "数字物品"}<Copy value={r?.item_uid} /></Space>}
-      subTitle={r && <Space wrap><State value={itemWorkflow(r)} />
-        {r.spec || "规格待核对"} · {r.sold ? "已售出" : "未售出"}
-        {r.owner_id && <UserIdentity uid={r.owner_public_uid} />}
-      </Space>}
+      title={
+        <Space wrap id="item-detail-heading" tabIndex={-1}>
+          {r?.style?.name || "数字物品"}
+          <Copy value={r?.item_uid} />
+        </Space>
+      }
+      subTitle={
+        r && (
+          <Space wrap>
+            <State value={itemWorkflow(r)} />
+            {r.spec || "规格待核对"} · {r.sold ? "已售出" : "未售出"}
+            {r.owner_id && <UserIdentity uid={r.owner_public_uid} />}
+          </Space>
+        )
+      }
       onBack={() => history.push(returnPath("/items"))}
       extra={
         r && (
           <Space wrap>
             <Button onClick={() => setPreview(true)}>预览手机页</Button>
-            {r.status === "active" && <Button danger onClick={() => setAction("toggleItem")}>停用物品</Button>}
-            {canConfigure ? <Button type="primary" onClick={() => setKeyChip(e!.chip_id)}>配置并核验芯片</Button> :
-              orderNext ? <Button type="primary" onClick={() => history.push(orderNext)}>打开对应订单件</Button> :
-              canEnable ? <Button type="primary" onClick={() => setAction("toggleItem")}>启用物品</Button> :
-              canInstall ? <Button type="primary" onClick={() => setAction("bind")}>安装芯片</Button> : null}
-            {e && r.status !== "archived" && <>
-              {lost ? <Tooltip title={pending ? "有未完成的换新或转售，暂不能取消挂失" : !canCancelLoss ? "配套芯片状态需要核对" : undefined}>
-                <span><Button disabled={!canCancelLoss} onClick={() => setAction("cancelLoss")}>取消挂失</Button></span>
-              </Tooltip> : <Button danger disabled={!['bound', 'disabled'].includes(r.chip_status)} onClick={() => setAction("loseItem")}>挂失物品</Button>}
-              {pending ? <Button onClick={() => setWork(pending)}>
-                继续办理{pending.kind === "resale" ? "转售" : "换新"}
-              </Button> : <>
-                <Button disabled={!r.owner_id || !r.rights?.some((right: Row) => right.kind === "renewal") || r.quota_review || r.quota_used >= 1}
-                  onClick={() => setAction("prepareRenewal")}>办理换新</Button>
-                <Button disabled={!r.owner_phone_verified || !r.rights?.some((right: Row) => right.kind === "resale")}
-                  onClick={() => setAction("prepareResale")}>办理转售</Button>
-              </>}
-            </>}
-            {!orderTarget && r.status !== "archived" && <Button onClick={() => setAction("sale")}>维护售出事实</Button>}
-            {!!r.is_validation && <InlineCommand danger label="直接删除物品" action="deleteItem" payload={{ item_id: r.id }}
-              onDone={() => { onDeleted?.(); if (!embedded) history.push("/items"); }} />}
+            {r.status === "active" && (
+              <Button danger onClick={() => setAction("toggleItem")}>
+                停用物品
+              </Button>
+            )}
+            {canConfigure ? (
+              <Button type="primary" onClick={() => setKeyChip(e!.chip_id)}>
+                配置并核验芯片
+              </Button>
+            ) : orderNext ? (
+              <Button type="primary" onClick={() => history.push(orderNext)}>
+                打开对应订单件
+              </Button>
+            ) : canEnable ? (
+              <Button type="primary" onClick={() => setAction("toggleItem")}>
+                启用物品
+              </Button>
+            ) : canInstall ? (
+              <Button type="primary" onClick={() => setAction("bind")}>
+                安装芯片
+              </Button>
+            ) : null}
+            {e && r.status !== "archived" && (
+              <>
+                {lost ? (
+                  <Tooltip
+                    title={
+                      pending
+                        ? "有未完成的换新或转售，暂不能取消挂失"
+                        : !canCancelLoss
+                          ? "配套芯片状态需要核对"
+                          : undefined
+                    }
+                  >
+                    <span>
+                      <Button
+                        disabled={!canCancelLoss}
+                        onClick={() => setAction("cancelLoss")}
+                      >
+                        取消挂失
+                      </Button>
+                    </span>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    danger
+                    disabled={!["bound", "disabled"].includes(r.chip_status || "")}
+                    onClick={() => setAction("loseItem")}
+                  >
+                    挂失物品
+                  </Button>
+                )}
+                {pending ? (
+                  <Button onClick={() => setWork(pending)}>
+                    继续办理{pending.kind === "resale" ? "转售" : "换新"}
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      disabled={
+                        !r.owner_id ||
+                        !r.rights?.some((right) => right.kind === "renewal") ||
+                        !!r.quota_review ||
+                        (r.quota_used ?? 0) >= 1
+                      }
+                      onClick={() => setAction("prepareRenewal")}
+                    >
+                      办理换新
+                    </Button>
+                    <Button
+                      disabled={
+                        !r.owner_phone_verified ||
+                        !r.rights?.some((right) => right.kind === "resale")
+                      }
+                      onClick={() => setAction("prepareResale")}
+                    >
+                      办理转售
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+            {!orderTarget && r.status !== "archived" && (
+              <Button onClick={() => setAction("sale")}>维护售出事实</Button>
+            )}
+            {!!r.is_validation && (
+              <InlineCommand
+                danger
+                label="直接删除物品"
+                action="deleteItem"
+                payload={{ item_id: r.id }}
+                onDone={() => {
+                  onDeleted?.();
+                  if (!embedded) history.push("/items");
+                }}
+              />
+            )}
           </Space>
         )
       }
@@ -237,7 +348,7 @@ export default function ItemDetail({
                 <Button
                   onClick={() =>
                     history.push(
-                      `/catalog?tab=styles&keyword=${encodeURIComponent(r.style.code)}`,
+                      `/catalog?tab=styles&keyword=${encodeURIComponent(r.style!.code)}`,
                     )
                   }
                 >
@@ -283,111 +394,31 @@ export default function ItemDetail({
               />
             )}
           </ProCard>
-          <ProCard
-            size="small"
-            variant="outlined"
-            title="实物与芯片"
-            headerBordered
-          >
-            {e ? (
-              <>
-                <Descriptions size="small" bordered column={2}>
-                  <Descriptions.Item label="物品代次">
-                    第{e.generation}代物品
-                  </Descriptions.Item>
-                  <Descriptions.Item label="物品状态">
-                    <State value={wholeStatus(e)} />
-                  </Descriptions.Item>
-                  <Descriptions.Item label="实体编号">
-                    {e.physical_uid ? <Copy value={e.physical_uid} /> : "历史编号待核对"}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="实物规格">
-                    {e.spec}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="配套芯片">
-                    <Copy
-                      value={e.chip_uid}
-                      onClick={() =>
-                        history.push(
-                          `/chips/${e.chip_id}?from=${encodeURIComponent(location.pathname + location.search)}`,
-                        )
-                      }
-                    />
-                  </Descriptions.Item>
-                  <Descriptions.Item label="芯片服务状态">
-                    <State value={statusNames[r.chip_status] || "关联待核对"} />
-                  </Descriptions.Item>
-                  <Descriptions.Item label="配置状态">
-                    <State value={r.provisioned_at ? r.status === "active" ? "核验通过 · 已启用" : "核验通过 · 待启用" : "已安装 · 待核验"} />
-                    {r.status === "draft" && e.physical_item_id && !r.provisioned_at && !r.keys_generated && !r.sold && !r.owner_id && <Button type="link" onClick={() => setAction("undoInstall")}>纠正安装</Button>}
-                  </Descriptions.Item>
-                  {(e.lost_at || e.loss_evidence) && (
-                    <>
-                      <Descriptions.Item label="挂失时间">
-                        {time(e.lost_at)}
-                      </Descriptions.Item>
-                      <Descriptions.Item label="挂失依据">
-                        {e.loss_evidence}
-                      </Descriptions.Item>
-                    </>
-                  )}
-                </Descriptions>
-                {(e.lost_at || e.loss_evidence) && (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    title="当前整套物品已挂失"
-                    description={pending ? "配套芯片已停止服务。当前有未完成的换新或转售。"
-                      : r.status === "archived" ? "该物品已归档，配套芯片已停止服务。"
-                        : "配套芯片已停止服务。实物找回后可在顶部操作栏取消挂失。"}
-                  />
-                )}
-                <ProCard title="当前物品的芯片配置" size="small" headerBordered>
-                  <State value={r.provisioned_at ? "核验就绪" : "待配置"} />
-                  {!canConfigure && <Button
-                    disabled={
-                      !!(e.lost_at || e.loss_evidence) ||
-                      r.chip_status !== "bound"
-                    }
-                    onClick={() => setKeyChip(e.chip_id)}
-                  >
-                    查看密钥与配置
-                  </Button>}
-                </ProCard>
-              </>
-            ) : (
-              <Alert type="info" title="尚未准备当前整套物品" />
-            )}
-          </ProCard>
-          <ProCard title="订单与交付" headerBordered extra={orderTarget && !orderNext &&
-            <Button onClick={() => history.push(orderTarget)}>返回原订单件</Button>}>
-            <Descriptions size="small" bordered column={2}>
-              <Descriptions.Item label="订单">{r.order ? r.order.channel + " · " + r.order.external_order_no + " · 第 " + r.order.position + " 件" : "无结构化订单"}</Descriptions.Item>
-              <Descriptions.Item label="购买规格">{r.order?.ordered_spec || "未记录"}</Descriptions.Item>
-              <Descriptions.Item label="分配时间">{time(r.order?.allocated_at)}</Descriptions.Item>
-              <Descriptions.Item label="首次成交"><Space><State value={r.sold ? "已售出" : "未确认售出"} />{time(r.first_sold_at)}</Space></Descriptions.Item>
-              <Descriptions.Item label="首次交付">{time(r.order?.delivered_at)}</Descriptions.Item>
-              <Descriptions.Item label="交付依据">{r.order?.first_delivery_reference || "未记录"}</Descriptions.Item>
-              {r.order?.delivered_generation && <Descriptions.Item label="交付实物与代次">
-                第 {r.order.delivered_generation} 代 · {r.order.delivered_physical_uid}
-              </Descriptions.Item>}
-              {!r.order && r.sale_evidence && <Descriptions.Item label="历史成交依据">{r.sale_evidence}</Descriptions.Item>}
-            </Descriptions>
-            {!r.owner_id && (!r.order || r.order.delivered_at) && (
-              <Space wrap>
-                {r.claim_code_status
-                  ? <ClaimCodeStatus key={r.claim_code_status.id} itemId={r.id} status={r.claim_code_status} />
-                  : <Typography.Text type="secondary">首次交付后可发放认领码</Typography.Text>}
-                <Button disabled={!r.physical_item_id || r.status !== "active" || !r.provisioned_at || !!e?.lost_at || !!e?.loss_evidence || r.chip_status !== "bound"} onClick={() => setAction(r.claim_code_status ? "reissueClaimCode" : "issueClaimCode")}>
-                  {r.claim_code_status ? "核对交付后补发" : "发放认领码"}
-                </Button>
-              </Space>
-            )}
-          </ProCard>
+          <ItemAssemblyCard
+            item={r}
+            whole={e}
+            pending={pending}
+            canConfigure={canConfigure}
+            from={currentPath}
+            onAction={setAction}
+            onConfigure={setKeyChip}
+          />
+          <ItemDeliveryCard
+            item={r}
+            whole={e}
+            orderTarget={orderTarget}
+            orderNext={orderNext}
+            onAction={setAction}
+          />
           <ProCard title="持有人与权益" headerBordered>
             <Descriptions size="small" bordered column={2}>
               <Descriptions.Item label="适用数字权益">
-                {r.rights?.map((right: Row) => `${right.kind === "renewal" ? "换新" : "转售"}（${right.rule_version}）`).join("、") || "暂无已确认权益"}
+                {r.rights
+                  ?.map(
+                    (right) =>
+                      `${right.kind === "renewal" ? "换新" : "转售"}（${right.rule_version}）`,
+                  )
+                  .join("、") || "暂无已确认权益"}
               </Descriptions.Item>
               <Descriptions.Item label="当前持有人">
                 {r.owner_id ? (
@@ -411,7 +442,7 @@ export default function ItemDetail({
                   key: "works",
                   label: `物品办理记录（${r.handovers?.length || 0}）`,
                   children: (
-                    <Table<Row>
+                    <Table
                       rowKey="id"
                       size="small"
                       dataSource={r.handovers}
@@ -456,7 +487,7 @@ export default function ItemDetail({
             title="历程与动态"
             headerBordered
           >
-            <Table<Row>
+            <Table
               rowKey="id"
               dataSource={r.wholes}
               pagination={{ pageSize: 5 }}
@@ -494,11 +525,16 @@ export default function ItemDetail({
                   key: "owners",
                   label: "持有人历史",
                   children: (
-                    <Table<Row>
+                    <Table
                       rowKey="id"
                       dataSource={r.owners}
                       columns={[
-                        { title: "脱敏手机号", render: (_, x) => <HolderPhone key={x.id} itemId={r.id} holder={x} /> },
+                        {
+                          title: "脱敏手机号",
+                          render: (_, x) => (
+                            <HolderPhone key={x.id} itemId={r.id} holder={x} />
+                          ),
+                        },
                         { title: "开始", render: (_, x) => time(x.bound_at) },
                         { title: "结束", render: (_, x) => time(x.unbound_at) },
                       ]}
@@ -533,17 +569,33 @@ export default function ItemDetail({
             }
           >
             {statsError ? (
-              <ReadFailure title="触碰统计读取失败" error={statsError}
-                retry={() => setStatsRevision((value) => value + 1)} />
+              <ReadFailure
+                title="触碰统计读取失败"
+                error={statsError}
+                retry={() => setStatsRevision((value) => value + 1)}
+              />
             ) : stats ? (
               <>
-                <Button type="link" onClick={() => history.push(activityPath(from, {
-                  event: "tap", item_id: r.id, scope, range, as_of: stats.as_of,
-                }))}>查看 {stats.total} 次有效触碰明细</Button>
+                <Button
+                  type="link"
+                  onClick={() =>
+                    history.push(
+                      activityPath(from, {
+                        event: "tap",
+                        item_id: r.id,
+                        scope,
+                        range,
+                        as_of: stats.as_of,
+                      }),
+                    )
+                  }
+                >
+                  查看 {stats.total} 次有效触碰明细
+                </Button>
                 <Typography.Paragraph type="secondary">
                   按稳定数字身份汇总历代物品；配置核验、失败及旧读数不计次。北京时间。
                 </Typography.Paragraph>
-                <Table<Row>
+                <Table
                   rowKey="chip_id"
                   dataSource={stats.by_chip}
                   columns={[
@@ -551,250 +603,113 @@ export default function ItemDetail({
                       title: "配套芯片",
                       render: (_, x) => <Copy value={x.chip_uid} />,
                     },
-                    { title: "有效触碰", dataIndex: "total", render: (_, x) => <Button type="link" onClick={() => history.push(activityPath(from, { event: "tap", item_id: r.id, chip_id: x.chip_id, scope, range, as_of: stats.as_of }))}>{x.total}</Button> },
+                    {
+                      title: "有效触碰",
+                      dataIndex: "total",
+                      render: (_, x) => (
+                        <Button
+                          type="link"
+                          onClick={() =>
+                            history.push(
+                              activityPath(from, {
+                                event: "tap",
+                                item_id: r.id,
+                                chip_id: x.chip_id,
+                                scope,
+                                range,
+                                as_of: stats.as_of,
+                              }),
+                            )
+                          }
+                        >
+                          {x.total}
+                        </Button>
+                      ),
+                    },
                   ]}
                 />
               </>
-            ) : <Spin description="正在读取触碰统计"><div style={{ height: 72 }} /></Spin>}
+            ) : (
+              <Spin description="正在读取触碰统计">
+                <div style={{ height: 72 }} />
+              </Spin>
+            )}
           </ProCard>
-          <ProCard title="用户动态" headerBordered extra={<Button onClick={() => history.push(activityPath(from, { item_id: r.id }))}>查看全部动态</Button>}>
+          <ProCard
+            title="用户动态"
+            headerBordered
+            extra={
+              <Button
+                onClick={() =>
+                  history.push(activityPath(from, { item_id: r.id }))
+                }
+              >
+                查看全部动态
+              </Button>
+            }
+          >
             <ItemActivity key={r.id} itemId={r.id} revision={r} />
           </ProCard>
-          <ProCard title="业务操作记录" headerBordered extra={<Button onClick={() => history.push(fromPath(`/system?tab=audit&item_id=${r.id}`, from))}>查看全部</Button>}>
-            <Table<Row> rowKey="id" size="small" pagination={false} dataSource={r.audit || []} columns={[
-              { title: "时间", render: (_, event) => time(event.created_at) },
-              { title: "操作人", dataIndex: "username" },
-              { title: "操作", dataIndex: "operation" },
-              { title: "结果摘要", render: (_, event) => <Typography.Paragraph className="audit-row-summary" ellipsis>{(event.summary !== event.operation && event.summary) || event.outcome || "未记录"}</Typography.Paragraph> },
-              { title: "详情", width: 88, render: (_, event) => <AuditDetails event={event} /> },
-            ]} />
+          <ProCard
+            title="业务操作记录"
+            headerBordered
+            extra={
+              <Button
+                onClick={() =>
+                  history.push(
+                    fromPath(`/system?tab=audit&item_id=${r.id}`, from),
+                  )
+                }
+              >
+                查看全部
+              </Button>
+            }
+          >
+            <Table
+              rowKey="id"
+              size="small"
+              pagination={false}
+              dataSource={r.audit || []}
+              columns={[
+                { title: "时间", render: (_, event) => time(event.created_at) },
+                { title: "操作人", dataIndex: "username" },
+                { title: "操作", dataIndex: "operation" },
+                {
+                  title: "结果摘要",
+                  render: (_, event) => (
+                    <Typography.Paragraph
+                      className="audit-row-summary"
+                      ellipsis
+                    >
+                      {(event.summary !== event.operation && event.summary) ||
+                        event.outcome ||
+                        "未记录"}
+                    </Typography.Paragraph>
+                  ),
+                },
+                {
+                  title: "详情",
+                  width: 88,
+                  render: (_, event) => <AuditDetails event={event} />,
+                },
+              ]}
+            />
           </ProCard>
         </div>
       )}
       {r && action && (
-        <ActionForm
-          key={action}
-          title={
-            {
-              loseItem: "挂失物品",
-              cancelLoss: "取消挂失",
-              prepareRenewal: "准备替换物品",
-              prepareResale: "准备转售的新整套物品",
-              bind: "安装芯片",
-              undoInstall: "纠正未配置的安装",
-              issueClaimCode: "发放交付认领码",
-              reissueClaimCode: "核对交付后补发认领码",
-              sale: "维护售出事实",
-              linkIssue: "核对并补齐发行",
-              validationItem: "维护生产验证标记",
-              deleteItem: "直接删除生产验证物品",
-              toggleItem:
-                r.status === "active" ? "停用物品档案" : "启用物品档案",
-            }[action] || "维护物品"
-          }
-          action={action.startsWith("prepare") ? "prepare" : action === "bind" ? "installAssembly" : action}
-          initial={{
-            item_id: r.id,
-            chip_id: action === "bind" && installChip ? installChip : undefined,
-            physical_item_id: action === "bind" ? r.order?.physical_item_id : undefined,
-            whole_id: e?.id,
-            lost_at: e?.lost_at ?? null,
-            status: r.status === "active" ? "disabled" : "active",
-            confirmed: action === "sale" ? !r.sold : undefined,
-            enabled: !r.is_validation,
-            profile: r.legacy_profile || {
-              name: "",
-              description: "",
-              material: "",
-              care_instructions: "",
-            },
-            kind:
-              action === "prepareResale"
-                ? "resale"
-                : e?.lost_at || e?.loss_evidence
-                  ? "loss"
-                  : "periodic",
-          }}
+        <ItemActionDialog
+          item={r}
+          whole={e}
+          owner={owner}
+          action={action}
+          installChip={installChip}
           onClose={() => setAction(undefined)}
           onDone={done}
-          submitText={
-            action === "loseItem"
-              ? "确认挂失整套物品"
-              : action === "cancelLoss" ? "确认取消挂失"
-              : action === "deleteItem"
-                ? "直接删除"
-                : action === "sale"
-                  ? "保存售出确认"
-                  : action.startsWith("prepare")
-                    ? "保存新物品准备"
-                    : action === "bind"
-                      ? "确认安装"
-                      : action === "toggleItem"
-                        ? r.status === "active"
-                          ? "确认停用物品"
-                          : "确认启用物品"
-                        : "保存"
-          }
-        >
-          {action === "legacyProfile" && (
-            <>
-              <Form.Item
-                name={["profile", "name"]}
-                label="商品名称"
-                rules={required}
-              >
-                <Input maxLength={128} />
-              </Form.Item>
-              <Form.Item name={["profile", "description"]} label="介绍">
-                <Input.TextArea maxLength={4000} />
-              </Form.Item>
-              <Form.Item name={["profile", "material"]} label="材质">
-                <Input maxLength={256} />
-              </Form.Item>
-              <Form.Item name={["profile", "care_instructions"]} label="养护">
-                <Input.TextArea maxLength={2000} />
-              </Form.Item>
-            </>
-          )}
-          <Form.Item name="item_id" hidden>
-            <InputNumber />
-          </Form.Item>
-          {(action === "loseItem" || action === "cancelLoss") && (
-            <>
-              <Form.Item name="whole_id" hidden>
-                <InputNumber />
-              </Form.Item>
-              {action === "cancelLoss" && <Form.Item name="lost_at" hidden><Input /></Form.Item>}
-              <Alert
-                type="warning"
-                title={`${r.item_uid} · 第${e?.generation}代 · ${e?.spec || "规格不适用"} · ${e?.chip_uid}`}
-                description={action === "loseItem" ? "挂失后配套芯片停止普通触碰服务。"
-                  : "核对实物已经找回。取消挂失后，现有找回入口立即失效，操作记录保留。"}
-              />
-              {action === "cancelLoss" && (r.chip_state_before_loss
-                ? <p>{r.chip_state_before_loss === "disabled" ? "芯片在挂失前已停用，取消后仍保持停用。" : "芯片恢复到挂失前的已关联状态。"}</p>
-                : <Form.Item name="chip_state" label="取消后芯片服务" rules={required}>
-                  <Select placeholder="旧挂失未记录原芯片状态，请选择" options={[
-                    { value: "disabled", label: "保持芯片停用" },
-                    { value: "bound", label: "已核对芯片，恢复服务", disabled: !r.provisioned_at },
-                  ]} />
-                </Form.Item>)}
-              <Evidence />
-            </>
-          )}
-          {(action === "bind" || action.startsWith("prepare")) && (
-            <>
-              <Alert
-                type="info"
-                showIcon
-                title={
-                  action === "bind"
-                    ? "准备首套实物＋芯片"
-                    : "准备一整套替换物品，尚未生效"
-                }
-                description={`${r.item_uid} · ${edition(r)} · ${e ? `第${e.generation}代 · ${e.physical_uid || "实体编号待核对"} · ${e.chip_uid}` : "尚无当前物品"}。${action === "bind" ? "请按实物与芯片标签核对。" : "确认实际交付后新整套才生效。换新按北京时间确认生效日计次。"}`}
-              />
-              {action.startsWith("prepare") && (
-                <Descriptions size="small" column={1}>
-                  <Descriptions.Item label="业务类型">
-                    {action === "prepareResale"
-                      ? "后台转售"
-                      : e?.lost_at || e?.loss_evidence
-                        ? "挂失换新"
-                        : "定期换新"}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="当前持有人">
-                    {r.owner_id ? owner?.masked_phone || "手机号未记录" : "暂无持有人"}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="年度核对">
-                    {r.quota_year || "待核对"}年 · 已核定使用
-                    {r.quota_used ?? "待核对"}次 ·{" "}
-                    {r.quota_review ? "有待核事项" : "无待核事项"}
-                  </Descriptions.Item>
-                </Descriptions>
-              )}
-              <Form.Item name="kind" hidden>
-                <Input />
-              </Form.Item>
-              <AssemblyFields styleId={r.style_id} project={r.project} orderUnit={action === "bind" ? r.order : undefined} />
-              {action === "prepareResale" && (
-                <>
-                  <Form.Item name="recipient_id" label="已核对接收账户" rules={required}>
-                    <RemoteSelect resource="users" params={{ exclude_id: r.owner_id, verified: true }} />
-                  </Form.Item>
-                  <Form.Item name="seller_confirmation" label="原持有人确认依据" rules={required}><Input maxLength={1000} /></Form.Item>
-                  <Form.Item name="recipient_confirmation" label="接收人确认依据" rules={required}><Input maxLength={1000} /></Form.Item>
-                  <Form.Item name="identity_review_required" valuePropName="checked"><Checkbox>有持有争议或身份无法对应，须实名核验</Checkbox></Form.Item>
-                  <Form.Item name="identity_verification_reference" label="实名核验结果引用" extra="需要实名核验时填写核验通过的凭证引用。"><Input maxLength={128} /></Form.Item>
-                </>
-              )}
-              {action.startsWith("prepare") && <Evidence />}
-            </>
-          )}
-          {action === "sale" && <SaleFields firstSoldAt={r.first_sold_at} />}
-          {action === "undoInstall" && <>
-            <Form.Item name="whole_id" hidden><InputNumber /></Form.Item>
-            <Alert type="warning" title={`核对实体 ${e?.physical_uid} 和芯片 ${e?.chip_uid}，拆离后再确认。`} />
-            <Evidence />
-            <Form.Item name="confirmed" valuePropName="checked" rules={[{ validator: (_, value) => value === true ? Promise.resolve() : Promise.reject("请确认已拆离") }]}><Checkbox>已拆离所选芯片</Checkbox></Form.Item>
-          </>}
-          {(action === "issueClaimCode" || action === "reissueClaimCode") && <>
-            <Alert type="info" title="请通过既有交付渠道把认领码交给接收人。认领码有效期为 30 天，补发时旧码失效。" />
-            <Form.Item name="delivery_reference" label="首次交付核对依据" rules={required}><Input maxLength={128} /></Form.Item>
-            <Form.Item name="confirmed" valuePropName="checked" rules={[{ validator: (_, value) => value === true ? Promise.resolve() : Promise.reject("请确认已核对首次交付") }]}><Checkbox>已核对实际交付与接收对象</Checkbox></Form.Item>
-          </>}
-          {action === "linkIssue" && (
-            <>
-              <Form.Item
-                name="issue_id"
-                label="同类别已确认发行"
-                rules={required}
-              >
-                <RemoteSelect
-                  resource="issues"
-                  params={{ status: "confirmed", project: r.project }}
-                />
-              </Form.Item>
-              <Form.Item
-                name="edition_number"
-                label="正式序号（限时核定前留空）"
-              >
-                <InputNumber min={1} precision={0} />
-              </Form.Item>
-              <Evidence />
-            </>
-          )}
-          {action === "validationItem" && (
-            <Form.Item
-              name="enabled"
-              label="生产验证标记"
-              extra={validationHelp}
-              valuePropName="checked"
-            >
-              <Switch />
-            </Form.Item>
-          )}
-          {action === "deleteItem" && (
-            <Alert
-              type="warning"
-              title="仅删除当前物品及其触碰、办理和关联；另一侧芯片及操作审计保留。"
-            />
-          )}
-          {action === "toggleItem" && (
-            <>
-              <Form.Item name="status" hidden>
-                <Input />
-              </Form.Item>
-              <Alert
-                type="info"
-                title="启用须具备发行、整套物品和真实配置核验；停用会永久撤销现有查看资格。"
-              />
-            </>
-          )}
-        </ActionForm>
+        />
       )}
       {r && work && (
-        <Handover
+        <ItemHandoverDialog
           item={r}
           work={work}
           onClose={() => setWork(undefined)}
@@ -814,133 +729,17 @@ export default function ItemDetail({
           }}
         />
       )}
-      {preview && r && <ItemH5Preview id={r.id} onClose={() => setPreview(false)} />}
-      {claimResult && <ClaimCodeDialog code={claimResult.claim_code} expiresAt={claimResult.expires_at}
-        receipt="可在「订单与交付」查看有效码。旧码无法查看时，请核对交付后补发。"
-        onClose={() => setClaimResult(undefined)} />}
-    </Load>,
-  );
-}
-function Handover({
-  item,
-  work: initialWork,
-  onClose,
-  onDone,
-  onConfigure,
-}: {
-  item: Row;
-  work: Row;
-  onClose: () => void;
-  onDone: () => void;
-  onConfigure: (id: number) => void;
-}) {
-  const work =
-    item.handovers.find((x: Row) => x.id === initialWork.id) || initialWork;
-  const old = item.wholes.find((e: Row) => e.id === work.source_id),
-    target = item.wholes.find((e: Row) => e.id === work.target_id);
-  return (
-    <ActionForm
-      title={`${statusNames[work.kind]} · 整套物品办理`}
-      cancelText="关闭，保留办理记录"
-      action="complete"
-      readOnly={!!work.completed_at}
-      width={900}
-      initial={{ work_id: work.id }}
-      onDone={onDone}
-      onClose={onClose}
-      submitText="确认交付并生效"
-      submitDisabled={!work.completed_at && !work.provisioned_at}
-    >
-      <Form.Item name="work_id" hidden>
-        <InputNumber />
-      </Form.Item>
-      <Steps
-        size="small"
-        current={work.completed_at ? 2 : 1}
-        items={[{ title: "准备替换物品" }, { title: "确认交付与生效" }]}
-      />
-      <Typography.Paragraph>
-        沿用数字身份 <Copy value={item.item_uid} /> · {edition(item)}
-      </Typography.Paragraph>
-      <ProCard gutter={16}>
-        <ProCard title="原物品（实物＋芯片）" variant="outlined">
-          <Typography.Paragraph>
-            第{old?.generation || "待核对"}代 · {old?.spec}
-          </Typography.Paragraph>
-          <Copy value={old?.chip_uid} />
-          <p>
-            原持有人：{work.owner_name || "账户"} <UserIdentity uid={work.owner_public_uid} />
-          </p>
-          <State value={old ? wholeStatus(old) : "待核对"} />
-          {old?.loss_evidence && <p>曾挂失：{old.loss_evidence}</p>}
-        </ProCard>
-        <ProCard title="新物品（实物＋芯片）" variant="outlined">
-          <Typography.Paragraph>
-            第{work.generation}代 · {work.spec}
-          </Typography.Paragraph>
-          <Copy value={work.chip_uid} />
-          <p>
-            接收账户：{work.recipient_name || "账户"}{" "}
-            <UserIdentity uid={work.recipient_public_uid} />
-          </p>
-          <State
-            value={
-              work.completed_at
-                ? target
-                  ? wholeStatus(target)
-                  : "已完成"
-                : "待生效"
-            }
-          />
-        </ProCard>
-      </ProCard>
-      <p>
-        准备时间：{time(work.created_at)} · 准备依据：{work.prepare_evidence}
-      </p>
-      {work.completed_at ? (
-        <>
-          <Alert
-            type="success"
-            title="整套新物品已生效，数字身份及发行编号沿用"
-            description={`完成于${time(work.completed_at)}。旧物品退出授权，历史挂失记录保留。`}
-          />
-          <Button onClick={onClose}>关闭，保留办理记录</Button>
-        </>
-      ) : (
-        <>
-          <Alert
-            type="info"
-            title="准备完成，尚未替换当前物品"
-            description="只有核对实际交付并明确生效，才切换新旧整套物品及必要持有人关系。"
-          />
-          <ProCard title="新物品的芯片配置" variant="outlined">
-            <State value={work.provisioned_at ? "核验就绪" : "待配置核验"} />
-            {!work.provisioned_at && (
-              <Typography.Paragraph>
-                请先完成候选芯片的真实配置核验，再确认交付生效。
-              </Typography.Paragraph>
-            )}
-            <Button onClick={() => onConfigure(work.chip_id)}>
-              查看密钥与配置
-            </Button>
-          </ProCard>
-          <Form.Item name="evidence" label="实际交付核对依据" rules={required}>
-            <Input.TextArea maxLength={1000} rows={3} />
-          </Form.Item>
-          <Form.Item
-            name="checked"
-            valuePropName="checked"
-            rules={[
-              {
-                validator: (_, v) =>
-                  v ? Promise.resolve() : Promise.reject("请确认整套实际交付"),
-              },
-            ]}
-          >
-            <Checkbox>已核对整套新物品的实际交付、配套芯片和接收账户</Checkbox>
-          </Form.Item>
-        </>
+      {preview && r && (
+        <ItemH5Preview id={r.id} onClose={() => setPreview(false)} />
       )}
-    </ActionForm>
+      {claimResult && (
+        <ClaimCodeDialog
+          code={claimResult.claim_code}
+          expiresAt={claimResult.expires_at}
+          receipt="可在「订单与交付」查看有效码。旧码无法查看时，请核对交付后补发。"
+          onClose={() => setClaimResult(undefined)}
+        />
+      )}
+    </Load>,
   );
 }

@@ -1,11 +1,16 @@
 ---
-doc_type: proposal
-status: approved
+doc_type: archive
+status: archived
+date: 2026-11-17
+reason: 已实现规则纳入现行产品及技术规范，保留批准范围与原方案证据
+superseded_by: ../IMPLEMENTATION_DETAILS.md
 ---
+
+> 本文是本次整理前的方案快照。“当前分支”“拟用”“后续”等描述属于原方案语境，不代表最新实现或部署状态。现行规则见上方承接文档，任务与验收仍以 TODO 和 CHANGELOG 为准。
 
 # 数字物品装配与 H5 首版技术方案
 
-产品与技术方案已由 cece 确认，见 [后台装配流程](admin-make-rebuild.md#assembly)、[业务字段表](admin-rebuild-fields.md)和 [H5 首版](digital-item-h5-mvp.md)。实施顺序为后台装配、权益和审计，随后 H5 认领及预览，最后模拟批次替换。实际交付和人工验收见 [验收清单](../DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。保留 Flask、MySQL、Umi 管理端及现有独立 React H5 工程。
+产品与技术方案已由 cece 确认，见 [后台装配流程](admin-make-rebuild-2026-11-17.md#assembly)、[业务字段表](admin-rebuild-fields-2026-11-17.md)和 [H5 首版](digital-item-h5-mvp-2026-11-17.md)。实施顺序为后台装配、权益和审计，随后 H5 认领及预览，最后模拟批次替换。实际交付和人工验收见 [验收清单](../DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。保留 Flask、MySQL、Umi 管理端及现有独立 React H5 工程。
 
 ## 1. 后台装配、权益和审计
 

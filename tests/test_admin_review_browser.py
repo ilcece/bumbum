@@ -35,6 +35,129 @@ def test_danger_navigation_never_submits_and_style_save_confirms_real_impact(des
     assert query(desktop.app,'SELECT name FROM product_style WHERE id=%s',(style,))[0]['name']=='共用影响确认后的名称'
 
 
+@pytest.mark.parametrize('failure', ['network', 'server'])
+def test_style_preflight_failure_keeps_draft_editable_and_can_save(desktop, failure):
+    style, _, _, _ = setup(desktop)
+    p = desktop.page
+    p.goto('http://localhost:5174/catalog', wait_until='networkidle')
+    button(p, '维护资料')
+    dialog = p.get_by_role('dialog', name='维护款式共用资料', exact=True)
+    name = dialog.get_by_label('款式名称', exact=True)
+    name.fill('保存前读取失败后保留的草稿')
+    audit_sql = "SELECT COUNT(*) AS n FROM admin_audit WHERE action='catalog.style' AND target_id=%s"
+    audit_before = query(desktop.app, audit_sql, (str(style),))[0]['n']
+    writes, receipts = [], []
+
+    def observed(request):
+        if request.method == 'POST' and request.url.endswith('/api/admin/catalog/actions/style'):
+            writes.append(request.post_data_json['request_id'])
+        if request.method == 'POST' and request.url.endswith('/api/admin/catalog/actions/receipt'):
+            receipts.append(1)
+
+    def failed_read(route):
+        if failure == 'network':
+            route.abort('failed')
+        else:
+            route.fulfill(status=503, json={
+                'status': 'error', 'code': 'service_unavailable', 'message': '隔离模拟保存前读取失败',
+            })
+
+    endpoint = f'**/api/admin/catalog/styles/{style}'
+    p.on('request', observed)
+    p.route(endpoint, failed_read)
+    button(dialog, '保存共用资料')
+    expect(dialog.get_by_role('alert')).to_be_visible()
+    expect(name).to_have_value('保存前读取失败后保留的草稿')
+    expect(name).to_be_enabled()
+    save_button = dialog.get_by_role('button', name=re.compile(r'^(?:loading )?保存共用资料$'))
+    expect(save_button).to_be_enabled()
+    expect(save_button.locator('.anticon-loading')).to_have_count(0)
+    expect(dialog.get_by_text('保存结果未知，请先核对', exact=True)).to_have_count(0)
+    expect(dialog.get_by_role('button', name='核对已提交回执', exact=True)).to_have_count(0)
+    assert writes == [] and receipts == []
+    assert query(desktop.app, 'SELECT name FROM product_style WHERE id=%s', (style,))[0]['name'] == '浏览器共用帽子'
+    assert query(desktop.app, audit_sql, (str(style),))[0]['n'] == audit_before
+
+    name.fill('读取恢复后明确保存的草稿')
+    p.unroute(endpoint, failed_read)
+    button(dialog, '保存共用资料')
+    confirm = p.get_by_role('dialog', name='确认同步共用商品资料？', exact=True)
+    expect(confirm).to_contain_text('将影响1件引用该款式的物品')
+    assert writes == []
+    button(confirm, '确认同步保存')
+    dialog.wait_for(state='hidden')
+    assert len(writes) == 1 and receipts == []
+    assert query(desktop.app, 'SELECT name FROM product_style WHERE id=%s', (style,))[0]['name'] == '读取恢复后明确保存的草稿'
+    assert query(desktop.app, audit_sql, (str(style),))[0]['n'] == audit_before + 1
+
+
+@pytest.mark.parametrize('committed', [False, True])
+def test_style_unknown_write_keeps_receipt_and_original_request(desktop, committed):
+    style, _, _, _ = setup(desktop)
+    p = desktop.page
+    p.goto('http://localhost:5174/catalog', wait_until='networkidle')
+    button(p, '维护资料')
+    dialog = p.get_by_role('dialog', name='维护款式共用资料', exact=True)
+    name = dialog.get_by_label('款式名称', exact=True)
+    name.fill('真实写入结果未知时的原始草稿')
+    audit_sql = "SELECT COUNT(*) AS n FROM admin_audit WHERE action='catalog.style' AND target_id=%s"
+    audit_before = query(desktop.app, audit_sql, (str(style),))[0]['n']
+    writes = []
+
+    def observed(request):
+        if request.method == 'POST' and request.url.endswith('/api/admin/catalog/actions/style'):
+            writes.append(request.post_data_json)
+
+    def lost_write(route):
+        if committed:
+            assert route.fetch().status == 200
+        route.fulfill(status=503, json={
+            'status': 'error', 'code': 'service_unavailable', 'message': '隔离模拟提交结果未知',
+        })
+
+    endpoint = '**/api/admin/catalog/actions/style'
+    p.on('request', observed)
+    p.route(endpoint, lost_write)
+    button(dialog, '保存共用资料')
+    button(p.get_by_role('dialog', name='确认同步共用商品资料？', exact=True), '确认同步保存')
+    expect(dialog.get_by_text('保存结果未知，请先核对', exact=True)).to_be_visible()
+    expect(name).to_have_value('真实写入结果未知时的原始草稿')
+    expect(name).to_be_disabled()
+    assert len(writes) == 1
+    assert query(desktop.app, audit_sql, (str(style),))[0]['n'] == audit_before + int(committed)
+    p.unroute(endpoint, lost_write)
+    button(dialog, '核对已提交回执')
+
+    if not committed:
+        expect(dialog.get_by_text('服务端尚无已提交回执，可以明确重试原请求。', exact=True)).to_be_visible()
+        read_endpoint = f'**/api/admin/catalog/styles/{style}'
+
+        def failed_retry_preflight(route):
+            route.fulfill(status=503, json={
+                'status': 'error', 'code': 'service_unavailable', 'message': '隔离模拟原请求重试前读取失败',
+            })
+
+        p.route(read_endpoint, failed_retry_preflight)
+        button(dialog, '明确重试原请求')
+        expect(dialog.get_by_text('隔离模拟原请求重试前读取失败', exact=True)).to_be_visible()
+        expect(name).to_be_disabled()
+        assert len(writes) == 1
+        p.unroute(read_endpoint, failed_retry_preflight)
+        button(dialog, '明确重试原请求')
+        button(p.get_by_role('dialog', name='确认同步共用商品资料？', exact=True), '确认同步保存')
+
+    dialog.wait_for(state='hidden')
+    assert len(writes) == (1 if committed else 2)
+    assert all(entry == writes[0] for entry in writes)
+    assert query(desktop.app, 'SELECT name FROM product_style WHERE id=%s', (style,))[0]['name'] == '真实写入结果未知时的原始草稿'
+    assert query(desktop.app, audit_sql, (str(style),))[0]['n'] == audit_before + 1
+    if committed:
+        p.goto('http://localhost:5174/system?tab=audit&keyword=UI-CAP&action=catalog.style', wait_until='networkidle')
+        rows = p.locator('.ant-table-tbody tr').filter(has_text='保存款式')
+        expect(rows).to_have_count(audit_before + 1)
+        expect(rows.first).to_contain_text('UI-CAP')
+
+
 def test_issue_dirty_guard_and_free_identity_registration_open_exact_record(desktop):
     style,issue,item,_=setup(desktop);p=desktop.page;p.set_viewport_size({'width':1440,'height':900})
     draft=api(desktop,'issue',{'style_id':style,'name':'待保存发行','mode':'fixed','total':9,'description':'九件身份','rights':[]})['id']

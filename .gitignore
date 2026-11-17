@@ -21,6 +21,8 @@ node_modules/
 # 打包结果、检查报告、运行日志、本机数据库和备份导出，不需要提交。
 dist/
 build/
+.umi/
+.umi-production/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

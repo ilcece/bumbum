@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Alert, Button, Checkbox, Form, Input, InputNumber, Typography } from "antd";
-import { Row } from "../catalog";
+import type { OrderUnit } from "../types/catalog";
 import { ActionForm, RemoteSelect, required, useRecord } from "./CatalogUI";
 
-export default function AssemblyFields({ styleId, project, orderUnit }: { styleId: number; project: string; orderUnit?: Row }) {
+export default function AssemblyFields({ styleId, project, orderUnit }: { styleId: number | null; project: string; orderUnit?: OrderUnit | null }) {
   const form = Form.useFormInstance();
   const [registering, setRegistering] = useState(false);
   const changeSelection = (value: number) => {

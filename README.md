@@ -12,7 +12,7 @@
 
 - **基础管理已验收并合入main：** 管理员登录、本机运行、芯片登记、物品建档、服装资料维护与桌面后台可用，操作见[管理端手册](docs/ADMIN_DESKTOP.md)。
 - **芯片接入与服装触碰闭环已验收并合入main：** 首次绑定、密钥及配置核验、动态验证、有效触碰统计和手机资料持续查看已有交付；[登记与实卡的验收边界](docs/product/chip-lifecycle.md)、[手机体验规则](docs/product/fashion-touch.md)分别查阅。
-- **杭州正式入口基础接管已验收：** 香港ECS已释放，生产与测试隔离；[最后已知部署版本及运维验证边界](docs/HANGZHOU_DEPLOYMENT.md#62-杭州基础接管完成范围与后续运维验证)单独记录，合入main不代表服务器已更新。
+- **杭州正式入口基础接管已验收：** 香港ECS已释放，生产与测试隔离；[当前发布记录](docs/HANGZHOU_DEPLOYMENT.md#当前发布记录)及[接管历史与运维验证边界](docs/HANGZHOU_DEPLOYMENT.md#62-杭州基础接管完成范围与后续运维验证)单独记录，合入main不代表服务器已更新。
 - **第一阶段处于试用准备：** 杭州 test 已完成实卡认领、Windows Hello 登录和用户动态等验收；后台装配、权益/转售、手机预览及普通芯片停用恢复收到“基本都验收通过了”的总体反馈，不等同全部细项逐项通过。可用范围见[项目能力总览](PRD.md#0-项目能力总览)，后续安排见 [TODO](TODO.md)。
 
 当前任务、分支和待反馈只看[TODO](TODO.md)；验收日期、提交和历史证据查[CHANGELOG](CHANGELOG.md)；逐接口实现范围集中在[接口实现概览](API_CONTRACT.md#04-当前能做到哪一步)。
@@ -25,14 +25,16 @@
 
 先看[TODO的当前安排](TODO.md#当前安排)，再按对应任务进入产品规范、提案或探索说明；具体任务、状态和下一步只在TODO维护。本地运行、管理员登录及芯片登记步骤仍从[操作手册入口](docs/OP_GUIDE.md)查阅，用于启动或回归，不默认作为当前待验收任务。已有配置、账号和数据继续使用。
 
-## cece 怎么读这些文件
+<a name="cece-怎么读这些文件"></a>
 
-1. 判断“要做什么、怎样才算做完”：从[产品导航](PRD.md)进入对应模块；新改动看独立提案。
-2. 理解“碰一下后发生什么、怎样防伪和登录”：读 [运行说明](TECH_SPEC.md)。
-3. 核对“页面要提交什么、会收到什么”：读 [接口说明](API_CONTRACT.md)。
-4. 让AI开始工作：直接说明本次任务、允许修改的范围和可检查的结果。你可先读[协作速览](AGENTS.md#cece速览)；AI必须读取适用的[完整规范](AGENTS.md)，再按任务查定义文件和操作手册。
+## cece 与 AI 怎么读这些文件
 
-cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必须读对应的精确规则。需要执行命令时，说明必须包含执行位置、预期结果和失败后的处理方法。
+- **cece 日常阅读：**先看[TODO](TODO.md#当前安排)了解当前任务，从[产品导航](PRD.md)进入本次相关规则或提案；需要操作、验收时，从[操作手册入口](docs/OP_GUIDE.md)选择对应手册。了解协作方式可读[cece速览](AGENTS.md#cece速览)。
+- **AI 执行阅读：**先读适用的[完整协作规范](AGENTS.md)，核对TODO及实际文件，再按任务读取对应产品、技术、接口定义与精确附录；实现和验证位置从[代码地图](#代码和配置在哪里)定位。
+
+cece 学习或审查技术时，可按需阅读[运行说明](TECH_SPEC.md)、[接口说明](API_CONTRACT.md)及[技术附录](docs/IMPLEMENTATION_DETAILS.md)。AI执行时必须完整读取本次相关的精确规则，不能只凭摘要实现；双方使用同一份规范。
+
+让AI开始工作时，直接说明本次目标、允许修改的范围和可检查的结果。需要执行命令时，说明必须包含执行位置、预期结果和失败后的处理方法。
 
 ## 选用的工具和业务分工
 
@@ -73,7 +75,22 @@ cece 可以先读正文判断流程，按需查技术附录；AI 写代码时必
 
 ## 代码和配置在哪里
 
-后端入口是app.py；手机登记回调在core/scan_webhook.py，共用登记在core/chip_registry.py，首次绑定在core/chip_binding.py，密钥配置在core/chip_keys.py及sdm_derivation.py，秘密加密在core/secret_storage.py，触碰入口在core/tap_grants.py，验证事务在core/tap_verification.py，共用验签在core/sdm_verification.py，管理统计入口在core/admin_stats.py，快照聚合在core/tap_statistics.py。数据库连接在core/db.py，认证及账号命令在core/admin_auth.py、admin_cli.py，管理接口在core/admin_chips.py、admin_items.py及数字档案服务core/admin_catalog.py，006升级在core/catalog_migration.py，管理前端在frontend/admin/，手机用户前端在frontend/user/，各自构建并使用独立样式。根目录compose.yaml只启动独立测试数据库；首次空库建表用db/schema.sql，已有库升级另走迁移，不能重建数据库；触碰记录升级见[本地运行第11节](docs/LOCAL_DEVELOPMENT.md#11-已有测试库升级触碰记录及后端验收)，持续查看资格004及用户页预览见[第12节](docs/LOCAL_DEVELOPMENT.md#12-已有测试库升级及手机资料页本机验收)。
+先按业务定位入口和验证，再阅读对应规范。路由负责请求与事务协调，共同业务不反向依赖页面或管理路由。
+
+| 业务模块 | 实现位置 | 规则与验证入口 |
+|---|---|---|
+| 应用与数据库 | [app.py](app.py)、[core/db.py](core/db.py)、[结构检查](core/schema_checks.py) | [技术规范](TECH_SPEC.md)、[数据库检查](tests/test_database.py)、[迁移结构检查](tests/test_migration_readiness.py) |
+| 管理登录与审计 | [admin_auth](core/admin_auth.py)、[admin_passkeys](core/admin_passkeys.py)、[catalog/audit](core/catalog/audit.py) | [登录手册](docs/ADMIN_LOGIN.md)、[认证安全回归](tests/test_auth_security.py) |
+| 芯片登记、绑定与密钥 | [登记](core/chip_registry.py)、[扫码回调](core/scan_webhook.py)、[绑定](core/chip_binding.py)、[密钥](core/chip_keys.py) | [芯片规范](docs/product/chip-lifecycle.md)、[绑定回归](tests/test_chip_binding.py)、[密码学向量](tests/test_sdm_crypto.py) |
+| 数字物品与订单 | [管理路由](core/admin_catalog.py)、[物品办理](core/catalog/inventory.py)、[订单履约](core/catalog/orders.py)、[读查询](core/catalog/queries.py) | [数字物品规范](docs/product/digital-catalog.md)、[订单回归](tests/test_sales_orders.py)、[后台回归](tests/test_admin_catalog.py) |
+| 用户碰卡、认领与持有 | [触碰入口](core/tap_grants.py)、[验签事务](core/tap_verification.py)、[账户认领](core/public_account.py)、[持有体验](core/holder_lifecycle.py) | [用户H5规范](docs/product/user-h5.md)、[认领回归](tests/test_h5_claim.py)、[挂失找回回归](tests/test_holder_lifecycle.py) |
+| 图片与验收批次 | [共用图片](core/catalog/media.py)、[离线备份](core/media_backup.py)、[批次](core/test_batches.py) | [媒体恢复回归](tests/test_media_backup.py)、[验收批次回归](tests/test_acceptance_data.py) |
+| 管理端页面 | [路由](frontend/admin/config/routes.ts)、[页面](frontend/admin/src/pages/)、[共用组件](frontend/admin/src/components/)、[接口类型](frontend/admin/src/types/catalog.ts)、[请求hooks](frontend/admin/src/hooks/) | [后台设计规范](docs/ADMIN_UI_GUIDELINES.md)、[桌面验收](docs/ADMIN_DESKTOP.md)、[浏览器回归](tests/test_admin_review_browser.py) |
+| 用户手机页 | [用户工程](frontend/user/src/)、[共用展示](frontend/shared/itemPresentation.ts) | [H5验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)、[手机浏览器回归](tests/test_mobile_browser.py) |
+| 数据结构与升级 | [空库schema](db/schema.sql)、[历史迁移](db/migrations/)、[本地升级工具](scripts/migrate_local.py) | [本地运行说明](docs/LOCAL_DEVELOPMENT.md)；已有库先核对缺失迁移，不能重建 |
+| 部署与历史基准 | [杭州工具](scripts/hangzhou.py)、[共享部署模板](deploy/cloud_test/)、[冻结原型](prototypes/admin-make/README.md) | [当前发布记录](docs/HANGZHOU_DEPLOYMENT.md#当前发布记录)；原型只作既有回归基准 |
+
+默认 `rg` 检索遵循 [.ignore](.ignore)，跳过生成HTML及历史证据；需要追溯时显式指定历史目录检索，例如 `rg --no-ignore '关键词' docs/archive/`。这只减少检索噪声，不删除文件，不影响构建和测试。根目录 `compose.yaml` 只启动本机独立测试数据库；日常命令统一从[操作手册](docs/OP_GUIDE.md)进入。
 
 Python 依赖集中在 [`requirements/`](requirements/)。`base.in` 定义后端共用的直接依赖。安装时按用途选用 [`dev.txt`](requirements/dev.txt)、[`browser.txt`](requirements/browser.txt) 或 [`deploy.txt`](requirements/deploy.txt)，分别对应本地开发、浏览器回归和 Docker 部署。启用杭州 test 短信的镜像额外安装 [`hangzhou-test-sms.txt`](requirements/hangzhou-test-sms.txt)。更新直接依赖后，重新生成对应的固定版本清单。
 

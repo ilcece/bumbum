@@ -1,3 +1,4 @@
+import type { ActionPayloadMap, CatalogAction, CatalogStatistics } from "../types/catalog";
 import ReadFailure from "../components/ReadFailure";
 import { useEffect, useState } from "react";
 import { ProCard } from "@ant-design/pro-components";
@@ -15,7 +16,7 @@ import {
 } from "antd";
 import { assemblyPath, fromPath } from "../catalog";
 import { history, useLocation, useParams } from "@umijs/max";
-import { Row, statistics, statusNames, time, validationHelp } from "../catalog";
+import { statistics, statusNames, time, validationHelp } from "../catalog";
 import {
   ActionForm,
   DetailContainer,
@@ -45,9 +46,9 @@ export default function ChipDetail({
   const from = embedded ? fromPath("/chips/" + id, here) : here;
   const ident = id || Number(params.id),
     { record: r, error, loading, reload } = useRecord("chips", ident),
-    [action, setAction] = useState<string>(),
+    [action, setAction] = useState<Extract<CatalogAction, "validationChip" | "deleteChip" | "bind" | "chipBatch" | "chipState">>(),
     [keys, setKeys] = useState(false),
-    [stats, setStats] = useState<Row>(),
+    [stats, setStats] = useState<CatalogStatistics>(),
     [statsError, setStatsError] = useState(""),
     [statsRevision, setStatsRevision] = useState(0);
   useEffect(() => {
@@ -192,7 +193,7 @@ export default function ChipDetail({
             state: r.chip_status === "disabled" ? "restore" : "disabled",
           }}
           submitText={action === "bind" ? "继续安装" : undefined}
-          execute={action === "bind" ? async (payload) => ({ id: payload.item_id }) : undefined}
+          execute={action === "bind" ? async (payload) => ({ id: (payload as ActionPayloadMap["bind"]).item_id }) : undefined}
           onDone={(result) => {
             if (action === "bind") {
               setAction(undefined);

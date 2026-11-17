@@ -13,7 +13,8 @@ import {
   Switch,
 } from "antd";
 import { testBatch, setTestBatch } from "../testDataMode";
-import { list, Row } from "../catalog";
+import { list } from "../catalog";
+import type { TestBatchPreview, TestBatchRecord } from "../types/catalog";
 import { request } from "../api";
 import { ActionForm } from "./CatalogUI";
 const cleanupLabels: Record<string, string> = {
@@ -23,13 +24,13 @@ const cleanupLabels: Record<string, string> = {
 const cleanupReceiptKey = (id: number) => `bumbum-test-batch-cleaned:${id}`;
 
 export default function TestBatches() {
-  const [rows, setRows] = useState<Row[]>([]),
+  const [rows, setRows] = useState<TestBatchRecord[]>([]),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true),
     [selectionMissing, setSelectionMissing] = useState(false),
     [writable, setWritable] = useState(false),
     [revision, setRevision] = useState(0),
-    [preview, setPreview] = useState<Row>();
+    [preview, setPreview] = useState<TestBatchPreview>();
   useEffect(() => {
     let live = true;
     setLoading(true);
@@ -42,11 +43,11 @@ export default function TestBatches() {
             const key = cleanupReceiptKey(row.id);
             if (row.status === "deleted") sessionStorage.removeItem(key);
             if (row.status === "active" && sessionStorage.getItem(key) === "1")
-              return { ...row, status: "deleted" };
+              return { ...row, status: "deleted" as const };
             return row;
           });
           setRows(currentRows);
-          setWritable(!!(r as any).writable);
+          setWritable(!!r.writable);
           setSelectionMissing(
             !!testBatch() &&
               r.total <= r.items.length &&
@@ -110,7 +111,7 @@ export default function TestBatches() {
             刷新数据
           </Button>
         </Space>
-        <Table<Row>
+        <Table<TestBatchRecord>
           rowKey="id"
           loading={loading}
           dataSource={rows}
@@ -168,7 +169,7 @@ export default function TestBatches() {
                     。人工操作后统计会变化。
                   </Typography.Paragraph>
                   <ul>
-                    {r.manifest?.items?.map((x: any) => (
+                    {r.manifest?.items?.map((x) => (
                       <li key={x.item_id}>
                         <Typography.Text>{x.uid} · </Typography.Text>
                         {x.scenario}
@@ -179,7 +180,7 @@ export default function TestBatches() {
                     <details>
                       <summary>图片来源与许可</summary>
                       <ul>
-                        {r.manifest.photos.map((photo: any) => (
+                        {r.manifest.photos.map((photo) => (
                           <li key={photo.sha256}>
                             <a
                               href={photo.page}
@@ -214,7 +215,7 @@ export default function TestBatches() {
               if (result.id === preview.id && result.status === "deleted") {
                 sessionStorage.setItem(cleanupReceiptKey(result.id), "1");
                 setRows((current) => current.map((row) =>
-                  row.id === result.id ? { ...row, status: "deleted" } : row));
+                  row.id === result.id ? { ...row, status: "deleted" as const } : row));
               }
               setPreview(undefined);
               if (testBatch() === preview.id) {

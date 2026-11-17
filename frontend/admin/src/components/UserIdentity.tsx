@@ -6,7 +6,7 @@ import { request } from "../api";
 type Account = { public_uid: string; nickname?: string; masked_phone?: string };
 
 export function PhoneReveal({ masked, path, onOpenChange }: {
-  masked?: string; path: string; onOpenChange?: (open: boolean) => void;
+  masked?: string | null; path: string; onOpenChange?: (open: boolean) => void;
 }) {
   const [result, setResult] = useState<{ phone?: string; error?: string }>();
   if (!masked) return <>手机号未记录</>;
@@ -37,7 +37,7 @@ export function PhoneReveal({ masked, path, onOpenChange }: {
   </Space>;
 }
 
-export default function UserIdentity({ uid }: { uid?: string }) {
+export default function UserIdentity({ uid }: { uid?: string | null }) {
   const [card, setCard] = useState<{ account?: Account; error?: string }>();
   const trigger = useRef<ComponentRef<typeof Button>>(null);
   const closeButton = useRef<ComponentRef<typeof Button>>(null);

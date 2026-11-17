@@ -1,72 +1,43 @@
 import ClaimCodeDialog from "../components/ClaimCodeDialog";
 import { useLayoutEffect, useRef, useState } from "react";
 import { PageContainer, ProCard } from "@ant-design/pro-components";
-import { history, useLocation, useModel } from "@umijs/max";
+import { history, useLocation } from "@umijs/max";
 import {
   Alert, Button, Checkbox, DatePicker, Descriptions, Form, Input, InputNumber,
-  List, Radio, Space, Steps, Typography,
+  Radio, Space, Steps, Typography,
 } from "antd";
+import type { ActionResult } from "../types/catalog";
 import { ApiError } from "../api";
 import { inputDate, inputISO } from "../businessTime";
-import { command, edition, Row, time, unknown } from "../catalog";
+import { command, edition, time, unknown } from "../catalog";
 import { Copy, Load, RemoteSelect, required, useRecord } from "../components/CatalogUI";
 import KeyConfiguration from "../components/KeyConfiguration";
+import {
+  orderPreparationPath as path,
+  readOrderPreparationDrafts as drafts,
+  useOrderPreparationDraftKey as useDraftKey,
+} from "../components/order/OrderPreparationDrafts";
 import { testBatch } from "../testDataMode";
+import { submitStoredCommand } from "../api/catalogActions";
+import type { OrderPreparationAction } from "../components/order/OrderPreparationDrafts";
+import type { OrderPreparationDraft as Draft } from "../components/order/OrderPreparationDrafts";
 
-const path = "/overview/order-preparation";
-type Draft = {
-  id: string;
-  route: "new" | "stock";
+type PreparationValues = {
   channel?: string;
   external_order_no?: string;
-  physical_item_id?: number;
-  item_id?: number;
-  item_uid?: string;
+  style_id?: number;
   physical_uid?: string;
-  sold?: boolean;
-  completed?: boolean;
-  values?: Record<string, any>;
-  pending?: { action: string; requestId: string; payload: Record<string, any> };
+  spec?: string;
+  issue_id?: number;
+  item_uid?: string;
+  edition_number?: number;
+  chip_id?: number;
+  installed?: boolean;
+  first_sold_at?: string;
+  delivery_reference?: string;
+  confirmed?: boolean;
+  stock_id?: number;
 };
-
-function useDraftKey() {
-  const { initialState } = useModel("@@initialState");
-  const scope = initialState?.session?.draft_scope;
-  return scope && /^[a-f0-9]{64}$/.test(scope)
-    ? `bumbum-order-preparation-v1:${scope}:${testBatch() ?? "business"}`
-    : undefined;
-}
-
-function drafts(key: string): Draft[] {
-  try {
-    const data = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(data) ? data.filter((entry) =>
-      entry && typeof entry.id === "string" && ["new", "stock"].includes(entry.route)) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function OrderPreparationQueue() {
-  const key = useDraftKey();
-  const entries = key ? drafts(key).filter((entry) => !entry.completed) : [];
-  if (!entries.length) return null;
-  return (
-    <ProCard title="此浏览器的旧版未办记录" headerBordered>
-      <Typography.Text type="secondary">已保存的旧待办可继续。新订单请使用上方订单列表。</Typography.Text>
-      {entries.length > 0 && <List dataSource={entries} renderItem={(entry) =>
-        <List.Item actions={[<Button key="resume" onClick={() => history.push(`${path}?draft=${entry.id}`)}>继续办理</Button>]}>
-          <List.Item.Meta
-            title={entry.external_order_no ? `${entry.channel || "待填渠道"} · ${entry.external_order_no}` : "待填写成交来源"}
-            description={[entry.item_uid || entry.physical_uid, entry.pending ? "有操作结果待核对" : entry.sold ? "待确认交付" :
-              entry.item_id ? "继续核对物品进度" : entry.physical_item_id ? "已登记实体 · 待装配" :
-                entry.route === "stock" ? "选用已有库存" : "登记新实物"].filter(Boolean).join(" · ")}
-          />
-        </List.Item>
-      } />}
-    </ProCard>
-  );
-}
 
 export default function OrderPreparation() {
   const key = useDraftKey();
@@ -83,13 +54,13 @@ export default function OrderPreparation() {
 
 function Preparation({ storageKey, saved }: { storageKey: string; saved?: Draft }) {
   const [draft, setDraft] = useState<Draft>(() => saved || { id: crypto.randomUUID(), route: "new" });
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<PreparationValues>();
   const [busy, setBusy] = useState(false);
   const active = useRef(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(false);
   const [configuration, setConfiguration] = useState(false);
-  const [code, setCode] = useState<Row>();
+  const [code, setCode] = useState<ActionResult>();
   const itemState = useRecord("items", draft.item_id);
   const physicalState = useRecord("physical-items", draft.physical_item_id);
   const item = itemState.record;
@@ -125,14 +96,14 @@ function Preparation({ storageKey, saved }: { storageKey: string; saved?: Draft 
     setDraft(next);
   }
 
-  function source(values: Record<string, any>) {
+  function source(values: PreparationValues) {
     return {
       channel: values.channel?.trim() || draft.channel,
       external_order_no: values.external_order_no?.trim() || draft.external_order_no,
     };
   }
 
-  function finish(next: Draft, result: Row) {
+  function finish(next: Draft, result: ActionResult) {
     const update: Draft = { ...next, pending: undefined, values: undefined };
     switch (next.pending?.action) {
       case "createPhysicalItem":
@@ -142,7 +113,7 @@ function Preparation({ storageKey, saved }: { storageKey: string; saved?: Draft 
         break;
       case "assembleOrderItem":
         update.item_id = result.id;
-        update.item_uid = next.pending.payload.item_uid;
+        update.item_uid = next.pending.payload.item_uid as string;
         break;
       case "orderSale": update.sold = true; break;
       case "issueClaimCode":
@@ -163,10 +134,10 @@ function Preparation({ storageKey, saved }: { storageKey: string; saved?: Draft 
     try {
       write(next);
       const { action, requestId, payload } = next.pending;
-      let result: Row;
+      let result: ActionResult;
       try {
         result = lookup ? await command("receipt", { request_id: requestId }, crypto.randomUUID()) :
-          await command(action, payload, requestId);
+          await submitStoredCommand(action, payload, requestId);
       } catch (e) {
         if (lookup && e instanceof ApiError && e.status === 404) setRetry(true);
         if (!lookup && !unknown(e)) write({ ...next, pending: undefined });
@@ -181,13 +152,13 @@ function Preparation({ storageKey, saved }: { storageKey: string; saved?: Draft 
     }
   }
 
-  function submit(values: Record<string, any>) {
+  function submit(values: PreparationValues) {
     if (active.current || conflict) return;
     const next = { ...draft, ...source(values), values: { ...values } };
     delete next.values.installed;
     delete next.values.confirmed;
-    let action: string;
-    let payload: Record<string, any>;
+    let action: OrderPreparationAction;
+    let payload: Record<string, unknown>;
     if (step === 0 && draft.route === "stock") {
       if (!chosenStock || chosenStock.id !== values.stock_id) return;
       try {

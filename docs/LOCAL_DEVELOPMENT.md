@@ -456,23 +456,15 @@ Start-Process -FilePath ('http://127.0.0.1:5175/tap' + $mobileUri.Query)
 Remove-Variable mobileSecret, mobileText, mobileUri, mobileQuery -ErrorAction SilentlyContinue
 ```
 
-应自动验证并显示服装资料，地址变为/tap/items/数字ID，无密钥或凭证。刷新无需再次碰卡，只查最新资料；超过五分钟仍可继续查询。页面前台每60秒自动更新、返回前台立即更新、后台暂停；失败标明上次内容，不能假装最新；仅新有效验证计数。通过原后台修改名称或停用该物品后，用户页下一次查询应显示修改或不可查看，测试后恢复状态使用原已验收入口，不直接改库。
+应自动验证并显示服装资料。访客地址为 `/tap/items/{公开UUID}`，已登录且确认为当前持有人的地址为 `/mine/items/{公开UUID}`，均无密钥或触碰凭证；旧数字ID仅属限期兼容入口。刷新无需再次碰卡，只查最新资料；超过五分钟仍可继续查询。页面前台每60秒自动更新、返回前台立即更新、后台暂停；失败标明上次内容，不能假装最新；仅新有效验证计数。通过款式维护修改共用名称，或在物品详情停用该物品后，用户页下一次查询应显示修改或不可查看，测试后恢复状态使用原已验收入口，不直接改库。
 
-持续查看以最后一次成功查询计算24小时，成功查询续期；Cookie被浏览器清理可更早失效，不承诺跨设备或持有人身份。测试24小时边界由AI可控时钟覆盖，不要求cece等一天。图片及五组验收见[真实卡手册第6节](NFC_CARD_VERIFICATION.md#6-手机服装资料页与自动更新验收)，软件通过不等于手机公网通过。
+访客的持续查看资格以最后一次成功查询计算24小时，成功查询续期；持有人入口另按用户会话与当前持有关系检查。Cookie被浏览器清理可更早失效，不承诺跨设备或持有人身份。测试24小时边界由AI可控时钟覆盖，不要求cece等一天。图片及五组验收见[真实卡手册第6节](NFC_CARD_VERIFICATION.md#6-手机服装资料页与自动更新验收)，软件通过不等于手机公网通过。
 
 <a name="13-a方案生效门槛组件冒烟与图片离线恢复"></a>
 
 ## 13. 图片备份与离线恢复门槛
 
-本节复现[后台工程说明](proposals/admin-rebuild-implementation.md#6-保留图片配套备份恢复门槛)中的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的 `requirements/browser.txt` 及管理端 npm 依赖，并按第9节准备Playwright Chromium。官方Ant Design CLI已锁入管理端开发依赖，npm ci一并安装；不需要全局安装或访问Figma。
-
-在`frontend/admin`目录可执行以下官方检查；成功应显示doctor无失败、弃用检查无问题，不能代替实际业务验证。API查询显式指定当前antd版本，若失败先检查npm ci是否完成及Node版本。
-
-```bash
-npx --no-install antd info Upload --version 6.6.8 --format json
-npx --no-install antd doctor --format json
-npx --no-install antd lint ./src --only deprecated --format json
-```
+本节复现[后台工程说明](IMPLEMENTATION_DETAILS.md#196-升级配套恢复与验收边界)中的图片恢复门槛。cece已取消固定React19独立组件冒烟，不再将其列入例行检查；历史脚本和证据保留。图片恢复不替代完整业务流程或人工验收。先安装仓库锁定的 `requirements/browser.txt` 及管理端 npm 依赖，并按第9节准备Playwright Chromium。当前依赖清单没有Ant Design CLI，不执行历史的antd info/doctor/lint命令，也不为整理文档新增该工具。
 
 在项目根目录、使用上述测试依赖所在的Python执行：
 
@@ -511,6 +503,8 @@ python scripts/media_backup.py snapshot --dump /私有绝对路径/冻结窗口�
 
 ## 14. 物品与私有图片后端升级
 
+本节保留005旧媒体结构和离线工具的兼容步骤；旧单件在线上传/读取已退役，当前图片统一在款式维护。以下结构与私有目录说明不授权重新开放旧入口。
+
 目的：保留原账号、物品及图片，升级005后运行新后端。本节不授权部署或操作真实数据库；管理端物品详情/编辑、连续创建和Upload已接入；本节先准备后端与私有目录，再按物品手册验收。准备前停止旧前后端，核对交付分支和本机目标，不删除卷或重新初始化。
 
 | 操作 | macOS/Linux（仓库目录） | Windows PowerShell（仓库目录） |
@@ -522,15 +516,15 @@ python scripts/media_backup.py snapshot --dump /私有绝对路径/冻结窗口�
 
 本机图片需要单独的私有绝对目录。macOS/Linux可由当前运行用户在仓库运行`python -c "from pathlib import Path; Path('media').mkdir(mode=0o700)"`，只创建不存在的新目录，700权限；已有目录不通过该命令修复，交AI核对。默认位置为仓库media，已被Git/Docker忽略。Windows使用本人LOCALAPPDATA下独立目录，先核对只有本人可访问的ACL，再将绝对路径填入MEDIA_ROOT；POSIX权限检查不能证明Windows ACL安全，该系统实测仍待cece环境验证。不放在网页静态目录或备份包内，不移动未知已有目录。
 
-MEDIA_ENABLED默认false；已有图读取仍要求原私有目录和正确元数据。在获准开发目标显式改为true前，先核005、目录、磁盘与第13节配套恢复；容量默认2GiB，文件/像素限制见API第4.1节。目录缺失、可写权限不符或容量不足时拒绝，不写镜像层或随意临时目录。生产目录准备与已有RDS升级只按杭州手册第10节，不能用本机脚本连接RDS。
+MEDIA_ENABLED默认false，当前共用款图上传也复用该开关和容量配置；共用图内容保存在MySQL的style_image，不从MEDIA_ROOT读取。MEDIA_ROOT只为历史文件的离线备份、恢复与受控清理保留。在获准开发目标开启上传前，核对结构、容量及第13节配套恢复要求；容量默认2GiB，现行上传格式和权限见API第11.3节。生产开启及RDS升级只按杭州手册对应授权执行，不能用本机脚本连接RDS。
 
 后端定向复现使用已按第13节准备的开发依赖和专属临时MySQL：
 
 ```bash
-python -m pytest tests/test_admin_items.py tests/test_admin_item_maintenance.py tests/test_media_assets.py tests/test_media_migration.py tests/test_media_cleanup.py tests/test_media_backup.py tests/test_rds_media_migration.py --auth-db -q
+python -m pytest tests/test_admin_items.py tests/test_admin_item_maintenance.py tests/test_media_assets.py tests/test_media_migration.py tests/test_media_backup.py tests/test_rds_media_migration.py --auth-db -q
 ```
 
-真实Gunicorn资源/持久化检查另用AI独立构建的临时镜像，加`--cloud-image 临时镜像标签`运行tests/test_media_resources.py；不接受服务器或日常容器代替临时目标。测试按256MiB/单worker及512MiB/双worker限制实测JPEG/PNG/WebP、超限提前拒绝、跨worker忙、重启和重建文件保留。无镜像参数的跳过不算通过，不推断生产容量或Windows上传可用。
+旧单件图片服务的资源专项脚本已随在线入口退役，不能再运行已不存在的 `tests/test_media_resources.py` 或 `tests/test_media_cleanup.py`。当前共用款图的编码与上传分别由 `tests/test_media_assets.py`、`tests/test_admin_catalog.py` 检查；历史离线恢复由 `tests/test_media_backup.py` 检查。容器资源、生产容量与Windows目录权限仍须按实际需求独立验证，不沿用历史结果推定当前已通过。
 
 到期技术资源维护由AI在获准目标操作，默认只预览：
 
@@ -553,9 +547,11 @@ python -m pytest tests/test_admin_item_browser.py tests/test_admin_browser.py te
 独立MySQL和合成图覆盖物品连续创建/确切定位、同字段详情与编辑、关联/查询返回、普通保存/启停、真实Upload暂存/关联/移除/取消、未知回执核对及原登录/绑定/密钥/统计回归；不单独追加React19组件矩阵；业务行为仍不能只靠构建判断。不连接现有库、不启用生产上传；故障回执按测试明确合成，实际文件处理仍走真实接口。失败保留脱敏截图与测试提示，不上传秘密或完整浏览器网络记录。
 
 
-## 14. 隔离Umi管理原型
+<a name="14-隔离umi管理原型"></a>
 
-此节仅用于当前任务分支的prototypes/admin-make，不启动真实API、数据库或芯片服务；根目录Windows日常入口仍运行正式frontend/admin。Node/npm沿用.mise.toml版本。
+## 15. 冻结Umi管理原型
+
+本节仅用于冻结的prototypes/admin-make视觉回归基准，不启动真实API、数据库或芯片服务；根目录Windows日常入口仍运行正式frontend/admin。Node版本要求见[管理端清单](../frontend/admin/package.json)的engines，CI和[Dockerfile](../deploy/cloud_test/Dockerfile)固定实际构建版本；原型沿用同一Node工具链。
 
 在仓库根目录执行：
 
@@ -578,9 +574,11 @@ node prototypes/admin-make/checks/domain.test.mjs
 
 构建成功产生dist/index.html；导出生成单HTML、源码ZIP并更新preview.html。单HTML包含真实Umi路由块，无需安装依赖；下载后用桌面Chrome/Edge打开。交互步骤及验证范围见[原型说明](../prototypes/admin-make/README.md)。会话仅供产品审核；真实认证、所有权、密钥及API不能用演示替代。停止开发服务在终端按Ctrl+C。
 
-## 15. 正式Umi后台与数字档案006测试
+<a name="15-正式umi后台与数字档案006测试"></a>
 
-适用于当前重构分支的正式frontend/admin，隔离原型仍在prototypes/admin-make，不把原型会话、演示账户或故障开关导入真实后台。管理员、芯片密钥和现有资料继续原配置，用户页仍独立Vite。先在对应分支更新依赖和构建：
+## 16. 正式Umi后台与数字档案006测试
+
+适用于正式frontend/admin的006升级及后续回归，隔离原型仍在prototypes/admin-make，不把原型会话、演示账户或故障开关导入真实后台。管理员、芯片密钥和现有资料继续原配置，用户页仍独立Vite。先在对应分支更新依赖和构建：
 
 ```bash
 npm --prefix frontend/admin ci
@@ -608,7 +606,9 @@ python -m pytest tests/test_admin_browser.py tests/test_admin_item_browser.py te
 人工验证按[正式后台四组验收](ADMIN_DESKTOP.md#8-新版数字档案后台四组验收)进行。首次用户认领按[数字物品与 H5 清单](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)核对。取消挂失后的实卡恢复及尚未确定的业务规则须分别核对。更换芯片须按原真实配卡手册实际配置，生成密钥后仍须写卡并核验。
 
 
-## 16. 验收批次007与本机测试数据
+<a name="16-验收批次007与本机测试数据"></a>
+
+## 17. 验收批次007与本机测试数据
 
 已有本机库先完成006，再默认检查007；apply会核对原本机配置、容器与实例并先完整备份：
 
@@ -621,4 +621,4 @@ python scripts/migrate_local.py --test-batches --apply
 
 旧单件图片在线上传/读取和外链已退役，第14节对应旧页面操作不再适用；保留005结构和第13节离线工具用于旧图清理前的配套备份，清理后新款图随数据库备份。当前所有图片在款式维护，当前验收以管理端第8/9节为准。
 
-当前装配、认领、账户双标识及通行密钥还分别依赖008/009、010、011。`scripts/migrate_local.py --assembly-h5`仅覆盖008/009，不能将其成功视为全部结构已就绪；该本地CLI目前没有010/011入口。已有本地库升级到当前版本前，由AI核对实际结构并按现有迁移实现准备同库备份、执行与复核方案，不手工跳过ready检查、不拿空库schema覆盖旧库。全新隔离开发库可直接使用当前schema；已有杭州环境只按杭州手册的受控升级与授权执行。
+当前装配与认领依赖008/009，账户双标识为010，通行密钥为011，订单/逐件匹配为012/013，持有体验为014，H5公开标识及触碰身份为015。`scripts/migrate_local.py --assembly-h5`仅覆盖008/009；该本地CLI目前没有010–015入口，不能将现有命令成功视为当前结构全部就绪。已有本地库升级到当前版本前，由AI核对实际结构并按现有迁移实现准备同库备份、执行与复核方案，不手工跳过ready检查、不拿空库schema覆盖旧库。全新隔离开发库可直接使用当前schema；已有杭州环境只按杭州手册的受控升级与授权执行。
