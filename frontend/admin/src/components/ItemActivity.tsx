@@ -51,7 +51,7 @@ export default function ItemActivity({ itemId, revision }: { itemId?: number; re
   if (error) return <ReadFailure title="用户动态读取失败" error={error} retry={() => setRetry((value) => value + 1)} />;
   if (!rows) return <Spin />;
   if (!rows.length) return <Empty description="暂无用户动态" image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-  return <Timeline items={rows.map((row) => ({
+  return <Timeline className="item-activity-timeline" items={rows.map((row) => ({
     key: row.id, content: <>{time(row.occurred_at)} · {activityLabels[row.event]} · <ActivityItem row={row} currentItem={itemId} /> · <ActivityActor row={row} /></>,
   }))} />;
 }

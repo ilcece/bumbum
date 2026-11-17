@@ -14,8 +14,8 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 
 | 环境 | 最后已知发布与验收边界 | 详细证据 |
 |---|---|---|
-| 杭州生产 | 2026-11-17 18:43 已开放独立通行密钥，发布检查通过，cece 已确认生产 Windows Hello 登记与退出后登录正常。结构整改与技术修复保留，短信仍只允许原验收号码，实卡待验收 | [本次生产发布](#hz-production-passkeys-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
-| 杭州 test | 2026-11-17 已将审核合入 main 的结构整改与技术修复同步到后端及两端静态，基本发布检查通过；既有专题与实卡人工验收边界继续保留 | [本次 main 发布](#hz-test-maintenance-20261117)；具体待反馈见 [TODO](../TODO.md) |
+| 杭州生产 | 2026-11-17 21:20 已发布时间轴对齐修复，两处时间轴和 UID 账户卡复验通过。生产 Windows Hello 登记及登录已验收，短信仍只允许原验收号码，实卡待验收 | [时间轴修复发布](#hz-production-activity-timeline-20261117)、[通行密钥发布](#hz-production-passkeys-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
+| 杭州 test | 2026-11-17 20:53 已部署时间轴对齐修复 `429808d`，后台和 H5 就绪。工作台与数字物品详情的三种动态身份和账户卡已通过实测，cece 已确认验收通过 | [时间轴修复发布](#hz-test-activity-timeline-429808d)；其他验收见 [TODO](../TODO.md) |
 
 第6.2节的旧源码、镜像和24表核对只对应2026-10-30接管，不是当前回退基线。未来新增发布后更新本表指向，具体迁移、备份及回退依据保留在该次发布记录，不在其他文件复制版本。
 
@@ -449,6 +449,18 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 生产停写后备份数据库和媒体，校验通过再按 012–015 升级。迁移前后的账户、会话、认领码、持有关系、原触碰记录与其他既有行内容逐项相符。原短信单号配置和校验密钥通过文件校验，初始化账号恢复锁定。备份及发布记录在杭州 ECS 私有目录 `/opt/bumbum-hangzhou/production-h5.lraH3L74`，数据库和媒体备份在其 `backup` 子目录。隔离演练已验证兼容回退镜像能够读取升级结构。程序回退使用成套镜像、旧网关与静态文件。
 
 生产公网走查通过。模拟触碰沿正式域名进入物品档案，使用公开 UUID。未登录访问私人记录返回登录限制。已确认原验收物品仍归原账户。旧数字地址在原访问条件仍有效时可兼容至北京时间 2026-11-17 18:37:57。生产实卡验收按[生产实卡验收](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)执行。
+
+<a name="hz-production-activity-timeline-20261117"></a>
+
+### 2026-11-17 21:20 杭州生产时间轴对齐修复
+
+cece 确认 test 验收并授权合入与生产发布。[PR #42](https://github.com/ilcece/bumbum/pull/42) 的[基础及完整回归](https://github.com/ilcece/bumbum/actions/runs/44088662587)通过。合入 main 的提交 `0a8250108cdec17838a0d7e28cb25246b20b20e9` 与 CI 验证的内容树相同。应用源码与 test 已验收的 `429808da9cf79d3ea511fc4aa533bf8122d1fd93` 相同，因此通过 Workbench 复用 ECS 上已校验的镜像 `sha256:208f0fb73ad2c4695035ae9e459e44eade0e156e6d5b6259d8d43c32de3eb74a` 和后台静态。
+
+候选以生产应用身份只读确认 TLS、库结构、通行密钥与短信单号策略。停写后使用 MySQL 8.0.46 完整转储并核验 SQL／媒体配套备份，保留在私有目录 `/opt/bumbum-hangzhou/production-timeline.HkTRR4ko/backup/images-and-database-25aba726de234adf9ed33cf0fa46b719`，未做恢复演练。本次无需迁移。只切换生产镜像和管理端 HTTPS 静态根。H5 资源字节相同，入口 HTML 仅回车换行格式有差异，保留生产原 H5 与其网关配置。两槽就绪和访问隔离通过，生产私有配置及 test 保持。
+
+在生产既有管理员会话复验试点物品的工作台和数字物品详情。有 UID、匿名访客和身份未记录三类文字中心与圆点的垂直偏移一致，均在 0.5 CSS 像素内。两处点击 UID 均打开对应账户资料卡，关闭后焦点回到 UID。复验使用已有记录。
+
+回退从本次目录的 `compose-before.json`、`nginx-admin-before.conf` 配对恢复原 `b981cf1a` 镜像与后台 HTTPS 静态根。该镜像支持现有生产通行密钥，H5 使用原发布文件。数据库恢复另行判断。
 
 <a name="hz-production-passkeys-20261117"></a>
 
@@ -1105,6 +1117,16 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 <a name="杭州-test-发布记录"></a>
 
 ### 12.1 本轮test升级、部署与验收接续
+
+<a name="hz-test-activity-timeline-429808d"></a>
+
+#### 2026-11-17 20:53 杭州 test 时间轴对齐修复
+
+从 test 上一版 `1abe21a` 更新为修复分支提交 `429808da9cf79d3ea511fc4aa533bf8122d1fd93`，镜像为 `sha256:208f0fb73ad2c4695035ae9e459e44eade0e156e6d5b6259d8d43c32de3eb74a`。管理后台完成类型检查与构建，H5 文件与上一版字节一致。经本机 Workbench RAM 角色发送并校验候选镜像后，test 应用身份、TLS、数据库结构、后台 HTTPS 样式、H5 与接口隔离检查通过。无需迁移，生产保持原版本。
+
+在杭州 test 既有管理员会话中，用独立批次的一个合成物品核对工作台与数字物品详情。两处的 UID、匿名访客和身份未记录行均与圆点对齐，文字中心偏移一致，绝对值为 0.5 CSS 像素。两处点击 UID 均打开对应账户卡，分别验证了 Esc 和关闭按钮会将焦点交还 UID。批次已按既有流程清理，业务数据视图已恢复。
+
+回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-activity-429808d.ozYvs6Y4`，以 `compose-before.json`、`admin-before.txt` 和 `user-before.txt` 为准，配对恢复 `1abe21a` 镜像和两端静态。数据库结构及私有配置保持。
 
 <a name="hz-test-maintenance-20261117"></a>
 

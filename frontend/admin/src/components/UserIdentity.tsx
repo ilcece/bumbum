@@ -88,6 +88,6 @@ export default function UserIdentity({ uid }: { uid?: string | null }) {
         </Descriptions>
       ) : <Spin />}
     </div>}>
-    <Button ref={trigger} type="link" aria-expanded={!!card} onKeyDown={escape} style={{ paddingInline: 0 }}>{uid}</Button>
+    <Button ref={trigger} type="link" className="user-identity-trigger" aria-expanded={!!card} onKeyDown={escape} style={{ paddingInline: 0 }}>{uid}</Button>
   </Popover>;
 }
