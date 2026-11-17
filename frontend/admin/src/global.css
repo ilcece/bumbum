@@ -125,6 +125,12 @@ body {
 .copy-value > span:first-child { overflow-wrap: anywhere; }
 .copy-value .ant-typography-copy { margin-inline-start: 0; }
 .copy-value .ant-btn-link { padding: 0; height: auto; }
+.item-activity-timeline .user-identity-trigger {
+  height: auto;
+  padding-block: 0;
+  border-block-width: 0;
+  line-height: inherit;
+}
 .account-summary {
   width: min(360px, calc(100vw - 56px));
 }
