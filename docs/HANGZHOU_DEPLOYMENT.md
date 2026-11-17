@@ -732,7 +732,7 @@ read -r -p '上一步只读检查返回的server_uuid：' HZ_SERVER_UUID
 docker run --rm -it --network host --read-only --memory=256m --cpus=0.5   --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly   "bumbum-hangzhou-backend:$HZ_REVISION"   python -m core.rds_database --slot test --ca /run/rds-ca.pem   --initialize-empty --confirm-database bumbum_hz_test --confirm-server-uuid "$HZ_SERVER_UUID"
 ```
 
-唯一schema.sql中的CREATE DATABASE/USE只按已知精确语句移除，所有建表和种子数据都作用于已选连接库，不复制另一套DDL、不通用替换SQL。空库没有既有业务数据可备份；已有任何表/视图/过程/触发器/事件均拒绝。DDL中途失败可能保留部分结构，停止排查，不重跑、不自动删除/恢复。验收时在同一候选版本的只读检查结果中核对 `tables_complete=true` 和两个初始项目。启动使用该槽应用账号的后端后，检查 `/api/ready`。初始化后收回或限制专用初始化身份，应用使用自己的 DML 账号。
+唯一schema.sql中的CREATE DATABASE/USE只按已知精确语句移除，所有建表和种子数据都作用于已选连接库，不复制另一套DDL、不通用替换SQL。空库没有既有业务数据可备份；已有任何表/视图/过程/触发器/事件均拒绝。DDL中途失败可能保留部分结构，停止排查，不重跑、不自动删除/恢复。空库初始化报告以 `tables_complete=true` 核对候选版本的表清单。启动使用该槽应用账号的后端后，确认 `/api/ready` 返回 HTTP 200。该接口同时检查 `fashion`、`jewelry` 两个初始项目及所需结构。初始化后收回或限制专用初始化身份，应用使用自己的 DML 账号。
 
 ### 5.4.1 空测试库默认排序规则不符
 
@@ -755,7 +755,7 @@ docker run --rm -it --network host --read-only --memory=256m --cpus=0.5 \
   --confirm-database bumbum_hz_test --confirm-server-uuid "$HZ_SERVER_UUID"
 ```
 
-同时初始化成功时，应看到 `charset=utf8mb4`、`collation=utf8mb4_unicode_ci`、`tables_complete=true` 及客户端 TLS 套件。`table_count` 对照候选版本的表清单。后端就绪和业务另行验收。只有--normalize-empty-collation而没有--initialize-empty时仅修正空库默认值，不建表。任何错误都保留现场，不重跑部分初始化、不删库、不扩大权限。MySQL类错误只返回数字编号，不输出可能包含秘密的原始异常或SQL。
+同时初始化成功时，应看到 `charset=utf8mb4`、`collation=utf8mb4_unicode_ci`、`tables_complete=true` 及客户端 TLS 套件。`table_count` 对照候选版本的表清单。初始项目和后端结构通过[上节的就绪检查](#54-只读识别后明确确认空库初始化)核对，业务流程再单独验收。只有--normalize-empty-collation而没有--initialize-empty时仅修正空库默认值，不建表。任何错误都保留现场，不重跑部分初始化、不删库、不扩大权限。MySQL类错误只返回数字编号，不输出可能包含秘密的原始异常或SQL。
 
 ### 5.4.2 初始化返回1045时，先只读区分账号与库授权
 

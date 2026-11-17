@@ -159,22 +159,21 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 | 检查 | macOS / Linux | Windows PowerShell |
 |---|---|---|
 | 已运行服务 | `.venv/bin/python scripts/verify_local.py` | `.\.venv\Scripts\python.exe -X utf8 scripts\verify_local.py` |
-| 自动检查 | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q` |
+| 基础自动检查 | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest -q tests/test_app.py tests/test_sdm_crypto.py` |
 
-服务检查应显示两行“通过”；任一失败会以非零状态退出。普通自动检查不要求数据库，真实数据库检查默认显示 `skipped`（跳过），不算通过。出现 `failed` 表示未通过。
+服务检查应显示两行「通过」，任一失败会以非零状态退出。Windows 基础自动检查覆盖应用运行接口、错误响应和芯片密码学向量，无需 Docker。结果中的 `passed`、`skipped` 和 `failed` 分别表示通过、跳过和失败。
 
-隔离数据库回归需要 Docker。在 Windows PowerShell 从仓库根目录执行：
+Windows 的日常隔离数据库回归先启动 Docker Desktop，再在仓库根目录用 PowerShell 执行：
 
 ```powershell
-.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db `
-  --deselect=tests/test_database_tls.py::test_real_mysql_verified_tls_wrong_identity_ca_and_guarded_initialization `
-  --deselect=tests/test_hangzhou_deployment.py::test_authenticator_export_from_real_tmpfs_refuses_symlink `
-  --deselect=tests/test_hangzhou_deployment.py::test_both_slot_nginx_configurations_parse_together
+.\.venv\Scripts\python.exe -X utf8 -m pytest --auth-db -q `
+  tests/test_admin_auth.py tests/test_admin_passkeys.py tests/test_admin_chips.py `
+  tests/test_admin_catalog.py tests/test_sales_orders.py tests/test_migration_readiness.py
 ```
 
-该命令新建专属临时 MySQL，结束后清理自己的容器和卷。覆盖认证、芯片、业务写入、就绪检查及适用的升级和恢复检查。浏览器回归使用[第9节](#9-可重复的桌面浏览器回归)，原本地测试库用下方 `RUN_DB_TESTS` 单独只读检查。
+这组用例覆盖管理登录、通行密钥、芯片登记、数字档案、订单及其结构就绪检查。测试新建专属临时 MySQL，结束后清理自己的容器和卷。浏览器回归按[第9节](#9-可重复的桌面浏览器回归)运行，原本地测试库用下方 `RUN_DB_TESTS` 单独只读检查。
 
-上方三个用例直连 Linux Docker socket。有该 socket 的 Linux 开发环境可运行 `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db`。没有该 socket 的 macOS 环境，用 `.venv/bin/python` 并沿用 Windows 命令的三个排除项。隔离数据库、浏览器全量回归和上述三个用例由 Linux CI 的 `integration` 作业验证。镜像 HTTPS 网关由 `gateway` 作业验证，按需启用 `include_gateway`。结果见[对应版本的项目检查记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml)。记录结果时区分通过、按平台排除、跳过和失败。
+依赖 POSIX 文件属主权限（如 `os.chown`）或 Linux Docker socket 的部署和 TLS 用例在 Linux 验证。有该 socket 的 Linux 开发环境可运行 `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db`。Linux CI 的 `integration` 作业覆盖隔离数据库和全量浏览器回归，`gateway` 作业在启用 `include_gateway` 时检查镜像 HTTPS 网关。结果见[对应版本的项目检查记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml)。
 
 要检查原测试库，先确认第2节的数据库已启动，再按系统执行：
 
@@ -522,7 +521,7 @@ python scripts/media_backup.py snapshot --dump /私有绝对路径/冻结窗口�
 
 MEDIA_ENABLED默认false，当前共用款图上传也复用该开关和容量配置；共用图内容保存在MySQL的style_image，不从MEDIA_ROOT读取。MEDIA_ROOT只为历史文件的离线备份、恢复与受控清理保留。在获准开发目标开启上传前，核对结构、容量及第13节配套恢复要求；容量默认2GiB，现行上传格式和权限见API第11.3节。生产开启及RDS升级只按杭州手册对应授权执行，不能用本机脚本连接RDS。
 
-后端定向复现使用已按第13节准备的开发依赖和专属临时MySQL：
+以下后端定向复现在 Linux 使用已按第13节准备的开发依赖和专属临时 MySQL。RDS 媒体迁移用例涉及 POSIX 文件属主和权限检查。
 
 ```bash
 python -m pytest tests/test_admin_items.py tests/test_admin_item_maintenance.py tests/test_media_assets.py tests/test_media_migration.py tests/test_media_backup.py tests/test_rds_media_migration.py --auth-db -q
