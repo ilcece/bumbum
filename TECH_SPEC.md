@@ -129,12 +129,14 @@ chip.registration_source表示首次登记来源：manual为网页手工、nfc_c
 
 ### 4.3 管理后台通行密钥
 
-服务端只在下表的槽位与 `ADMIN_ORIGIN` 成对精确匹配时开放；浏览器入口也只在这两个 HTTPS 来源显示，不按父域名、子域名后缀或任意端口放行。
+线上服务端只在下表的槽位与 `ADMIN_ORIGIN` 成对精确匹配时开放；浏览器入口也只在这两个 HTTPS 来源显示，不按父域名、子域名后缀或任意端口放行。
 
 | HANGZHOU_SLOT | ADMIN_ORIGIN | WebAuthn RP ID（凭据所属站点） |
 |---|---|---|
 | test | https://test.bumbum.cc | test.bumbum.cc |
 | production | https://admin.bumbum.cc | admin.bumbum.cc |
+
+隔离自动测试另保留应用配置 `TESTING=True` 且显式 `TEST_ADMIN_PASSKEYS=True` 的 localhost／127.0.0.1 例外，不扩展线上站点或前端入口。
 
 两站使用各自完整 hostname 作为 RP ID，凭据分别登记和保存，不复制或复用 test 登记到生产。生产首次登记先用原账号、密码和 Authenticator 登录；原登录方式继续保留。服务端用 WebAuthn 验证本站来源、设备签名和用户验证标记，通过后沿用八小时管理会话。登记与登录挑战均为两分钟、单次使用；登记挑战还绑定当前会话。登记与撤销均须在登录后十分钟内完成，继续检查同源和 CSRF。
 

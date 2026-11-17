@@ -135,9 +135,14 @@ def passkey_browser(request, auth_app, admin_account):
 
 def register(browser):
     button(browser.page, "登记通行密钥")
-    expect(browser.page.get_by_role("button", name="登记通行密钥", exact=True)).not_to_have_class(BUSY)
+    expect(action_button(browser.page, "登记通行密钥")).not_to_have_class(BUSY)
     expect(browser.page.get_by_role("button", name="撤销", exact=True)).to_have_count(1)
     assert browser.posts("/register/finish") == 1
+
+
+def action_button(page, label):
+    # CSSMotion 隐藏图标仍可能进入可访问名称；恢复检查仍以按钮根加载状态为准。
+    return page.get_by_role("button", name=re.compile(r"^(?:loading )?" + re.escape(label) + r"$"))
 
 
 def audit_from_ui(browser, action, label):
@@ -235,7 +240,7 @@ def test_cancelled_authenticator_recovers_without_finish(passkey_browser, mode):
     }""", method)
     button(page, label)
     expect(page.get_by_role("alert")).to_contain_text(CANCELLED)
-    trigger = page.get_by_role("button", name=label, exact=True)
+    trigger = action_button(page, label)
     expect(trigger).to_be_enabled()
     expect(trigger).not_to_have_class(BUSY)
     assert browser.posts(f"/{mode}/options") == 1
