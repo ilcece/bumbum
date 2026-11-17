@@ -12,20 +12,29 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: checks-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: checks-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   basic:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      full: ${{ steps.scope.outputs.full }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12.14'
+      - name: Classify changes and check committed differences
+        id: scope
+        run: python scripts/ci_scope.py
+      - run: python scripts/check_docs.py
+        if: ${{ !cancelled() }}
       - uses: actions/setup-node@v4
+        if: steps.scope.outputs.full != 'false'
         with:
           node-version: '24.19.0'
           cache: npm
@@ -33,20 +42,25 @@ jobs:
             frontend/admin/package-lock.json
             frontend/user/package-lock.json
       - run: python -m pip install -r requirements/dev.txt
+        if: steps.scope.outputs.full != 'false'
       - run: npm ci
+        if: steps.scope.outputs.full != 'false'
         working-directory: frontend/admin
       - run: npm run build
+        if: steps.scope.outputs.full != 'false'
         working-directory: frontend/admin
       - run: npm ci
+        if: steps.scope.outputs.full != 'false'
         working-directory: frontend/user
       - run: npm run build
+        if: steps.scope.outputs.full != 'false'
         working-directory: frontend/user
-      - run: python scripts/check_docs.py
-      - run: git diff --check
       # 已取消默认独立组件冒烟；仍保留全部业务回归，不安装其专用依赖来绕过收集错误。
       - run: python -m pytest --ignore=tests/test_antd_compatibility.py -m 'not auth_database and not browser and not integration' -q
+        if: steps.scope.outputs.full != 'false'
   integration:
     needs: basic
+    if: needs.basic.result == 'success' && needs.basic.outputs.full != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:

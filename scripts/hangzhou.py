@@ -1,6 +1,7 @@
 """杭州独立部署入口：准备公开配置，隔离两个环境，不代替数据库与域名授权。"""
 
 import argparse
+from copy import deepcopy
 import getpass
 import ipaddress
 import json
@@ -18,6 +19,17 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from core.rds_target import RDS_HOST, SLOTS
+
+
+# 兼容已批准的生产单号码配置；截止时间保持原值，不借更新镜像延长旧链接。
+PRODUCTION_PILOT_ENV = {
+    "MEDIA_ENABLED": "false", "SMS_PROVIDER": "aliyun_pilot",
+    "H5_LEGACY_ITEM_UNTIL": "2026-11-17T10:37:57+00:00",
+}
+PRODUCTION_PILOT_ENV_FILES = [
+    {"path": "/opt/bumbum-hangzhou/production/secrets/runtime.env", "format": "raw"},
+    {"path": "/opt/bumbum-hangzhou/production/secrets/sms-pilot.env", "format": "raw", "required": False},
+]
 
 
 class DeploymentError(Exception):
@@ -91,6 +103,40 @@ def render_manifest(slot, image, image_id, admin_host, user_host):
             "volumes": {"operation_logs": {}}}
 
 
+def validate_manifest(document, slot):
+    """只校验公开清单，接受标准稿或已批准的完整生产配置，不访问运行环境。"""
+    try:
+        service = document["services"]["backend"]
+        env = service["environment"]
+        expected = render_manifest(slot, service["image"], service["labels"]["cc.bumbum.image-id"],
+                                   env["ADMIN_ORIGIN"].removeprefix("https://"), env["PUBLIC_ORIGIN"].removeprefix("https://"))
+        if slot == "production" and service["env_file"] == PRODUCTION_PILOT_ENV_FILES:
+            expected["services"]["backend"]["environment"].update(PRODUCTION_PILOT_ENV)
+            expected["services"]["backend"]["env_file"] = PRODUCTION_PILOT_ENV_FILES
+        # JSON 比较还区分布尔值和数字，避免把 required:0 当作已批准的 false。
+        if json.dumps(document, sort_keys=True, allow_nan=False) != json.dumps(expected, sort_keys=True, allow_nan=False):
+            raise DeploymentError("Compose配置与对应环境的保护不符，未接管或启动。")
+    except (KeyError, TypeError, AttributeError, ValueError):
+        raise DeploymentError("公开Compose清单结构或字段不符，未接管或启动。") from None
+    return document
+
+
+def prepare_update(source, output, slot, image, image_id):
+    """从显式JSON公开清单保留原配置，只把新镜像身份写入新候选文件。"""
+    resolved_source = source.resolve()
+    if source.suffix != ".json" or resolved_source.suffix != ".json":
+        raise DeploymentError("候选源须为.json公开Compose清单，不能使用私有环境文件。")
+    if resolved_source == output.resolve():
+        raise DeploymentError("候选输出须与原清单分开；未替换原文件。")
+    current = validate_manifest(json.loads(source.read_text(encoding="utf-8")), slot)
+    candidate = deepcopy(current)
+    service = candidate["services"]["backend"]
+    service["image"] = image
+    service["labels"]["cc.bumbum.image-id"] = image_id
+    validate_manifest(candidate, slot)
+    write_new(output, json.dumps(candidate, ensure_ascii=False, indent=2) + "\n", allow_existing=False)
+
+
 def render_nginx(slot, admin_host, user_host, admin_ip):
     """复用已验收网关规则，只替换经过校验的主机、目录、端口及独立限流区。"""
     admin_host, user_host = deployment_hosts(slot, admin_host, user_host)
@@ -117,15 +163,20 @@ def render_nginx(slot, admin_host, user_host, admin_ip):
     return {"admin.conf": header + admin, "user.conf": header + user, "proxy.conf": proxy}
 
 
-def write_new(path, text):
-    """保留已有配置；不同内容必须另选版本目录，不覆盖人工修改。"""
+def write_new(path, text, *, allow_existing=True):
+    """保留已有配置；新候选不读取已有输出，原准备入口仍可复用相同公开稿。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
+    if path.exists() or path.is_symlink():
+        if not allow_existing:
+            raise DeploymentError("候选输出位置已经存在；请另选新文件，未读取或覆盖。")
         if path.is_symlink() or path.read_text(encoding="utf-8") != text:
             raise DeploymentError("输出位置已有不同内容；请另选版本目录，不覆盖。")
         return
-    with path.open("x", encoding="utf-8") as stream:
-        stream.write(text)
+    try:
+        with path.open("x", encoding="utf-8") as stream:
+            stream.write(text)
+    except FileExistsError:
+        raise DeploymentError("输出位置已被创建；未读取或覆盖，请另选新文件。") from None
 
 
 def prepare_test_runtime(destination, password, username):
@@ -216,13 +267,8 @@ with os.fdopen(fd,'rb') as f:
 
 def check_deployment(path, slot, *, require_runtime=True):
     """核对公开清单、镜像内容和已有项目归属，不读取秘密文件内容。"""
-    document = json.loads(path.read_text(encoding="utf-8"))
+    document = validate_manifest(json.loads(path.read_text(encoding="utf-8")), slot)
     service = document["services"]["backend"]
-    env = service["environment"]
-    expected = render_manifest(slot, service["image"], service["labels"]["cc.bumbum.image-id"],
-                               env["ADMIN_ORIGIN"].removeprefix("https://"), env["PUBLIC_ORIGIN"].removeprefix("https://"))
-    if document != expected:
-        raise DeploymentError("Compose配置与对应环境的保护不符，未接管或启动。")
     if docker(["image", "inspect", "--format", "{{.Id}}", service["image"]]) != service["labels"]["cc.bumbum.image-id"]:
         raise DeploymentError("镜像标签指向的内容已变化，停止而不拉取其他版本。")
     ids = docker(["ps", "-aq", "--filter", "label=com.docker.compose.project=" + document["name"]]).splitlines()
@@ -238,9 +284,7 @@ def check_deployment(path, slot, *, require_runtime=True):
                     listener.bind(("127.0.0.1", SLOTS[slot]["port"]))
             except OSError:
                 raise DeploymentError("该环境回环端口已被其他服务占用，未接管或停止其他进程。") from None
-        runtime = Path(service["env_file"][0]["path"])
-        if not runtime.is_file() or runtime.is_symlink() or runtime.stat().st_mode & 0o077:
-            raise DeploymentError("须先安全准备非符号链接、仅本人可读的runtime.env；未读取内容。")
+        check_env_files(service["env_file"])
         ca = Path(service["volumes"][1]["source"])
         if not ca.is_file():
             raise DeploymentError("公开CA尚未放在专用目录；未创建空目录代替证书。")
@@ -252,13 +296,27 @@ def check_deployment(path, slot, *, require_runtime=True):
     return document
 
 
+def check_env_files(entries):
+    """逐份只读文件元数据；可选文件缺失时保留Compose的原有语义。"""
+    for entry in entries:
+        try:
+            metadata = Path(entry["path"]).lstat()
+        except FileNotFoundError:
+            if entry.get("required", True):
+                raise DeploymentError("须先安全准备必要的私有环境文件；未读取内容。") from None
+            continue
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_mode & 0o077:
+            raise DeploymentError("私有环境文件须为非符号链接、仅本人可读的普通文件；未读取内容。")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="杭州独立环境准备及受保护启停；不自动初始化数据库、启用Nginx或切换DNS。")
-    parser.add_argument("action", choices=["prepare", "prepare-runtime", "prepare-media", "check", "start", "status", "stop", "admin-create", "export-qr"])
+    parser.add_argument("action", choices=["prepare", "prepare-update", "prepare-runtime", "prepare-media", "check", "start", "status", "stop", "admin-create", "export-qr"])
     parser.add_argument("--slot", required=True, choices=SLOTS)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--image")
     parser.add_argument("--image-id")
+    parser.add_argument("--output", type=Path)
     parser.add_argument("--admin-host")
     parser.add_argument("--user-host")
     parser.add_argument("--admin-ip")
@@ -297,6 +355,12 @@ def main(argv=None):
             for name, content in nginx.items():
                 write_new(args.manifest.parent / name, content)
             print("公开部署配置已准备；没有生成/读取秘密、建库、安装、启动、启用Nginx或切域名。")
+            return 0
+        if args.action == "prepare-update":
+            if not all((args.image, args.image_id, args.output)):
+                raise DeploymentError("更新候选须提供固定镜像、内容ID及独立的--output路径。")
+            prepare_update(args.manifest, args.output, args.slot, args.image, args.image_id)
+            print("仅生成镜像更新候选；原清单、私有配置和服务未改，仍须核对实际镜像、备份及受保护发布。")
             return 0
         if args.slot == "production" and args.action in {"start", "stop"} and not args.confirm_production:
             raise DeploymentError("生产启停须明确--confirm-production，并按已批准窗口执行。")

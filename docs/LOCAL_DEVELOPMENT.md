@@ -154,6 +154,8 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 
 ## 4. 验证这一小步
 
+首次确认本机环境时按本节完整检查。日常改动由 AI 先核对已有证据，再按影响选择下面的检查；不因每次改文档就重新安装、构建或跑全量。云端分流和验证复用统一见[GitHub 操作手册](GITHUB_OPERATIONS.md#6-ci-分流与验证复用)。
+
 再开一个根目录终端，按系统选择命令：
 
 | 检查 | macOS / Linux | Windows PowerShell |
@@ -173,7 +175,7 @@ Windows 的日常隔离数据库回归先启动 Docker Desktop，再在仓库根
 
 这组用例覆盖管理登录、通行密钥、芯片登记、数字档案、订单及其结构就绪检查。测试新建专属临时 MySQL，结束后清理自己的容器和卷。浏览器回归按[第9节](#9-可重复的桌面浏览器回归)运行，原本地测试库用下方 `RUN_DB_TESTS` 单独只读检查。
 
-依赖 POSIX 文件属主权限（如 `os.chown`）或 Linux Docker socket 的部署和 TLS 用例在 Linux 验证。有该 socket 的 Linux 开发环境可运行 `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db`。Linux CI 的 `integration` 作业覆盖隔离数据库和全量浏览器回归，`gateway` 作业在启用 `include_gateway` 时检查镜像 HTTPS 网关。结果见[对应版本的项目检查记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml)。
+依赖 POSIX 文件属主权限（如 `os.chown`）或 Linux Docker socket 的部署和 TLS 用例在 Linux 验证。有该 socket 的 Linux 开发环境可运行 `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db`。Linux CI 的源码流程由 `integration` 覆盖隔离数据库和全量浏览器回归，`gateway` 在启用 `include_gateway` 时检查镜像 HTTPS 网关；分流条件沿用上方统一规则。结果见[对应版本的项目检查记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml)。
 
 要检查原测试库，先确认第2节的数据库已启动，再按系统执行：
 
@@ -201,7 +203,7 @@ try {
 | macOS / Linux | `npm --prefix frontend/admin run build` |
 | Windows PowerShell | `npm.cmd --prefix frontend/admin run build` |
 
-成功表示类型检查和打包通过。服务检查、自动检查、网页构建和浏览器里两个状态都正常，才算这一小步通过；不代表管理员登录或业务功能已经完成。
+成功表示类型检查和打包通过。首次环境验收需服务检查、自动检查、网页构建和浏览器里两个状态都正常；后续按本次受影响范围验证。不代表管理员登录或业务功能已经完成。
 
 文档改动后，AI还需运行本地链接和示例检查：
 
@@ -307,6 +309,8 @@ docker compose stop
 ## 9. 可重复的桌面浏览器回归
 
 这是开发/CI检查，不是日常启动。测试只用自己创建的专属临时MySQL、合成账号和本机服务；不连接现有业务库或香港环境。先停止自己的前后端，释放5000与5174，Docker保持可用；不会接管正在监听这些端口的其他服务。依赖与浏览器单独安装，不改变日常运行依赖。
+
+补定向用例前，先查[数据库和账号夹具](../tests/conftest.py)、[后台共用操作](../tests/admin_ui_helpers.py)及同类业务回归，复用已有准备与正常登录流程。依赖和浏览器仍符合当前锁定版本时沿用现有隔离环境；以下准备命令只补缺少的部分，不为每个小改动重建环境或另造一套测试工具。
 
 在Windows项目根目录，已有本机Python虚拟环境后执行：
 
