@@ -49,5 +49,6 @@ reason: 集中索引已归档的方案、手册和复盘
 
 ## 历史运维与协作
 
+- [项目结构与可读性整改方案](project-maintenance-2026-11-17.md)，保留已完成并审核通过的整改范围、版本与验收依据；现行维护使用 README 代码地图及 AGENTS，本次不部署。
 - [香港云测试手册](cloud-test-deployment.md)，记录原云测试环境、手机页部署及恢复过程。
 - [项目优先级与过度工程化复盘](project-priority-review.md)，保存早期协作选择和纠正依据。

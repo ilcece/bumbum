@@ -1,9 +1,14 @@
 ---
-doc_type: proposal
-status: approved
+doc_type: archive
+status: archived
+date: 2026-11-17
+reason: 整改实现及审核已收口，保留原实施范围与验收依据
+superseded_by: ../../README.md#代码和配置在哪里
 ---
 
 # 项目结构与可读性整改方案
+
+> 整改实现已完成并经 cece 审核通过，本文归档保存原方案、授权范围及验收依据。现行维护入口见 [README代码地图](../../README.md#代码和配置在哪里)和 [AGENTS](../../AGENTS.md)；PR合并与最终检查结果见 [CHANGELOG](../../CHANGELOG.md)，归档不表示服务器已更新。本次不部署，线上版本仍以[当前发布记录](../HANGZHOU_DEPLOYMENT.md#当前发布记录)为准。
 
 2026-11-17，cece 在全面审查后授权实施代码结构、文件整理和 AI 可读性整改。本方案约束本次内部整理，不新增产品功能。当前进度只维护在 [TODO](../../TODO.md)，实际验证结果写入 [CHANGELOG](../../CHANGELOG.md)。
 

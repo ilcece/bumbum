@@ -14,6 +14,7 @@
 - **芯片接入与服装触碰闭环已验收并合入main：** 首次绑定、密钥及配置核验、动态验证、有效触碰统计和手机资料持续查看已有交付；[登记与实卡的验收边界](docs/product/chip-lifecycle.md)、[手机体验规则](docs/product/fashion-touch.md)分别查阅。
 - **杭州正式入口基础接管已验收：** 香港ECS已释放，生产与测试隔离；[当前发布记录](docs/HANGZHOU_DEPLOYMENT.md#当前发布记录)及[接管历史与运维验证边界](docs/HANGZHOU_DEPLOYMENT.md#62-杭州基础接管完成范围与后续运维验证)单独记录，合入main不代表服务器已更新。
 - **第一阶段处于试用准备：** 杭州 test 已完成实卡认领、Windows Hello 登录和用户动态等验收；后台装配、权益/转售、手机预览及普通芯片停用恢复收到“基本都验收通过了”的总体反馈，不等同全部细项逐项通过。可用范围见[项目能力总览](PRD.md#0-项目能力总览)，后续安排见 [TODO](TODO.md)。
+- **项目结构与维护整改已审核通过：** 后端职责、前端类型与组件、结构检查及 cece/AI 阅读入口已梳理，相关自动检查和隔离回归通过；[原实施方案](docs/archive/project-maintenance-2026-11-17.md)已归档。本次不部署，生产与 test 仍以[当前发布记录](docs/HANGZHOU_DEPLOYMENT.md#当前发布记录)为准。
 
 当前任务、分支和待反馈只看[TODO](TODO.md)；验收日期、提交和历史证据查[CHANGELOG](CHANGELOG.md)；逐接口实现范围集中在[接口实现概览](API_CONTRACT.md#04-当前能做到哪一步)。
 

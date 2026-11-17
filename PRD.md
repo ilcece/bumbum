@@ -107,9 +107,8 @@ P0指现有核心流程阻断或可能产生错误数据等必须先修的问题
 | 审核材料 | 负责什么 | 边界 |
 |---|---|---|
 | [接续及纠错待定政策](docs/proposals/admin-make-rebuild.md) | 费用、冻结、取消/争议、专用身份及装配纠错等未决边界 | review 只针对未决条款，不撤回现行年度额度、转售核对及清理规则 |
-| [项目维护整改](docs/proposals/project-maintenance.md) | 本次代码结构、文档、可读性与文件清理范围 | 维护任务，不改变产品、安全、真实数据或发布授权 |
 
-批次清理、换新与转售按[数字档案规范](docs/product/digital-catalog.md)执行，专用纠错按提案的未决边界讨论。页面共用规则在[设计与交互规范](docs/ADMIN_UI_GUIDELINES.md)，技术约束在[技术附录第19节](docs/IMPLEMENTATION_DETAILS.md#19-数字档案装配与-h5-实现约束)。
+批次清理、换新与转售按[数字档案规范](docs/product/digital-catalog.md)执行，专用纠错按提案的未决边界讨论。页面共用规则在[设计与交互规范](docs/ADMIN_UI_GUIDELINES.md)，技术约束在[技术附录第19节](docs/IMPLEMENTATION_DETAILS.md#19-数字档案装配与-h5-实现约束)。已审核收口的项目维护整改从[历史归档](docs/archive/README.md#ops-history)查阅，不作为新的业务提案。
 
 <details>
 <summary>旧PRD章节链接兼容入口（仅导航）</summary>
