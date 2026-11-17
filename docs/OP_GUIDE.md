@@ -19,7 +19,7 @@ cece 按本次目标选择对应手册；AI恢复上下文和查阅精确规则�
 | [管理员登录](ADMIN_LOGIN.md) | 创建账号、Authenticator 登录、杭州 test 的 Windows Hello 登记及撤销 | 按所在环境选择登录与恢复步骤 |
 | [数字物品与 H5 验收](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md) | 核对装配、权益、认领、用户动态和账户卡 | 含完整号码查看的审计核对及模拟批次验收 |
 | [芯片登记验收](CHIP_REGISTRATION.md) | 登录后手动登记、查重、筛选、分页及首次绑定物品 | 项目可空、重复保护、首次来源及绑定；第4节为绑定验收 |
-| [物品草稿及服装资料验收](ITEM_DRAFTS.md) | 创建查询、详情/编辑、图片及启停 | 连续创建、同字段详情/编辑、Upload与独立启停；不含写卡 |
+| [数字物品与款式资料验收](ADMIN_DESKTOP.md#19201080-验收清单) | 查询、建档、档案维护和启停 | 当前款图在「款式与发行」的款式资料中维护，数字物品按关联读取 |
 | [杭州ECS与RDS连接、部署及接管手册](HANGZHOU_DEPLOYMENT.md) | 维护杭州生产/测试及Workbench命令通道，核对已完成的基础接管与后续运维范围 | 从[当前发布记录](HANGZHOU_DEPLOYMENT.md#当前发布记录)核对生产/test版本；第3.6节含授权/限制及已暂缓方案，第6.2节仅为接管历史和运维待验证事项，第10节为005/私有目录准备，香港退出已完结；部署工具使用已核验release，源码分支与main文档分开，不自动部署或切DNS |
 | [真实卡核验与密钥配置](NFC_CARD_VERIFICATION.md) | 提供设备信息、核对证据和密钥配置联合验收 | 第4节为密钥配置、第5节为触碰后端、第6节为手机资料页及自动更新验收；具体真实改卡步骤须单独确认，不提供恢复出厂捷径 |
 
@@ -27,7 +27,7 @@ cece 按本次目标选择对应手册；AI恢复上下文和查阅精确规则�
 
 ## 历史手册（不执行）
 
-[香港云测试归档](archive/cloud-test-deployment.md)保留手机回调、公开用户页、重启及恢复的历史证据；香港 ECS 已释放。历史手册及复盘从 [归档索引](archive/README.md#ops-history) 查阅；杭州仍复用 `deploy/cloud_test` 模板。
+[香港云测试归档](archive/cloud-test-deployment.md)保留手机回调、公开用户页、重启及恢复的历史证据。香港 ECS 已释放，杭州复用 `deploy/cloud_test` 模板。旧单件接口的回归语境见[物品草稿及服装资料历史手册](ITEM_DRAFTS.md)。其他历史手册和复盘见[归档索引](archive/README.md#ops-history)。
 
 ## 技术参考：让 AI 实现时查
 

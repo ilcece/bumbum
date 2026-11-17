@@ -25,13 +25,21 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 |---|---|---|
 | 看当前发布与待验收范围 | [当前发布记录](#当前发布记录) | 只沿用所列发布证据，不代替现场核验 |
 | 追溯基础接管及后续运维验证 | [第6.2节](#62-杭州基础接管完成范围与后续运维验证) | 历史验收证据，不是本轮健康检查 |
-| 维护当前杭州生产/测试 | [隔离约定](#51-杭州两个环境的固定隔离约定)、[构建与后端](#53-构建准备公开部署配置与后端启停)、[当前发布边界](#6-当前路径main部署到杭州ecs复用现有杭州rds) | 执行前核对目标、版本、现状及当次授权 |
+| 更新现有杭州生产或 test | [日常发布顺序](#更新现有环境的顺序) | 先核对目标、候选版本及当前状态，再按当次授权执行 |
 | 建立或续用命令通道 | [Workbench](#36-workbench-cli运维通道与验证) | 沿用已验证能力；续期/文件传输限制保留，不自动扩大专项 |
 | 核对数据库连接、TLS与账号 | [第4节](#4-cece-操作手册检查-ecs-到-rds) | 先只读；初始化/权限调整不是日常必做步骤 |
 | 正式证书续期 | [第5.5.3节](#553-正式域名接管后的自动http续期) | 维护前核对DNS/证书现状，不能照抄旧定向验证替代 |
 | 追查接管前做过什么 | 下方标为“历史”的折叠区及CHANGELOG | 不重复安装、导入公钥、初始化、定向浏览或切DNS |
 
-下面继续保留原章节以兼容旧链接。历史命令与暂缓方案不作为默认执行步骤；本次仅整理文档，未连接服务器、执行命令或重新验收。
+## 更新现有环境的顺序
+
+1. **定目标和版本。** 确认本次获准更新的是生产还是 test。生产从已审核合入 main 的提交发布，test 使用获准验收的提交。按[隔离约定](#51-杭州两个环境的固定隔离约定)核对实例、数据库和域名，并从[当前发布记录](#当前发布记录)找到上次记录的版本和回退依据，再检查现场。
+2. **只读预检。** 复用已有 [Workbench 授权](#364-角色自动续期接续当前方式)，核对实际连接身份、TLS、目标库及候选版本所需的结构。按迁移检查区分已就绪、缺失和未知结构。遇到未知或部分结构先按[就绪排查](#543-建表完整但数据库ready不通过)定位，保留现场。
+3. **准备切换和回退。** 按[构建与后端](#53-构建准备公开部署配置与后端启停)固定候选镜像、两端静态文件和网关配置，核对回退版本与本次结构变更是否兼容。涉及迁移时先按[发布边界](#6-当前路径main部署到杭州ecs复用现有杭州rds)及对应迁移步骤停写、备份并核验，再升级目标库。
+4. **切换并验证。** 按本次发布范围更新目标槽，核对后端就绪、静态版本、登录和公开入口隔离，再走受影响的业务路径。失败时依据已验证的回退方案恢复对应镜像、静态和网关。数据库恢复另按迁移和备份方案判断。
+5. **更新发布记录。** 记录实际版本、迁移结果、备份与回退位置、已完成的检查和待验收项，更新[当前发布记录](#当前发布记录)的对应环境。
+
+原章节兼容旧链接。接管、空库初始化及历史命令按各节适用范围查阅。
 
 ## 1. 推荐架构及连接判定
 
@@ -396,7 +404,7 @@ cece接受本轮Workbench命令连接已验证、原生OSS文件收发未通过�
 
 cece已选择专用RAM用户AccessKey配合受限角色长期接入，两个个人保险库变量为BUMBUM_WB_ACCESS_KEY_ID、BUMBUM_WB_ACCESS_KEY_SECRET；已报告发布更新后的bumbum_ECS环境。环境安装脚本生成公开role_setup.py，启动说明改用官方RamRoleArn及新profile。脚本语法与合成配置检查通过；真实注入、AssumeRole、ECS命令和到期刷新仍待新实例验证，不能据发布或官方机制声称现场已通过。此前实例为旧声明/旧脚本；2026-11-06新实例两个个人变量就绪，已从发布稿恢复公开role_setup.py并完成官方角色配置及固定实例只读连接。仍不得读取保险库或手动复制密钥绕过注入。
 
-新会话选适用的bumbum_ECS环境及当次获授权的完整代码提交，先按AGENTS恢复远端/本地基线并保护已有修改。检查环境状态及变量是否存在，不输出值。若role_setup.py缺失，核对实际环境版本及安装结果，不执行旧sts_provider.py/init_profile.py，不索取聊天密钥。变量和工具就绪后，先只检查：
+在实际执行命令的环境核对 Workbench 工具和现有 profile。本机已有可用的 `bumbum-hz-ramrole` 时直接复用，先验证固定实例。使用 `bumbum_ECS` 云环境时，先按 AGENTS 核对代码基线、工具和变量是否就绪。以下 `/workspace` 命令只适用于该云环境。若 `role_setup.py` 缺失，核对云环境版本及安装结果，按当前原生角色方式恢复。变量和工具就绪后，先只检查：
 
 ```bash
 python3 /workspace/work/tools/workbench-cli/role_setup.py --check
@@ -410,7 +418,7 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 
 固定角色acs:ram::1541265267012164:role/bumbum-codex-hz-workbench，签发用户bumbum-codex-hz-issuer；profile为bumbum-hz-ramrole。命令显式--profile bumbum-hz-ramrole --region cn-hangzhou，目标只限i-bp1cj6pt88wbxmhlsp1n。保持原受限角色授权，不将签发用户升级管理员。原profile不自动删除或覆盖，同名新profile不一致先核对。CLI v1.0.4及官方文档已确认原生模式/ram_role_arn字段与自动获取刷新机制，不另造签名协议或凭据服务。
 
-只读身份/主机验证通过后，继续已批准的test数据重建，按第11/12节核对test实际部署和006/007结构，先备份再处理明确清单；真实测试卡及必要历代关系保留。2026-11-06本轮已完成test盘点、备份升级、当前分支部署及验收包灌入，证据见第12.1节；生产RDS、生产发布及main合并不在本轮授权。认证/授权拒绝停止，不循环创建会话；只定向清理自己创建的会话和进程，保留既有SSH/Tailscale。
+身份和主机只读检查通过后，按[日常发布顺序](#更新现有环境的顺序)继续当次获准的工作。2026-11-06 的 test 盘点、006/007 升级及验收数据准备见[当次记录](#121-本轮test升级部署与验收接续)。认证或授权被拒绝时核对实际原因，只定向清理自己创建的会话和进程，保留既有 SSH/Tailscale。
 
 ### 杭州 test 阿里云短信
 
@@ -531,7 +539,7 @@ SELECT 1 AS connection_ok, VERSION() AS mysql_version; SHOW SESSION STATUS LIKE 
 | 香港 Compose 固定 DB_HOST=127.0.0.1、DB_PORT=33307，并依赖本机 db 服务 | 独立的杭州部署配置，只运行后端，改连 RDS 内网；保留回环监听、非 root、只读根文件系统及日志权限；不创建或误用本机 MySQL 卷 | 生效配置确为目标 RDS，应用没有依赖本机 db；不输出秘密 |
 | core/db.py 已支持地址/账号，但未传 TLS 验证参数 | 增加可配置官方 CA、证书验证和域名验证；生产 RDS 配置不允许静默降级，保留现有本机开发与香港路径 | 正确 CA/域名连接通过；错误 CA/域名失败；原测试环境回归通过 |
 | 香港迁移入口校验固定测试账号、来源和端口 | 建立明确目标、先只读识别、备份、再授权执行的 RDS 初始化/迁移入口；保留原香港保护，不删校验来“凑通过” | 空库只初始化一次；已有库先识别状态和备份；错误目标拒绝 |
-| schema.sql 自带 CREATE DATABASE 和 USE bumbum_digital | 先确认 RDS 目标库与权限；非默认库名须设计显式初始化方案，不能只给 mysql 传另一个库名 | 24张表、初始项目及001—004相关结构通过现有 ready检查，不覆盖已有表 |
+| schema.sql 自带 CREATE DATABASE 和 USE bumbum_digital | 先确认 RDS 目标库与权限；非默认库名须设计显式初始化方案，不能只给 mysql 传另一个库名 | 按候选版本的 `db/schema.sql` 核对目标表和初始项目，并验证后端 `/api/ready` |
 | 香港 Nginx 与 Compose 固定 test/nfc 域名及来源 | 新环境独立站点、来源配置、证书和静态发布目录；管理域名继续 IP 限制、登录与CSRF，用户域名只开放精确用户路径 | 用户域名无法访问管理、扫描回调或内部运行检查；真实登录和资料查询正常 |
 | 已有 Dockerfile 固定 Python/Node 和依赖 | 复用已验证版本，先检查杭州拉取依赖/镜像能力；必要时在构建环境产出镜像，经受控传输或已有仓库交付并校验摘要 | 不因下载失败关闭签名、校验和或TLS验证，不擅自采购新服务 |
 
@@ -576,7 +584,7 @@ RDS应用账号只授权目标库的SELECT/INSERT/UPDATE/DELETE；阿里云控�
 | 定向收敛应用账号 | 只作用于bumbum_hz_test@%：保留bumbum_hz_test的SELECT/INSERT/UPDATE/DELETE；撤回该库额外的CREATE TEMPORARY TABLES、LOCK TABLES、EXECUTE、SHOW VIEW、EVENT、TRIGGER | 依据实际转义后的库授权匹配，不能用其他库或全实例权限替代；不改用户名、密码、表、数据或运行配置 |
 | 撤回两账号的额外范围 | 只作用于bumbum_hz_test@%和bumbum_hz_test_init@%：定向撤回全局PROCESS、REPLICATION SLAVE、REPLICATION CLIENT、XA_RECOVER_ADMIN及下方已核对系统表的SELECT | 不执行全实例批量REVOKE ALL；维护身份无权撤回某项时停止反馈，不申请内部超级账号或扩大权限 |
 | 停用初始化登录 | 完成后锁定bumbum_hz_test_init@%，保留其目标库初始化权限和密码，未来受控迁移再解锁 | 不删除账号；只读确认ACCOUNT_LOCKED=Y，不反复尝试密码 |
-| 复核与继续 | 两账号重新SHOW GRANTS；Codex用已有应用配置验证TLS、24表、结构ready，然后按原批准范围启动测试后端 | 应用身份须只剩目标库四项DML及无权限的USAGE，初始化身份须受限并锁定；维护身份不进入容器。权限不符合时仍不启动 |
+| 复核与继续 | 两账号重新SHOW GRANTS；Codex用已有应用配置验证 TLS、候选版本的表清单和结构就绪，然后按原批准范围启动测试后端 | 应用身份须只剩目标库四项DML及无权限的USAGE，初始化身份须受限并锁定；维护身份不进入容器。权限不符合时仍不启动 |
 
 已核对的系统表SELECT范围为mysql.func、mysql.general_log、mysql.help_category、mysql.help_keyword、mysql.help_relation、mysql.help_topic、mysql.slow_log、mysql.time_zone_leap_second、mysql.time_zone_name、mysql.time_zone_transition、mysql.time_zone_transition_type和mysql.time_zone。只撤回这两账号已有的授权，不读取表内容，不影响维护账号或RDS内部账号；若实际授权清单不同则停止核对。
 
@@ -600,7 +608,7 @@ docker run --rm -it --network host --read-only --memory=256m --cpus=0.5 \
   python -m core.rds_accounts --ca /run/rds-ca.pem
 ```
 
-预检核对固定维护身份、MySQL8.0、24表、初始项目、唯一Host条目及公开授权/锁定状态，返回规范化快照SHA256和计划。角色、GRANT OPTION、其他数据库/系统表或未知权限拒绝；基础DML缺失时不自动补权。若原生客户端已提供相同完整公开预检，Codex可据反馈结构化保存基线并计算同一规则摘要，无需cece重复登录。Codex在权限变更前保存该公开基线，不能保存密码或认证字段。
+预检核对固定维护身份、MySQL 8.0、工具所用版本的目标表清单、初始项目、唯一 Host 条目及公开授权和锁定状态，返回规范化快照 SHA256 和计划。若工具报错仍提到「24表」，按实际加载的版本对照表清单和待查结构。角色、GRANT OPTION、其他数据库/系统表或未知权限拒绝；基础DML缺失时不自动补权。若原生客户端已提供相同完整公开预检，Codex可据反馈结构化保存基线并计算同一规则摘要，无需cece重复登录。Codex在权限变更前保存该公开基线，不能保存密码或认证字段。
 
 依据已批准范围，在实例UUID、快照摘要与基线同时匹配后执行一次：
 
@@ -717,14 +725,14 @@ read -r -p 'Codex已核验的完整Git提交：' HZ_REVISION
 docker run --rm -it --network host --read-only --memory=256m --cpus=0.5   --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly   "bumbum-hangzhou-backend:$HZ_REVISION"   python -m core.rds_database --slot test --ca /run/rds-ca.pem
 ```
 
-只有实际账号、目标库、版本、排序规则正确、empty=true且server_uuid与目标一致，才执行以下显式初始化；控制台建库及初始化属于本次已批准的独立测试范围，不适用于已有生产/香港库。脚本会再次核对并加初始化锁：
+以下命令适用于当次已获准初始化的独立杭州测试空库。先确认实际账号、目标库、版本与排序规则正确，并核对 `empty=true` 及目标 `server_uuid`。执行时脚本会再次检查并加初始化锁：
 
 ```bash
 read -r -p '上一步只读检查返回的server_uuid：' HZ_SERVER_UUID
 docker run --rm -it --network host --read-only --memory=256m --cpus=0.5   --mount type=bind,src=/opt/bumbum-hangzhou/test/public/rds-ca.pem,dst=/run/rds-ca.pem,readonly   "bumbum-hangzhou-backend:$HZ_REVISION"   python -m core.rds_database --slot test --ca /run/rds-ca.pem   --initialize-empty --confirm-database bumbum_hz_test --confirm-server-uuid "$HZ_SERVER_UUID"
 ```
 
-唯一schema.sql中的CREATE DATABASE/USE只按已知精确语句移除，所有建表和种子数据都作用于已选连接库，不复制另一套DDL、不通用替换SQL。空库没有既有业务数据可备份；已有任何表/视图/过程/触发器/事件均拒绝。DDL中途失败可能保留部分结构，停止排查，不重跑、不自动删除/恢复。验收包含24表、完整ready及两个初始项目；初始化后收回或限制专用初始化身份，应用只用自己的DML账号。
+唯一schema.sql中的CREATE DATABASE/USE只按已知精确语句移除，所有建表和种子数据都作用于已选连接库，不复制另一套DDL、不通用替换SQL。空库没有既有业务数据可备份；已有任何表/视图/过程/触发器/事件均拒绝。DDL中途失败可能保留部分结构，停止排查，不重跑、不自动删除/恢复。空库初始化报告以 `tables_complete=true` 核对候选版本的表清单。启动使用该槽应用账号的后端后，确认 `/api/ready` 返回 HTTP 200。该接口同时检查 `fashion`、`jewelry` 两个初始项目及所需结构。初始化后收回或限制专用初始化身份，应用使用自己的 DML 账号。
 
 ### 5.4.1 空测试库默认排序规则不符
 
@@ -732,7 +740,7 @@ RDS控制台若只提供字符集选项，选择utf8mb4后仍可能得到MySQL8�
 
 先由Codex以已准备的应用身份只读核对实际实例UUID、库、默认规则及可见对象；元数据可见性受应用权限限制，写入前须由初始化身份再次完整检查。以下只适用于已明确的独立杭州测试空库，所用镜像必须包含修正版--normalize-empty-collation；旧4afec78镜像不支持此选项，不拿旧聊天中的PREPARE命令重试。
 
-修正版通过普通查询协议执行固定ALTER DATABASE，不使用服务器PREPARE。它在初始化锁内核对专用初始化身份、TLS、版本、实例UUID及所有对象为空，只允许utf8mb4_0900_ai_ci到utf8mb4_unicode_ci；其他字符集/规则、生产库、错误实例或非空库均拒绝，已经是unicode_ci的空库保持不变。可与--initialize-empty合并，一次隐藏输入密码完成默认值修正及再次校验后的24表初始化；不重跑运行配置，不改变应用账号权限。
+修正版通过普通查询协议执行固定ALTER DATABASE，不使用服务器PREPARE。它在初始化锁内核对专用初始化身份、TLS、版本、实例UUID及所有对象为空，只允许utf8mb4_0900_ai_ci到utf8mb4_unicode_ci；其他字符集/规则、生产库、错误实例或非空库均拒绝，已经是unicode_ci的空库保持不变。可与--initialize-empty合并，一次隐藏输入密码完成默认值修正及再次校验后的空库初始化；不重跑运行配置，不改变应用账号权限。
 
 在杭州root终端输入Codex已核验并导入的修正版完整提交，以及本次只读结果的UUID；不从旧历史猜测UUID，不在聊天传密码：
 
@@ -747,7 +755,7 @@ docker run --rm -it --network host --read-only --memory=256m --cpus=0.5 \
   --confirm-database bumbum_hz_test --confirm-server-uuid "$HZ_SERVER_UUID"
 ```
 
-成功结果应包含charset=utf8mb4、collation=utf8mb4_unicode_ci、table_count=24、tables_complete=true及客户端TLS套件；后端ready和业务仍单独验收。只有--normalize-empty-collation而没有--initialize-empty时仅修正空库默认值，不建表。任何错误都保留现场，不重跑部分初始化、不删库、不扩大权限。MySQL类错误只返回数字编号，不输出可能包含秘密的原始异常或SQL。
+同时初始化成功时，应看到 `charset=utf8mb4`、`collation=utf8mb4_unicode_ci`、`tables_complete=true` 及客户端 TLS 套件。`table_count` 对照候选版本的表清单。初始项目和后端结构通过[上节的就绪检查](#54-只读识别后明确确认空库初始化)核对，业务流程再单独验收。只有--normalize-empty-collation而没有--initialize-empty时仅修正空库默认值，不建表。任何错误都保留现场，不重跑部分初始化、不删库、不扩大权限。MySQL类错误只返回数字编号，不输出可能包含秘密的原始异常或SQL。
 
 ### 5.4.2 初始化返回1045时，先只读区分账号与库授权
 
@@ -771,7 +779,7 @@ mysql --no-defaults --no-login-paths \
 
 ### 5.4.3 建表完整但数据库ready不通过
 
-24表及两个初始项目存在，不等于所有结构检查通过。先由Codex以应用身份只读拆分项目可空、登记来源、触碰日志及持续查看四项检查，再核对失败项的列、索引、外键和生效CHECK；不因ready失败重跑schema、初始化或已有升级。
+若 `/api/ready` 返回 503，先确认所连目标、应用身份及候选版本。按[接口就绪约定](../API_CONTRACT.md#05-当前已实现的运行检查)和[结构检查入口](../core/db.py)定位失败项，核对目标库的初始项目、相关迁移和实际表定义。011–013 还需核对唯一约束及默认值。遇到未知或部分结构，保留现场和备份，查明失败原因后再确定恢复步骤。
 
 RDS的explicit_defaults_for_timestamp=0时，现有schema中scan_log.created_at的TIMESTAMP DEFAULT CURRENT_TIMESTAMP会生成非空列；参数为1时生成可空列。结构识别兼容这两种已知形式，同时要求TIMESTAMP类型、默认CURRENT_TIMESTAMP且不带ON UPDATE，继续拒绝缺省/固定时间、自动更新时间及未知精度/类型，保留其余索引和约束检查。只交付兼容识别修复，不修改RDS参数、现有表、数据或唯一schema。先在独立临时MySQL覆盖参数开/关、普通更新不改事件时间及异常定义拒绝，再按第5.3节交付固定新镜像并用应用身份只读复核。数据库检查通过后，实际HTTP ready、权限与业务仍分别验收。
 
@@ -940,7 +948,7 @@ Workbench自动续期和原生OSS传输的既有限制保持，不重开专项�
 
 执行时将实际结果及版本写入CHANGELOG，不在这里维护第二份进度表。
 
-- 基础：目标确为杭州ECS，应用只监听本机；RDS内网、TLS、权限、24表及结构检查通过；/api/health与/api/ready在受控入口正常。
+- **基础。** 核对杭州目标实例及应用回环监听。验证 RDS 内网、TLS、应用权限及所发布版本的表和结构，再检查受控入口的 `/api/health` 和 `/api/ready`。
 - 安全隔离：HTTP转HTTPS；用户页面no-store/no-referrer/nosniff；用户域名的管理接口、真实扫描回调/api/webhook/admin/scan与内部ready均不可用；管理入口IP限制、密码/验证器和CSRF有效。
 - 业务：正确触碰、刷新/自动更新、物品停用/恢复、断网恢复、旧读数重放、无资格访问、成功事件不重复计数；按所选数据路径分别取证。
 - 保留与恢复：ECS服务恢复后能重连RDS；备份/PITR和独立恢复有实际验证，秘密配置安全保留；不能将香港恢复演练直接算作RDS恢复通过。

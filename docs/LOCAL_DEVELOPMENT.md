@@ -69,7 +69,7 @@ PowerShell常用命令（先双击上面的打开入口）：
 
 cece已确认Windows工具其余验收通过，并授权修正Ctrl+C提示后合入main；本次提示调整有回归检查，Windows原生自动检查在云端仍会跳过。下方保留各系统手动步骤，用于其他系统和故障排查；日常启动不必每次执行完整测试。
 
-当前桌面管理端登录前从“检查运行环境”展开运行检查，登录后从“系统管理 → 系统与环境”检查。默认登录成功进入工作台，芯片和物品通过侧栏进入；启动命令与端口不变，不支持手机后台适配。
+登录前用[本地运行检查命令](#4-验证这一小步)核对服务。登录后在「系统管理 → 系统与环境」查看运行检查。登录成功进入工作台，芯片和物品通过侧栏进入。
 
 ## 1. 准备工具和目录
 
@@ -159,31 +159,34 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 | 检查 | macOS / Linux | Windows PowerShell |
 |---|---|---|
 | 已运行服务 | `.venv/bin/python scripts/verify_local.py` | `.\.venv\Scripts\python.exe -X utf8 scripts\verify_local.py` |
-| 自动检查 | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q` |
+| 基础自动检查 | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q` | `.\.venv\Scripts\python.exe -X utf8 -m pytest -q tests/test_app.py tests/test_sdm_crypto.py` |
 
-服务检查应显示两行“通过”；任一失败会以非零状态退出。普通自动检查不要求数据库，真实数据库检查默认显示 `skipped`（跳过），不算通过。出现 `failed` 表示未通过。
+服务检查应显示两行「通过」，任一失败会以非零状态退出。Windows 基础自动检查覆盖应用运行接口、错误响应和芯片密码学向量，无需 Docker。结果中的 `passed`、`skipped` 和 `failed` 分别表示通过、跳过和失败。
 
-管理员认证与芯片管理的完整自动检查需要 Docker，按系统选择一条：
+Windows 的日常隔离数据库回归先启动 Docker Desktop，再在仓库根目录用 PowerShell 执行：
 
-| 系统 | 命令 |
-|---|---|
-| macOS / Linux | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
-| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m pytest --auth-db -q `
+  tests/test_admin_auth.py tests/test_admin_passkeys.py tests/test_admin_chips.py `
+  tests/test_admin_catalog.py tests/test_sales_orders.py tests/test_migration_readiness.py
+```
 
-命令新建专属临时MySQL，结束后删除测试容器及专属卷，不占用33306端口，不修改已有测试库。包含认证、芯片、旧库升级和备份恢复检查；你的已有库按第7节单独升级，不由测试命令代为修改。下方RUN_DB_TESTS只读检查已启动的原测试库。
+这组用例覆盖管理登录、通行密钥、芯片登记、数字档案、订单及其结构就绪检查。测试新建专属临时 MySQL，结束后清理自己的容器和卷。浏览器回归按[第9节](#9-可重复的桌面浏览器回归)运行，原本地测试库用下方 `RUN_DB_TESTS` 单独只读检查。
+
+依赖 POSIX 文件属主权限（如 `os.chown`）或 Linux Docker socket 的部署和 TLS 用例在 Linux 验证。有该 socket 的 Linux 开发环境可运行 `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db`。Linux CI 的 `integration` 作业覆盖隔离数据库和全量浏览器回归，`gateway` 作业在启用 `include_gateway` 时检查镜像 HTTPS 网关。结果见[对应版本的项目检查记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml)。
 
 要检查原测试库，先确认第2节的数据库已启动，再按系统执行：
 
 ```bash
 # macOS / Linux
-RUN_DB_TESTS=1 .venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q
+RUN_DB_TESTS=1 .venv/bin/python -m pytest -q tests/test_database.py
 ```
 
 ```powershell
 # Windows PowerShell
 $env:RUN_DB_TESTS="1"
 try {
-    .\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q
+    .\.venv\Scripts\python.exe -X utf8 -m pytest -q tests/test_database.py
 } finally {
     Remove-Item Env:RUN_DB_TESTS -ErrorAction SilentlyContinue
 }
@@ -518,7 +521,7 @@ python scripts/media_backup.py snapshot --dump /私有绝对路径/冻结窗口�
 
 MEDIA_ENABLED默认false，当前共用款图上传也复用该开关和容量配置；共用图内容保存在MySQL的style_image，不从MEDIA_ROOT读取。MEDIA_ROOT只为历史文件的离线备份、恢复与受控清理保留。在获准开发目标开启上传前，核对结构、容量及第13节配套恢复要求；容量默认2GiB，现行上传格式和权限见API第11.3节。生产开启及RDS升级只按杭州手册对应授权执行，不能用本机脚本连接RDS。
 
-后端定向复现使用已按第13节准备的开发依赖和专属临时MySQL：
+以下后端定向复现在 Linux 使用已按第13节准备的开发依赖和专属临时 MySQL。RDS 媒体迁移用例涉及 POSIX 文件属主和权限检查。
 
 ```bash
 python -m pytest tests/test_admin_items.py tests/test_admin_item_maintenance.py tests/test_media_assets.py tests/test_media_migration.py tests/test_media_backup.py tests/test_rds_media_migration.py --auth-db -q

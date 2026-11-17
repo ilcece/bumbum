@@ -117,7 +117,7 @@
 
 ### 1.2 POST /api/tap/verify：核验这次触碰
 
-本小步产品及交互规则见[PRD第4.2.1节](docs/product/fashion-touch.md#1-动态验证与短时许可)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](docs/product/admin-management.md#4-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立手机体验仍按独立范围推进。用户账户与认领接口在本分支见第11节。
+本小步产品及交互规则见[PRD第4.2.1节](docs/product/fashion-touch.md#1-动态验证与短时许可)，技术方案及升级规则见[附录第15节](docs/IMPLEMENTATION_DETAILS.md#15-触碰验证后端技术方案待审核)。共用验证覆盖服装和饰品，工作台全项目统计另按[产品规则](docs/product/admin-management.md#4-工作台有效触碰统计)独立交付；工作台统计查询已接入，见第8节；饰品独立手机体验仍按独立范围推进。用户账户与认领接口见[第11节](#用户账户及认领)。
 
 只提交picc_data（加密芯片信息，32位十六进制）、cmac（防伪码，16位十六进制）；不增加项目、UID、版本、查找码或item_uid。现有测试卡与配置确认已核对该编码，用户验证入口按附录第15节实现，后台配置核验不替代用户验证、真实卡或公网验收：
 ```json
@@ -139,7 +139,7 @@
 
 reason 可为 cmac_fail（防伪码错误）、decrypt_fail（芯片信息无法解析）、unknown_chip（未登记）、replay_suspect（旧读数）、disabled（芯片停用/丢失，或物品停用/归档）、not_ready（未绑定、物品草稿或未配置好）。格式错误仍为 400。
 
-短信与首次认领在测试分支接入，见[用户账户及认领](#用户账户及认领)。
+短信验证、会话及首次认领使用[用户账户及认领接口](#用户账户及认领)。短信实际启用范围见[杭州发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。
 
 <a name="2-管理员登录第一阶段"></a>
 
@@ -438,7 +438,7 @@ view为连续24小时无成功查询失效，成功查询滑动续期24小时；
 
 ### 10.1 短信与首次认领（预留）
 
-下方是早期预留，保留供追溯。测试分支请使用[已接入的用户账户及认领接口](#用户账户及认领)及 [H5 首版产品规格](docs/product/user-h5.md)。
+下方是早期接口草案。现行实现使用[用户账户及认领接口](#用户账户及认领)，产品规则见[用户 H5 规范](docs/product/user-h5.md)。
 
 <a name="13-post-apipublicsmssend发绑定短信第二阶段"></a>
 
@@ -523,9 +523,11 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 饰品详情预留白名单不包含芯片UID、读取序号、手机号、订单号或成长进度。旧progress/touch接口候选及权限风险已移入[历史归档](docs/archive/legacy-growth-candidate.md#旧接口候选与权限风险)，当前未注册，不作为获批需求或可用接口。新体验须从探索重新评审，不能从旧契约恢复开发。
 
-## 11. 数字档案管理与整套物品（当前分支）
+<a id="11-数字档案管理与整套物品当前分支"></a>
 
-测试分支从物品档案读取换新与转售权益，发行读接口省略 `rights`。旧发行客户端的同名输入仅用于兼容解析。新物品的标准权益由服务端授予。业务规则见 [数字物品权益](docs/product/digital-catalog.md#item-rights)，上线和人工验收见 [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。
+## 11. 数字档案管理与整套物品
+
+换新与转售权益从物品档案读取，发行读接口省略 `rights`。旧发行客户端的同名输入仅用于兼容解析。新物品的标准权益由服务端授予。业务规则见[数字物品权益](docs/product/digital-catalog.md#item-rights)，环境启用情况见[杭州发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)，人工核对按[验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)执行。
 
 ### 订单逐件履约
 
