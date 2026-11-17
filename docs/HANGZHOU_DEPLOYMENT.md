@@ -15,7 +15,7 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 | 环境 | 最后已知发布与验收边界 | 详细证据 |
 |---|---|---|
 | 杭州生产 | 2026-11-17 18:43 已开放独立通行密钥，发布检查通过，cece 已确认生产 Windows Hello 登记与退出后登录正常。结构整改与技术修复保留，短信仍只允许原验收号码，实卡待验收 | [本次生产发布](#hz-production-passkeys-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
-| 杭州 test | 2026-11-17 已将审核合入 main 的结构整改与技术修复同步到后端及两端静态，基本发布检查通过；既有专题与实卡人工验收边界继续保留 | [本次 main 发布](#hz-test-maintenance-20261117)；具体待反馈见 [TODO](../TODO.md) |
+| 杭州 test | 2026-11-17 20:39 已将 main `1abe21a` 同步到后端和两端静态，两站 HTTPS 与服务就绪检查通过，现有数据结构保持 | [本次 main 发布](#hz-test-main-1abe21a)；具体待反馈见 [TODO](../TODO.md) |
 
 第6.2节的旧源码、镜像和24表核对只对应2026-10-30接管，不是当前回退基线。未来新增发布后更新本表指向，具体迁移、备份及回退依据保留在该次发布记录，不在其他文件复制版本。
 
@@ -1105,6 +1105,16 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 <a name="杭州-test-发布记录"></a>
 
 ### 12.1 本轮test升级、部署与验收接续
+
+<a name="hz-test-main-1abe21a"></a>
+
+#### 2026-11-17 20:39 从 main 更新杭州 test
+
+按 cece 本次授权，发布 [main `1abe21a0c2c03c6173f3a98d94fdb033342e927d`](https://github.com/ilcece/bumbum/commit/1abe21a0c2c03c6173f3a98d94fdb033342e927d)，实际镜像为 `sha256:6e69e0fa4067b2f34fbde3985ed0e8c736968def02644143d858a38680e41ed6`。Windows 本机复用现有 Workbench RAM 角色，原生上传公开镜像并逐包核对 SHA256。双端构建、依赖和阿里云短信 SDK 导入检查通过。新提交的[文档快速检查](https://github.com/ilcece/bumbum/actions/runs/44080743790)及其父版的[应用集成检查](https://github.com/ilcece/bumbum/actions/runs/44079816950)通过，两提交间仅变动 CHANGELOG 与 TODO。
+
+候选用 test 原应用账号经验证主机名的 TLS 连接检查数据库结构，结果为就绪，无需迁移。用 `prepare-update` 保留原公开配置，只替换镜像标签和内容 ID。测试站后台登录页、入口脚本和 H5 HTTPS 内容与候选一致，后端 `/api/ready` 返回 200，未登录的后台会话与通行密钥接口返回 401，用户域后台接口和内部就绪入口均返回 404。生产容器、公开清单、静态根和网关保持，部署后生产仍就绪。Windows Hello、实际短信和实卡本轮未复验。
+
+回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-main-1abe21a.WsPhhM1e`，以 `compose-before.json`、`admin-before.txt` 和 `user-before.txt` 为准，配对恢复原 `9b25303` 镜像和两端静态。本次未改库或媒体文件，沿用[上一版发布](#hz-test-maintenance-20261117)的 SQL／媒体备份记录。
 
 <a name="hz-test-maintenance-20261117"></a>
 
