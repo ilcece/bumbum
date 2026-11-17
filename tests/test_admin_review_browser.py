@@ -71,7 +71,8 @@ def test_style_preflight_failure_keeps_draft_editable_and_can_save(desktop, fail
     expect(name).to_be_enabled()
     save_button = dialog.get_by_role('button', name=re.compile(r'^(?:loading )?保存共用资料$'))
     expect(save_button).to_be_enabled()
-    expect(save_button.locator('.anticon-loading')).to_have_count(0)
+    # 隐藏的退场图标可能仍在 DOM，恢复状态由按钮及后续实际保存共同验证。
+    expect(save_button).not_to_have_class(re.compile(r'(?:^|\s)ant-btn-loading(?:\s|$)'))
     expect(dialog.get_by_text('保存结果未知，请先核对', exact=True)).to_have_count(0)
     expect(dialog.get_by_role('button', name='核对已提交回执', exact=True)).to_have_count(0)
     assert writes == [] and receipts == []

@@ -14,7 +14,7 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 
 | 环境 | 最后已知发布与验收边界 | 详细证据 |
 |---|---|---|
-| 杭州生产 | 2026-11-16 已部署 PR #32 整合版本，012–015 已升级，模拟触碰及公网走查通过；生产短信仍只允许指定验收号码，实卡待 cece 验收 | [新版H5发布](#杭州生产新版-h5)、[短信单号码验收](#杭州生产短信单号码验收) |
+| 杭州生产 | 2026-11-17 已同步与 test 相同的结构整改与技术修复，基本发布检查通过；生产短信仍只允许原指定验收号码，实卡待 cece 验收 | [本次生产发布](#hz-production-maintenance-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
 | 杭州 test | 2026-11-17 已将审核合入 main 的结构整改与技术修复同步到后端及两端静态，基本发布检查通过；既有专题与实卡人工验收边界继续保留 | [本次 main 发布](#hz-test-maintenance-20261117)；具体待反馈见 [TODO](../TODO.md) |
 
 第6.2节的旧源码、镜像和24表核对只对应2026-10-30接管，不是当前回退基线。未来新增发布后更新本表指向，具体迁移、备份及回退依据保留在该次发布记录，不在其他文件复制版本。
@@ -446,6 +446,22 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 
 生产公网走查通过。模拟触碰沿正式域名进入物品档案，使用公开 UUID。未登录访问私人记录返回登录限制。已确认原验收物品仍归原账户。旧数字地址在原访问条件仍有效时可兼容至北京时间 2026-11-17 18:37:57。生产实卡验收按[生产实卡验收](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)执行。
 
+<a name="hz-production-maintenance-20261117"></a>
+
+### 杭州生产维护整改发布
+
+北京时间 2026-11-17 16:36，按 cece 本次生产部署授权，复用 test 已验证的同一不可变镜像 `sha256:d1456292462ca26fe69c3652ef68e9cb6af5475f8fed0c3b399937f458854042`，源码为已审核的 main `9b25303226bb9fc64c527a1cad4bdd967eb12cc2`。部署请求时 main `9a83e381a0196d4c05291b0b9e741c76fb61c30a` 仅多发布记录，应用和依赖无变化。本轮未重新构建或改标镜像，运行层和外部构建来源沿用[test交付记录](#hz-test-maintenance-20261117)。
+
+候选先以生产应用身份核对固定库、UUID、TLS、011–013 与整体就绪，全部通过，不需要执行迁移。原 `runtime.env` 和 `sms-pilot.env` 按完整原顺序使用，字节摘要前后相同。保留 `SMS_PROVIDER=aliyun_pilot`、唯一验收号、验证码及存储密钥；通过只读策略调用确认其他接收对象会在发码前拒绝，未实际发送短信。上传仍关闭，生产通行密钥仍禁用。原旧数字链接截止北京时间 2026-11-17 18:37:57 保持，没有提前关闭或重新延长。
+
+首轮发布在页面内容校验时回退到旧服务。原因是实际 HTTPS 静态根目录固定在旧版本目录，切换常规目录没有更新正在返回的页面；已确认旧生产就绪恢复为 200。核对真实根目录后，修订发布仅将两份现有生产 Nginx 配置的 HTTPS `root` 改为新版本目录，先完整组合预检，再 `nginx -t`、重载并等待实际页面哈希与候选一致。原路由、白名单、证书及 ACME 续期目录不变，test 清单、静态和网关不变。常规 `/var/www/bumbum-hangzhou-production-user` 仍供原 ACME 验证使用，不能当作当前 HTTPS 页面目录。
+
+生产在回退后已恢复读写，因此修订发布重新停写并生成新 SQL／媒体配套备份，没有复用首轮冻结包。MySQL 8.0.46 转储结束标记及配套自校验通过，当前备份为 ECS 私有目录 `/opt/bumbum-hangzhou/production-maintenance-20261117-9b253032/backup-resume/images-and-database-6573c0b2b5224188b132c998b294ac9e`；未下载备份或进行本次数据库恢复演练。
+
+本次工作目录为 `/opt/bumbum-hangzhou/production-maintenance-20261117-9b253032`。`compose-before.json`、两份生产网关 `.before` 副本与 `nginx-next.json` 记录应用回退依据；原镜像为 `sha256:617fe7c1888cef448d700be4370de3394c75d0b17ae94e0f529322e54a95ce73`，原实际静态根为 `/var/www/bumbum-hangzhou-production-releases/ac831f80b38c7680b02929221a5c9bb05f9b450d/admin` 和同版本的 `user`。新静态根为 `/var/www/bumbum-hangzhou-production-releases/9b25303226bb9fc64c527a1cad4bdd967eb12cc2/admin` 和同版本的 `user`。原固定清单仍为 `/opt/bumbum-hangzhou/production/compose.json`，不能从备份目录启动同名项目。本次 `production_control.py` 精确承接既有生产参数、两份私有配置描述和原镜像标签，其余目标、镜像及清单归属检查保持；所有生产启停显式传入 `--confirm-production`。回退应用须配对恢复旧镜像、固定清单及两个网关静态根，数据库恢复另行判断，不能覆盖后来数据。
+
+切换后生产与 test 均健康且就绪为 200。生产 H5 的 HTTPS 页面及引用资源与候选内容一致；用户域管理入口、内部 ready 和扫描回调为 404，未登录物品记录为 401，无凭证找回为 403。外部生产和 test H5 均为 200，当前非白名单来源访问生产后台为 403。未执行迁移、真实短信、实卡或业务状态写入；登录后业务、生产实卡和恢复专项继续按 TODO 验收。
+
 ## 4. cece 操作手册：检查 ECS 到 RDS
 
 ### 4.1 在 RDS 控制台核对网络与权限
@@ -673,7 +689,7 @@ python3 scripts/hangzhou.py start --slot test --manifest /opt/bumbum-hangzhou/te
 python3 scripts/hangzhou.py status --slot test --manifest /opt/bumbum-hangzhou/test/compose.json
 ```
 
-stop仅停止该环境后端、不删卷、不停另一环境或数据库；生产启停还需显式--confirm-production并遵守批准窗口。日后更新时先将新公开清单生成到另一个审核目录，与固定清单对比，保留旧清单和镜像；在批准发布范围内原子替换原固定路径的清单后，再从原路径启动。不直接从新审核目录接管已运行项目；跨路径拒绝属于归属保护。代码回退只使用已验证RDS适配且与当前表结构兼容的旧镜像，香港原镜像不能直接充当RDS回退版本。网页从已验证镜像导出至对应/var/www/bumbum-hangzhou-test-admin及-user；生成的admin.conf/user.conf/proxy.conf先检查两个域名、证书及来源IP，再nginx -t和受控启用，不能复制生成文件后立即认为HTTPS或公网业务通过。尚无证书时不安装启用引用不存在证书的站点；未确认DNS前用受控定向请求验证。
+stop仅停止该环境后端、不删卷、不停另一环境或数据库；生产启停还需显式--confirm-production并遵守批准窗口。日后更新时先将新公开清单生成到另一个审核目录，与固定清单对比，保留旧清单和镜像；在批准发布范围内原子替换原固定路径的清单后，再从原路径启动。不直接从新审核目录接管已运行项目；跨路径拒绝属于归属保护。代码回退只使用已验证RDS适配且与当前表结构兼容的旧镜像，香港原镜像不能直接充当RDS回退版本。静态发布前核对线上 Nginx 的实际 `root` 与 HTTP 内容，不从惯例目录推定当前页面位置。网页从已验证镜像导出，test 常用入口为 /var/www/bumbum-hangzhou-test-admin 及 -user；生产实际根目录见[当前生产发布](#hz-production-maintenance-20261117)。生成的admin.conf/user.conf/proxy.conf先检查两个域名、证书及来源IP，再nginx -t和受控启用，不能复制生成文件后立即认为HTTPS或公网业务通过。尚无证书时不安装启用引用不存在证书的站点；未确认DNS前用受控定向请求验证。
 
 #### SSH低带宽时交付固定main的精简应用产物
 
