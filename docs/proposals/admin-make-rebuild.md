@@ -7,6 +7,14 @@ status: review
 
 现行后台规则已纳入[数字档案规范](../product/digital-catalog.md)，字段在[业务字段](../product/admin-fields.md)，用户账户、认领、找回及办理记录在[用户 H5 规范](../product/user-h5.md)。原方案与批准证据保留在[归档快照](../archive/admin-make-rebuild-2026-11-17.md)。本文的 review 仅针对下列未决政策，不撤回已批准或已实现的规则，不代表已授权新增构建或发布。
 
+<a id="flows"></a>
+
+旧核心流程入口 → [现行发行、装配、交付与接续流程](../product/digital-catalog.md#flows)。
+
+<a id="item-rights"></a>
+
+旧权益入口 → [现行数字物品权益](../product/digital-catalog.md#item-rights)。旧链接只用于导航，详细规则仍维护在现行规范。
+
 ## 1. 已决定，不重新待审
 
 - 换新与转售沿用稳定数字身份、发行编号和原首次售出事实；新整套物品经确认交付后接续，保留历代实体、芯片及持有人历史。

@@ -60,7 +60,8 @@ MATCH_FOREIGN_KEYS = {
 
 def schema(cursor):
     return structure_state(cursor, COLUMNS, UNIQUE_KEYS, FOREIGN_KEYS,
-                           generated={('sales_order', 'source_scope'): 'coalesce(test_batch_id,0)'})
+                           generated={('sales_order', 'source_scope'): 'coalesce(test_batch_id,0)'},
+                           defaults={('sales_order', 'created_at'): 'CURRENT_TIMESTAMP(6)'})
 
 
 def match_schema(cursor):

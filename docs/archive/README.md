@@ -36,6 +36,8 @@ reason: 集中索引已归档的方案、手册和复盘
 | [Umi工程迁移说明](admin-rebuild-implementation-2026-11-17.md) | [前端协作](../FRONTEND_COLLABORATION.md)及[技术附录第19节](../IMPLEMENTATION_DETAILS.md#19-数字档案装配与-h5-实现约束) |
 | [原Vite后台接入约束](admin-vite-integration-2026-11-17.md) | [前端协作](../FRONTEND_COLLABORATION.md)；原技术附录第10节保留当前入口 |
 
+旧 `docs/proposals/digital-item-h5-mvp.md` 已归档。需要核对该原路径时，可查看[整理前的固定历史版本](https://github.com/ilcece/bumbum/blob/0721c0e6b91a1937250272a3f03cbf1e4ffa9f4c/docs/proposals/digital-item-h5-mvp.md)；当前产品规则使用上表的[用户H5规范](../product/user-h5.md)，不以旧版本覆盖现行决定。
+
 
 ## 已结束的产品探索
 
