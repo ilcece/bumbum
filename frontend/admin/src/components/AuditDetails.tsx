@@ -1,6 +1,7 @@
+import type { AuditRecord, AuditSnapshot } from "../types/catalog";
 import { useState } from "react";
 import { Button, Descriptions, Modal } from "antd";
-import { Row, statusNames, time } from "../catalog";
+import { statusNames, time } from "../catalog";
 
 const registrationSources: Record<string, string> = {
   manual: "手工登记", nfc_cool: "NFC.cool", unknown: "历史未记录",
@@ -11,11 +12,11 @@ const batchObjects: Record<string, string> = {
   chip: "芯片", user: "账户", order: "订单",
 };
 
-function auditSummary(value: Record<string, any>) {
+function auditSummary(value: AuditSnapshot) {
   return [
-    statusNames[value.status], value.generation && `第 ${value.generation} 代`,
+    value.status && statusNames[value.status], value.generation && `第 ${value.generation} 代`,
     value.physical_uid && `实体 ${value.physical_uid}`, value.chip_uid && `芯片 ${value.chip_uid}`,
-    statusNames[value.chip_status] && `芯片状态 ${statusNames[value.chip_status]}`,
+    (value.chip_status && statusNames[value.chip_status]) && `芯片状态 ${(value.chip_status && statusNames[value.chip_status])}`,
     value.user_uid && `持有人 ${value.user_uid}`, value.lost_at && "已挂失",
     value.sold != null && (value.sold ? "已售出" : "未售出"),
     value.first_sold_at && `首次成交 ${time(value.first_sold_at)}`,
@@ -23,7 +24,7 @@ function auditSummary(value: Record<string, any>) {
   ].filter(Boolean).join(" · ") || "档案已记录";
 }
 
-export default function AuditDetails({ event }: { event: Row }) {
+export default function AuditDetails({ event }: { event: AuditRecord }) {
   const [open, setOpen] = useState(false);
   const detail = event.detail || {};
   return (
@@ -48,12 +49,12 @@ export default function AuditDetails({ event }: { event: Row }) {
           {detail.candidate && <Descriptions.Item label="待交付组合">{auditSummary(detail.candidate)}</Descriptions.Item>}
           {detail.before && <Descriptions.Item label="操作前">{auditSummary(detail.before)}</Descriptions.Item>}
           {detail.after && <Descriptions.Item label="操作后">{auditSummary(detail.after)}</Descriptions.Item>}
-          {registrationSources[detail.source] && <Descriptions.Item label="登记来源">{registrationSources[detail.source]}</Descriptions.Item>}
+          {(detail.source && registrationSources[detail.source]) && <Descriptions.Item label="登记来源">{(detail.source && registrationSources[detail.source])}</Descriptions.Item>}
           {detail.key_version && <Descriptions.Item label="密钥版本">{detail.key_version}</Descriptions.Item>}
           {detail.expires_at && <Descriptions.Item label="认领码有效期">{time(detail.expires_at)}</Descriptions.Item>}
           {detail.removed && <Descriptions.Item label="清理数量">{Object.entries(batchObjects)
-            .filter(([key]) => detail.removed[key] != null)
-            .map(([key, label]) => `${label} ${detail.removed[key]}`).join(" · ")}</Descriptions.Item>}
+            .filter(([key]) => detail.removed?.[key] != null)
+            .map(([key, label]) => `${label} ${detail.removed?.[key]}`).join(" · ")}</Descriptions.Item>}
         </Descriptions>
       </Modal>
     </>

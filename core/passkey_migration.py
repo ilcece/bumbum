@@ -3,22 +3,36 @@
 from pathlib import Path
 
 from core.catalog_migration import CatalogMigrationError
+from core.schema_checks import structure_state
 from core.user_uid_migration import schema as user_uid_schema
 
 
 COLUMNS = {
-    "admin_passkey": {"id","admin_id","credential_hash","public_key","sign_count","created_at","last_used_at","revoked_at"},
-    "admin_passkey_challenge": {"challenge_hash","session_id","expires_at"},
+    ('admin_passkey', 'id'): ('bigint unsigned', 'NO', 'auto_increment'),
+    ('admin_passkey', 'admin_id'): ('bigint unsigned', 'NO', ''),
+    ('admin_passkey', 'credential_hash'): ('binary(32)', 'NO', ''),
+    ('admin_passkey', 'public_key'): ('varbinary(4096)', 'NO', ''),
+    ('admin_passkey', 'sign_count'): ('bigint unsigned', 'NO', ''),
+    ('admin_passkey', 'created_at'): ('datetime(6)', 'NO', ''),
+    ('admin_passkey', 'last_used_at'): ('datetime(6)', 'YES', ''),
+    ('admin_passkey', 'revoked_at'): ('datetime(6)', 'YES', ''),
+    ('admin_passkey_challenge', 'challenge_hash'): ('binary(32)', 'NO', ''),
+    ('admin_passkey_challenge', 'session_id'): ('bigint unsigned', 'YES', ''),
+    ('admin_passkey_challenge', 'expires_at'): ('datetime(6)', 'NO', ''),
+}
+UNIQUE_KEYS = {
+    ('admin_passkey', 'PRIMARY'): ('id',),
+    ('admin_passkey', 'credential_hash'): ('credential_hash',),
+    ('admin_passkey_challenge', 'PRIMARY'): ('challenge_hash',),
+}
+FOREIGN_KEYS = {
+    ('admin_passkey', 'fk_passkey_admin', 'admin_id', 'admin_user', 'id', 1, 'CASCADE', 'RESTRICT'),
+    ('admin_passkey_challenge', 'fk_passkey_challenge_session', 'session_id', 'admin_session', 'id', 1, 'CASCADE', 'RESTRICT'),
 }
 
 
 def schema(cursor):
-    cursor.execute("""SELECT TABLE_NAME,COLUMN_NAME FROM information_schema.COLUMNS
-                      WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('admin_passkey','admin_passkey_challenge')""")
-    fields = {}
-    for table, column in cursor.fetchall():
-        fields.setdefault(table,set()).add(column)
-    return "ready" if fields == COLUMNS else "missing" if not fields else "unknown"
+    return structure_state(cursor, COLUMNS, UNIQUE_KEYS, FOREIGN_KEYS)
 
 
 def migrate(connection, backup):

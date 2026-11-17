@@ -1,11 +1,16 @@
 ---
-doc_type: proposal
-status: approved
+doc_type: archive
+status: archived
+date: 2026-11-17
+reason: 已实现规则纳入现行产品及技术规范，保留批准范围与原方案证据
+superseded_by: ../product/user-h5.md
 ---
+
+> 本文是本次整理前的方案快照。“当前分支”“拟用”“后续”等描述属于原方案语境，不代表最新实现或部署状态。现行规则见上方承接文档，任务与验收仍以 TODO 和 CHANGELOG 为准。
 
 # 数字物品 H5 首版：查看、认领与我的物品
 
-cece 已确认本稿的首版范围、一次性认领码和预览交互。本稿是产品规格，交付状态见 [TODO](../../TODO.md)，实施细节见 [已审核技术方案](digital-item-assembly-h5-technical.md)。管理端的实体、芯片和装配流程见 [后台重构方案](admin-make-rebuild.md#assembly)，字段见 [后台字段表](admin-rebuild-fields.md)。
+cece 已确认本稿的首版范围、一次性认领码和预览交互。本稿是产品规格，交付状态见 [TODO](../../TODO.md)，实施细节见 [已审核技术方案](digital-item-assembly-h5-technical-2026-11-17.md)。管理端的实体、芯片和装配流程见 [后台重构方案](admin-make-rebuild-2026-11-17.md#assembly)，字段见 [后台字段表](admin-rebuild-fields-2026-11-17.md)。
 
 ## 1. 首版目标与入口
 
@@ -55,7 +60,7 @@ flowchart LR
 
 ## 4. 后台预览的页面规格
 
-入口与侧栏规则见 [后台预览](admin-make-rebuild.md#h5-preview)。侧栏复用 H5 的展示规则，顶部明确标识「预览」。用当前物品已保存的公开资料配合预设状态。
+入口与侧栏规则见 [后台预览](admin-make-rebuild-2026-11-17.md#h5-preview)。侧栏复用 H5 的展示规则，顶部明确标识「预览」。用当前物品已保存的公开资料配合预设状态。
 
 | 视角 | 可以检查什么 |
 |---|---|
@@ -80,7 +85,7 @@ flowchart LR
 
 ## 6. 持有期间的找回与办理
 
-cece 已确认以下产品规则，供 H5 原型与后续技术方案使用。挂失、换新和转售的业务生效条件仍由[后台核心流程](admin-make-rebuild.md#flows)维护。
+cece 已确认以下产品规则，供 H5 原型与后续技术方案使用。挂失、换新和转售的业务生效条件仍由[后台核心流程](admin-make-rebuild-2026-11-17.md#flows)维护。
 
 ### 6.1 挂失找回
 

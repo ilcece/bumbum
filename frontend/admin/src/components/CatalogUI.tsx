@@ -6,6 +6,7 @@ import {
   Button,
   Empty,
   Form,
+  FormInstance,
   Image,
   Input,
   InputNumber,
@@ -25,8 +26,14 @@ import {
   PageContainer,
 } from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
-import { command, list, read, Row, unknown } from "../catalog";
-import { ApiError, readSession, sessionIsExpired } from "../api";
+import { list, read, Row } from "../catalog";
+import { isDestructiveAction, isOrdinaryAction } from "../api/catalogActions";
+import { useCatalogAction, useCatalogCommand } from "../hooks/useCatalogAction";
+import type { ActionPayloadMap, ActionResult, CatalogAction, CatalogQuery, CatalogResource, DetailResource, FormValues } from "../types/catalog";
+import { sessionIsExpired } from "../api";
+
+const isDetailResource = (resource: CatalogResource): resource is DetailResource =>
+  ["styles", "issues", "items", "chips", "physical-items"].includes(resource);
 export function Copy({
   value,
   onClick,
@@ -203,8 +210,8 @@ export function RemoteSelect({
   emptyState,
 }: {
   id?: string;
-  resource: string;
-  params?: Record<string, any>;
+  resource: CatalogResource;
+  params?: CatalogQuery;
   value?: number | string;
   onChange?: (v: number | string) => void;
   placeholder?: string;
@@ -223,7 +230,7 @@ export function RemoteSelect({
   useEffect(() => {
     let live = true;
     setSelectedOption(undefined);
-    if (value && ["styles", "issues", "items", "chips", "physical-items"].includes(resource))
+    if (value && isDetailResource(resource))
       read(resource, Number(value))
         .then((r) => {
           if (live) setSelectedOption(r);
@@ -331,46 +338,7 @@ export function RemoteSelect({
     </>
   );
 }
-export function useRecord(resource: string, id?: number) {
-  const [record, setRecord] = useState<Row>(),
-    [error, setError] = useState(""),
-    [loading, setLoading] = useState(false),
-    [rev, setRev] = useState(0),
-    seq = useRef(0),
-    identity = useRef("");
-  useEffect(() => {
-    const n = ++seq.current;
-    const nextIdentity = `${resource}:${id}`;
-    // 同一对象后台刷新保留表单和弹窗；切换对象仍清除旧资料。
-    if (identity.current !== nextIdentity) setRecord(undefined);
-    identity.current = nextIdentity;
-    setError("");
-    if (id === undefined) return;
-    if (!Number.isSafeInteger(id) || id < 1 || id > 2147483647) {
-      setError("记录编号无效或超出页面可处理范围。");
-      return;
-    }
-    setLoading(true);
-    read(resource, id)
-      .then((v) => {
-        if (n === seq.current) setRecord(v);
-      })
-      .catch((e) => {
-        if (n === seq.current) setError(e.message);
-      })
-      .finally(() => {
-        if (n === seq.current) setLoading(false);
-      });
-  }, [resource, id, rev]);
-  const shownRecord =
-    identity.current === `${resource}:${id}` ? record : undefined;
-  return {
-    record: shownRecord,
-    error,
-    loading: loading && !shownRecord,
-    reload: () => setRev((n) => n + 1),
-  };
-}
+export { useCatalogRecord as useRecord } from "../hooks/useCatalogRecord";
 export function Load({
   error,
   loading,
@@ -392,7 +360,7 @@ export function Load({
     <>{children}</>
   );
 }
-export function ActionForm({
+export function ActionForm<A extends CatalogAction>({
   title,
   action,
   initial = {},
@@ -414,80 +382,35 @@ export function ActionForm({
   formInstance,
 }: {
   title: string;
-  action: string;
-  initial?: Record<string, any>;
+  action: A;
+  initial?: object;
   children: React.ReactNode;
-  onDone: (r: Row) => void;
+  onDone: (r: ActionResult) => void;
   onClose: () => void;
   submitText?: string;
   cancelText?: string;
   width?: number;
   readOnly?: boolean;
   page?: boolean;
-  execute?: (payload: Record<string, any>, token: string) => Promise<Row>;
-  onReceipt?: (r: Row) => boolean;
+  execute?: (payload: ActionPayloadMap[A], token: string) => Promise<ActionResult>;
+  onReceipt?: (r: ActionResult) => boolean;
   footerNote?: React.ReactNode;
   className?: string;
-  beforeSubmit?: (values: Record<string, any>) => Promise<boolean>;
+  beforeSubmit?: (values: FormValues) => Promise<boolean>;
   onDirtyChange?: (dirty: boolean) => void;
   submitDisabled?: boolean;
-  formInstance?: ReturnType<typeof Form.useForm>[0];
+  formInstance?: FormInstance<FormValues>;
 }) {
-  const [error, setError] = useState(""),
-    [busy, setBusy] = useState(false),
-    [uncertain, setUncertain] = useState(false),
-    [retryReady, setRetryReady] = useState(false),
-    [dirty, setDirty] = useState(false),
-    success = useRef(false),
-    token = useRef(crypto.randomUUID()),
-    submitted = useRef<Record<string, any> | undefined>(undefined),
-    form = useRef<ProFormInstance | undefined>(undefined);
+  const [dirty, setDirty] = useState(false);
+  const form = useRef<ProFormInstance<FormValues> | undefined>(undefined);
   const { modal } = App.useApp();
-  const ordinary = [
-    "style",
-    "issue",
-    "item",
-    "register",
-    "legacyProfile",
-    "chipBatch",
-    "createOrder",
-    "createPhysicalItem",
-  ].includes(action);
-  const destructive = ["deleteItem", "deleteChip", "deleteIssue", "clearTestBatch"].includes(action);
-  const submit = async (v: Record<string, any>) => {
-    setBusy(true);
-    setError("");
-    try {
-      if (beforeSubmit && !(await beforeSubmit(v))) return false;
-      submitted.current ??= pickPayload(action, v);
-      const r = await (execute
-        ? execute(submitted.current, token.current)
-        : command(action, submitted.current, token.current));
-      success.current = true;
-      setDirty(false);
-      onDirtyChange?.(false);
-      onDone(r);
-      return true;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "请求未完成");
-      if (e instanceof ApiError && e.code === "csrf_failed") {
-        try {
-          await readSession();
-          setError("会话口令已更新，请明确重试；未自动重发。");
-        } catch {
-          setError("登录状态无法更新，请重新登录。");
-        }
-      }
-      if (unknown(e)) setUncertain(true);
-      else {
-        token.current = crypto.randomUUID();
-        submitted.current = undefined;
-      }
-      return false;
-    } finally {
-      setBusy(false);
-    }
-  };
+  const { error, busy, uncertain, retryReady, success, submit, checkReceipt, retry } = useCatalogAction({
+    action, execute, beforeSubmit, onDone, onReceipt,
+    onSaved: () => { setDirty(false); onDirtyChange?.(false); },
+    onIncompleteReceipt: () => setDirty(true),
+  });
+  const ordinary = isOrdinaryAction(action);
+  const destructive = isDestructiveAction(action);
   const leave = (next: () => void) => {
     if (busy) return;
     if (!dirty && !uncertain) {
@@ -548,7 +471,7 @@ export function ActionForm({
       }
     };
     window.addEventListener("beforeunload", unload);
-    const unblock = history.block((tx: any) => {
+    const unblock = history.block((tx) => {
       if (
         sessionIsExpired() ||
         success.current ||
@@ -570,9 +493,7 @@ export function ActionForm({
       window.removeEventListener("beforeunload", unload);
     };
   }, [dirty, busy, uncertain]);
-  const FormContainer = (
-    page ? ProForm : ModalForm
-  ) as React.ComponentType<any>;
+  const FormContainer = page ? ProForm<FormValues> : ModalForm<FormValues>;
   return (
     <FormContainer
       open={page ? undefined : true}
@@ -581,7 +502,7 @@ export function ActionForm({
       formRef={form}
       form={formInstance}
       className={className}
-      initialValues={initial}
+      initialValues={initial as FormValues}
       scrollToFirstError={{ focus: true, block: "nearest" }}
       onValuesChange={() => {
         success.current = false;
@@ -651,32 +572,7 @@ export function ActionForm({
         <Space style={{ marginTop: 12 }}>
           <Button
             disabled={busy}
-            onClick={async () => {
-              try {
-                const r = await command(
-                  "receipt",
-                  { request_id: token.current },
-                  crypto.randomUUID(),
-                );
-                if (onReceipt && !onReceipt(r)) {
-                  setUncertain(false);
-                  setDirty(true);
-                  token.current = crypto.randomUUID();
-                  submitted.current = undefined;
-                  setError(
-                    "已核对款式保存记录，仍有待保存图片，请继续保存共用资料。",
-                  );
-                  return;
-                }
-                success.current = true;
-                onDone(r);
-              } catch (e) {
-                if (e instanceof ApiError && e.status === 404) {
-                  setRetryReady(true);
-                  setError("服务端尚无已提交回执，可以明确重试原请求。");
-                } else setError(e instanceof Error ? e.message : "核对失败");
-              }
-            }}
+            onClick={() => void checkReceipt()}
           >
             核对已提交回执
           </Button>
@@ -684,7 +580,7 @@ export function ActionForm({
             <Button
               loading={busy}
               disabled={busy}
-              onClick={() => void submit(submitted.current!)}
+              onClick={() => void retry()}
             >
               明确重试原请求
             </Button>
@@ -703,96 +599,7 @@ export function Evidence() {
   );
 }
 
-const fields: Record<string, string[]> = {
-  legacyProfile: ["item_id", "profile"],
-  style: [
-    "id",
-    "project",
-    "code",
-    "name",
-    "description",
-    "material",
-    "care_instructions",
-    "specs",
-    "image_urls",
-    "shared_confirmed",
-    "test_batch_id",
-  ],
-  issue: [
-    "id",
-    "style_id",
-    "name",
-    "series",
-    "mode",
-    "total",
-    "starts_at",
-    "ends_at",
-    "counting_rule",
-    "description",
-  ],
-  confirmIssue: ["issue_id", "evidence"],
-  deleteIssue: ["issue_id"],
-  seal: ["issue_id", "total", "evidence"],
-  clearTestBatch: ["batch_id", "confirmed"],
-  item: [
-    "issue_id",
-    "item_uid",
-    "edition_number",
-    "is_validation",
-    "test_batch_id",
-  ],
-  bind: ["item_id", "chip_id", "spec"],
-  createPhysicalItem: ["style_id", "physical_uid", "spec", "batch_no", "supplier_serial"],
-  installAssembly: ["item_id", "physical_item_id", "chip_id", "installed"],
-  createOrder: ["channel", "external_order_no", "units", "test_batch_id"],
-  matchOrderUnit: ["order_unit_id", "style_id", "spec"],
-  orderPhysical: ["order_unit_id", "physical_item_id", "physical"],
-  allocateOrderUnit: ["order_unit_id", "item_id"],
-  releaseOrderUnit: ["order_unit_id", "evidence"],
-  assembleOrderItem: ["order_unit_id", "issue_id", "item_uid", "edition_number", "physical_item_id", "chip_id", "installed", "is_validation"],
-  orderSale: ["order_unit_id", "item_id", "first_sold_at"],
-  undoInstall: ["item_id", "whole_id", "evidence", "confirmed"],
-  sale: ["item_id", "confirmed", "evidence", "first_sold_at"],
-  saleBatch: ["item_ids", "confirmed", "evidence", "first_sold_at"],
-  toggleItem: ["item_id", "status"],
-  loseItem: ["item_id", "whole_id", "evidence"],
-  cancelLoss: ["item_id", "whole_id", "lost_at", "evidence", "chip_state"],
-  linkIssue: ["item_id", "issue_id", "edition_number", "evidence"],
-  prepare: ["item_id", "kind", "physical_item_id", "chip_id", "installed", "evidence", "recipient_id", "seller_confirmation", "recipient_confirmation", "identity_review_required", "identity_verification_reference"],
-  complete: ["work_id", "evidence", "checked"],
-  issueClaimCode: ["item_id", "delivery_reference", "confirmed"],
-  reissueClaimCode: ["item_id", "delivery_reference", "confirmed"],
-  validationItem: ["item_id", "enabled"],
-  deleteItem: ["item_id"],
-  validationChip: ["chip_id", "enabled"],
-  deleteChip: ["chip_id"],
-  register: [
-    "chip_uid",
-    "project",
-    "batch_no",
-    "is_validation",
-    "test_batch_id",
-  ],
-  chipBatch: ["chip_id", "batch_no"],
-  chipState: ["chip_id", "state", "evidence"],
-};
-function pickPayload(action: string, value: Record<string, any>) {
-  if (action === "legacyProfile") {
-    value = {
-      ...value,
-      profile: {
-        ...value.profile,
-        image_urls: [],
-      },
-    };
-  }
-  return Object.fromEntries(
-    (fields[action] || [])
-      .filter((k) => value[k] !== undefined)
-      .map((k) => [k, value[k]]),
-  );
-}
-export function InlineCommand({
+export function InlineCommand<A extends CatalogAction>({
   action,
   payload,
   label,
@@ -800,47 +607,14 @@ export function InlineCommand({
   danger = false,
   checked,
 }: {
-  action: string;
-  payload: Record<string, any>;
+  action: A;
+  payload: ActionPayloadMap[A];
   label: string;
   onDone: () => void;
   danger?: boolean;
   checked?: boolean;
 }) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState(""),
-    [uncertain, setUncertain] = useState(false),
-    [retryReady, setRetryReady] = useState(false),
-    token = useRef(crypto.randomUUID()),
-    done = useRef(false);
-  const send = async () => {
-    done.current = false;
-    setBusy(true);
-    try {
-      await command(action, payload, token.current);
-      done.current = true;
-      setUncertain(false);
-      setError("");
-      token.current = crypto.randomUUID();
-      onDone();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "操作未完成");
-      if (unknown(e)) setUncertain(true);
-      else token.current = crypto.randomUUID();
-    } finally {
-      setBusy(false);
-    }
-  };
-  useEffect(() => {
-    if (!busy && !uncertain) return;
-    const unblock = history.block((tx: any) => {
-      if (sessionIsExpired() || done.current) {
-        unblock();
-        tx.retry();
-      }
-    });
-    return unblock;
-  }, [busy, uncertain]);
+  const { busy, error, uncertain, retryReady, send, checkReceipt } = useCatalogCommand({ action, payload, onDone });
   return (
     <Space wrap>
       {checked === undefined ? (
@@ -868,22 +642,7 @@ export function InlineCommand({
       )}
       {uncertain && (
         <Button
-          onClick={async () => {
-            try {
-              await command(
-                "receipt",
-                { request_id: token.current },
-                crypto.randomUUID(),
-              );
-              done.current = true;
-              setUncertain(false);
-              onDone();
-            } catch (e) {
-              if (e instanceof ApiError && e.status === 404)
-                setRetryReady(true);
-              else setError(e instanceof Error ? e.message : "核对失败");
-            }
-          }}
+          onClick={() => void checkReceipt()}
         >
           核对结果
         </Button>

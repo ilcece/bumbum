@@ -1,4 +1,3 @@
-// 使用官方布局 Token 承接浅色侧栏、主题选中态和紧凑顶栏。
 import type { ProLayoutProps } from "@ant-design/pro-components";
 const colorPrimary = "#1677ff";
 const settings: ProLayoutProps = {

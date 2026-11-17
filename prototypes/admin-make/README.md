@@ -1,6 +1,6 @@
 # 管理后台高保真交互原型
 
-本目录保留2026-11-05至11-06的独立产品原型及当时验证记录：按cece已批准的[管理后台重构方案](../../docs/proposals/admin-make-rebuild.md)，以实际Ant Design Pro官方工程组织重建到Umi Max。下文“当前／本轮”“待验收”“尚未接入”及依赖选型边界均指该原型交付时点，不代表正式系统的最新状态。正式后台、H5及后端后来已有对应实现；实际可用范围见[接口概览](../../API_CONTRACT.md#04-当前能做到哪一步)，任务与验收状态见[TODO](../../TODO.md)。本目录仍是合成数据演示，不连接真实服务。
+本目录保留2026-11-05至11-06的独立产品原型及当时验证记录：按cece已批准的[管理后台重构方案](../../docs/archive/admin-make-rebuild-2026-11-17.md)，以实际Ant Design Pro官方工程组织重建到Umi Max。下文“当前／本轮”“待验收”“尚未接入”及依赖选型边界均指该原型交付时点，不代表正式系统的最新状态。正式后台、H5及后端后来已有对应实现；实际可用范围见[接口概览](../../API_CONTRACT.md#04-当前能做到哪一步)，任务与验收状态见[TODO](../../TODO.md)。本目录仍是合成数据演示，不连接真实服务。源码与单HTML冻结为既有视觉回归基准，不随正式后台功能继续同步开发；历史证据按原日期和范围保留。
 
 <a id="当前样式与验证"></a>
 
@@ -14,11 +14,11 @@ cece已确认对照清单全部调整，并补充内容居中限宽、恢复密�
 
 当前已按cece确认的整体模型调整：挂失、换新和转售针对整套物品（实物＋芯片）。物品详情可挂失当前代、准备替换整套物品、确认实际交付生效；芯片页只显示关联物品事实和技术维护。稳定数字身份与#001/100延续，旧代挂失记录保留，新代不继承旧代挂失。准备中挂失保留已准备新物品，按挂失换新继续。旧会话不清空，不补造挂失时间或审计。
 
-业务详见[主方案](../../docs/proposals/admin-make-rebuild.md#flows)，本轮检查/截图见[设计复审](design-qa.md)。此前review与validation前缀证据各保留原范围；本轮whole前缀记录整套物品的新交互与回归，待cece人工验收。
+业务详见[主方案](../../docs/archive/admin-make-rebuild-2026-11-17.md#flows)，本轮检查/截图见[设计复审](design-qa.md)。此前review与validation前缀证据各保留原范围；本轮whole前缀记录整套物品的新交互与回归，待cece人工验收。
 
 ## 怎样预览
 
-下载[单文件HTML](preview.html)，用桌面Chrome/Edge打开，点击“使用演示身份进入”。HTML包含真实Umi构建的路由与组件，无需账号或安装依赖；GitHub文件页可点下载原始文件。源码安装、启动与导出只维护在[本地运行第14节](../../docs/LOCAL_DEVELOPMENT.md#14-隔离umi管理原型)。没有公开发布或更新生产服务。
+下载[单文件HTML](preview.html)，用桌面Chrome/Edge打开，点击“使用演示身份进入”。HTML包含真实Umi构建的路由与组件，无需账号或安装依赖；GitHub文件页可点下载原始文件。源码安装、启动与导出只维护在[本地运行第15节](../../docs/LOCAL_DEVELOPMENT.md#15-冻结umi管理原型)。没有公开发布或更新生产服务。
 
 当前全部为合成数据，配卡、密钥、配置、认领和触碰的模拟动作均明确标注。勿填真实凭证或个人信息。数据保存在当前标签页v6会话，刷新继续；若有旧v5，只复制核心档案，旧会话不改、不推断售出、不补造历史触碰，旧接续只读。顶栏“原型演示”提供保存失败/未知/读取失败及显式重置；重置只影响新版样例。
 
@@ -68,7 +68,7 @@ cece已确认对照清单全部调整，并补充内容居中限宽、恢复密�
 
 上游为[Ant Design Pro固定源码](https://github.com/ant-design/ant-design-pro/tree/42f2cb1d303380909ea04c73b5e60679d09c321a)，MIT许可随附。实际使用config/routes.ts、config/defaultSettings.ts、src/app.tsx、Umi插件与max构建；原Vite入口退出。裁剪官方示例API、录制/分析、AI/地图等无关示例。
 
-锁定Umi Max4.7.27、ProComponents3.1.14-2、AntD6.6.8、React19.3.1；ProComponents为官方模板采用的预发布候选，仅用于隔离原型，正式整合前核定最终组合。严格安装不使用force/legacy-peer-deps，版本取舍见[工程说明](../../docs/proposals/admin-rebuild-implementation.md#21-本轮隔离原型实际采用)。
+锁定Umi Max4.7.27、ProComponents3.1.14-2、AntD6.6.8、React19.3.1；ProComponents为官方模板采用的预发布候选，仅用于隔离原型，正式整合前核定最终组合。严格安装不使用force/legacy-peer-deps，版本取舍见[工程说明](../../docs/archive/admin-rebuild-implementation-2026-11-17.md#21-本轮隔离原型实际采用)。
 
 回退由Git保留改前原型；仅恢复本目录及匹配文档/产物，先保留样例会话，不涉及数据库或真实芯片恢复。正式迁移复用同套页面接真实认证/API，移除fixtures、浏览器会话数据与演示成功路径，不能把原型domain/store作为正式所有权或芯片安全服务。
 

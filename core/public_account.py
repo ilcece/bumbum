@@ -449,7 +449,7 @@ def dismiss_notice(ref):
 
 @blueprint.get('/me/items/<ref>/images/<asset_id>')
 def my_image(ref,asset_id):
-    from core.admin_catalog import shared_image
+    from core.catalog.media import shared_image
     if not re.fullmatch(r'[a-f0-9]{32}',asset_id):fail(404,'not_found','图片不存在。')
     with transaction() as c:
         user,_=current_user(c)

@@ -1,3 +1,4 @@
+import type { ActionPayloadMap, ActionResult, StyleRecord } from "../types/catalog";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -17,7 +18,7 @@ import {
 import { PlusOutlined } from "@ant-design/icons";
 import { ProCard } from "@ant-design/pro-components";
 import { ApiError, request, uploadStyleImage } from "../api";
-import { command, read, Row, unknown } from "../catalog";
+import { command, read, unknown } from "../catalog";
 import { ActionForm, Gallery, State, required } from "./CatalogUI";
 
 type Draft = { file: File; id: string; url?: string; uncertain?: boolean };
@@ -92,7 +93,7 @@ function Pictures({
     </>
   );
 }
-function Fields({ record, drafts }: { record?: Row; drafts: Drafts }) {
+function Fields({ record, drafts }: { record?: StyleRecord; drafts: Drafts }) {
   const form = Form.useFormInstance();
   const v = Form.useWatch([], form) || {};
   useEffect(() => {
@@ -247,12 +248,12 @@ export default function StyleEditor({
   onClose,
   onDone,
 }: {
-  record?: Row;
+  record?: StyleRecord;
   page: boolean;
   compact?: boolean;
   returnTo?: string;
   onClose: () => void;
-  onDone: (r: Row) => void;
+  onDone: (r: ActionResult) => void;
 }) {
   const { modal } = App.useApp();
   const drafts = useRef<Drafts>(new Map()).current;
@@ -272,10 +273,10 @@ export default function StyleEditor({
       }
   }, [record]);
   const execute = async (
-    payload: Record<string, any>,
+    payload: ActionPayloadMap["style"],
     token: string,
-  ): Promise<Row> => {
-    const values: Record<string, any> = {
+  ): Promise<ActionResult> => {
+    const values: ActionPayloadMap["style"] = {
       ...payload,
       id: savedId || payload.id,
       specs: payload.specs.map((s: string) => s.trim()).filter(Boolean),

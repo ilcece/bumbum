@@ -100,6 +100,22 @@ def test_real_cloud_gateway(auth_app, auth_database, admin_account, tmp_path, re
                 return response.status, dict(response.getheaders()), response.read()
             finally:
                 connection.close()
+        # 被IP限制的管理站可先返回403；独立后端真正就绪后再核对网关与扫码认证。
+        for _ in range(80):
+            connection = http.client.HTTPConnection("127.0.0.1", api_port, timeout=3)
+            try:
+                connection.request("GET", "/api/ready")
+                response = connection.getresponse()
+                response.read()
+                if response.status == 200:
+                    break
+            except (OSError, http.client.HTTPException):
+                pass
+            finally:
+                connection.close()
+            time.sleep(0.1)
+        else:
+            pytest.fail("专属后端未就绪；未操作ECS或既有服务。")
         for _ in range(80):
             try:
                 status, _, _ = call("/api/ready")

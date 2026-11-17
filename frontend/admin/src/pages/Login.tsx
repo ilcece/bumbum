@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Alert, Button, Card, Form, Input, Typography } from "antd";
 import { history, useModel } from "@umijs/max";
 import { readSession, signIn } from "../api";
-import { RuntimeChecks } from "../RuntimeChecks";
 import { passkeysEnabled, passkeyMessage, usePasskey } from "../passkeys";
 import brandWordmark from "../../../shared/brand/bumbum-wordmark-black.svg";
 export default function Login() {

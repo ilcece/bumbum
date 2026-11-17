@@ -164,7 +164,7 @@ def read_detail(ref, *, view=False, image_id=None):
                 invalid_token(view)
             profile, owner_bound = detail
             if image_id is not None:
-                from core.admin_catalog import shared_image
+                from core.catalog.media import shared_image
                 data = shared_image(cursor, item_id, image_id[6:])
                 connection.commit()
                 return data

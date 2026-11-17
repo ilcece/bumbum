@@ -12,7 +12,10 @@ pytestmark=[pytest.mark.auth_database,pytest.mark.browser]
 def test_style_source_layout_and_staged_picture_save(desktop):
     p=desktop.page;desktop.app.config['MEDIA_ENABLED']=True
     desktop.login();p.goto('http://localhost:5174/catalog/style/new',wait_until='networkidle')
-    reference_context=p.context.browser.new_context();reference=reference_context.new_page();reference.goto((Path('prototypes/admin-make/preview.html').resolve()).as_uri())
+    reference_context=p.context.browser.new_context();reference=reference_context.new_page()
+    reference_url='http://localhost:5174/__frozen-admin-reference__/index.html'
+    reference_context.route(reference_url,lambda route:route.fulfill(status=200,content_type='text/html',body=Path('prototypes/admin-make/preview.html').read_bytes()))
+    reference.goto(reference_url)
     reference.get_by_role('button',name='使用演示身份进入',exact=True).click()
     reference.get_by_role('link',name=re.compile('款式与发行$')).click()
     reference.get_by_role('button',name='新建款式',exact=True).click()

@@ -1,6 +1,6 @@
 # BUMBUM 接口说明：页面要给什么，后台会返回什么
 
-当前分支按已确认原型构建正式数字档案服务，新增接口见第11节；人工验收与环境部署另计。实现范围以[第0.4节](#04-当前能做到哪一步)为准，预留首次认领接口不等于交付，既有首次绑定接口不能用于换新。
+本文对应当前仓库的接口实现，数字档案服务见第11节；人工验收与环境部署从TODO及[当前发布记录](docs/HANGZHOU_DEPLOYMENT.md#当前发布记录)核对。实现范围以[第0.4节](#04-当前能做到哪一步)为准，预留首次认领接口不等于交付，既有首次绑定接口不能用于换新。
 
 **接口**就是网页和后端约定的办事入口，例如“登记芯片”“绑定手机号”。本文定义地址、字段和返回；业务看[PRD](PRD.md)，流程看[TECH_SPEC](TECH_SPEC.md)，精确安全参数看[技术附录](docs/IMPLEMENTATION_DETAILS.md)，任务和历史分别见[TODO](TODO.md)、[CHANGELOG](CHANGELOG.md)。
 
@@ -67,7 +67,7 @@
 | 持续查看 | POST /api/public/tap/verify、GET /api/tap/items/{public_id}/view | 第9节 |
 | 款式图片 | POST/GET /api/admin/catalog/styles/{id}/images/{asset_id}及状态；GET /api/tap/items/{public_id}/style-images/{asset_id}、GET /api/fashion/items/{id}/style-images/{asset_id} | 第11.3节；旧单件图片入口已退役 |
 | 有效触碰统计 | GET /api/admin/stats/taps | 第8节 |
-| 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,physical-items,orders,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；当前分支构建，验收/部署见TODO |
+| 数字档案重构 | GET /api/admin/catalog/{styles,issues,items,physical-items,orders,chips,users,audit}、各受支持详情，POST /api/admin/catalog/actions/{action}及款图入口 | 第11节；验收/部署范围见TODO |
 | 用户账户及认领 | /api/public 下的短信验证、会话、认领及我的数字物品 | [第11节用户账户及认领](#用户账户及认领) |
 | 用户动态与账户卡 | GET /api/admin/catalog/activity、GET /api/admin/catalog/users/{uid}/card、POST /api/admin/catalog/users/{uid}/phone | [第11.1节](#111-分页与详情) |
 
@@ -91,7 +91,7 @@
 ```json
 {"status":"ok","data":{"database":"ready"}}
 ```
-不返回数据库地址、密码、SQL 或异常详情。ready检查表清单、初始项目、芯片项目可空所需的字段与约束版本，以及登记来源列的类型、默认值和不可空定义；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
+不返回数据库地址、密码、SQL 或异常详情。ready检查表清单、初始项目、芯片项目可空所需的字段与约束版本，以及登记来源列的类型、默认值和不可空定义；旧库未升级返回503，不自动改表，也不逐列比对全部数据库结构。011通行密钥、012订单和013逐件匹配还核对关键列类型、空值约束、唯一索引、生成表达式和外键；不符合已知目标时拒绝就绪，不自动执行迁移或修复。不代表全部业务功能已实现或生产可用。不存在的路径返回 JSON 404 not_found；请求方式错误返回 JSON 405 method_not_allowed；意外故障返回 JSON 500 internal_error。
 
 媒体005纳入完整识别：列类型/默认值/字符集、InnoDB、主键/索引/外键及生效CHECK不符合已知定义时ready拒绝，MEDIA_ENABLED=false也不跳过。旧库先按[本地升级说明](docs/LOCAL_DEVELOPMENT.md#14-物品与私有图片后端升级)或[杭州媒体准备](docs/HANGZHOU_DEPLOYMENT.md#10-私有图片的升级与持久目录准备)处理；ready不证明目录、配套备份或生产启用前提已满足。
 
@@ -438,7 +438,7 @@ view为连续24小时无成功查询失效，成功查询滑动续期24小时；
 
 ### 10.1 短信与首次认领（预留）
 
-下方是早期预留，保留供追溯。测试分支请使用[已接入的用户账户及认领接口](#用户账户及认领)及 [H5 首版产品规格](docs/proposals/digital-item-h5-mvp.md)。
+下方是早期预留，保留供追溯。测试分支请使用[已接入的用户账户及认领接口](#用户账户及认领)及 [H5 首版产品规格](docs/product/user-h5.md)。
 
 <a name="13-post-apipublicsmssend发绑定短信第二阶段"></a>
 
@@ -525,7 +525,7 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 
 ## 11. 数字档案管理与整套物品（当前分支）
 
-测试分支从物品档案读取换新与转售权益，发行读接口省略 `rights`。旧发行客户端的同名输入仅用于兼容解析。新物品的标准权益由服务端授予。业务规则见 [数字物品权益](docs/proposals/admin-make-rebuild.md#item-rights)，上线和人工验收见 [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。
+测试分支从物品档案读取换新与转售权益，发行读接口省略 `rights`。旧发行客户端的同名输入仅用于兼容解析。新物品的标准权益由服务端授予。业务规则见 [数字物品权益](docs/product/digital-catalog.md#item-rights)，上线和人工验收见 [验收清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md)。
 
 ### 订单逐件履约
 
@@ -573,7 +573,7 @@ stage/channel_type 取值和长度按 schema；返回包含记录 id、上述字
 | `POST /api/public/me/items/{public_id}/dismiss-notice` | 当前交付接收人，同源，提交 `notice_token`。收起自己的完成提示，保留原办结记录。 |
 | `GET /api/public/me/records` | 本账户参与的办理节点。转售原持有人也可查本人结果。每项包含物品摘要、`event` 和 UTC 时间 `at`。详情的物品历程另可含公开实物规格 `spec`。响应无交易对方、订单、芯片和后台凭据。 |
 
-资格、确认和保留规则见 [H5 持有期间的找回与办理](docs/proposals/digital-item-h5-mvp.md#holder-lifecycle)。
+资格、确认和保留规则见 [H5 持有期间的找回与办理](docs/product/user-h5.md#holder-lifecycle)。
 
 用户端从指定同源发起写请求。账户使用独立 HttpOnly Cookie。碰卡短时资格、持续查看 Cookie 和用户会话分别校验。
 

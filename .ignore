@@ -1,0 +1,8 @@
+# 默认源码检索跳过生成预览与历史证据；不影响 Git、构建或测试读取。
+/prototypes/admin-make/preview.html
+/prototypes/admin-make/checks/evidence/
+/tests/evidence/
+/docs/assets/admin-make-fields/
+/docs/assets/admin-prototype-audit/
+/docs/assets/admin-sale-journey/
+/docs/archive/

@@ -2,8 +2,9 @@ import ReadFailure from "./ReadFailure";
 import React, { useRef, useState } from "react";
 import { ProTable, ActionType, ProColumns } from "@ant-design/pro-components";
 import { history, useLocation } from "@umijs/max";
-import { list, Row } from "../catalog";
-export default function ServerTable({
+import { list } from "../catalog";
+import type { CatalogQuery, CatalogResource, ResourceMap } from "../types/catalog";
+export default function ServerTable<R extends CatalogResource>({
   resource,
   columns,
   extra,
@@ -12,12 +13,12 @@ export default function ServerTable({
   rowSelection,
   fitWidth = false,
 }: {
-  resource: string;
-  columns: ProColumns<Row>[];
+  resource: R;
+  columns: ProColumns<ResourceMap[R]>[];
   extra?: React.ReactNode[];
   refresh?: number;
-  filters?: Record<string, any>;
-  rowSelection?: React.ComponentProps<typeof ProTable<Row>>["rowSelection"];
+  filters?: CatalogQuery;
+  rowSelection?: React.ComponentProps<typeof ProTable<ResourceMap[R]>>["rowSelection"];
   fitWidth?: boolean;
 }) {
   const [error, setError] = useState("");
@@ -27,7 +28,7 @@ export default function ServerTable({
   const saved = Object.fromEntries(
     [...q.entries()].filter(([k]) => !["tab", "from", "create"].includes(k)),
   );
-  const update = (params: Record<string, any>) => {
+  const update = (params: CatalogQuery) => {
     const next = new URLSearchParams();
     const fields = new Set(columns.filter((column) => column.search !== false)
       .map((column) => String(column.dataIndex)));
@@ -44,7 +45,7 @@ export default function ServerTable({
   return (
     <>
       {error && <ReadFailure title="列表加载失败" error={error} retry={() => ref.current?.reload()} />}
-      <ProTable<Row>
+      <ProTable<ResourceMap[R]>
         actionRef={ref}
         rowKey="id"
         locale={error ? { emptyText: "读取失败，请重试" } : undefined}

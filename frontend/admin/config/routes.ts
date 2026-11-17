@@ -1,4 +1,3 @@
-// 菜单和页面共用官方Umi配置路由，数字物品管理聚合数字与实体档案。
 export default [
   { path: "/login", layout: false, component: "./Login" },
   { path: "/", redirect: "/overview" },

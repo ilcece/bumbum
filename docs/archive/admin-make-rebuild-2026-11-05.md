@@ -3,10 +3,10 @@ doc_type: archive
 status: archived
 date: 2026-11-05
 reason: 按cece要求将当前分支提案聚合为精简的管理后台重构方案；此处保留改动前正文与原批准和验证边界。
-superseded_by: ../proposals/admin-make-rebuild.md
+superseded_by: ../product/digital-catalog.md
 ---
 
-> 历史快照：来自聚合前任务分支。原提案状态为`review`，只代表当时明确范围；本快照不作为新版菜单、经营流程或工程路线的实施依据。当前审核从[管理后台重构方案](../proposals/admin-make-rebuild.md)进入。
+> 历史快照：来自聚合前任务分支。原提案状态为`review`，只代表当时明确范围；本快照不作为新版菜单、经营流程或工程路线的实施依据。当前审核从[管理后台重构方案](../product/digital-catalog.md)进入。
 
 # 最新 Make 基准的后台重构：原型修改与后端缺口
 

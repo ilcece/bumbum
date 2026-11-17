@@ -1,3 +1,4 @@
+import type { ItemSummary } from "../types/catalog";
 import { useState } from "react";
 import { PageContainer, ProColumns } from "@ant-design/pro-components";
 import {
@@ -8,7 +9,7 @@ import {
   Typography,
 } from "antd";
 import { history, useLocation } from "@umijs/max";
-import { assemblyPath, itemWorkflow, itemWorkflowNames, Row, workbenchWorkflows } from "../catalog";
+import { assemblyPath, itemWorkflow, itemWorkflowNames, workbenchWorkflows } from "../catalog";
 import {
   ActionForm,
   Copy,
@@ -26,7 +27,7 @@ export default function Items() {
     [sale, setSale] = useState(false),
     [id, setId] = useState<number>(),
     [rev, setRev] = useState(0);
-  const columns: ProColumns<Row>[] = [
+  const columns: ProColumns<ItemSummary>[] = [
     {
       title: "关键词",
       dataIndex: "keyword",

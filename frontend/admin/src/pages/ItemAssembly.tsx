@@ -5,53 +5,12 @@ import { Alert, Button, Checkbox, Collapse, Descriptions, Form, Input, InputNumb
 import { ActionForm, Load, RemoteSelect, required, returnPath, useRecord } from "../components/CatalogUI";
 import { ChipRegistrationFields, InstallationConfirmation } from "../components/AssemblyFields";
 import StyleEditor from "../components/StyleEditor";
-import { IssueFields } from "./Catalog";
-import { Row, statusNames } from "../catalog";
+import IssueFields from "../components/IssueFields";
+import { PhysicalFields } from "../components/RegisterPhysical";
+import { statusNames } from "../catalog";
+import type { ChipRecord, IssueRecord, PhysicalItemRecord } from "../types/catalog";
 
 type Supplement = "style" | "issue" | "confirm" | "physical" | "chip";
-
-export function PhysicalFields({ nested = false, fixedSpec }: { nested?: boolean; fixedSpec?: string }) {
-  const field = (name: string) => nested ? ["physical", name] : name;
-  const style = useRecord("styles", Form.useWatch(field("style_id"))).record;
-  return <>
-    <Form.Item name={field("physical_uid")} label="实体编号" rules={required}><Input maxLength={64} /></Form.Item>
-    {fixedSpec ? <Form.Item name={field("spec")} hidden><Input /></Form.Item> : <Form.Item name={field("spec")} label="实际规格" rules={style?.specs?.length ? required : []}>
-      {style?.specs?.length ? <Select options={style.specs.map((spec: string) => ({ label: spec, value: spec }))} /> : <Input maxLength={256} placeholder="填写实物尺码、颜色等信息" />}
-    </Form.Item>}
-    <Form.Item name={field("batch_no")} label="实物批次"><Input maxLength={64} /></Form.Item>
-    <Form.Item name={field("supplier_serial")} label="供应商序列号"><Input maxLength={128} /></Form.Item>
-  </>;
-}
-
-export function RegisterPhysical({ orderUnit, onClose, onDone }: {
-  orderUnit?: Row; onClose: () => void; onDone: (r: Row) => void;
-}) {
-  const [creatingStyle, setCreatingStyle] = useState(false);
-  const [form] = Form.useForm();
-  const unitId = orderUnit?.id;
-  return <>
-    <ActionForm title="登记实体物品" submitText={unitId ? "登记并用于本件" : "登记实物"}
-      formInstance={form} action={unitId ? "orderPhysical" : "createPhysicalItem"}
-      initial={unitId ? { order_unit_id: unitId, physical: { style_id: orderUnit.expected_style_id, spec: orderUnit.expected_spec } } : {}}
-      onDone={onDone} onClose={onClose}>
-      {orderUnit ? <>
-        <Alert type="info" title={orderUnit.expected_style_name + " · " + (orderUnit.expected_spec || "无指定规格")} />
-        <Form.Item name="order_unit_id" hidden><InputNumber /></Form.Item>
-        <Form.Item name={["physical", "style_id"]} hidden><InputNumber /></Form.Item>
-      </> : <>
-        <Form.Item name="style_id" label="款式" rules={required}
-          extra={<Button type="link" onClick={() => setCreatingStyle(true)}>补建款式</Button>}>
-          <RemoteSelect resource="styles" onChange={() => form.setFieldValue("spec", undefined)} />
-        </Form.Item>
-      </>}
-      <PhysicalFields nested={!!unitId} fixedSpec={orderUnit?.expected_spec} />
-    </ActionForm>
-    {creatingStyle && <StyleEditor page={false} compact returnTo="保存后返回实物登记并选中新款式。" onClose={() => setCreatingStyle(false)} onDone={(r) => {
-      form.setFieldsValue({ style_id: r.id, spec: undefined });
-      setCreatingStyle(false);
-    }} />}
-  </>;
-}
 
 function IdentityFields() {
   const form = Form.useFormInstance();
@@ -82,7 +41,7 @@ export default function ItemAssembly() {
   const target = returnPath("/items");
   const orderId = unitId ? Number(/^\/orders\/(\d+)/.exec(target)?.[1]) || undefined : undefined;
   const order = useRecord("orders", orderId);
-  const unit = order.record?.units?.find((u: Row) => u.id === unitId);
+  const unit = order.record?.units?.find((u) => u.id === unitId);
   const issue = useRecord("issues", issueId);
   const physical = useRecord("physical-items", physicalId);
   const chip = useRecord("chips", chipId);
@@ -103,7 +62,7 @@ export default function ItemAssembly() {
 }
 
 function Assembly({ issue, physical, chip, unitId, target }: {
-  issue?: Row; physical?: Row; chip?: Row; unitId?: number; target: string;
+  issue?: IssueRecord; physical?: PhysicalItemRecord; chip?: ChipRecord; unitId?: number; target: string;
 }) {
   const [form] = Form.useForm();
   const [styleId, setStyleId] = useState<number | undefined>(physical?.style_id || issue?.style_id);

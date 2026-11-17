@@ -11,10 +11,11 @@ import StyleEditor from "../components/StyleEditor";
 import ServerTable from "../components/ServerTable";
 import UserIdentity from "../components/UserIdentity";
 import { inputDate, inputISO } from "../businessTime";
-import { assemblyPath, orderPath, Row, time } from "../catalog";
+import { assemblyPath, orderPath, time } from "../catalog";
+import type { ActionResult, OrderUnit as OrderUnitRecord } from "../types/catalog";
 import { testBatch } from "../testDataMode";
-import { OrderPreparationQueue } from "./OrderPreparation";
-import { RegisterPhysical } from "./ItemAssembly";
+import { OrderPreparationQueue } from "../components/order/OrderPreparationDrafts";
+import RegisterPhysical from "../components/RegisterPhysical";
 
 const titleFor: Record<string, string> = {
   physical: "选用已有实物",
@@ -25,7 +26,9 @@ const titleFor: Record<string, string> = {
   enable: "启用数字物品",
 };
 
-function unitStatus(unit: Row) {
+type OrderDialog = "new" | "match" | "physical" | "allocate" | "release" | "sale" | "delivery" | "enable";
+
+function unitStatus(unit: OrderUnitRecord) {
   if (unit.delivered_at) return unit.holder_uid ? "已认领" : "待认领";
   if (!unit.expected_style_id) return "待核对款式规格";
   if (unit.physical_item_id && !unit.physical_matches) return "待纠正实物";
@@ -89,31 +92,31 @@ function OrderDetail({ id }: { id: number }) {
       {order && <div className="page-stack">
         {!canEdit && <Alert type="warning" title="该订单属于另一数据范围，切换到对应范围后可继续办理。" />}
         <Space wrap aria-label="定位订单件">
-          {order.units.map((unit: Row) => <Button key={unit.id} type={unitId === unit.id ? "primary" : "default"}
+          {order.units.map((unit: OrderUnitRecord) => <Button key={unit.id} type={unitId === unit.id ? "primary" : "default"}
             onClick={() => { history.replace(orderPath(id, unit.id, source)); document.getElementById("order-unit-" + unit.id)?.scrollIntoView({ block: "nearest" }); }}>
             第 {unit.position} 件 · {unitStatus(unit)}
           </Button>)}
         </Space>
-        {order.units.map((unit: Row) => <OrderUnit key={unit.id} unit={unit} active={unitId === unit.id}
+        {order.units.map((unit: OrderUnitRecord) => <OrderUnit key={unit.id} unit={unit} active={unitId === unit.id}
           canEdit={canEdit} source={source} reload={state.reload} />)}
       </div>}
     </Load>
   </PageContainer>;
 }
 
-function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; active: boolean; canEdit: boolean; source: string; reload: () => void }) {
-  const [dialog, setDialog] = useState<string>();
+function OrderUnit({ unit, active, canEdit, source, reload }: { unit: OrderUnitRecord; active: boolean; canEdit: boolean; source: string; reload: () => void }) {
+  const [dialog, setDialog] = useState<OrderDialog>();
   const [stockSelected, setStockSelected] = useState(false);
-  function openDialog(name?: string) {
+  function openDialog(name?: OrderDialog) {
     setStockSelected(false);
     setDialog(name);
   }
-  const [claim, setClaim] = useState<Row>();
+  const [claim, setClaim] = useState<ActionResult>();
   const [configure, setConfigure] = useState(false);
   const href = orderPath(unit.order_id, unit.id, source);
   const itemHref = "/items/" + unit.item_id + "?from=" + encodeURIComponent(href);
   const status = unitStatus(unit);
-  const action = (name: string, label: string, primary = false) =>
+  const action = (name: OrderDialog, label: string, primary = false) =>
     <Button key={name} type={primary ? "primary" : "default"} onClick={() => openDialog(name)}>{label}</Button>;
   function done() {
     openDialog();
@@ -141,8 +144,8 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
           <Descriptions.Item label="实际交付时间">{time(unit.delivered_at)}</Descriptions.Item>
           <Descriptions.Item label="交付芯片与代次">第 {unit.delivered_generation} 代 · {unit.delivered_chip_uid}</Descriptions.Item>
           <Descriptions.Item label="首次交付依据">{unit.first_delivery_reference}</Descriptions.Item>
-          <Descriptions.Item label="认领码状态">{unit.claim_code_id ? <ClaimCodeStatus key={unit.claim_code_id} itemId={unit.item_id}
-            status={{ id: unit.claim_code_id, expires_at: unit.claim_expires_at, consumed_at: unit.claim_consumed_at, revoked_at: unit.claim_revoked_at }} /> : "未发放"}</Descriptions.Item>
+          <Descriptions.Item label="认领码状态">{unit.claim_code_id ? <ClaimCodeStatus key={unit.claim_code_id} itemId={unit.item_id!}
+            status={{ id: unit.claim_code_id, expires_at: unit.claim_expires_at!, consumed_at: unit.claim_consumed_at, revoked_at: unit.claim_revoked_at }} /> : "未发放"}</Descriptions.Item>
           <Descriptions.Item label="当前持有人">{unit.holder_uid ? <UserIdentity uid={unit.holder_uid} /> : "待认领"}</Descriptions.Item>
         </>}
       </Descriptions>
@@ -155,14 +158,14 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
             { key: "allocate", label: "选用已就绪数字库存" },
             { key: "physical", label: "选用已有实物" },
             { key: "new", label: "登记新实物" },
-          ], onClick: ({ key }) => openDialog(key) }}>
+          ], onClick: ({ key }) => openDialog(key as OrderDialog) }}>
             <Button type="primary">准备物品</Button>
           </Dropdown>
           {action("match", "更正款式与规格")}
         </>}
         {status === "待装配" && <Button type="primary" onClick={() => history.push(unit.item_id ?
           "/items/" + unit.item_id + "?install=1&from=" + encodeURIComponent(href) :
-          assemblyPath(href, { order_unit_id: unit.id, physical_item_id: unit.physical_item_id }))}>开始装配</Button>}
+          assemblyPath(href, { order_unit_id: unit.id, physical_item_id: unit.physical_item_id ?? undefined }))}>开始装配</Button>}
         {status === "待核验" && <Button type="primary" onClick={() => setConfigure(true)}>配置并核验芯片</Button>}
         {status === "待核对装配" && <Button type="primary" onClick={() => history.push(itemHref)}>核对数字物品档案</Button>}
         {status === "待启用" && action("enable", "启用数字物品", true)}
@@ -179,7 +182,7 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
       title={dialog === "allocate" && !unit.item_id ? "选择可分配数字库存" : titleFor[dialog]}
       submitText={titleFor[dialog]}
       action={({ physical: "orderPhysical", allocate: "allocateOrderUnit", release: "releaseOrderUnit",
-        sale: "orderSale", delivery: "issueClaimCode", enable: "toggleItem" } as Record<string, string>)[dialog]}
+        sale: "orderSale", delivery: "issueClaimCode", enable: "toggleItem" } as const)[dialog]}
       initial={{ order_unit_id: unit.id, item_id: unit.item_id || undefined, status: "active", first_sold_at: inputISO(inputDate()) }}
       submitDisabled={(dialog === "physical" || (dialog === "allocate" && !unit.item_id)) && !stockSelected}
       onClose={() => openDialog()} onDone={(r) => { if (dialog === "delivery") setClaim(r); done(); }}>
@@ -225,7 +228,7 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: Row; activ
   </section>;
 }
 
-function OrderFacts({ unit }: { unit: Row }) {
+function OrderFacts({ unit }: { unit: OrderUnitRecord }) {
   return <Descriptions size="small" bordered column={1} style={{ marginBottom: 16 }}>
     <Descriptions.Item label="订单件">{unit.external_order_no} · 第 {unit.position} 件</Descriptions.Item>
     <Descriptions.Item label="订单原文">{unit.product_name} · {unit.ordered_spec || "未提供购买规格"}</Descriptions.Item>
@@ -241,7 +244,7 @@ function OrderFacts({ unit }: { unit: Row }) {
   </Descriptions>;
 }
 
-function OrderMatchDialog({ unit, onClose, onDone }: { unit: Row; onClose: () => void; onDone: () => void }) {
+function OrderMatchDialog({ unit, onClose, onDone }: { unit: OrderUnitRecord; onClose: () => void; onDone: () => void }) {
   const [form] = Form.useForm();
   const [creatingStyle, setCreatingStyle] = useState(false);
   const styleId = Form.useWatch("style_id", form);

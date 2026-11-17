@@ -1,3 +1,4 @@
+import type { CatalogQuery, CatalogStatistics } from "../types/catalog";
 import ReadFailure from "../components/ReadFailure";
 import React, { useState, useEffect } from "react";
 import {
@@ -26,7 +27,6 @@ import {
   activityPath,
   itemWorkflowNames,
   statistics,
-  Row as CatalogRow,
   edition,
   time,
   read,
@@ -43,7 +43,7 @@ import MetricCard from "../components/MetricCard";
 export default function Overview() {
   const location = useLocation();
   const q = new URLSearchParams(location.search);
-  const [filter, setFilter] = useState<Record<string, any>>({
+  const [filter, setFilter] = useState<CatalogQuery>({
     scope: q.get("scope") === "all" ? "all" : "sold",
     range: q.get("range") || "7d",
     style_id: q.get("style_id") || undefined,
@@ -52,11 +52,11 @@ export default function Overview() {
   const [view, setView] = useState(q.get("view") || "touches"),
     [detailFilter, setDetailFilter] = useState(q.get("detail_filter") || ""),
     [page, setPage] = useState(Number(q.get("page") || 1)),
-    [data, setData] = useState<CatalogRow>(),
+    [data, setData] = useState<CatalogStatistics>(),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(false),
     [filterDirty, setFilterDirty] = useState(false),
-    [applied, setApplied] = useState<Record<string, any>>({}),
+    [applied, setApplied] = useState<CatalogQuery>({}),
     [appliedNames, setAppliedNames] = useState<Record<string, string>>({}),
     [asOf, setAsOf] = useState(q.get("as_of") || undefined);
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function Overview() {
     for (const [key, resource] of [
       ["style_id", "styles"],
       ["issue_id", "issues"],
-    ]) {
+    ] as const) {
       if (applied[key])
         read(resource, Number(applied[key]))
           .then((r) => {
@@ -102,9 +102,9 @@ export default function Overview() {
   const from = "/overview" + location.search;
   const tapDetails = (extra: Record<string, string | number> = {}) => go(activityPath(from, {
     event: "tap", scope: data?.scope, range: data?.range, as_of: data?.as_of,
-    style_id: applied.style_id, issue_id: applied.issue_id, ...extra,
+    style_id: applied.style_id as string | number | undefined, issue_id: applied.issue_id as string | number | undefined, ...extra,
   }));
-  const saveQuery = (values: Record<string, any>) => {
+  const saveQuery = (values: CatalogQuery) => {
     const q = new URLSearchParams();
     for (const [k, v] of Object.entries(values))
       if (v != null && v !== "") q.set(k, String(v));
@@ -129,12 +129,12 @@ export default function Overview() {
     sold: data?.counts.sold_items,
     claimed: data?.counts.claimed_items,
     owners: data?.counts.holders,
-    daily: (data?.daily || []).map((x: any) => ({
+    daily: (data?.daily || []).map((x) => ({
       date: x.day,
       count: x.total,
     })),
   };
-  const max = Math.max(1, ...s.daily.map((x: any) => x.count));
+  const max = Math.max(1, ...s.daily.map((x) => x.count));
   const touchDetailAction = (key: string, label: string) =>
     data && !loading && !error ? { label, run: () => showTapItems(key) } : undefined;
   return (
@@ -262,7 +262,7 @@ export default function Overview() {
               </Col>
             </Row>
             <Typography.Text type="secondary">
-              每件被触碰物品平均 {s.touched ? (s.total / s.touched).toFixed(1) + " 次" : "—"}
+              每件被触碰物品平均 {s.touched ? (s.total! / s.touched).toFixed(1) + " 次" : "—"}
             </Typography.Text>
             <ProCard
               size="small"
@@ -281,7 +281,7 @@ export default function Overview() {
                   role="img"
                   aria-label="按北京时间汇总的有效触碰日趋势"
                 >
-                  {s.daily.map((x: any) => (
+                  {s.daily.map((x) => (
                     <Tooltip
                       key={x.date}
                       title={x.date + " · " + x.count + "次"}
@@ -405,7 +405,7 @@ export default function Overview() {
                   },
                   {
                     title: "发行编号",
-                    render: (_, r) => <span>{edition(r as CatalogRow)}</span>,
+                    render: (_, r) => <span>{edition(r)}</span>,
                   },
                   {
                     title: "售出确认",
