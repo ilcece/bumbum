@@ -6,6 +6,7 @@
 ## 2026-11-17 修复用户动态时间轴的 UID 行对齐
 
 - 工作台和数字物品详情共用的时间轴采用正文行高展示 UID，账户资料卡沿用原入口与焦点交互。杭州 test 两处均用同批三种合成记录核对圆点位置、点击及关闭交互。[发布和验证记录](docs/HANGZHOU_DEPLOYMENT.md#hz-test-activity-timeline-429808d)
+- cece 确认 test 验收后，修复与发布记录经 [PR #42](https://github.com/ilcece/bumbum/pull/42) 合入 main。杭州生产已备份并发布，同一试点物品的两处时间轴与账户资料卡复验通过。[生产发布与回退记录](docs/HANGZHOU_DEPLOYMENT.md#hz-production-activity-timeline-20261117)
 
 ## 2026-11-17 按变更范围分流CI并复用小更新工具
 
