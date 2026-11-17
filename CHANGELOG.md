@@ -8,7 +8,8 @@
 - 根据独立审查补强011–013只读检查：完整核对唯一约束集合和列默认值，拒绝额外全局单号唯一限制及异常创建时间表达式，保留普通非唯一性能索引兼容。补测发现可空列缺少NULL默认值也会阻止建单，而 `COLUMN_DEFAULT` 无法区分，因此仅对相关已知列补查 `SHOW CREATE TABLE`，兼容反引号、双引号和无引号输出。未知结构返回未就绪并拒绝自动迁移，不改表或业务写入规则。
 - 现行规范恢复「数字物品管理 → 数字物品／实体物品」层级，设计规范与后台说明同步；实际界面不变。提案补回 `#flows` 和 `#item-rights` 导航，归档入口提供旧H5原路径的固定历史版本，现行规则仍以product为准。
 - 两种原始误报均先在隔离MySQL重现。专项初轮35项通过、1项正常建单失败，定位到移除默认值后的真实1364错误；将该边界纳入检查后，最终45项专项通过，覆盖正常跨渠道同单号、同渠道重复拒绝、数据库UTC创建时间及未知结构拒绝自动修复。临时数据库已清理，文档和差异检查通过。
-- 用户所述Windows全量与网关验证缺口通过现有GitHub工作流补验，使用当前项目分支的 `workflow_dispatch` 并开启 `include_gateway`；构建、完整Linux回归和TLS镜像网关的实际结果以[对应运行记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml?query=branch%3Arefactor%2Fproject-structure-and-fixes)为准，不把触发检查等同通过。未执行已取消的React 19独立组件冒烟，未合并main、部署或操作真实业务库、短信及芯片。
+- [首轮GitHub CI](https://github.com/ilcece/bumbum/actions/runs/44021641985)双端构建及基础检查成功，基础测试246通过、2跳过；镜像构建成功，网关2通过、1失败，未放行管理IP的场景预期401却得到502。该场景原以Nginx直接返回403判断就绪，未确认后端已启动；仅修正夹具等待独立后端 `/api/ready=200` 后再验原有网关和认证断言。在本地按原Dockerfile构建的源码镜像下，临时插件对该场景增加两秒启动延迟，3项网关验证全部通过；原网关规则、业务代码和CI配置不变，临时容器及媒体卷已清理。
+- 完整Linux与TLS网关补验继续使用当前项目分支的既有 `workflow_dispatch`，开启 `include_gateway`；最终提交的实际结果以[对应运行记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml?query=branch%3Arefactor%2Fproject-structure-and-fixes)为准，不把触发检查等同通过。未执行已取消的React 19独立组件冒烟，未合并main、部署或操作真实业务库、短信及芯片。
 
 ## 2026-11-17 修复保存恢复、删除状态和交付核对，并细化业务验证
 
