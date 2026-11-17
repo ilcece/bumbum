@@ -39,6 +39,10 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 4. **切换并验证。** 按本次发布范围更新目标槽，核对后端就绪、静态版本、登录和公开入口隔离，再走受影响的业务路径。失败时依据已验证的回退方案恢复对应镜像、静态和网关。数据库恢复另按迁移和备份方案判断。
 5. **更新发布记录。** 记录实际版本、迁移结果、备份与回退位置、已完成的检查和待验收项，更新[当前发布记录](#当前发布记录)的对应环境。
 
+日常小更新先复用已有工具、构建缓存和固定通道。CI期间可并行准备候选产物、只读预检与回退资料，进入生产切换前仍须取得授权和对应最终内容的有效检查结果。相同内容的main自动检查可并行继续；实际交付内容变化或出现新失败时先核对处理，不用旧绿灯代替。验证选择见[协作规范](../AGENTS.md#60-按影响验证与复用结果)，纯发布记录和验收反馈走[文档快速检查](GITHUB_OPERATIONS.md#6-ci-分流与验证复用)，不重新部署应用。
+
+复用发布步骤时，每次只替换已核验的目标环境、源版本、镜像及静态产物，核对实际HTTPS根和回退兼容性。停写、SQL／媒体备份、切换与失败恢复保持在同一受保护调用，恢复责任在停止命令发出前建立；不把失败恢复留给下一条可能无法执行的命令。历史脚本中的固定版本、截止时间或“尚未登记密钥”条件不能直接照搬，生产已登记通行密钥后的恢复边界见[当前发布记录](#current-releases)。本节未将历史脚本变为通用一键发布工具。
+
 原章节兼容旧链接。接管、空库初始化及历史命令按各节适用范围查阅。
 
 ## 1. 推荐架构及连接判定
@@ -686,6 +690,21 @@ read -r -p '已确认测试用户域名（不带https）：' HZ_USER_HOST
 read -r -p '已核对管理出口IP：' HZ_ADMIN_IP
 python3 scripts/hangzhou.py prepare --slot test   --manifest /opt/bumbum-hangzhou/test/compose.json   --image "bumbum-hangzhou-backend:$HZ_REVISION" --image-id "$HZ_IMAGE_ID"   --admin-host "$HZ_ADMIN_HOST" --user-host "$HZ_USER_HOST" --admin-ip "$HZ_ADMIN_IP"
 ```
+
+#### 日常只更新镜像时生成候选清单
+
+已有环境使用 `prepare-update` 复用当前公开配置。由AI在目标ECS上本次已核验的工具目录执行；`HZ_REVISION`、`HZ_IMAGE_ID` 使用本次审核提交与目标机核对过的镜像内容ID。下面以生产为例，输出目录须是本次明确选用的审核目录；test改用其固定清单和对应环境。
+
+```bash
+python3 scripts/hangzhou.py prepare-update --slot production \
+  --manifest /opt/bumbum-hangzhou/production/compose.json \
+  --output /tmp/bumbum-release-review/compose.next.json \
+  --image "bumbum-hangzhou-backend:$HZ_REVISION" --image-id "$HZ_IMAGE_ID"
+```
+
+此命令只验证公开结构并生成仅替换镜像标签与内容ID的候选，不读取私有文件内容、不调用Docker，也不替换固定清单或启动服务。源文件名及解析后的目标均须以 `.json` 结尾；已有任何输出（含同内容或符号链接）直接拒绝，不读取其内容比较，源文件保持。候选生成成功不代表实际镜像、数据库或发布通过。输出经审查后，仍按上方顺序预检、备份及受保护切换，并从原固定清单路径执行 `check`／`start`；生产启停继续要求 `--confirm-production`。
+
+原 `prepare` 继续用于新环境。校验器另兼容已批准的现行生产配置：`runtime.env` 与可选 `sms-pilot.env` 的完整raw描述和原顺序，配合 `MEDIA_ENABLED=false`、`SMS_PROVIDER=aliyun_pilot`、原 `H5_LEGACY_ITEM_UNTIL=2026-11-17T10:37:57+00:00` 的精确组合；不会自动启用该组合或改变截止时间，其他额外参数仍拒绝。`check` 逐份核对私有文件元数据，不再为该已知组合临时改写校验函数；可选文件缺失按既有描述处理，存在时同样须为非符号链接、权限受限的普通文件。
 
 管理站点的HTTP重定向和HTTPS请求均须使用不含查询参数的安全访问日志；跳转Location保留原参数，不为脱敏破坏实际触碰链接。
 

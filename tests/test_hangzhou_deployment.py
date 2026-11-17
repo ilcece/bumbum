@@ -3,6 +3,8 @@
 import json
 import os
 import subprocess
+from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
@@ -14,6 +16,258 @@ def manifest(slot):
     return hangzhou.render_manifest(slot, "bumbum-hangzhou-backend:" + "a" * 40, "sha256:" + "b" * 64,
                                     "hz-test-admin.bumbum.cc" if slot == "test" else "admin.bumbum.cc",
                                     "hz-test-nfc.bumbum.cc" if slot == "test" else "nfc.bumbum.cc")
+
+
+def production_pilot_manifest():
+    document = manifest("production")
+    service = document["services"]["backend"]
+    service["environment"].update({"MEDIA_ENABLED": "false", "SMS_PROVIDER": "aliyun_pilot",
+                                    "H5_LEGACY_ITEM_UNTIL": "2026-11-17T10:37:57+00:00"})
+    service["env_file"] = [
+        {"path": "/opt/bumbum-hangzhou/production/secrets/runtime.env", "format": "raw"},
+        {"path": "/opt/bumbum-hangzhou/production/secrets/sms-pilot.env", "format": "raw", "required": False},
+    ]
+    return document
+
+
+@pytest.mark.parametrize("slot,pilot", [("test", False), ("production", False), ("production", True)])
+def test_manifest_validation_is_pure_and_preserves_approved_profiles(slot, pilot, monkeypatch):
+    document = production_pilot_manifest() if pilot else manifest(slot)
+    before = deepcopy(document)
+    monkeypatch.setattr(hangzhou, "docker", lambda args: pytest.fail("不得调用Docker"))
+    monkeypatch.setattr(hangzhou, "Path", lambda *args: pytest.fail("不得读取文件"))
+    assert hangzhou.validate_manifest(document, slot) == before
+    assert document == before
+
+
+@pytest.mark.parametrize("keys,value", [
+    (("environment", "DB_NAME"), "bumbum_hz_test"),
+    (("environment", "DB_USER"), "bumbum_hz_test"),
+    (("environment", "DB_SSL_MODE"), "DISABLED"),
+    (("environment", "ADMIN_ORIGIN"), "https://test.bumbum.cc"),
+    (("environment", "MEDIA_ENABLED"), "true"),
+    (("environment", "SMS_PROVIDER"), "aliyun"),
+    (("environment", "H5_LEGACY_ITEM_UNTIL"), "2099-11-17T10:37:57+00:00"),
+    (("environment", "ARBITRARY_EXTRA"), "unsupported"),
+    (("env_file", 1, "path"), "/opt/bumbum-hangzhou/test/secrets/sms-pilot.env"),
+    (("env_file", 1, "format"), "default"),
+    (("env_file", 1, "required"), True),
+    (("env_file", 1, "required"), 0),
+    (("command", 3), "0.0.0.0:15000"),
+    (("volumes", 2, "source"), "/opt/bumbum-hangzhou/test/media"),
+])
+def test_unapproved_production_profile_is_rejected_before_docker(keys, value, tmp_path, monkeypatch):
+    document = production_pilot_manifest()
+    target = document["services"]["backend"]
+    for key in keys[:-1]:
+        target = target[key]
+    target[keys[-1]] = value
+    path = tmp_path / "compose.json"
+    path.write_text(json.dumps(document))
+    monkeypatch.setattr(hangzhou, "docker", lambda args: pytest.fail("错误配置不得调用Docker"))
+    with pytest.raises(hangzhou.DeploymentError):
+        hangzhou.check_deployment(path, "production", require_runtime=False)
+
+
+def test_production_pilot_requires_the_complete_profile_and_file_order():
+    document = production_pilot_manifest()
+    document["services"]["backend"]["env_file"].reverse()
+    with pytest.raises(hangzhou.DeploymentError):
+        hangzhou.validate_manifest(document, "production")
+    document = production_pilot_manifest()
+    del document["services"]["backend"]["environment"]["H5_LEGACY_ITEM_UNTIL"]
+    with pytest.raises(hangzhou.DeploymentError):
+        hangzhou.validate_manifest(document, "production")
+    with pytest.raises(hangzhou.DeploymentError):
+        hangzhou.validate_manifest(production_pilot_manifest(), "test")
+
+
+def test_approved_production_pilot_uses_existing_image_and_project_checks(tmp_path, monkeypatch):
+    document = production_pilot_manifest()
+    path = tmp_path / "compose.json"
+    path.write_text(json.dumps(document))
+    calls = []
+
+    def docker(args):
+        calls.append(args)
+        if args[:2] == ["image", "inspect"]:
+            return "sha256:" + "b" * 64
+        if args[:2] == ["ps", "-aq"]:
+            return "owned-container"
+        return str(path.resolve())
+
+    monkeypatch.setattr(hangzhou, "docker", docker)
+    assert hangzhou.check_deployment(path, "production", require_runtime=False) == document
+    assert any(args[:2] == ["image", "inspect"] for args in calls)
+    assert any(args[0] == "inspect" and args[-1] == "owned-container" for args in calls)
+    monkeypatch.setattr(hangzhou, "docker", lambda args: "sha256:" + "c" * 64)
+    with pytest.raises(hangzhou.DeploymentError, match="镜像标签"):
+        hangzhou.check_deployment(path, "production", require_runtime=False)
+
+
+@pytest.mark.parametrize("slot,pilot", [("test", False), ("production", False), ("production", True)])
+def test_prepare_update_changes_only_image_identity_without_docker_or_private_reads(slot, pilot, tmp_path, monkeypatch):
+    document = production_pilot_manifest() if pilot else manifest(slot)
+    source = tmp_path / "current.json"
+    source.write_text(json.dumps(document))
+    original = source.read_bytes()
+    output = tmp_path / "candidate/compose.json"
+    private_paths = {entry["path"] for entry in document["services"]["backend"]["env_file"]}
+    read_text = Path.read_text
+
+    def public_read(path, *args, **kwargs):
+        assert str(path) not in private_paths, "不得读取私有配置内容"
+        return read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", public_read)
+    monkeypatch.setattr(hangzhou, "docker", lambda args: pytest.fail("生成候选不得调用Docker"))
+    assert hangzhou.main(["prepare-update", "--slot", slot, "--manifest", str(source),
+                          "--output", str(output), "--image", "bumbum-hangzhou-backend:" + "c" * 40,
+                          "--image-id", "sha256:" + "d" * 64]) == 0
+    candidate = json.loads(output.read_text())
+    assert candidate["services"]["backend"]["image"] == "bumbum-hangzhou-backend:" + "c" * 40
+    assert candidate["services"]["backend"]["labels"]["cc.bumbum.image-id"] == "sha256:" + "d" * 64
+    candidate["services"]["backend"]["image"] = document["services"]["backend"]["image"]
+    candidate["services"]["backend"]["labels"]["cc.bumbum.image-id"] = document["services"]["backend"]["labels"]["cc.bumbum.image-id"]
+    assert candidate == document and source.read_bytes() == original
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["candidate", "current.json"]
+
+
+@pytest.mark.parametrize("output_kind", ["source", "symlink-to-source", "private-file", "same-content",
+                                        "symlink-to-private", "dangling-symlink"])
+def test_prepare_update_refuses_every_existing_output_without_reading_it(output_kind, tmp_path, monkeypatch):
+    source = tmp_path / "current.json"
+    document = production_pilot_manifest()
+    source.write_text(json.dumps(document))
+    original = source.read_bytes()
+    output = source if output_kind == "source" else tmp_path / ("runtime.env" if output_kind == "private-file" else "candidate.json")
+    if output_kind == "symlink-to-source":
+        output.symlink_to(source)
+    elif output_kind in {"symlink-to-private", "dangling-symlink"}:
+        target = tmp_path / "private.env"
+        if output_kind == "symlink-to-private":
+            target.write_text("synthetic-private-content")
+        output.symlink_to(target)
+    elif output_kind == "same-content":
+        document["services"]["backend"]["image"] = "bumbum-hangzhou-backend:" + "c" * 40
+        document["services"]["backend"]["labels"]["cc.bumbum.image-id"] = "sha256:" + "d" * 64
+        output.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n")
+    elif output_kind == "private-file":
+        output.write_text("synthetic-private-content")
+    original_output = output.read_bytes() if output.exists() else None
+    original_link = output.readlink() if output.is_symlink() else None
+    read_text = Path.read_text
+
+    def public_source_only(path, *args, **kwargs):
+        assert path != output, "不得读取已有输出，即使内容相同或误指私有文件"
+        return read_text(path, *args, **kwargs)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(Path, "read_text", public_source_only)
+        patched.setattr(hangzhou, "docker", lambda args: pytest.fail("不得调用Docker"))
+        with pytest.raises(hangzhou.DeploymentError):
+            hangzhou.prepare_update(source, output, "production", "bumbum-hangzhou-backend:" + "c" * 40, "sha256:" + "d" * 64)
+    assert source.read_bytes() == original
+    if original_output is not None:
+        assert output.read_bytes() == original_output
+    if original_link is not None:
+        assert output.is_symlink() and output.readlink() == original_link
+
+
+@pytest.mark.parametrize("source_kind", ["env-file", "json-alias-to-env"])
+def test_prepare_update_rejects_nonjson_source_before_reading(source_kind, tmp_path, monkeypatch):
+    private = tmp_path / "runtime.env"
+    private.write_text("synthetic-private-content")
+    source = private
+    if source_kind == "json-alias-to-env":
+        source = tmp_path / "alias.json"
+        source.symlink_to(private)
+    monkeypatch.setattr(Path, "read_text", lambda *args, **kwargs: pytest.fail("不得读取私有源"))
+    monkeypatch.setattr(hangzhou, "docker", lambda args: pytest.fail("不得调用Docker"))
+    output = tmp_path / "candidate.json"
+    with pytest.raises(hangzhou.DeploymentError, match=".json公开Compose清单"):
+        hangzhou.prepare_update(source, output, "production", "bumbum-hangzhou-backend:" + "c" * 40, "sha256:" + "d" * 64)
+    assert not output.exists() and private.read_bytes() == b"synthetic-private-content"
+
+
+@pytest.mark.parametrize("created_kind", ["file", "symlink"])
+def test_prepare_update_preserves_output_created_after_existence_check(created_kind, tmp_path, monkeypatch):
+    source = tmp_path / "current.json"
+    source.write_text(json.dumps(production_pilot_manifest()))
+    output = tmp_path / "candidate.json"
+    target = tmp_path / "private.env"
+    target.write_text("synthetic-private-content")
+    original_open, original_read = Path.open, Path.read_text
+
+    def raced_open(path, mode="r", *args, **kwargs):
+        if path == output and mode == "x":
+            if created_kind == "symlink":
+                path.symlink_to(target)
+            else:
+                with original_open(path, "x", encoding="utf-8") as stream:
+                    stream.write("concurrent-user-work")
+        return original_open(path, mode, *args, **kwargs)
+
+    def public_source_only(path, *args, **kwargs):
+        assert path != output and path != target, "竞态失败后不得读取已有文件"
+        return original_read(path, *args, **kwargs)
+
+    with monkeypatch.context() as patched:
+        patched.setattr(Path, "open", raced_open)
+        patched.setattr(Path, "read_text", public_source_only)
+        patched.setattr(hangzhou, "docker", lambda args: pytest.fail("不得调用Docker"))
+        with pytest.raises(hangzhou.DeploymentError, match="已被创建"):
+            hangzhou.prepare_update(source, output, "production", "bumbum-hangzhou-backend:" + "c" * 40, "sha256:" + "d" * 64)
+    assert target.read_text() == "synthetic-private-content"
+    if created_kind == "file":
+        assert output.read_text() == "concurrent-user-work"
+    else:
+        assert output.is_symlink() and output.readlink() == target
+
+
+@pytest.mark.parametrize("image,image_id", [("bumbum-hangzhou-backend:latest", "sha256:" + "d" * 64),
+                                             ("bumbum-hangzhou-backend:" + "c" * 40, "sha256:short")])
+def test_prepare_update_rejects_unfixed_image_identity_before_writing(image, image_id, tmp_path, monkeypatch):
+    source = tmp_path / "current.json"
+    source.write_text(json.dumps(production_pilot_manifest()))
+    output = tmp_path / "candidate.json"
+    monkeypatch.setattr(hangzhou, "docker", lambda args: pytest.fail("不得调用Docker"))
+    with pytest.raises(hangzhou.DeploymentError):
+        hangzhou.prepare_update(source, output, "production", image, image_id)
+    assert not output.exists()
+
+
+def test_env_file_checks_only_metadata_for_every_present_file_and_optional_absence(tmp_path, monkeypatch):
+    first, second = tmp_path / "runtime.env", tmp_path / "sms-pilot.env"
+    for path in [first, second]:
+        path.write_text("synthetic-private-content")
+        path.chmod(0o600)
+    entries = [{"path": str(first), "format": "raw"},
+               {"path": str(second), "format": "raw", "required": False}]
+    monkeypatch.setattr(Path, "read_text", lambda *args, **kwargs: pytest.fail("不得读取私有配置内容"))
+    hangzhou.check_env_files(entries)
+    second.chmod(0o644)
+    with pytest.raises(hangzhou.DeploymentError, match="普通文件"):
+        hangzhou.check_env_files(entries)
+    second.unlink()
+    hangzhou.check_env_files(entries)
+    first.unlink()
+    with pytest.raises(hangzhou.DeploymentError, match="必要"):
+        hangzhou.check_env_files(entries)
+
+
+@pytest.mark.parametrize("kind", ["directory", "symlink", "dangling-symlink"])
+def test_optional_env_file_rejects_nonregular_or_symlink_metadata(kind, tmp_path):
+    path = tmp_path / "sms-pilot.env"
+    if kind == "directory":
+        path.mkdir(mode=0o700)
+    else:
+        target = tmp_path / "target.env"
+        if kind == "symlink":
+            target.touch(mode=0o600)
+        path.symlink_to(target)
+    with pytest.raises(hangzhou.DeploymentError, match="普通文件"):
+        hangzhou.check_env_files([{"path": str(path), "format": "raw", "required": False}])
 
 
 def test_slots_have_distinct_database_identity_ports_directories_and_volumes():
