@@ -18,6 +18,7 @@ import {
   Typography,
   Tooltip,
   Form,
+  Select,
 } from "antd";
 import {
   SearchOutlined,
@@ -216,6 +217,9 @@ export default function Overview() {
                   </Button>
                 </div>
               </ProForm>
+              <Typography.Paragraph type="secondary" className="filter-guidance">
+                款式、发行同时用于触碰统计与售出持有统计；统计口径、时间范围仅用于触碰统计。
+              </Typography.Paragraph>
               <div className="filter-summary">
                 <Tag color="blue">已生效</Tag>
                 {error && data && <Tag color="orange">上次成功结果</Tag>}
@@ -336,6 +340,9 @@ export default function Overview() {
         </ProCard>
         <ProCard title="售出与持有" headerBordered>
           <div className="page-stack">
+            <Typography.Text type="secondary">
+              按所选款式、发行统计当前情况，不受时间范围和触碰口径影响。
+            </Typography.Text>
             <Row gutter={[12, 12]}>
               {[
                 { title: "已确认售出物品", value: s.sold, unit: "件" },
@@ -343,11 +350,10 @@ export default function Overview() {
                 { title: "当前持有人", value: s.owners, unit: "人" },
               ].map((metric) => (
                 <Col flex="1 1 160px" key={metric.title}>
-                  <MetricCard {...metric} note="按所选款式与发行的当前关系统计" />
+                  <MetricCard {...metric} />
                 </Col>
               ))}
             </Row>
-            <Typography.Text type="secondary">时间范围只应用于触碰统计。</Typography.Text>
           </div>
         </ProCard>
         <div id="overview-details">
@@ -368,14 +374,16 @@ export default function Overview() {
             />
             {view === "touches" ? (
               <div>
-              <Space wrap>
-                {[
+              <Form layout="vertical" className="inline-stat-filters">
+                <Form.Item label="触碰情况" htmlFor="overview-touch-filter">
+                  <Select id="overview-touch-filter" value={detailFilter}
+                    disabled={!data || loading || !!error} onChange={showTapItems}
+                    options={[
                   ["", "全部物品"], ["touched", "有有效触碰"], ["repeat", "重复触碰"],
                   ...(data?.scope === "sold" ? [["zero", "所选时段售出后零触碰"], ["missing_sale", "成交时间待核对"]] : []),
-                ].map(([key, label]) => <Button key={key}
-                  disabled={!data || loading || !!error} type={detailFilter === key ? "primary" : "default"}
-                  onClick={() => showTapItems(key)}>{label}</Button>)}
-              </Space>
+                    ].map(([value, label]) => ({ value, label }))} />
+                </Form.Item>
+              </Form>
               <ProTable
                 rowKey="id"
                 headerTitle="按稳定数字身份汇总，历史芯片一并累计"

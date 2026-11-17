@@ -8,6 +8,7 @@ import {
   Avatar,
   Badge,
   Tag,
+  Tooltip,
 } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import { history, Link, RunTimeLayoutConfig, useLocation } from "@umijs/max";
@@ -37,7 +38,6 @@ function Account() {
     <Space className="admin-profile" size={8}>
       <Avatar size={24} icon={<UserOutlined aria-hidden />} />
       <span>管理员</span>
-      <Badge status="success" text="管理会话" />
       <Button
         type="text"
         size="small"
@@ -129,10 +129,12 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => ({
   menuTextRender: (item, dom) => <MenuLabel path={item.path} label={dom} />,
   menuFooterRender: ({ collapsed }: any) =>
     collapsed ? null : (
-      <div className="sider-caption">
-        <Badge status={testBatch() ? "warning" : "success"} />
-        {testBatch() ? "测试数据已开启" : "业务数据"}
-      </div>
+      <Tooltip trigger={["hover", "focus"]} title="仅控制验收测试批次的显示范围，与 test／生产环境无关。关闭时显示未归入验收批次的数据；在系统管理的设置中切换。">
+        <div className="sider-caption" tabIndex={0}>
+          <Badge status={testBatch() ? "warning" : "default"}
+            text={testBatch() ? "验收测试数据：已开启" : "验收测试数据：关闭"} />
+        </div>
+      </Tooltip>
     ),
   avatarProps: { render: () => <Account /> },
   footerRender: false,

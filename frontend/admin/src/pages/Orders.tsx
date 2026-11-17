@@ -91,12 +91,21 @@ function OrderDetail({ id }: { id: number }) {
     <Load error={state.error} loading={state.loading} retry={state.reload}>
       {order && <div className="page-stack">
         {!canEdit && <Alert type="warning" title="该订单属于另一数据范围，切换到对应范围后可继续办理。" />}
-        <Space wrap aria-label="定位订单件">
-          {order.units.map((unit: OrderUnitRecord) => <Button key={unit.id} type={unitId === unit.id ? "primary" : "default"}
-            onClick={() => { history.replace(orderPath(id, unit.id, source)); document.getElementById("order-unit-" + unit.id)?.scrollIntoView({ block: "nearest" }); }}>
+        <nav aria-label="定位订单件" className="order-unit-navigation">
+          <Typography.Text type="secondary">定位订单件</Typography.Text>
+          {order.units.map((unit: OrderUnitRecord) => <a key={unit.id}
+            href={orderPath(id, unit.id, source)} aria-current={unitId === unit.id ? "location" : undefined}
+            onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              history.replace(orderPath(id, unit.id, source));
+              const target = document.getElementById("order-unit-" + unit.id);
+              target?.scrollIntoView({ block: "nearest" });
+              target?.focus({ preventScroll: true });
+            }}>
             第 {unit.position} 件 · {unitStatus(unit)}
-          </Button>)}
-        </Space>
+          </a>)}
+        </nav>
         {order.units.map((unit: OrderUnitRecord) => <OrderUnit key={unit.id} unit={unit} active={unitId === unit.id}
           canEdit={canEdit} source={source} reload={state.reload} />)}
       </div>}
@@ -124,7 +133,7 @@ function OrderUnit({ unit, active, canEdit, source, reload }: { unit: OrderUnitR
     history.replace(href);
     reload();
   }
-  return <section id={"order-unit-" + unit.id}>
+  return <section id={"order-unit-" + unit.id} tabIndex={-1} className="order-unit-section">
     <ProCard title={"第 " + unit.position + " 件 · " + unit.product_name} headerBordered
       extra={<Space><State value={status} />{active && <Typography.Text type="secondary">当前办理</Typography.Text>}</Space>}>
       <Descriptions size="small" column={{ xs: 1, md: 2 }}>
