@@ -8,9 +8,9 @@
 
 | 优先级 | 任务 | 当前状态 | 下一步及负责人 |
 |---|---|---|---|
-| P1，登录便利 | 生产后台通行密钥 | 实现与专项验证完成，测试定位已修正，[PR #38](https://github.com/ilcece/bumbum/pull/38) 完整 CI 复验中 | AI 仅开放两个既定 HTTPS 后台，保留密码＋Authenticator 备用，完成检查及发布；生产凭据单独登记。上线后 cece 按[登录手册](docs/ADMIN_LOGIN.md#杭州后台的通行密钥)完成 Windows Hello 登记与登录验收。 |
-| P1，生产验证 | 杭州生产新版 H5 | 结构整改与技术修复已同步生产，基本发布检查通过；实卡仍待验收 | cece 按[生产实卡验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)使用专用卡，AI 核对后台触碰归属及对应持有记录。当前版本与回退见[生产发布记录](docs/HANGZHOU_DEPLOYMENT.md#hz-production-maintenance-20261117)。短信单号码范围保持，扩大开放与故障恢复分别验证。 |
-| P1，后台验收 | 数字物品管理、UI/UE、工作台与操作审计 | 最新 main 结构整改与技术修复已同步 test 与生产，基本发布检查通过；部分人工验收尚待确认 | cece 先在 test 按[1920×1080 清单](docs/ADMIN_DESKTOP.md#19201080-验收清单)核对建档装配、持有人与权益、手机预览、同类界面和[操作审计](docs/ADMIN_DESKTOP.md#操作审计检查)。按[工作台清单](docs/ADMIN_DESKTOP.md#7-工作台有效触碰统计)核对办理阶段、卡片穿透及触碰口径。AI 复验具体反馈并记录已核对范围；当前版本和回退见[发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。 |
+| P1，登录验收 | 生产后台通行密钥 | [PR #38](https://github.com/ilcece/bumbum/pull/38) 完整 CI 通过并已合入 main，生产已于 2026-11-17 18:43 发布，基本检查通过；真实设备待验收 | cece 按[登录手册](docs/ADMIN_LOGIN.md#杭州后台的通行密钥)在生产用密码和动态码重新登录，10 分钟内登记 Windows Hello，再核对退出后登录、撤销及原方式恢复。test 凭据不复用，密码＋Authenticator 备用保留；版本、备份及回退边界见[发布记录](docs/HANGZHOU_DEPLOYMENT.md#hz-production-passkeys-20261117)。 |
+| P1，生产验证 | 杭州生产新版 H5 | 结构整改与技术修复已同步生产，基本发布检查通过；实卡仍待验收 | cece 按[生产实卡验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)使用专用卡，AI 核对后台触碰归属及对应持有记录。当前版本与回退见[生产发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。短信单号码范围保持，扩大开放与故障恢复分别验证。 |
+| P1，后台验收 | 数字物品管理、UI/UE、工作台与操作审计 | 结构整改与技术修复已同步 test 与生产，基本发布检查通过；部分人工验收尚待确认 | cece 先在 test 按[1920×1080 清单](docs/ADMIN_DESKTOP.md#19201080-验收清单)核对建档装配、持有人与权益、手机预览、同类界面和[操作审计](docs/ADMIN_DESKTOP.md#操作审计检查)。按[工作台清单](docs/ADMIN_DESKTOP.md#7-工作台有效触碰统计)核对办理阶段、卡片穿透及触碰口径。AI 复验具体反馈并记录已核对范围；当前版本和回退见[发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。 |
 | P1，手机验收 | 杭州 test 图片滑动、识别加载与触碰动态 | 11:12 图框及真实触碰账户归属已核对，待 iPhone 复验 | cece 用实卡打开档案，核对滑图、放大预览及识别和档案加载体验。AI 按[公开地址、触碰身份与加载清单](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#公开地址触碰身份与加载验收)核对反馈。 |
 | P1，试用配套 | 芯片停用、恢复与取消挂失 | 普通停用与恢复已有总体反馈，取消挂失已部署至杭州 test，待实卡复验 | cece 用原卡确认取消挂失后可正常碰卡，AI 核对该代实物、芯片服务状态及审计。普通停用恢复沿用已确认范围，其余按反馈补验。[取消挂失发布记录](docs/HANGZHOU_DEPLOYMENT.md#hz-test-cancel-loss) · [芯片状态接口](API_CONTRACT.md#11-数字档案管理与整套物品) |
 | P1，业务决策 | 挂失、换新与转售的业务政策 | 首批逐次报价、人工受理已确认，跨年准备待决定 | cece 选择「今年用完仍可准备明年交付」或「等明年再准备」。AI 依[政策提案](docs/proposals/admin-make-rebuild.md)细化费用、取消与安全释放、冻结、争议及高级纠错的待决边界。 |

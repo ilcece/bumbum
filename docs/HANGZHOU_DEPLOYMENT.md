@@ -14,7 +14,7 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 
 | 环境 | 最后已知发布与验收边界 | 详细证据 |
 |---|---|---|
-| 杭州生产 | 2026-11-17 已同步与 test 相同的结构整改与技术修复，基本发布检查通过；生产短信仍只允许原指定验收号码，实卡待 cece 验收 | [本次生产发布](#hz-production-maintenance-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
+| 杭州生产 | 2026-11-17 18:43 已开放独立通行密钥，基本发布检查通过；Windows Hello 待 cece 在生产登记验收。结构整改与技术修复保留，短信仍只允许原验收号码，实卡待验收 | [本次生产发布](#hz-production-passkeys-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
 | 杭州 test | 2026-11-17 已将审核合入 main 的结构整改与技术修复同步到后端及两端静态，基本发布检查通过；既有专题与实卡人工验收边界继续保留 | [本次 main 发布](#hz-test-maintenance-20261117)；具体待反馈见 [TODO](../TODO.md) |
 
 第6.2节的旧源码、镜像和24表核对只对应2026-10-30接管，不是当前回退基线。未来新增发布后更新本表指向，具体迁移、备份及回退依据保留在该次发布记录，不在其他文件复制版本。
@@ -446,6 +446,24 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 
 生产公网走查通过。模拟触碰沿正式域名进入物品档案，使用公开 UUID。未登录访问私人记录返回登录限制。已确认原验收物品仍归原账户。旧数字地址在原访问条件仍有效时可兼容至北京时间 2026-11-17 18:37:57。生产实卡验收按[生产实卡验收](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)执行。
 
+<a name="hz-production-passkeys-20261117"></a>
+
+### 杭州生产通行密钥开放
+
+北京时间 2026-11-17 18:43，按 cece 已确认的生产开放方案，部署 [PR #38](https://github.com/ilcece/bumbum/pull/38) 合入的 main `b981cf1a77df9d5c29bb867007c1c940860e52b3`。该提交与通过 [902 项完整回归、6 项跳过的 PR 提交](https://github.com/ilcece/bumbum/actions/runs/44063598501) 内容树一致。生产复用原登录页和系统管理入口，凭据须在生产另行登记，密码加 Authenticator 保留；真实 Windows Hello 验收见[登录手册](ADMIN_LOGIN.md#杭州后台的通行密钥)和 TODO。
+
+外部按现有 Dockerfile 完整构建，含既有短信 SDK 的镜像为 `sha256:6d2d859272fad01829f6e955903d21abc0456946caf6739ca64c77b71d5ece6d`。核对原运行层 `sha256:d1456292462ca26fe69c3652ef68e9cb6af5475f8fed0c3b399937f458854042` 的 Python 3.12.14 和完整依赖清单后，交付全部应用，在 ECS 仅组装禁网 COPY 层；实际运行镜像为 `sha256:75c9dd1022a6810ac5a3ea4c371f736cc8461ce02e7aced59129b1ccf6f3ced8`。143 个文件、12 个目录的内容、权限及归属核对通过，未在 ECS 安装依赖或重编前端。
+
+生产应用身份、固定库、服务器 UUID、TLS、011–013 及整体就绪预检通过，无需迁移。`runtime.env` 与 `sms-pilot.env` 的顺序和字节摘要保持，单号码短信策略仅只读核验、未发送短信，上传仍关闭。旧数字链接截止时间仍为北京时间 18:37:57，预检确认已经自然到期，没有延长。test 的镜像、清单、静态及两槽私有配置均保持。
+
+发布前及停写后的备份阶段均确认生产未撤销通行密钥数为 0。全新 SQL／媒体配套备份位于 ECS 私有目录 `/opt/bumbum-hangzhou/production-passkeys-20261117-b981cf1a77df/backup/images-and-database-304a68bcd3f44fa8b5b7244dccb70185`，MySQL 8.0.46 转储结束标记和配套自校验通过；未下载备份或执行本次恢复演练。停写、备份、切换和失败恢复在同一受保护调用中执行，恢复责任在停止命令发出前建立；不自动恢复整库覆盖后来数据。
+
+固定清单仍为 `/opt/bumbum-hangzhou/production/compose.json`，只更新镜像身份；现有生产参数和两份私有配置由本次精确的 `production_control.py` 承接，生产启停显式传入 `--confirm-production`。实际 HTTPS 根为 `/var/www/bumbum-hangzhou-production-releases/b981cf1a77df9d5c29bb867007c1c940860e52b3/admin` 和同版本的 `user`，分别 45／5 个文件。仅修改两份既有 Nginx 配置的 HTTPS 根，完整组合预检、重载及两个新 worker 接管验证通过；原路由、白名单、证书与 ACME 目录保持，不能以未变化的 H5 页面哈希单独证明后台新根已接管。
+
+本次目录 `/opt/bumbum-hangzhou/production-passkeys-20261117-b981cf1a77df` 保留原清单、两份网关 `.before`、候选及发布报告。此次首次登记前窗口的应用回退基线为原镜像 `sha256:d1456292462ca26fe69c3652ef68e9cb6af5475f8fed0c3b399937f458854042` 和 `/var/www/bumbum-hangzhou-production-releases/9b25303226bb9fc64c527a1cad4bdd967eb12cc2/{admin,user}`，须配对恢复固定清单及两个 HTTPS 根。**登记生产密钥后须重新核对回退兼容性：旧版本在生产重置验证器或停用账号时不会持久撤销通行密钥，不能直接作为长期账号恢复工具；恢复操作须使用保持生产密钥撤销语义的兼容版本。** 数据库恢复另行判断。
+
+切换及随后复验中生产／test 就绪均为 200。生产通行密钥登录选项的无效 JSON 请求返回 400，来自 test 的请求返回 403，均未创建挑战，用于确认生产入口已开放且来源仍隔离。H5 HTTPS 页面和引用资源匹配候选，用户域管理、内部 ready 和扫描回调为 404；外部生产／test H5 为 200，当前非白名单来源访问生产后台仍为 403。未执行迁移、真实短信、实卡或业务状态写入；生产真实设备登记、登录、撤销及备用恢复仍待 cece 确认。
+
 <a name="hz-production-maintenance-20261117"></a>
 
 ### 杭州生产维护整改发布
@@ -689,7 +707,7 @@ python3 scripts/hangzhou.py start --slot test --manifest /opt/bumbum-hangzhou/te
 python3 scripts/hangzhou.py status --slot test --manifest /opt/bumbum-hangzhou/test/compose.json
 ```
 
-stop仅停止该环境后端、不删卷、不停另一环境或数据库；生产启停还需显式--confirm-production并遵守批准窗口。日后更新时先将新公开清单生成到另一个审核目录，与固定清单对比，保留旧清单和镜像；在批准发布范围内原子替换原固定路径的清单后，再从原路径启动。不直接从新审核目录接管已运行项目；跨路径拒绝属于归属保护。代码回退只使用已验证RDS适配且与当前表结构兼容的旧镜像，香港原镜像不能直接充当RDS回退版本。静态发布前核对线上 Nginx 的实际 `root` 与 HTTP 内容，不从惯例目录推定当前页面位置。网页从已验证镜像导出，test 常用入口为 /var/www/bumbum-hangzhou-test-admin 及 -user；生产实际根目录见[当前生产发布](#hz-production-maintenance-20261117)。生成的admin.conf/user.conf/proxy.conf先检查两个域名、证书及来源IP，再nginx -t和受控启用，不能复制生成文件后立即认为HTTPS或公网业务通过。尚无证书时不安装启用引用不存在证书的站点；未确认DNS前用受控定向请求验证。
+stop仅停止该环境后端、不删卷、不停另一环境或数据库；生产启停还需显式--confirm-production并遵守批准窗口。日后更新时先将新公开清单生成到另一个审核目录，与固定清单对比，保留旧清单和镜像；在批准发布范围内原子替换原固定路径的清单后，再从原路径启动。不直接从新审核目录接管已运行项目；跨路径拒绝属于归属保护。代码回退只使用已验证RDS适配且与当前表结构兼容的旧镜像，香港原镜像不能直接充当RDS回退版本。静态发布前核对线上 Nginx 的实际 `root` 与 HTTP 内容，不从惯例目录推定当前页面位置。网页从已验证镜像导出，test 常用入口为 /var/www/bumbum-hangzhou-test-admin 及 -user；生产实际根目录见[当前发布记录](#current-releases)。生成的admin.conf/user.conf/proxy.conf先检查两个域名、证书及来源IP，再nginx -t和受控启用，不能复制生成文件后立即认为HTTPS或公网业务通过。尚无证书时不安装启用引用不存在证书的站点；未确认DNS前用受控定向请求验证。
 
 #### SSH低带宽时交付固定main的精简应用产物
 
