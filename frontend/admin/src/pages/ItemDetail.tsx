@@ -12,6 +12,8 @@ import {
   Table,
   Typography,
   Tooltip,
+  Form,
+  Select,
 } from "antd";
 import { history, useLocation, useParams } from "@umijs/max";
 import { activityPath, fromPath, itemWorkflow, orderPath } from "../catalog";
@@ -549,25 +551,22 @@ export default function ItemDetail({
             variant="outlined"
             title="物品触碰统计"
             headerBordered
-            extra={
-              <Space>
-                <Button
-                  onClick={() => setScope(scope === "sold" ? "all" : "sold")}
-                >
-                  {scope === "sold" ? "售出后的有效触碰" : "生命周期有效触碰"}
-                </Button>
-                {["7d", "30d", "all"].map((v) => (
-                  <Button
-                    key={v}
-                    type={range === v ? "primary" : "default"}
-                    onClick={() => setRange(v)}
-                  >
-                    {v === "all" ? "全部时间" : v === "7d" ? "近7天" : "近30天"}
-                  </Button>
-                ))}
-              </Space>
-            }
           >
+            <Form layout="vertical" className="inline-stat-filters">
+              <Form.Item label="统计口径" htmlFor="item-touch-scope">
+                <Select id="item-touch-scope" value={scope} onChange={setScope} options={[
+                  { value: "sold", label: "售出后的有效触碰" },
+                  { value: "all", label: "全生命周期有效触碰" },
+                ]} />
+              </Form.Item>
+              <Form.Item label="时间范围" htmlFor="item-touch-range">
+                <Select id="item-touch-range" value={range} onChange={setRange} options={[
+                  { value: "7d", label: "近7日（含今天）" },
+                  { value: "30d", label: "近30日（含今天）" },
+                  { value: "all", label: "累计" },
+                ]} />
+              </Form.Item>
+            </Form>
             {statsError ? (
               <ReadFailure
                 title="触碰统计读取失败"

@@ -45,19 +45,11 @@ body {
   white-space: nowrap;
 }
 .admin-profile {
-  padding: 4px 5px 4px 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 24px;
-  background: #f8fafc;
   font-size: 12px;
   white-space: nowrap;
 }
 .admin-profile .ant-avatar {
   background: var(--ant-color-primary);
-}
-.admin-profile .ant-badge-status-text {
-  font-size: 11px;
-  color: #64748b;
 }
 .menu-label {
   display: flex;
@@ -84,6 +76,40 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+.filter-guidance {
+  margin-block: 12px 0;
+}
+.inline-stat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.inline-stat-filters .ant-form-item {
+  flex: 0 1 250px;
+  min-width: 200px;
+  margin-bottom: 0;
+}
+.order-unit-navigation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.order-unit-navigation a[aria-current] {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.order-unit-section {
+  scroll-margin-top: 74px;
+}
+.order-unit-navigation a:focus-visible,
+.order-unit-section:focus-visible,
+.sider-caption:focus-visible {
+  outline: 2px solid var(--ant-color-primary);
+  outline-offset: 3px;
 }
 .muted {
   color: #64748b;
@@ -363,9 +389,6 @@ body {
 }
 @media (max-width: 1350px) {
   .header-context > .ant-typography:last-child {
-    display: none;
-  }
-  .admin-profile .ant-badge {
     display: none;
   }
 }

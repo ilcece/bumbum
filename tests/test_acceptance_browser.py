@@ -21,7 +21,7 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     expect(p.get_by_label('数据范围',exact=True)).to_have_count(0)
     expect(p.get_by_text('数据来源',exact=True)).to_have_count(0)
     p.locator('.ant-table-tbody tr').filter(has_text='JEW-').first.get_by_role('button',name='查看',exact=True).click()
-    expect(p.get_by_text('测试数据已开启',exact=True)).to_be_visible()
+    expect(p.get_by_text('验收测试数据：已开启',exact=True)).to_be_visible()
     p.wait_for_load_state('networkidle')
     p.screenshot(path=str(evidence/'restored-item-detail.png'),full_page=True,animations='disabled')
     desktop.navigate('工作台')
@@ -103,7 +103,7 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     switch = p.get_by_role('switch',name='开启测试数据',exact=True)
     switch.check()
     expect(switch).to_be_checked()
-    expect(p.get_by_text('测试数据已开启',exact=True)).to_be_visible()
+    expect(p.get_by_text('验收测试数据：已开启',exact=True)).to_be_visible()
     button(p,'清理本批数据')
     d=p.get_by_role('dialog',name='确认整批清理',exact=True);expect(d).to_be_visible();d.get_by_role('checkbox').check()
     expect(d.get_by_role('button',name='确认清理本批数据',exact=True)).to_have_class(re.compile(r'\bant-btn-dangerous\b'))
@@ -124,7 +124,7 @@ def test_batch_filter_statistics_cleanup_in_real_ui(desktop,monkeypatch,tmp_path
     p.screenshot(path=str(tmp_path/'test-cleanup.png'),animations='disabled');button(d,'确认清理本批数据');d.wait_for(state='hidden')
     expect(p.get_by_text('已清理',exact=True)).to_be_visible()
     expect(switch).not_to_be_checked()
-    expect(p.get_by_text('业务数据',exact=True)).to_be_visible()
+    expect(p.get_by_text('验收测试数据：关闭',exact=True)).to_be_visible()
     assert batch in stale_reads
     assert query(desktop.app,'SELECT COUNT(*) AS n FROM test_batch WHERE status=\'deleted\'')[0]['n']==1
 

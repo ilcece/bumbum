@@ -178,7 +178,7 @@ def test_workbench_and_filtered_list_return_paths(desktop):
     p.get_by_role("link", name=re.compile("订单管理$")).click()
     field, previous = search("订单号或渠道", "ROUTE-ORDER-01")
     button(p, "ROUTE-ORDER-01")
-    button(p, "第 2 件 · 待核对款式规格")
+    p.get_by_role("navigation", name="定位订单件").get_by_role("link", name="第 2 件 · 待核对款式规格", exact=True).press("Enter")
     expect(p).to_have_url(re.compile(r"/orders/" + str(order["id"]) + r"\?unit="))
     back.click()
     expect(p).to_have_url(previous)
