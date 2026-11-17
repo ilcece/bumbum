@@ -7,7 +7,7 @@
 
 - cece 同意根据通行密钥上线耗时复盘简化流程。纯文档不再安装应用依赖、构建双端或运行数据库／浏览器全量；源码、部署、依赖、测试及CI自身的变化仍走完整检查。按真实PR／push差异分类，删除和重命名核对旧路径，正常事件缺少准确范围时明确失败；文档推送不取消前一个源码提交的main校验。协作规则及[检查说明](docs/GITHUB_OPERATIONS.md#6-ci-分流与验证复用)同步，合并及生产授权保持。
 - 杭州工具兼容现行已批准生产配置，新增只替换镜像身份的候选生成入口，保留原清单、私有配置、目标及启停保护。独立审查发现已有输出的幂等比较可能读取私有文件，已改为候选拒绝任何已有输出并独占创建，源与解析目标限定JSON；不访问真实配置或替换线上服务。[杭州手册](docs/HANGZHOU_DEPLOYMENT.md#日常只更新镜像时生成候选清单)明确候选与实际发布的边界、配置精确组合及既有备份／回退要求。
-- 本地两个工具的98项定向验证通过，2项真实Docker用例未在本地执行；文档、差异、Python语法和workflow YAML检查通过。用上次真实Git历史重放，生产代码更新走完整流程，发布记录更新走文档快速检查，两段已提交差异检查均通过。云端及生效状态以[任务分支检查](https://github.com/ilcece/bumbum/actions/workflows/checks.yml?query=branch%3Achore%2Fstreamline-small-changes)和TODO为准，不把本地验证写成已合入或已上线；本次未操作生产或test环境。
+- 本地两个工具的98项定向验证通过，2项真实Docker用例未在本地执行；文档、差异、Python语法和workflow YAML检查通过。用上次真实Git历史重放，源码更新走完整流程，发布记录更新走文档快速检查，两段已提交差异检查均通过。[源码PR完整CI](https://github.com/ilcece/bumbum/actions/runs/44076968825)实际输出 `full=true`，双端构建通过，基础用例320项通过、2项跳过，独立完整回归976项通过、6项跳过、0项失败；计数不累加，独立网关作业未触发。[纯文档PR实测](https://github.com/ilcece/bumbum/actions/runs/44077850162)输出 `full=false`，23秒完成文档及提交差异检查，依赖安装、双端构建和业务测试均跳过，未取消并行源码检查。[PR #40](https://github.com/ilcece/bumbum/pull/40)检查通过后按cece批准合入main，合并内容树与已验证源码一致；[PR #41](https://github.com/ilcece/bumbum/pull/41)仅收尾本次验证记录，不以文档绿灯代替源码证据。本次未操作生产或test环境。
 
 ## 2026-11-17 将通行密钥扩展到生产后台
 

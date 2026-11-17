@@ -8,7 +8,6 @@
 
 | 优先级 | 任务 | 当前状态 | 下一步及负责人 |
 |---|---|---|---|
-| P1，交付效率 | 小需求验证与发布流程 | 已在[项目分支](https://github.com/ilcece/bumbum/tree/chore/streamline-small-changes)实现文档CI分流、结果复用规则及杭州镜像候选入口，本地98项定向验证通过 | AI 完成该分支云端完整检查并交付审核；合入main后流程才生效，后续纯文档检查核对实际分流结果。本任务不需要更新生产／test应用，当前合并与检查证据以项目分支PR为准。 |
 | P1，登录验收 | 生产后台通行密钥 | [PR #38](https://github.com/ilcece/bumbum/pull/38) 完整 CI 通过并已合入 main，生产于 2026-11-17 18:43 发布；cece 已确认 Windows Hello 登记和退出后的通行密钥登录正常 | 登记／登录已验收，撤销及原方式恢复已有自动回归证据，实机尚未复核；cece 后续按[登录手册](docs/ADMIN_LOGIN.md#杭州后台的通行密钥)使用相应操作时核对。密码＋Authenticator 备用保留，test 凭据不复用；版本、备份及登记后的回退边界见[发布记录](docs/HANGZHOU_DEPLOYMENT.md#hz-production-passkeys-20261117)。 |
 | P1，生产验证 | 杭州生产新版 H5 | 结构整改与技术修复已同步生产，基本发布检查通过；实卡仍待验收 | cece 按[生产实卡验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)使用专用卡，AI 核对后台触碰归属及对应持有记录。当前版本与回退见[生产发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。短信单号码范围保持，扩大开放与故障恢复分别验证。 |
 | P1，后台验收 | 数字物品管理、UI/UE、工作台与操作审计 | 结构整改与技术修复已同步 test 与生产，基本发布检查通过；部分人工验收尚待确认 | cece 先在 test 按[1920×1080 清单](docs/ADMIN_DESKTOP.md#19201080-验收清单)核对建档装配、持有人与权益、手机预览、同类界面和[操作审计](docs/ADMIN_DESKTOP.md#操作审计检查)。按[工作台清单](docs/ADMIN_DESKTOP.md#7-工作台有效触碰统计)核对办理阶段、卡片穿透及触碰口径。AI 复验具体反馈并记录已核对范围；当前版本和回退见[发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。 |
@@ -78,6 +77,8 @@ Windows Hello、用户动态和账户卡沿用11月10日人工验收。普通芯
 <a name="已完成"></a>
 
 ## 已完成与历史证据
+
+2026-11-17，小需求验证与发布流程改进已通过 [PR #40](https://github.com/ilcece/bumbum/pull/40) 合入 main：纯文档快速检查、同版本结果复用及杭州镜像候选入口已可用。源码完整回归976项通过、6项跳过，纯文档路径实测23秒通过；最终验证记录通过 [PR #41](https://github.com/ilcece/bumbum/pull/41) 收尾，证据见[变更记录](CHANGELOG.md#2026-11-17-按变更范围分流ci并复用小更新工具)。本次未部署生产或test应用，生产授权、备份和回退门槛保持。
 
 2026-11-17，cece 已审核通过项目结构与可读性整改、保存/删除/交付核对修复，以及就绪检查、菜单和旧链接追修。通过 [PR #34](https://github.com/ilcece/bumbum/pull/34) 向 main 交付，实际合并状态以该PR为准；本次不部署。整改方案已归档，范围及验证证据见[变更记录](CHANGELOG.md#2026-11-17-项目维护整改审核通过并进入主线整合)。
 
