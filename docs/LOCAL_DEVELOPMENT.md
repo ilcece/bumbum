@@ -69,7 +69,7 @@ PowerShell常用命令（先双击上面的打开入口）：
 
 cece已确认Windows工具其余验收通过，并授权修正Ctrl+C提示后合入main；本次提示调整有回归检查，Windows原生自动检查在云端仍会跳过。下方保留各系统手动步骤，用于其他系统和故障排查；日常启动不必每次执行完整测试。
 
-当前桌面管理端登录前从“检查运行环境”展开运行检查，登录后从“系统管理 → 系统与环境”检查。默认登录成功进入工作台，芯片和物品通过侧栏进入；启动命令与端口不变，不支持手机后台适配。
+登录前用[本地运行检查命令](#4-验证这一小步)核对服务。登录后在「系统管理 → 系统与环境」查看运行检查。登录成功进入工作台，芯片和物品通过侧栏进入。
 
 ## 1. 准备工具和目录
 
@@ -163,14 +163,18 @@ Windows 使用 `npm.cmd`，可避开 PowerShell 阻止执行 `npm.ps1` 的问题
 
 服务检查应显示两行“通过”；任一失败会以非零状态退出。普通自动检查不要求数据库，真实数据库检查默认显示 `skipped`（跳过），不算通过。出现 `failed` 表示未通过。
 
-管理员认证与芯片管理的完整自动检查需要 Docker，按系统选择一条：
+隔离数据库回归需要 Docker。在 Windows PowerShell 从仓库根目录执行：
 
-| 系统 | 命令 |
-|---|---|
-| macOS / Linux | `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
-| Windows PowerShell | `.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db` |
+```powershell
+.\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db `
+  --deselect=tests/test_database_tls.py::test_real_mysql_verified_tls_wrong_identity_ca_and_guarded_initialization `
+  --deselect=tests/test_hangzhou_deployment.py::test_authenticator_export_from_real_tmpfs_refuses_symlink `
+  --deselect=tests/test_hangzhou_deployment.py::test_both_slot_nginx_configurations_parse_together
+```
 
-命令新建专属临时MySQL，结束后删除测试容器及专属卷，不占用33306端口，不修改已有测试库。包含认证、芯片、旧库升级和备份恢复检查；你的已有库按第7节单独升级，不由测试命令代为修改。下方RUN_DB_TESTS只读检查已启动的原测试库。
+该命令新建专属临时 MySQL，结束后清理自己的容器和卷。覆盖认证、芯片、业务写入、就绪检查及适用的升级和恢复检查。浏览器回归使用[第9节](#9-可重复的桌面浏览器回归)，原本地测试库用下方 `RUN_DB_TESTS` 单独只读检查。
+
+上方三个用例直连 Linux Docker socket。有该 socket 的 Linux 开发环境可运行 `.venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q --auth-db`。没有该 socket 的 macOS 环境，用 `.venv/bin/python` 并沿用 Windows 命令的三个排除项。隔离数据库、浏览器全量回归和上述三个用例由 Linux CI 的 `integration` 作业验证。镜像 HTTPS 网关由 `gateway` 作业验证，按需启用 `include_gateway`。结果见[对应版本的项目检查记录](https://github.com/ilcece/bumbum/actions/workflows/checks.yml)。记录结果时区分通过、按平台排除、跳过和失败。
 
 要检查原测试库，先确认第2节的数据库已启动，再按系统执行：
 

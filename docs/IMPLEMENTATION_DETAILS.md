@@ -743,7 +743,7 @@ H5 入口先核对允许的用户网页 Origin，再沿用现有“物品→芯�
 
 ## 19. 数字档案装配与 H5 实现约束
 
-本节承接已实现的数字档案、实体装配、标准权益、账户及认领规则。产品定义分别见[数字档案](product/digital-catalog.md)、[字段](product/admin-fields.md)和[用户 H5](product/user-h5.md)，逐字段契约只维护在[API](../API_CONTRACT.md#11-数字档案管理与整套物品当前分支)。原Umi迁移与增量方案按[归档索引](archive/README.md#admin-history)追溯，不从历史“拟用接口”推断当前地址；公开随机标识、挂失找回与触碰账户以现行API及本附录第18节为准。
+本节承接已实现的数字档案、实体装配、标准权益、账户及认领规则。产品定义分别见[数字档案](product/digital-catalog.md)、[字段](product/admin-fields.md)和[用户 H5](product/user-h5.md)，逐字段契约只维护在[API](../API_CONTRACT.md#11-数字档案管理与整套物品)。原Umi迁移与增量方案按[归档索引](archive/README.md#admin-history)追溯，不从历史“拟用接口”推断当前地址；公开随机标识、挂失找回与触碰账户以现行API及本附录第18节为准。
 
 ### 19.1 数字档案与管理写入
 
