@@ -179,14 +179,14 @@ Windows 的日常隔离数据库回归先启动 Docker Desktop，再在仓库根
 
 ```bash
 # macOS / Linux
-RUN_DB_TESTS=1 .venv/bin/python -m pytest --ignore=tests/test_antd_compatibility.py -q
+RUN_DB_TESTS=1 .venv/bin/python -m pytest -q tests/test_database.py
 ```
 
 ```powershell
 # Windows PowerShell
 $env:RUN_DB_TESTS="1"
 try {
-    .\.venv\Scripts\python.exe -X utf8 -m pytest --ignore=tests/test_antd_compatibility.py -q
+    .\.venv\Scripts\python.exe -X utf8 -m pytest -q tests/test_database.py
 } finally {
     Remove-Item Env:RUN_DB_TESTS -ErrorAction SilentlyContinue
 }
