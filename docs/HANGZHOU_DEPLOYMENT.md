@@ -14,8 +14,8 @@ cece已于2026-10-29批准第5—7节的杭州适配方案，并决定生产和�
 
 | 环境 | 最后已知发布与验收边界 | 详细证据 |
 |---|---|---|
-| 杭州生产 | 2026-11-17 21:20 已发布时间轴对齐修复，两处时间轴和 UID 账户卡复验通过。生产 Windows Hello 登记及登录已验收，短信仍只允许原验收号码，实卡待验收 | [时间轴修复发布](#hz-production-activity-timeline-20261117)、[通行密钥发布](#hz-production-passkeys-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
-| 杭州 test | 2026-11-17 20:53 已部署时间轴对齐修复 `429808d`，后台和 H5 就绪。工作台与数字物品详情的三种动态身份和账户卡已通过实测，cece 已确认验收通过 | [时间轴修复发布](#hz-test-activity-timeline-429808d)；其他验收见 [TODO](../TODO.md) |
+| 杭州生产 | 2026-11-17 23:32 已部署 main `fca6323`，后台 HTTPS 与 H5、服务就绪和访问隔离检查通过。后台新交互待线上人工验收，短信仍只允许原验收号码，实卡待验收 | [本次发布](#hz-main-fca6323-20261117)、[通行密钥发布](#hz-production-passkeys-20261117)、[短信单号码边界](#杭州生产短信单号码验收) |
+| 杭州 test | 2026-11-17 23:29 已部署同一 main `fca6323`，后台 HTTPS 与 H5、服务就绪和访问隔离检查通过，后台新交互待线上人工验收 | [本次发布](#hz-main-fca6323-20261117)；其他验收见 [TODO](../TODO.md) |
 
 第6.2节的旧源码、镜像和24表核对只对应2026-10-30接管，不是当前回退基线。未来新增发布后更新本表指向，具体迁移、备份及回退依据保留在该次发布记录，不在其他文件复制版本。
 
@@ -449,6 +449,18 @@ python3 /workspace/work/tools/workbench-cli/role_setup.py
 生产停写后备份数据库和媒体，校验通过再按 012–015 升级。迁移前后的账户、会话、认领码、持有关系、原触碰记录与其他既有行内容逐项相符。原短信单号配置和校验密钥通过文件校验，初始化账号恢复锁定。备份及发布记录在杭州 ECS 私有目录 `/opt/bumbum-hangzhou/production-h5.lraH3L74`，数据库和媒体备份在其 `backup` 子目录。隔离演练已验证兼容回退镜像能够读取升级结构。程序回退使用成套镜像、旧网关与静态文件。
 
 生产公网走查通过。模拟触碰沿正式域名进入物品档案，使用公开 UUID。未登录访问私人记录返回登录限制。已确认原验收物品仍归原账户。旧数字地址在原访问条件仍有效时可兼容至北京时间 2026-11-17 18:37:57。生产实卡验收按[生产实卡验收](DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)执行。
+
+<a name="hz-main-fca6323-20261117"></a>
+
+### 2026-11-17 两环境同步后台筛选与导航
+
+按 cece 授权，从 main `fca63232812a8cdbe09ef253f89f0d0cdb4bb336` 构建并经本机 Workbench 交付同一固定镜像 `sha256:fe8ca289382a155c0fa0a2f245194636491d6014aaf0490181a698ffb4b1ba6d`。后台应用对应 [PR #43 的完整回归](https://github.com/ilcece/bumbum/actions/runs/44093293880)，合并内容树一致，随后 main 仅更新 CHANGELOG 和 TODO，其[文档检查](https://github.com/ilcece/bumbum/actions/runs/44098507144)通过。
+
+北京时间 23:29 切换 test，23:32 切换生产。候选以各槽原应用身份验证 TLS 和数据库结构，两槽无需迁移。生产停写后完成 SQL／媒体配套备份并通过自校验，位置为 `/opt/bumbum-hangzhou/production-main-fca6323.jzepdlBz/backup/images-and-database-df04db53cc5446008e7cee188ca5bdd9`，未做恢复演练。生产通行密钥配置、原短信单号码策略和私有配置保持。生产 H5 资源与候选一致，入口仅有回车格式差异，保留原生产 H5 静态及网关。
+
+两槽后端均健康，`/api/ready` 为 200。经两域实际 HTTPS 核对工作台、订单、物品页面的入口和样式哈希，未登录会话为 401，H5 为 200，用户站与管理接口的访问隔离通过。浏览器未能确认活动页面地址，线上登录后的交互走查未完成，待验收范围见 [TODO](../TODO.md)。
+
+两槽回退镜像为 `429808d`。test 回退资料在 `/opt/bumbum-hangzhou/test-main-fca6323.I77z179a`，配对恢复原 Compose 与两端静态链接。生产回退资料在 `/opt/bumbum-hangzhou/production-main-fca6323.jzepdlBz`，配对恢复 `compose-before.json` 与 `nginx-admin-before.conf`。数据库恢复另行判断。
 
 <a name="hz-production-activity-timeline-20261117"></a>
 
@@ -1127,6 +1139,16 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 在杭州 test 既有管理员会话中，用独立批次的一个合成物品核对工作台与数字物品详情。两处的 UID、匿名访客和身份未记录行均与圆点对齐，文字中心偏移一致，绝对值为 0.5 CSS 像素。两处点击 UID 均打开对应账户卡，分别验证了 Esc 和关闭按钮会将焦点交还 UID。批次已按既有流程清理，业务数据视图已恢复。
 
 回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-activity-429808d.ozYvs6Y4`，以 `compose-before.json`、`admin-before.txt` 和 `user-before.txt` 为准，配对恢复 `1abe21a` 镜像和两端静态。数据库结构及私有配置保持。
+
+<a name="hz-test-main-1abe21a"></a>
+
+#### 2026-11-17 20:39 从 main 更新杭州 test
+
+按 cece 本次授权，发布 [main `1abe21a0c2c03c6173f3a98d94fdb033342e927d`](https://github.com/ilcece/bumbum/commit/1abe21a0c2c03c6173f3a98d94fdb033342e927d)，实际镜像为 `sha256:6e69e0fa4067b2f34fbde3985ed0e8c736968def02644143d858a38680e41ed6`。Windows 本机复用现有 Workbench RAM 角色，原生上传公开镜像并逐包核对 SHA256。双端构建、依赖和阿里云短信 SDK 导入检查通过。新提交的[文档快速检查](https://github.com/ilcece/bumbum/actions/runs/44080743790)及其父版的[应用集成检查](https://github.com/ilcece/bumbum/actions/runs/44079816950)通过，两提交间仅变动 CHANGELOG 与 TODO。
+
+候选用 test 原应用账号经验证主机名的 TLS 连接检查数据库结构，结果为就绪，无需迁移。用 `prepare-update` 保留原公开配置，只替换镜像标签和内容 ID。测试站后台登录页、入口脚本和 H5 HTTPS 内容与候选一致，后端 `/api/ready` 返回 200，未登录的后台会话与通行密钥接口返回 401，用户域后台接口和内部就绪入口均返回 404。生产容器、公开清单、静态根和网关保持，部署后生产仍就绪。Windows Hello、实际短信和实卡本轮未复验。
+
+回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-main-1abe21a.WsPhhM1e`，以 `compose-before.json`、`admin-before.txt` 和 `user-before.txt` 为准，配对恢复原 `9b25303` 镜像和两端静态。本次未改库或媒体文件，沿用[上一版发布](#hz-test-maintenance-20261117)的 SQL／媒体备份记录。
 
 <a name="hz-test-maintenance-20261117"></a>
 

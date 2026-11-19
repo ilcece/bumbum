@@ -8,7 +8,7 @@
 
 | 优先级 | 任务 | 当前状态 | 下一步及负责人 |
 |---|---|---|---|
-| P1，后台一致性 | 筛选、导航与顶栏表达统一 | [PR #43](https://github.com/ilcece/bumbum/pull/43)已按cece批准合入main，最终完整CI为978项通过、6项跳过；本次改动尚未部署，线上人工验收待进行 | AI 按后续部署授权发布；cece 核对筛选范围说明、三处官方选择控件、数据范围提示、顶栏及订单件导航，AI处理反馈。菜单展开、选中及折叠已有隔离实测证据，保留官方实现；合并不代替实际页面验收。 |
+| P1，后台一致性 | 筛选、导航与顶栏表达统一 | [PR #43](https://github.com/ilcece/bumbum/pull/43)已合入 main，完整 CI 为978项通过、6项跳过；杭州 test 和生产[已部署](docs/HANGZHOU_DEPLOYMENT.md#hz-main-fca6323-20261117)，线上人工验收待进行 | cece 核对筛选范围说明、三处选择控件、数据范围提示、顶栏及订单件导航，AI处理反馈。菜单展开、选中及折叠已有隔离实测证据。 |
 | P1，登录验收 | 生产后台通行密钥 | [PR #38](https://github.com/ilcece/bumbum/pull/38) 完整 CI 通过并已合入 main，生产于 2026-11-17 18:43 发布；cece 已确认 Windows Hello 登记和退出后的通行密钥登录正常 | 登记／登录已验收，撤销及原方式恢复已有自动回归证据，实机尚未复核；cece 后续按[登录手册](docs/ADMIN_LOGIN.md#杭州后台的通行密钥)使用相应操作时核对。密码＋Authenticator 备用保留，test 凭据不复用；版本、备份及登记后的回退边界见[发布记录](docs/HANGZHOU_DEPLOYMENT.md#hz-production-passkeys-20261117)。 |
 | P1，生产验证 | 杭州生产新版 H5 | 结构整改与技术修复已同步生产，基本发布检查通过；实卡仍待验收 | cece 按[生产实卡验收](docs/DIGITAL_ITEM_ASSEMBLY_H5_ACCEPTANCE.md#生产实卡验收)使用专用卡，AI 核对后台触碰归属及对应持有记录。当前版本与回退见[生产发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。短信单号码范围保持，扩大开放与故障恢复分别验证。 |
 | P1，后台验收 | 数字物品管理、UI/UE、工作台与操作审计 | 结构整改与技术修复已同步 test 与生产，基本发布检查通过；部分人工验收尚待确认 | cece 先在 test 按[1920×1080 清单](docs/ADMIN_DESKTOP.md#19201080-验收清单)核对建档装配、持有人与权益、手机预览、同类界面和[操作审计](docs/ADMIN_DESKTOP.md#操作审计检查)。按[工作台清单](docs/ADMIN_DESKTOP.md#7-工作台有效触碰统计)核对办理阶段、卡片穿透及触碰口径。AI 复验具体反馈并记录已核对范围；当前版本和回退见[发布记录](docs/HANGZHOU_DEPLOYMENT.md#current-releases)。 |
