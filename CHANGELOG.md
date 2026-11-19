@@ -16,6 +16,11 @@
 - 工作台和数字物品详情共用的时间轴采用正文行高展示 UID，账户资料卡沿用原入口与焦点交互。杭州 test 两处均用同批三种合成记录核对圆点位置、点击及关闭交互。[发布和验证记录](docs/HANGZHOU_DEPLOYMENT.md#hz-test-activity-timeline-429808d)
 - cece 确认 test 验收后，修复与发布记录经 [PR #42](https://github.com/ilcece/bumbum/pull/42) 合入 main。杭州生产已备份并发布，同一试点物品的两处时间轴与账户资料卡复验通过。[生产发布与回退记录](docs/HANGZHOU_DEPLOYMENT.md#hz-production-activity-timeline-20261117)
 
+## 2026-11-17 部署 main 最新版本至杭州 test
+
+- 按 cece 授权将 `1abe21a` 后端、管理后台和移动 H5 发布到杭州 test。候选先验证 test 数据库身份、TLS 和结构，无需迁移。发布后核对两站 HTTPS 产物、后端就绪和访问隔离，生产保持原版本。
+- 版本、回退依据及实机验证范围见[杭州 test 发布记录](docs/HANGZHOU_DEPLOYMENT.md#hz-test-main-1abe21a)。现有业务验收继续参照 [TODO](TODO.md)。
+
 ## 2026-11-17 按变更范围分流CI并复用小更新工具
 
 - cece 同意根据通行密钥上线耗时复盘简化流程。纯文档不再安装应用依赖、构建双端或运行数据库／浏览器全量；源码、部署、依赖、测试及CI自身的变化仍走完整检查。按真实PR／push差异分类，删除和重命名核对旧路径，正常事件缺少准确范围时明确失败；文档推送不取消前一个源码提交的main校验。协作规则及[检查说明](docs/GITHUB_OPERATIONS.md#6-ci-分流与验证复用)同步，合并及生产授权保持。

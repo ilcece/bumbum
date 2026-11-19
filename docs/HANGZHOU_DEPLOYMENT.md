@@ -1140,6 +1140,16 @@ python -m core.acceptance_data --admin-username 你的测试管理员 --apply
 
 回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-activity-429808d.ozYvs6Y4`，以 `compose-before.json`、`admin-before.txt` 和 `user-before.txt` 为准，配对恢复 `1abe21a` 镜像和两端静态。数据库结构及私有配置保持。
 
+<a name="hz-test-main-1abe21a"></a>
+
+#### 2026-11-17 20:39 从 main 更新杭州 test
+
+按 cece 本次授权，发布 [main `1abe21a0c2c03c6173f3a98d94fdb033342e927d`](https://github.com/ilcece/bumbum/commit/1abe21a0c2c03c6173f3a98d94fdb033342e927d)，实际镜像为 `sha256:6e69e0fa4067b2f34fbde3985ed0e8c736968def02644143d858a38680e41ed6`。Windows 本机复用现有 Workbench RAM 角色，原生上传公开镜像并逐包核对 SHA256。双端构建、依赖和阿里云短信 SDK 导入检查通过。新提交的[文档快速检查](https://github.com/ilcece/bumbum/actions/runs/44080743790)及其父版的[应用集成检查](https://github.com/ilcece/bumbum/actions/runs/44079816950)通过，两提交间仅变动 CHANGELOG 与 TODO。
+
+候选用 test 原应用账号经验证主机名的 TLS 连接检查数据库结构，结果为就绪，无需迁移。用 `prepare-update` 保留原公开配置，只替换镜像标签和内容 ID。测试站后台登录页、入口脚本和 H5 HTTPS 内容与候选一致，后端 `/api/ready` 返回 200，未登录的后台会话与通行密钥接口返回 401，用户域后台接口和内部就绪入口均返回 404。生产容器、公开清单、静态根和网关保持，部署后生产仍就绪。Windows Hello、实际短信和实卡本轮未复验。
+
+回退资料在 ECS 私有目录 `/opt/bumbum-hangzhou/test-main-1abe21a.WsPhhM1e`，以 `compose-before.json`、`admin-before.txt` 和 `user-before.txt` 为准，配对恢复原 `9b25303` 镜像和两端静态。本次未改库或媒体文件，沿用[上一版发布](#hz-test-maintenance-20261117)的 SQL／媒体备份记录。
+
 <a name="hz-test-maintenance-20261117"></a>
 
 #### 项目维护整改与技术修复
